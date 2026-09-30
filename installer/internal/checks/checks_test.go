@@ -1,4 +1,4 @@
-package tui
+package checks
 
 import (
 	"os"
@@ -51,7 +51,7 @@ var _ = Describe("Prerequisites round-trip", Label("prerequisites"), func() {
 	})
 
 	It("gathers checks of every prompt type from the plugin", func() {
-		checks, err := gatherChecks(m, log, "")
+		checks, err := Gather(m, log, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(checks).To(HaveLen(5))
 
@@ -69,7 +69,7 @@ var _ = Describe("Prerequisites round-trip", Label("prerequisites"), func() {
 	})
 
 	It("sends the user's answers on apply and receives results", func() {
-		checks, err := gatherChecks(m, log, "")
+		checks, err := Gather(m, log, "")
 		Expect(err).ToNot(HaveOccurred())
 
 		answers := map[string]prereqs.Answer{
@@ -82,7 +82,7 @@ var _ = Describe("Prerequisites round-trip", Label("prerequisites"), func() {
 		// 4 interactive checks (info is display-only).
 		Expect(decisions).To(HaveLen(4))
 
-		results, err := applyDecisions(m, log, decisions, "")
+		results, err := Apply(m, log, decisions, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].ID).To(Equal("t-multi"))
@@ -103,12 +103,12 @@ var _ = Describe("Prerequisites round-trip", Label("prerequisites"), func() {
 		Expect(os.Setenv("PREREQTEST_FAIL", "1")).To(Succeed())
 		defer func() { _ = os.Unsetenv("PREREQTEST_FAIL") }()
 
-		checks, err := gatherChecks(m, log, "")
+		checks, err := Gather(m, log, "")
 		Expect(err).ToNot(HaveOccurred())
 		decisions := prereqs.BuildDecisions(checks, map[string]prereqs.Answer{
 			"t-multi": {Selected: []string{"/dev/sdb"}},
 		})
-		results, err := applyDecisions(m, log, decisions, "")
+		results, err := Apply(m, log, decisions, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(results).To(HaveLen(1))
 		Expect(results[0].Success).To(BeFalse())

@@ -1,9 +1,7 @@
 package hook
 
 import (
-	"io/fs"
 	"path/filepath"
-	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
@@ -66,45 +64,17 @@ func (b SysExtPostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	}
 
 	// Extensions declared in the cloud config, which have to be downloaded.
-	if err := installDeclaredExtensionsToEFI(c, activeDir, passiveDir); err != nil {
+	declared, err := installDeclaredExtensionsToEFI(c, activeDir, passiveDir)
+	if err != nil {
 		c.Logger.Errorf("failed to install the declared extensions: %s", err)
 		if c.FailOnBundleErrors {
 			return err
 		}
 	}
 
-	// Extensions shipped on the live media, which are already local.
-	err = fsutils.WalkDirFs(c.Fs, constants.LiveDir, func(path string, info fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(info.Name(), ".sysext.raw") {
-			// copy it to /EFI/Kairos/{active,passive}.efi.extra.d/
-			err = fsutils.Copy(c.Fs, path, filepath.Join(activeDir, info.Name()))
-			if err != nil {
-				c.Logger.Errorf("failed to copy %s to %s: %s", path, activeDir, err)
-				if c.FailOnBundleErrors {
-					return err
-				}
-				return nil
-			}
-			c.Logger.Debugf("copied %s to %s", path, activeDir)
-
-			err = fsutils.Copy(c.Fs, path, filepath.Join(passiveDir, info.Name()))
-			if err != nil {
-				c.Logger.Errorf("failed to copy %s to %s: %s", path, passiveDir, err)
-				if c.FailOnBundleErrors {
-					return err
-				}
-				return nil
-			}
-			c.Logger.Debugf("copied %s to %s", path, passiveDir)
-		}
-		return nil
-	})
+	// Extensions shipped on the live media, which are already local. The
+	// non-UKI flow runs the same sweep from ExtensionsPostInstall.
+	_, err = StageLiveMediaExtensions(c, declared, activeDir, passiveDir)
 	if c.FailOnBundleErrors && err != nil {
 		return err
 	}

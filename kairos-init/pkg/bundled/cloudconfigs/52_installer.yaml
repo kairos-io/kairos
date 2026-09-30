@@ -1,19 +1,33 @@
 name: "Start installer on tty1"
 stages:
   initramfs:
-    # Start the plain installer on the install-mode cmdline. install-mode is a
-    # prefix of install-mode-interactive, so the keyword is matched
-    # space-delimited to keep an interactive-only cmdline out. A cmdline with
-    # both keywords still lands here; the interactive stage below runs later
-    # and disables kairos-installer again. That is also why nothing here
-    # enables kairos-webui: the boot stage owns that, and it refuses every
+    # Start the plain installer on a boot that is asking to install.
+    #
+    # On Trusted Boot the cmdline lives in a signed section of the UKI, and
+    # AuroraBoot builds every entry from the same base, so install-mode is
+    # present on every UKI boot: on the live medium and, because the installer
+    # copies norole.efi byte for byte into active, passive, recovery and
+    # statereset, on every installed role too. The keyword therefore tells a
+    # live UKI boot and an installed one apart in neither direction, and
+    # /run/cos/uki_install_mode is the only signal that does: immucore writes
+    # it from removable-media boot, not from the cmdline.
+    #
+    # On the GRUB live ISO the cmdline is per menu entry and unsigned, so the
+    # keyword is what separates "install" from a plain live boot, and it stays
+    # required there.
+    #
+    # install-mode is a prefix of install-mode-interactive, so the keyword is
+    # matched space-delimited to keep an interactive-only cmdline out. A
+    # cmdline with both keywords still lands here; the interactive stage below
+    # runs later and disables kairos-installer again. That is also why nothing
+    # here enables kairos-webui: the boot stage owns that, and it refuses every
     # interactive cmdline, because on those the installer serves the WebUI
     # in-process and a service would race it for the listen address.
-    # Works in livecd or uki install mode
     # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
     - if: |
-        (grep -qE "(^| )install-mode( |$)" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline ) && \
-        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+        [ -f /run/cos/uki_install_mode ] || \
+        ([ -f /run/cos/live_mode ] && \
+         (grep -qE "(^| )install-mode( |$)" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline))
       only_service_manager: "systemd"
       files:
         - &webui-service
@@ -59,11 +73,13 @@ stages:
         - systemctl stop getty@tty1
         - systemctl mask getty@tty1
         - systemctl enable kairos-installer
-    # Starts installer on boot for openRC based systems
+    # Starts installer on boot for openRC based systems. Same guard as the
+    # systemd stage above: the sentinel on Trusted Boot, the keyword on GRUB.
     # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
     - if: |
-        (grep -qE "(^| )install-mode( |$)" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline ) && \
-        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+        [ -f /run/cos/uki_install_mode ] || \
+        ([ -f /run/cos/live_mode ] && \
+         (grep -qE "(^| )install-mode( |$)" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline))
       only_service_manager: "openrc"
       commands:
         - sed -i -e 's/tty1.*//g' /etc/inittab

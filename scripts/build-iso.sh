@@ -28,7 +28,7 @@ cd "$REPO_ROOT"
 # --- Build inputs -----------------------------------------------------------
 # These mirror the amd64-standard matrix cell in .github/workflows/master.yaml.
 : "${ARCH:=amd64}"
-: "${BASE_IMAGE:=ghcr.io/kairos-io/hadron:v0.5.1}"
+: "${BASE_IMAGE:=ghcr.io/kairos-io/hadron:v0.5.3}"
 : "${MODEL:=generic}"
 : "${KUBERNETES_DISTRO:=k3s}"
 : "${TRUSTED_BOOT:=false}"

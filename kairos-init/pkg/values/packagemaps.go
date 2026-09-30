@@ -465,6 +465,7 @@ var BasePackages = PackageMap{
 	DebianFamily: {
 		ArchCommon: {
 			Common: {
+				"auditd",
 				"ca-certificates", // Basic certificates for secure communication
 				"curl",            // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"binutils",
@@ -520,6 +521,7 @@ var BasePackages = PackageMap{
 	SUSEFamily: {
 		ArchCommon: {
 			Common: {
+				"audit",
 				"curl", // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"bash-completion",
 				"conntrack-tools",
@@ -586,7 +588,9 @@ var BasePackages = PackageMap{
 	AlpineFamily: {
 		ArchCommon: {
 			Common: {
-				"curl", // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
+				"audit",
+				"audit-openrc", // /etc/init.d/auditd lives here, not in `audit`
+				"curl",         // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"bash",
 				"bash-completion",
 				"blkid",
@@ -685,6 +689,28 @@ var BasePackages = PackageMap{
 			},
 			">=9.0": {
 				"systemd-resolved", // systemd-resolved is tech preview in systemd before 9.0
+			},
+		},
+		// iscsi-initiator-utils is what open-iscsi is called on RPM distros.
+		// 09_systemd_services.yaml enables iscsid on every systemd image, and
+		// the Debian, SUSE and Alpine families all install it, so the Red Hat
+		// family was the only one where the unit was never there. Without it
+		// dracut skips its 95iscsi module, which require_binaries iscsiadm, and
+		// iSCSI backed storage such as Longhorn or Portworx cannot attach a
+		// volume, even though 00_rootfs.yaml persists /etc/iscsi for it.
+		//
+		// Listed per architecture rather than under ArchCommon because the
+		// package cannot be confirmed for Fedora riscv64, the same reason
+		// open-vm-tools is split this way for the SUSE family above. These two
+		// arches cover every published Red Hat family Kairos image.
+		ArchAMD64: {
+			Common: {
+				"iscsi-initiator-utils",
+			},
+		},
+		ArchARM64: {
+			Common: {
+				"iscsi-initiator-utils",
 			},
 		},
 	},

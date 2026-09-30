@@ -46,12 +46,14 @@ func newCustomizationPage() *customizationPage {
 		options: []string{
 			"User & Password",
 			"SSH Keys",
+			"System Extensions",
 		},
 
 		cursor: 0,
 		cursorWithIDs: map[int]string{
 			0: "user_password",
 			1: "ssh_keys",
+			2: extensionsPageID,
 		},
 	}
 }

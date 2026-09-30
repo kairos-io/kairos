@@ -194,6 +194,15 @@ install() {
     inst_check_multiple immucore
     # add utils used by yip stages
     inst_check_multiple sync udevadm blkid lsblk e2fsck mount umount rsync cryptsetup gawk awk mkfs.ext2 mkfs.ext3 mkfs.ext4 mkfs.vfat
+    # immucore validates a system extension image against the image policy the
+    # systemd-sysext drop-in enforces before it links the image into
+    # /run/extensions, and systemd-dissect is what evaluates that policy. The
+    # 11systemd-sysext dracut module installs systemd-sysext and
+    # systemd-confext but not systemd-dissect, so without this line the check
+    # has no tool to run and immucore enables every image unvalidated.
+    # Optional, because image policies and systemd-dissect --validate both
+    # arrived in systemd 254 and Kairos builds on flavors older than that.
+    inst_multiple -o systemd-dissect
     # add mkfs.fat using inst_multiple which doesnt check for existence
     # we should remove this as soon as Hadron supports mkfs.fat
     inst_multiple mkfs.fat
@@ -544,24 +553,22 @@ _/    _/    _/_/_/  _/  _/          _/_/    _/_/_/
 
 // ExtraGrubCfg /etc/kairos/branding/grubmenu.cfg is the extra grub config that is used for the system that can be
 // overridden by the user to provide its own entries in grub
-const ExtraGrubCfg = `menuentry "${display_name} remote recovery" --id remoterecovery {
-    search --no-floppy --label --set=root COS_RECOVERY
-    if [ test -s /cOS/recovery.squashfs ]; then
-        set img=/cOS/recovery.squashfs
-        set recoverylabel=COS_RECOVERY
-    else
-        set img=/cOS/recovery.img
-    fi
-    set label=COS_SYSTEM
-    if [ -d (loop0) ]; then
-        loopback -d loop0
-    fi
-    loopback loop0 /$img
-    set root=($root)
-    source (loop0)/etc/cos/bootargs.cfg
-    linux (loop0)$kernel $kernelcmd ${extra_cmdline} ${extra_recovery_cmdline} vga=795 nomodeset kairos.remote_recovery_mode
-    initrd (loop0)$initramfs
-}
+//
+// It ships with no entries of its own. It used to carry a `remoterecovery`
+// entry, a second way into `kairos.remote_recovery_mode` next to the one the
+// interactive installer now offers on its welcome page (#5065). Every entry
+// defined only by a cmdline keyword has to be accounted for before the boot
+// menu can be reduced to one entry that lands in the installer (#4960,
+// #4962), so the duplicate went rather than the installer route.
+//
+// The file itself stays, empty of entries: it is the documented place a user
+// or a downstream image drops their own menuentry, 08_grub.yaml copies it to
+// the state partition as /grubmenu, and grub.cfg sources it from there.
+const ExtraGrubCfg = `# Drop your own menuentry blocks in here. This file is copied to the state
+# partition as /grubmenu and sourced by the Kairos grub.cfg, so entries added
+# here show up in the boot menu and survive an upgrade.
+#
+# Kairos ships no entries of its own in this file.
 `
 
 const InstallText = `Welcome to Kairos!
