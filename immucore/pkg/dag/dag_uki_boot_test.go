@@ -1,8 +1,6 @@
 package dag_test
 
 import (
-	"testing"
-
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/dag"
@@ -12,11 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/spectrocloud-labs/herd"
 )
-
-func TestSuite(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Dag test Suite")
-}
 
 // entries flattens the analyzed graph into a lookup by step name.
 func entries(g *herd.Graph) map[string]herd.GraphEntry {
