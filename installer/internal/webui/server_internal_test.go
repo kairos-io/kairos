@@ -297,7 +297,9 @@ exit 0
 		// The error still names what went wrong...
 		Expect(string(body)).To(ContainSubstring("not valid YAML"))
 		// ...but the operator's input reaches the page as text, not markup.
-		Expect(string(body)).ToNot(ContainSubstring("<img sr"))
-		Expect(string(body)).To(ContainSubstring("&lt;img sr"))
+		// yaml.v3 cuts the quote short, to "<img sr...". The page has an
+		// <img> of its own, the logo, so the check is on the quoted text.
+		Expect(string(body)).ToNot(ContainSubstring("<img sr..."))
+		Expect(string(body)).To(ContainSubstring("&lt;img sr..."))
 	})
 })

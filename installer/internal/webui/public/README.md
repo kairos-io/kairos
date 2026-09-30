@@ -20,11 +20,18 @@ network.
 
 ## Files
 
-- `index.html` - The wizard page and its styles
+- `index.html` - The wizard page
 - `wizard.js` - The wizard: draws each step and talks to the JSON endpoints
   listed below
 - `progress.html` - Installation progress page with WebSocket streaming
 - `message.html` - Error/success message display
+- `style.css` - The styles of all three pages. The colours are AuroraBoot's
+  web UI tokens, for a light and a dark theme
+- `theme.js` - The theme switch (system, light or dark), stored in
+  `localStorage` under `auroraboot_theme`, the key AuroraBoot uses, so both
+  UIs remember the same choice on one browser. Without JavaScript the pages
+  follow the system setting
+- `kairos-logo.svg` - The Kairos mark and wordmark
 - `favicon.ico` - Favicon
 
 ## Endpoints wizard.js calls

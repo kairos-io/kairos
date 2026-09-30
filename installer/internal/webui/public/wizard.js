@@ -89,7 +89,7 @@ const RENDERERS = {
         autocomplete: 'off', oninput: e => { values[f.id] = e.target.value; } });
       const clear = () => { values[f.id] = ''; input.value = ''; input.focus(); };
       return el('div', { class: 'row' }, input, list,
-        canLeave ? el('button', { type: 'button', class: 'btn ghost', onclick: clear }, 'Leave unset') : null);
+        canLeave ? el('button', { type: 'button', class: 'btn outline', onclick: clear }, 'Leave unset') : null);
     }
     const rows = canLeave ? [{ value: '', label: 'Leave unset', detail: 'keep the image default' }, ...f.choices] : f.choices;
     return el('div', { class: 'choices', role: 'radiogroup', 'aria-labelledby': 'l-' + f.id }, rows.map(c => {
@@ -122,9 +122,9 @@ const RENDERERS = {
     const add = () => { const v = input.value.trim(); if (v) { items.push(v); values[f.id] = items.join('\n'); draw(); } };
     return el('div', {},
       el('div', { class: 'chips' }, items.length ? items.map((k, i) => el('span', { class: 'chip' }, el('span', {}, k),
-        el('button', { type: 'button', 'aria-label': 'Remove ' + k, onclick: () => { items.splice(i, 1); values[f.id] = items.join('\n'); draw(); } }, 'x')))
+        el('button', { type: 'button', 'aria-label': 'Remove ' + k, onclick: () => { items.splice(i, 1); values[f.id] = items.join('\n'); draw(); } }, '\u00d7')))
         : el('span', { class: 'fhelp' }, 'Nothing added yet.')),
-      el('div', { class: 'row' }, input, el('button', { type: 'button', class: 'btn ghost', onclick: add }, 'Add')));
+      el('div', { class: 'row' }, input, el('button', { type: 'button', class: 'btn outline', onclick: add }, 'Add')));
   },
 };
 
@@ -141,12 +141,39 @@ function done(s) {
     locale: !!(a.timezone || a.keymap), extensions: (a.extensions || []).length > 0, provider: !!a.provider, finish: state.applied.has('finish') }[s.id];
 }
 
+// The step rail, in the navy sidebar. A step's marker is its number, or a
+// check once it is set, as in AuroraBoot's wizard shell.
 function drawRail() {
   const rail = document.getElementById('rail');
-  fill(rail, el('div', { class: 'rail-label' }, 'Steps'), ...allSteps().map((s, i) =>
-    el('button', { type: 'button', 'aria-current': i === state.cur ? 'step' : false, onclick: () => go(i) },
-      el('span', { class: 'n' }, String(i + 1).padStart(2, '0')), el('span', {}, s.title),
-      s !== REVIEW && done(s) ? el('span', { class: 'done', 'aria-label': 'set' }, '\u2713') : el('span'))));
+  fill(rail, el('div', { class: 'rail-label' }, 'Steps'), ...allSteps().map((s, i) => {
+    const set = s !== REVIEW && done(s), cur = i === state.cur;
+    return el('button', { type: 'button', title: s.title, 'aria-current': cur ? 'step' : false, onclick: () => { drawer(false); go(i); } },
+      el('span', { class: 'marker' + (set ? ' done' : ''), 'aria-hidden': 'true' }, set && !cur ? '\u2713' : String(i + 1)),
+      el('span', { class: 'step-title' }, s.title), set ? el('span', { class: 'sr-only' }, ', set') : null);
+  }));
+}
+
+// drawer opens or closes the step list below 768px, where it is a drawer
+// behind the top bar, as AuroraBoot's sidebar is. While it is open the rest
+// of the page is inert, so focus stays in it; Escape, the backdrop and
+// choosing a step close it.
+function drawer(open) {
+  const shell = document.getElementById('shell');
+  if (!shell || shell.classList.contains('drawer-open') === open) return;
+  shell.classList.toggle('drawer-open', open);
+  document.getElementById('backdrop').hidden = !open;
+  document.getElementById('menu').setAttribute('aria-expanded', String(open));
+  for (const id of ['content', 'menu']) document.getElementById(id).inert = open;
+  if (open) (document.querySelector('#rail [aria-current=step]') || document.getElementById('menu-close')).focus();
+  else document.getElementById('menu').focus();
+}
+
+// pageHeader is AuroraBoot's PageHeader: where the step is, its title and
+// what it is for.
+function pageHeader(title, help) {
+  return el('header', { class: 'page-header' }, el('div', {},
+    el('p', { class: 'eyebrow' }, 'Step ' + (state.cur + 1) + ' of ' + allSteps().length),
+    el('h1', {}, title), help ? el('p', { class: 'help' }, help) : null));
 }
 
 function drawStep(step) {
@@ -157,14 +184,14 @@ function drawStep(step) {
     RENDERERS[f.kind](f),
     state.errors[f.id] ? el('div', { class: 'err', role: 'alert' }, state.errors[f.id]) : null));
   fill(main,
-    el('div', {}, el('h1', {}, step.title), step.help ? el('p', { class: 'help' }, step.help) : null),
+    pageHeader(step.title, step.help),
     step.notice ? el('div', { class: 'banner' }, step.notice) : null,
     state.errors[''] ? el('div', { class: 'banner', role: 'alert' }, state.errors['']) : null,
-    ...fields,
+    el('section', { class: 'card form-card' }, ...fields),
     el('div', { class: 'actions' },
-      el('button', { type: 'button', class: 'btn ghost', disabled: state.cur === 0, onclick: () => go(state.cur - 1) }, 'Back'),
+      el('button', { type: 'button', class: 'btn outline', disabled: state.cur === 0, onclick: () => go(state.cur - 1) }, 'Back'),
       el('div', { class: 'row' },
-        step.optional ? el('button', { type: 'button', class: 'btn ghost', onclick: () => { state.errors = {}; go(state.cur + 1, true); } }, 'Skip') : null,
+        step.optional ? el('button', { type: 'button', class: 'btn outline', onclick: () => { state.errors = {}; go(state.cur + 1, true); } }, 'Skip') : null,
         el('button', { type: 'button', class: 'btn', id: 'next', onclick: () => go(state.cur + 1) }, 'Next'))));
 }
 
@@ -200,19 +227,19 @@ function drawReview() {
   const disk = a.disk || '(no disk)';
   const confirmText = ((state.steps[0] && state.steps[0].fields[0].confirm) || 'Everything on {value} will be erased.').replace('{value}', disk);
   fill(main,
-    el('div', {}, el('h1', {}, 'Review and install'),
-      el('p', { class: 'help' }, state.advancedDisabled ? 'This is the configuration the install runs with, built from your answers.'
-        : 'This is the configuration the install runs with, built from your answers. Edit it to add anything the steps do not ask for.')),
+    pageHeader('Review and install', state.advancedDisabled ? 'This is the configuration the install runs with, built from your answers.'
+      : 'This is the configuration the install runs with, built from your answers. Edit it to add anything the steps do not ask for.'),
     state.errors[''] ? el('div', { class: 'banner', role: 'alert' }, state.errors['']) : null,
     el('div', { class: 'review' },
-      el('div', { class: 'editor' },
-        el('div', { class: 'editor-head' }, el('strong', {}, 'cloud-config'),
+      el('section', { class: 'card editor' },
+        el('div', { class: 'editor-head' }, el('h2', { class: 'card-title' }, 'cloud-config'),
           el('div', { class: 'row' }, editedTag, state.advancedDisabled ? null : el('button', { type: 'button', class: 'btn ghost', onclick: regenerate }, 'Regenerate from answers'))),
         state.regen ? el('div', { class: 'inline-warn' }, 'Regenerating replaces your edits with the configuration built from the answers.',
           el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: regenerate }, 'Replace my edits'),
-            el('button', { type: 'button', class: 'btn ghost', onclick: () => { state.regen = false; draw(); } }, 'Keep editing'))) : null,
+            el('button', { type: 'button', class: 'btn outline', onclick: () => { state.regen = false; draw(); } }, 'Keep editing'))) : null,
         area, el('div', { class: 'banner ok', id: 'valid' }, 'Valid cloud-config')),
-      el('aside', { class: 'side' },
+      el('aside', { class: 'card side' },
+        el('h2', { class: 'card-title' }, 'Install summary'),
         el('dl', { class: 'sumlist' },
           ...[['Disk', disk], ['User', a.username || 'none'], ['Hostname', a.hostname || 'generated'],
               ['Timezone, keyboard', (a.timezone || 'unset') + ', ' + (a.keymap || 'unset')],
@@ -221,8 +248,8 @@ function drawReview() {
         el('p', { class: 'fhelp' }, 'The disk and the finish action come from your answers, even if the text says otherwise.'),
         el('label', { class: 'confirm' }, el('input', { type: 'checkbox', id: 'confirm', checked: state.confirmedDisk === a.disk && !!a.disk,
           onchange: e => { state.confirmedDisk = e.target.checked ? a.disk : ''; document.getElementById('install').disabled = !e.target.checked || !a.disk; } }), el('span', {}, confirmText)),
-        el('button', { type: 'button', class: 'btn', id: 'install', disabled: !(state.confirmedDisk === a.disk && a.disk), onclick: install }, 'Install to ' + disk),
-        el('button', { type: 'button', class: 'btn ghost', onclick: () => go(state.cur - 1) }, 'Back'))));
+        el('button', { type: 'button', class: 'btn lg', id: 'install', disabled: !(state.confirmedDisk === a.disk && a.disk), onclick: install }, 'Install to ' + disk),
+        el('button', { type: 'button', class: 'btn outline', onclick: () => go(state.cur - 1) }, 'Back'))));
   validate();
 }
 
@@ -280,6 +307,13 @@ function answersDefaults() {
   const fin = state.steps.find(s => s.id === 'finish');
   if (fin && state.answers.finish_action === undefined) state.answers.finish_action = fin.fields[0].default || '';
 }
+
+document.getElementById('menu').addEventListener('click', () => drawer(true));
+document.getElementById('menu-close').addEventListener('click', () => drawer(false));
+document.getElementById('backdrop').addEventListener('click', () => drawer(false));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') drawer(false); });
+// Widening the window past the drawer breakpoint leaves no drawer to close.
+window.matchMedia('(min-width: 768px)').addEventListener('change', e => { if (e.matches) drawer(false); });
 
 api('/api/wizard').then(r => { state.steps = r.steps; state.advancedDisabled = !!r.advanced_disabled; answersDefaults(); draw(); })
   .catch(e => fill(document.getElementById('main'), el('div', { class: 'banner', role: 'alert' }, 'The installer steps could not be loaded: ' + e.message)));
