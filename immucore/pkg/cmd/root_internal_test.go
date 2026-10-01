@@ -184,3 +184,54 @@ func TestSignalDuringDAGDoesNotHaltWhenDAGCompletes(t *testing.T) {
 	case <-time.After(terminationGrace + 200*time.Millisecond):
 	}
 }
+
+// The grace is a window to let a healthy DAG finish, not a way to swallow
+// every signal. A DAG that is genuinely stuck (or just slower than the grace)
+// when the signal lands must still reach onSignal once the grace expires, or
+// a hung mount would boot on in silence with nothing to tell the operator.
+func TestSignalDuringDAGHaltsWhenGraceExpiresFirst(t *testing.T) {
+	const grace = 100 * time.Millisecond
+	const stepDuration = time.Second // much longer than the grace above
+
+	prev := terminationGrace
+	terminationGrace = grace
+	t.Cleanup(func() { terminationGrace = prev })
+
+	dagFinished := make(chan struct{})
+	onSignalFired := make(chan struct{})
+
+	g := herd.DAG(herd.EnableInit)
+	err := g.Add("stuck-mount-step", herd.WithCallback(func(_ context.Context) error {
+		time.Sleep(stepDuration)
+		close(dagFinished)
+		return nil
+	}))
+	if err != nil {
+		t.Fatalf("adding DAG step: %v", err)
+	}
+
+	stop := watchForTermination(true, func(os.Signal) { close(onSignalFired) })
+	defer stop()
+
+	runErr := make(chan error, 1)
+	go func() { runErr <- g.Run(context.Background()) }()
+
+	time.Sleep(10 * time.Millisecond)
+	if err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM); err != nil {
+		t.Skipf("cannot signal self: %v", err)
+	}
+
+	select {
+	case <-onSignalFired:
+	case <-dagFinished:
+		t.Fatal("DAG finished before the grace expired; test step duration is too short")
+	case <-time.After(grace + 2*time.Second):
+		t.Fatal("onSignal never ran even though the grace expired with the DAG still running")
+	}
+
+	stop()
+	<-dagFinished
+	if err := <-runErr; err != nil {
+		t.Fatalf("running DAG: %v", err)
+	}
+}
