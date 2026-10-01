@@ -187,6 +187,18 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 				},
 			},
 		},
+		schema.Stage{
+			Name: "Install the faillock tally reset for first-boot provisioning",
+			Files: []schema.File{
+				{
+					Path:        bundled.CISFaillockResetCloudConfigPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISFaillockResetCloudConfig,
+				},
+			},
+		},
 	)
 
 	stages = append(stages, getCISPamWiringStages()...)

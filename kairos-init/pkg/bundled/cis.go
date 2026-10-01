@@ -262,6 +262,36 @@ fail_interval = 900
 even_deny_root
 `
 
+// CISFaillockResetCloudConfigPath holds a boot.after stage that clears the
+// faillock tally once the boot stage has provisioned users.
+//
+// On first boot sshd is listening well before the `users:` cloud-config
+// stage sets the passwords: on a Rocky install the `Enable QEMU tools` boot
+// step alone holds the boot stage for ~90s. Any password login in that
+// window fails against an account that exists but has no usable password
+// yet, pam_faillock counts it, and five of those lock the account for
+// unlock_time (900s) even after the real password lands. A client that
+// keeps retrying (an operator, provisioning tooling, the e2e harness) keeps
+// re-locking it. Those failures say nothing about the configured password,
+// so the tally is dropped once provisioning is done. Removing the files
+// under the tally directory is a no-op on bases where pam_faillock is not
+// wired.
+const CISFaillockResetCloudConfigPath = "/system/oem/34_cis_faillock_reset.yaml"
+
+// CISFaillockResetCloudConfig is the content written to
+// CISFaillockResetCloudConfigPath.
+const CISFaillockResetCloudConfig = `#cloud-config
+# Managed by kairos-init. See CISFaillockResetCloudConfigPath in
+# kairos-init/pkg/bundled/cis.go for why this runs at boot.after.
+name: "CIS faillock tally reset"
+stages:
+  boot.after:
+    - name: "Drop faillock tally collected before users were provisioned"
+      if: '[ -d /run/faillock ]'
+      commands:
+        - find /run/faillock -mindepth 1 -maxdepth 1 -type f -delete
+`
+
 // CISPamConfigFaillockPath and CISPamConfigFaillockNotifyPath are the
 // pam-auth-update profiles that wire pam_faillock into the Debian/Ubuntu
 // common-auth and common-account stacks (CIS L1 5.4.2). Neither distro

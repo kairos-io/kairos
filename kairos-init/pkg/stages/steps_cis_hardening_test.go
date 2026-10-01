@@ -17,6 +17,7 @@ import (
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/yip/pkg/schema"
+	"gopkg.in/yaml.v3"
 )
 
 // fileByPath returns the single yip file entry written to path across all the
@@ -557,6 +558,49 @@ var _ = Describe("GetCISHardeningStage", func() {
 				} {
 					Expect(fl.Content).To(ContainSubstring(kv))
 				}
+			})
+		})
+
+		Describe("the faillock tally reset after user provisioning", func() {
+			var reset schema.File
+
+			BeforeEach(func() {
+				reset = fileByPath(result, bundled.CISFaillockResetCloudConfigPath)
+			})
+
+			It("ships a 0644 root-owned cloud-config under /system/oem", func() {
+				Expect(reset.Path).To(HavePrefix("/system/oem/"))
+				Expect(reset.Permissions).To(Equal(uint32(0o644)))
+				Expect(reset.Owner).To(BeZero())
+				Expect(reset.Group).To(BeZero())
+			})
+
+			It("runs at boot.after, once the boot stage has set user passwords", func() {
+				var cfg schema.YipConfig
+				Expect(yaml.Unmarshal([]byte(reset.Content), &cfg)).To(Succeed())
+				Expect(cfg.Stages).To(HaveKey("boot.after"))
+				Expect(cfg.Stages).To(HaveLen(1))
+				st := cfg.Stages["boot.after"]
+				Expect(st).To(HaveLen(1))
+				Expect(st[0].Commands).To(ConsistOf(ContainSubstring("/run/faillock")))
+			})
+
+			It("clears the tally files and nothing else", func() {
+				tally, err := os.MkdirTemp("", "faillock-*")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(tally)
+				Expect(os.WriteFile(filepath.Join(tally, "kairos"), []byte("x"), 0o600)).To(Succeed())
+				Expect(os.Mkdir(filepath.Join(tally, "keep.d"), 0o700)).To(Succeed())
+
+				var cfg schema.YipConfig
+				Expect(yaml.Unmarshal([]byte(reset.Content), &cfg)).To(Succeed())
+				cmd := strings.ReplaceAll(cfg.Stages["boot.after"][0].Commands[0], "/run/faillock", tally)
+				out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+				Expect(err).ToNot(HaveOccurred(), string(out))
+
+				Expect(filepath.Join(tally, "kairos")).ToNot(BeAnExistingFile())
+				Expect(filepath.Join(tally, "keep.d")).To(BeADirectory())
+				Expect(tally).To(BeADirectory())
 			})
 		})
 
