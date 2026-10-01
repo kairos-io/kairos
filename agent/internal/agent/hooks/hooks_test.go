@@ -171,6 +171,19 @@ var _ = Describe("Hooks", func() {
 			err = postInstall.Run(*cfg, nil)
 			Expect(err).ShouldNot(BeNil())
 		})
+		// The specs above are the negative control for this one: every other
+		// extension failure here is tolerated unless fail_on_bundles_errors
+		// is set. A declaration that does not parse is not, because the node
+		// would come up silently missing every extension the boot asked for,
+		// and no retry or later boot will fix a malformed command line.
+		It("errors on a command line declaration it cannot read, without strict set", func() {
+			Expect(fsutils.MkdirAll(fs, "/proc", os.ModeDir|os.ModePerm)).Should(BeNil())
+			Expect(fs.WriteFile("/proc/cmdline", []byte("kairos.extensions=fwupd@"), os.ModePerm)).Should(BeNil())
+			Expect(cfg.FailOnBundleErrors).To(BeFalse())
+			postInstall := hook.SysExtPostInstall{}
+			err = postInstall.Run(*cfg, nil)
+			Expect(err).To(MatchError(ContainSubstring("invalid extension declaration")))
+		})
 		It("doesn't error if it cant create the dirs", func() {
 			ROfs := vfs.NewReadOnlyFS(fs)
 			cfg.Fs = ROfs
@@ -303,6 +316,45 @@ var _ = Describe("Hooks", func() {
 
 		It("names the stage first-boot", func() {
 			Expect(cnst.FirstBootHook).To(Equal("first-boot"))
+		})
+	})
+
+	// The SysExtPostInstall specs cover the UKI half of the same rule. This
+	// one covers the GRUB half, where the tolerance lives in Finish rather
+	// than in the hook, so asserting on ExtensionsPostInstall alone would
+	// say nothing about what the install actually does.
+	Context("Finish", func() {
+		BeforeEach(func() {
+			runner = v1mock.NewFakeRunner()
+			mounter = v1mock.NewErrorMounter()
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			Expect(fsutils.MkdirAll(fs, "/proc", os.ModeDir|os.ModePerm)).Should(BeNil())
+			cfg = config.NewConfig(
+				config.WithFs(fs),
+				config.WithRunner(runner),
+				config.WithLogger(logger),
+				config.WithMounter(mounter),
+			)
+			cfg.Collector = collector.Config{}
+		})
+		AfterEach(func() { cleanup() })
+
+		It("fails the install on a command line declaration it cannot read, without strict set", func() {
+			Expect(fs.WriteFile("/proc/cmdline", []byte("kairos.extensions=fwupd@"), os.ModePerm)).Should(BeNil())
+			Expect(cfg.FailOnBundleErrors).To(BeFalse())
+			Expect(hook.Finish{}.Run(*cfg, nil)).To(MatchError(ContainSubstring("invalid extension declaration")))
+		})
+
+		// The negative control: without a declaration to misread, the same
+		// run reaches the end and reports nothing. Otherwise the spec above
+		// would pass on any error Finish happened to surface.
+		It("finishes when the command line declares nothing", func() {
+			Expect(fs.WriteFile("/proc/cmdline", []byte("console=tty1 quiet"), os.ModePerm)).Should(BeNil())
+			Expect(hook.Finish{}.Run(*cfg, nil)).To(Succeed())
 		})
 	})
 })

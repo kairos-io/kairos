@@ -1,6 +1,7 @@
 package hook
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -28,6 +29,35 @@ import (
 // directory is an `rsync -aquAX` with no --delete, so what we stage survives it.
 const PersistentExtensionsDir = constants.UsrLocalPath + "/.state/var-lib-kairos.bind/extensions"
 
+// InvalidDeclarationError marks a declaration the agent could not read at
+// all, as opposed to an extension it read and then failed to fetch or stage.
+//
+// The two are different failures and the install treats them differently. A
+// fetch can fail because a registry is briefly down, which is the transient
+// case fail_on_bundles_errors exists to let an operator tolerate. A
+// declaration that does not parse will never resolve itself, and the agent
+// cannot know what was meant, so tolerating it installs a node that is
+// silently missing everything that was asked for. That is the failure mode
+// this path exists to close, so it fails the install whatever
+// fail_on_bundles_errors says.
+type InvalidDeclarationError struct {
+	Err error
+}
+
+func (e *InvalidDeclarationError) Error() string {
+	return fmt.Sprintf("invalid extension declaration: %s", e.Err)
+}
+
+func (e *InvalidDeclarationError) Unwrap() error { return e.Err }
+
+// IsInvalidDeclaration reports whether err came from a declaration the agent
+// could not read. The hooks that tolerate extension failures under
+// fail_on_bundles_errors call it to not tolerate this one.
+func IsInvalidDeclaration(err error) bool {
+	var invalid *InvalidDeclarationError
+	return errors.As(err, &invalid)
+}
+
 // DeclaredExtensions resolves which extensions this install was asked for,
 // from the cloud config when it names any and from the kernel command line
 // otherwise.
@@ -43,9 +73,9 @@ const PersistentExtensionsDir = constants.UsrLocalPath + "/.state/var-lib-kairos
 // carry the declaration and no live media to sweep. See
 // kairos-io/kairos#5040.
 //
-// An unparseable value is an error rather than a skip: an extension that was
-// asked for and silently not installed is the failure mode this whole path
-// exists to close.
+// An unparseable value is an InvalidDeclarationError rather than a skip: an
+// extension that was asked for and silently not installed is the failure mode
+// this whole path exists to close.
 func DeclaredExtensions(c sdkConfig.Config) (extensiontypes.Extensions, error) {
 	if c.Install != nil && len(c.Install.Extensions) > 0 {
 		return c.Install.Extensions, nil
@@ -65,7 +95,7 @@ func DeclaredExtensions(c sdkConfig.Config) (extensiontypes.Extensions, error) {
 
 	declared, err := extensiontypes.ParseCmdline(string(cmdline))
 	if err != nil {
-		return nil, err
+		return nil, &InvalidDeclarationError{Err: err}
 	}
 	if len(declared) > 0 {
 		c.Logger.Logger.Info().Int("extensions", len(declared)).

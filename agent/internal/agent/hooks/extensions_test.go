@@ -1,6 +1,7 @@
 package hook_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -139,6 +140,22 @@ var _ = Describe("Extension hooks", func() {
 			writeCmdline("kairos.extensions=fwupd@")
 			_, err := hook.DeclaredExtensions(*cfg)
 			Expect(err).To(MatchError(ContainSubstring("kairos.extensions")))
+		})
+
+		// The install hooks tolerate an extension failure unless
+		// fail_on_bundles_errors is set. A value that does not parse has to
+		// escape that, so it has to be distinguishable from a fetch that
+		// failed, which is what the error type is for.
+		It("marks a value it cannot read as an invalid declaration", func() {
+			writeCmdline("kairos.extensions=fwupd@")
+			_, err := hook.DeclaredExtensions(*cfg)
+			Expect(hook.IsInvalidDeclaration(err)).To(BeTrue())
+			Expect(err).To(MatchError(ContainSubstring("invalid extension declaration")))
+		})
+
+		It("does not mark an unrelated failure as an invalid declaration", func() {
+			Expect(hook.IsInvalidDeclaration(errors.New("registry is down"))).To(BeFalse())
+			Expect(hook.IsInvalidDeclaration(nil)).To(BeFalse())
 		})
 	})
 
