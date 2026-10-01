@@ -76,6 +76,14 @@ var _ = Describe("Kubernetes blocks", func() {
 		It("still accepts an unknown k3s key", func() {
 			Expect(validates("k3s:\n  enabled: true\n  some_future_option: hello\n")).To(BeTrue())
 		})
+
+		It("still accepts a scalar env value the provider stringifies", func() {
+			// The provider unmarshals env into map[string]string with
+			// yaml.v3, which turns an unquoted 644 into "644" without
+			// complaint. The schema must not be stricter than that.
+			Expect(validates("k3s:\n  env:\n    K3S_KUBECONFIG_MODE: 644\n")).To(BeTrue())
+			Expect(validates("k0s:\n  env:\n    K0S_SINGLE: true\n")).To(BeTrue())
+		})
 	})
 
 	Context("with the keys the provider actually reads", func() {
