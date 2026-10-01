@@ -6,11 +6,16 @@
 // build a `kairos-agent manual-install` invocation, run it with progress
 // emission enabled, and turn the agent's JSON-Lines stdout into structured
 // progress events.
+//
+// An install is exclusive for the whole process. Run and RunWithOutput refuse
+// with [ErrInstallInProgress] while another one is running, because the
+// frontends that call them share one machine's disks. See [installGuard].
 package agentrun
 
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -123,9 +128,34 @@ func ParseLine(line []byte) (ProgressEvent, bool) {
 	return ev, true
 }
 
+// ErrInstallInProgress is what Run and RunWithOutput return instead of
+// starting a second agent while one is already running in this process. A
+// caller can report it as a refusal rather than as an install that failed,
+// because nothing was attempted.
+var ErrInstallInProgress = errors.New("an install is already running on this machine")
+
+// installGuard makes an install exclusive for the whole process.
+//
+// One installer binary serves several frontends at once: on an interactive
+// boot the terminal UI, the web UI and the MCP server are all live, and each
+// of them can be asked to install at any moment. Each one guards its own
+// entry point, and none of them can see the other two, so without a guard
+// here two agents partition, format and write images to the same disk at the
+// same time.
+//
+// It belongs here rather than in a frontend because this is the one place
+// they meet. A frontend added later is covered without being asked to
+// remember.
+//
+// The scope is this process, which is the scope of the problem: an
+// installation boots one installer, and it owns the machine's disks for as
+// long as it runs.
+var installGuard sync.Mutex
+
 // Run execs the agent, calling onEvent for each progress event and onLog for
 // each non-event stdout line. The agent's stderr is forwarded to os.Stderr.
-// It returns the process exit error, if any.
+// It returns the process exit error, if any, or ErrInstallInProgress when
+// another install is already running in this process.
 func Run(agentBin, cfgPath, source, finishAction string, onEvent func(ProgressEvent), onLog func(string)) error {
 	return run(agentBin, cfgPath, source, finishAction, onEvent, onLog, os.Stderr, nil)
 }
@@ -139,6 +169,9 @@ func Run(agentBin, cfgPath, source, finishAction string, onEvent func(ProgressEv
 //
 // If out is nil, RunWithOutput behaves like Run except the agent's stderr is
 // discarded instead of forwarded to os.Stderr.
+//
+// Like Run, it returns ErrInstallInProgress when another install is already
+// running in this process.
 func RunWithOutput(agentBin, cfgPath, source, finishAction string, onEvent func(ProgressEvent), onLog func(string), out io.Writer) error {
 	if out == nil {
 		return run(agentBin, cfgPath, source, finishAction, onEvent, onLog, io.Discard, nil)
@@ -150,7 +183,15 @@ func RunWithOutput(agentBin, cfgPath, source, finishAction string, onEvent func(
 // run is the shared implementation behind Run and RunWithOutput. stderr
 // receives the agent's stderr stream; when stdoutTee is non-nil, each raw
 // stdout line is written to it (with a trailing newline) before being parsed.
+//
+// It takes installGuard before it starts anything, so a caller that loses the
+// race is told so and no second agent reaches the disk.
 func run(agentBin, cfgPath, source, finishAction string, onEvent func(ProgressEvent), onLog func(string), stderr, stdoutTee io.Writer) error {
+	if !installGuard.TryLock() {
+		return ErrInstallInProgress
+	}
+	defer installGuard.Unlock()
+
 	cmd := Command(agentBin, cfgPath, source, finishAction)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -190,4 +231,39 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.w.Write(p)
+}
+
+// PairingCommand builds the pairing-install invocation, `kairos-agent install`.
+//
+// That command is the QR code pairing flow: the agent asks the providers for a
+// token, prints it as a QR code, and then waits for `kairosctl register` to
+// send a configuration over it. It is what the live media's default boot entry
+// runs today, so an installer frontend that wants to offer pairing hands the
+// terminal to it rather than reimplementing the flow.
+//
+// Unlike Command it does not ask for progress events: the agent draws the QR
+// code and its own messages on the terminal it is given, and there is no
+// progress bar to drive.
+func PairingCommand(agentBin, source string) *exec.Cmd {
+	args := []string{"install"}
+	if source != "" {
+		args = append(args, "--source", source)
+	}
+	return exec.Command(agentBin, args...)
+}
+
+// RecoveryCommand builds the remote-recovery invocation, `kairos-agent
+// recovery`.
+//
+// That command asks the providers for a network token, prints it as a QR code
+// and waits for `kairos bridge` to connect over it, so an operator can reach a
+// machine that has no console. It is what the `remoterecovery` GRUB entry runs
+// today, and an installer frontend that offers recovery hands the terminal to
+// it rather than reimplementing the flow.
+//
+// It takes no source: recovery does not install anything, so there is no image
+// to pull. Like PairingCommand it does not ask for progress events, because
+// the agent draws its own output on the terminal it is given.
+func RecoveryCommand(agentBin string) *exec.Cmd {
+	return exec.Command(agentBin, "recovery")
 }
