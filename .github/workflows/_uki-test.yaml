@@ -4,10 +4,9 @@ name: UKI qemu test
 # swtpm and run the ginkgo suite filtered by a UKI-specific label.
 # Split out from reusable-qemu-test.yaml because the UKI flow is
 # materially different: the artifact name has an -uki suffix, the
-# runner needs OVMF secure-boot firmware, the install-upgrade spec expects
-# a dynamically-built and pushed upgrade image plus a couple of
-# EXPECTED_* env vars, and the whole thing runs on the `kvm`
-# self-hosted label (not `fast`).
+# runner needs OVMF secure-boot firmware, and the install-upgrade
+# spec expects a dynamically-built and pushed upgrade image plus a
+# couple of EXPECTED_* env vars.
 #
 # Mirrors the old uki.yaml's test_generic (variant=standard, test=install-upgrade, was test=
 # generic, upgrade image required) and test_boot_assessment
@@ -50,17 +49,20 @@ on:
           `<flavor>-<flavor_release>-<variant>-<arch>-<model>-<sha>-uki`
           is appended internally.
         type: string
-        default: 'quay.io/kairos/ci-temp-images'
+        default: 'ghcr.io/kairos-io/kairos/${flavor}'
 
       upgrade_image_registry:
         description: |
           Registry to push the dynamically-built UKI upgrade image to.
-          The `generic` test uses this image via UPGRADE_IMAGE inside
-          the VM. Kept at quay ci-temp-images by default because that
-          repo is public and short-TTL, matching the old uki.yaml
-          behavior.
+          The `install-upgrade` test uses this image via UPGRADE_IMAGE
+          inside the VM, which pulls it over the network, so the target
+          repository must be readable without credentials (public
+          package on GHCR). The nightly ghcr-prune workflow deletes
+          these tags after their retention (6h, matching the quay
+          expires-after we used before switching to GHCR); this
+          workflow itself no longer runs a per-job cleanup step.
         type: string
-        default: 'quay.io/kairos/ci-temp-images'
+        default: 'ghcr.io/kairos-io/kairos/kairos-uki'
 
       ref:
         description: 'git ref to check out; empty = the trigger event ref'
@@ -98,11 +100,11 @@ on:
 
 permissions:
   contents: read
-  packages: read
+  packages: write
 
 jobs:
   test:
-    runs-on: kvm
+    runs-on: ubuntu-24.04
     name: ${{ inputs.test }}
     # Backstop only. ginkgo's own --timeout below should always fire first,
     # because it stops the suite with a progress report naming the step,
@@ -180,18 +182,19 @@ jobs:
           # Fail here rather than 20 minutes into the suite with an aborted VM.
           test -w /dev/kvm
 
-      - name: Login to quay.io
-        # Only the generic cell needs quay: it pushes the freshly-
-        # built UKI upgrade image to quay.io/kairos/ci-temp-images
-        # (see "Build & push UKI upgrade image" below). boot-assessment
-        # never talks to quay -- it downloads the UKI ISO artifact
-        # from GitHub Actions storage and pulls no container images.
+      - name: Login to GHCR
+        # Only the install-upgrade cell needs to push: it produces the
+        # freshly-built UKI upgrade image and uploads it to
+        # ${{ inputs.upgrade_image_registry }} (see "Build & push UKI
+        # upgrade image" below). boot-assessment never pushes anywhere;
+        # it downloads the UKI ISO artifact from GitHub Actions
+        # storage and pulls no container images.
         if: inputs.test == 'install-upgrade'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute IMAGE_NAME (fresh trusted-boot OS image)
         env:
@@ -244,7 +247,7 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD/build":/result \
             -v "$PWD/tests/assets/keys":/keys \
-            quay.io/kairos/auroraboot:v0.27.0 --debug build-uki \
+            quay.io/kairos/auroraboot:v0.27.1 --debug build-uki \
               --output-dir /result --output-type container \
               --public-keys /keys \
               --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
@@ -256,7 +259,7 @@ jobs:
                     | sed 's/+/-/g' | xargs)
           rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
           temp_image="${UPGRADE_IMAGE_REGISTRY}:${image/:latest/-${rand}}"
-          DOCKER_BUILDKIT=1 docker build --label quay.expires-after="6h" --tag "$temp_image" - <<EOF
+          DOCKER_BUILDKIT=1 docker build --tag "$temp_image" - <<EOF
           FROM $image
           EOF
           docker push "$temp_image"
@@ -271,7 +274,7 @@ jobs:
       - name: Run tests
         env:
           MEMORY: 6000
-          CPUS: 4
+          CPUS: 2
           FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
           UKI_TEST: true
           TEST_LABEL: ${{ inputs.test }}

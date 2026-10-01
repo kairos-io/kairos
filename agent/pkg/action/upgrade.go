@@ -75,6 +75,8 @@ func (u UpgradeAction) upgradeHook(hook string, chroot bool) error {
 	return Hook(u.config, hook)
 }
 
+// Run will upgrade the system from a given configuration
+// nolint:gocyclo
 func (u *UpgradeAction) Run() (err error) {
 	var upgradeImg sdkImages.Image
 	var finalImageFile string
@@ -111,11 +113,20 @@ func (u *UpgradeAction) Run() (err error) {
 		return err
 	}
 	cleanup.Push(umount)
-	umount, err = e.MountRWPartition(u.spec.Partitions.Recovery)
-	if err != nil {
-		return err
+	// The recovery partition is optional on a system upgrade. Only a recovery
+	// upgrade writes to it, and Sanitize already rejects that case when it is
+	// missing, so a machine without COS_RECOVERY has to get through here. The
+	// other optional partitions in this file (OEM, persistent, EFI) are
+	// already skipped when absent.
+	if u.spec.Partitions.Recovery != nil {
+		umount, err = e.MountRWPartition(u.spec.Partitions.Recovery)
+		if err != nil {
+			return err
+		}
+		cleanup.Push(umount)
+	} else {
+		u.Debug("No recovery partition on this machine, skipping its mount")
 	}
-	cleanup.Push(umount)
 
 	// Cleanup transition image file before leaving
 	cleanup.Push(func() error { return u.remove(upgradeImg.File) })
@@ -152,6 +163,16 @@ func (u *UpgradeAction) Run() (err error) {
 		return err
 	}
 	cleanup.Push(func() error { return e.UnmountImage(&upgradeImg) })
+
+	// Label the state images for system upgrades. The existing active image
+	// is labeled so a boot back into it (failed upgrade, fallback boot)
+	// finds it as boot_t even if it was deployed by an agent version that
+	// did not label it. The transition image becomes active.img on rename
+	// and keeps the label; the old active moves to passive.img the same way.
+	if !u.spec.RecoveryUpgrade() {
+		e.LabelStateImage(filepath.Join(u.spec.Partitions.State.MountPoint, "cOS", constants.ActiveImgFile))
+		e.LabelStateImage(upgradeImg.File)
+	}
 
 	// Create extra dirs in rootfs as afterwards this will be impossible due to RO system
 	createExtraDirsInRootfs(u.config, u.spec.ExtraDirsRootfs, upgradeImg.MountPoint)

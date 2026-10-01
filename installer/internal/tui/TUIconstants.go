@@ -105,3 +105,7 @@ const (
 	AgentStartLifecycle   = "Running Lifecycle hook"
 	AgentCompleteLog      = "Finish Lifecycle hook" // This is the last step before completion so can make it the complete part
 )
+
+// visibleRows is the number of rows reserved by Model.View for page content
+// (height minus this value gives the usable content area).
+const visibleRows = 10

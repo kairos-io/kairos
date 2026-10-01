@@ -33,28 +33,21 @@ import (
 	"github.com/sanity-io/litter"
 )
 
-func displayInfo(agentConfig *branding.Config) {
-	if !agentConfig.WebUI.Disable {
-		ifaces := machine.Interfaces()
-		message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
-		if !agentConfig.WebUI.HasAddress() {
-			ips := machine.LocalIPs()
-			if len(ips) > 0 {
-				messageIps := " - WebUI installer: "
-				for _, ip := range ips {
-					// Skip printing local ips, makes no sense
-					if strings.Contains("127.0.0.1", ip) || strings.Contains("::1", ip) {
-						continue
-					}
-					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, constants.DefaultWebUIListenAddress)
-				}
-				message = message + messageIps
-			}
-		} else {
-			message = message + fmt.Sprintf(" - WebUI installer: %s", agentConfig.WebUI.ListenAddress)
-		}
-		fmt.Println(message)
-	}
+// installerInfoLine names the interfaces this node holds, so an operator who
+// has to reach it, to pair with `kairosctl register` or to open the web UI the
+// interactive installer serves, can read them off the installer's own screen.
+//
+// It advertises no web UI address. The plain installer this line belongs to
+// serves nothing on its own: it used to run next to a kairos-webui service
+// that listened on 8080, and that service is retired. The web UI now lives
+// inside the interactive installer, which prints its own address, so an
+// address printed here would point at a closed port.
+func installerInfoLine(ifaces []string) string {
+	return "Interfaces: " + strings.Join(ifaces, " ")
+}
+
+func displayInfo() {
+	fmt.Println(installerInfoLine(machine.Interfaces()))
 }
 
 func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValidations, useDefaultDirs, allowInsecureRegistries bool) error {
@@ -85,16 +78,84 @@ func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValid
 	return RunInstall(cc)
 }
 
-func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
-	var cc *sdkConfig.Config
-	var err error
+// autoInstallRequested reports whether the config asks to be installed without
+// being asked anything, so there is no UX to show.
+func autoInstallRequested(cc *sdkConfig.Config) bool {
+	return cc != nil && cc.Install != nil && cc.Install.Auto
+}
 
+// runInstallFn is a seam so a spec can assert AutoInstall took the unattended
+// branch without running a real installation against a real disk.
+var runInstallFn = RunInstall
+
+// startGetty puts a login back on tty1, which is what both install
+// entrypoints do when they are done drawing on the console.
+func startGetty() {
+	svc, err := machine.Getty(1)
+	if err == nil {
+		_ = svc.Start() //nolint:errcheck
+	}
+}
+
+// AutoInstall performs the unattended installation a config asks for with
+// install.auto, and reports whether it did.
+//
+// Both live boot entrypoints call it before they show anything: a config that
+// says "install me without asking" leaves nothing to ask, and a live CD that
+// boots with an autoinstall datasource must install rather than stop at a
+// prompt with nobody there to answer it. When it reports false there is still
+// a decision left for a human, and the caller runs its own UX.
+//
+// A config that cannot be read is not an error here, only the absence of an
+// unattended install; the failure is printed and the caller carries on. The
+// config it did read is returned so the caller does not have to scan again:
+// config.Scan follows config_url over HTTP, so a second scan refetches the
+// remote config.
+func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...string) (bool, *sdkConfig.Config, error) {
+	// Without the wait, a config still being written by the datasource reads
+	// as absent, which is the race this function exists to close.
+	ensureDataSourceReady()
+
+	cc, err := config.Scan(collector.Directories(dir...),
+		collector.Readers(strings.NewReader(generateInstallConfForCLIArgs(sourceImgURL, allowInsecureRegistries))),
+		collector.MergeBootLine)
+	if err != nil {
+		// This is where the scan happens now, so it is where the failure has
+		// to be reported: Install used to print it and no longer scans.
+		fmt.Printf("- config not found in the system: %s\n", err.Error())
+	}
+
+	if err != nil || !autoInstallRequested(cc) {
+		return false, cc, nil
+	}
+
+	// Only the branch that installs captures SIGINT and SIGTERM. Registering
+	// it earlier left interactive-install with the default kill disabled and a
+	// handler whose only act is to start a getty on the console the installer
+	// TUI is drawing on.
+	utils.OnSignal(func() {
+		startGetty()
+	}, syscall.SIGINT, syscall.SIGTERM)
+
+	if err := runInstallFn(cc); err != nil {
+		return true, cc, err
+	}
+
+	if !cc.Install.Reboot && !cc.Install.Poweroff {
+		_, _ = pterm.DefaultInteractiveContinue.Show("Installation completed, press enter to go back to the shell.")
+		startGetty()
+	}
+
+	return true, cc, nil
+}
+
+// Install runs the provider flow for a config that still needs a human
+// decision. cc is the config AutoInstall already scanned; scanning it again
+// here would refetch a remote config_url once more per boot.
+func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
 	bus.Manager.Initialize()
 	utils.OnSignal(func() {
-		svc, err := machine.Getty(1)
-		if err == nil {
-			_ = svc.Start() //nolint:errcheck
-		}
+		startGetty()
 	}, syscall.SIGINT, syscall.SIGTERM)
 
 	tk := ""
@@ -119,34 +180,6 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 		}
 	})
 
-	ensureDataSourceReady()
-
-	cliConf := generateInstallConfForCLIArgs(sourceImgURL, allowInsecureRegistries)
-
-	// Reads config, and if present and offline is defined, runs the installation
-	cc, err = config.Scan(collector.Directories(dir...),
-		collector.Readers(strings.NewReader(cliConf)),
-		collector.MergeBootLine)
-
-	if err == nil && cc.Install != nil && cc.Install.Auto {
-		err = RunInstall(cc)
-		if err != nil {
-			return err
-		}
-
-		if !cc.Install.Reboot && !cc.Install.Poweroff {
-			_, _ = pterm.DefaultInteractiveContinue.Show("Installation completed, press enter to go back to the shell.")
-			svc, err := machine.Getty(1)
-			if err == nil {
-				_ = svc.Start() //nolint:errcheck
-			}
-		}
-
-		return nil
-	}
-	if err != nil {
-		fmt.Printf("- config not found in the system: %s", err.Error())
-	}
 	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return err
@@ -156,12 +189,19 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 	cmd.ClearScreen()
 	cmd.PrintBranding(DefaultBanner)
 
-	// If there are no providers registered, we enter a shell for manual installation
-	// and print information about the webUI
+	// If there are no providers registered, we enter a shell for manual
+	// installation and print the interfaces it can be reached on.
 	if !bus.Manager.HasRegisteredPlugins() {
-		displayInfo(agentConfig)
+		displayInfo()
 		fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
 		return utils.Shell().Run()
+	}
+
+	// config.Scan hands back a usable config on every failure it reports, so
+	// nil here means it could not even build one (an arch it does not know).
+	// Say so instead of dereferencing it.
+	if cc == nil {
+		return errors.New("no configuration could be read, stopping installation")
 	}
 
 	configStr, err := cc.Collector.String()
@@ -181,7 +221,7 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 
 	if tk != "" {
 		qr.Print(tk)
-		displayInfo(agentConfig)
+		displayInfo()
 	}
 
 	if _, err := bus.Manager.Publish(events.EventInstall, events.InstallPayload{Token: tk, Config: configStr}); err != nil {

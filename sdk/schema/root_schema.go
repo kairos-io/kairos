@@ -12,26 +12,30 @@ import (
 
 // RootSchema groups all the different schema of the Kairos configuration together.
 type RootSchema struct {
-	_                         struct{}       `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
-	Bundles                   []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	ConfigURL                 string         `json:"config_url,omitempty" description:"URL download configuration from."`
-	Env                       []string       `json:"env,omitempty"`
-	FailOnBundleErrors        bool           `json:"fail_on_bundles_errors,omitempty"`
-	GrubOptionsSchema         `json:"grub_options,omitempty"`
-	Install                   InstallSchema            `json:"install,omitempty"`
-	Options                   []interface{}            `json:"options,omitempty" description:"Various options."`
-	Users                     []UserSchema             `json:"users,omitempty" minItems:"1" required:"true"`
+	_                  struct{}         `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
+	Bundles            []BundleSchema   `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	ConfigURL          string           `json:"config_url,omitempty" description:"URL download configuration from."`
+	Env                []string         `json:"env,omitempty"`
+	Extensions         ExtensionsSchema `json:"extensions,omitempty"`
+	FailOnBundleErrors bool             `json:"fail_on_bundles_errors,omitempty"`
+	GrubOptionsSchema  `json:"grub_options,omitempty"`
+	Install            InstallSchema `json:"install,omitempty"`
+	Kcrypt             KcryptSchema  `json:"kcrypt,omitempty"`
+	Options            []interface{} `json:"options,omitempty" description:"Various options."`
+	// Users is not required. An admin user may instead be defined in a yip
+	// stage (stages.<stage>[].users) or waived with install.nousers, and the
+	// agent enforces that at install time (see CheckConfigForUsers in
+	// agent/pkg/config). An explicit empty list is still rejected.
+	Users                     []UserSchema             `json:"users,omitempty" minItems:"1"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
 	Debug                     bool                     `json:"debug,omitempty" mapstructure:"debug"`
 	Strict                    bool                     `json:"strict,omitempty" mapstructure:"strict"`
 	CloudInitPaths            []string                 `json:"cloud-init-paths,omitempty" mapstructure:"cloud-init-paths"`
 	EjectCD                   bool                     `json:"eject-cd,omitempty" mapstructure:"eject-cd"`
-	FullCloudConfig           string                   `json:"fullcloudconfig,omitempty" mapstructure:"fullcloudconfig"`
 	Cosign                    bool                     `json:"cosign,omitempty" mapstructure:"cosign"`
 	Verify                    bool                     `json:"verify,omitempty" mapstructure:"verify"`
 	CosignPubKey              string                   `json:"cosign-key,omitempty" mapstructure:"cosign-key"`
 	Arch                      string                   `json:"arch,omitempty" mapstructure:"arch"`
-	Platform                  PlatformSchema           `json:"platform,omitempty" mapstructure:"platform"`
 	SquashFsCompressionConfig []string                 `json:"squash-compression,omitempty" mapstructure:"squash-compression"`
 	SquashFsNoCompression     bool                     `json:"squash-no-compression,omitempty" mapstructure:"squash-no-compression"`
 	UkiMaxEntries             int                      `json:"uki-max-entries,omitempty" mapstructure:"uki-max-entries"`
@@ -44,12 +48,6 @@ type StageSchema struct {
 	Commands []string `json:"commands,omitempty" description:"Commands to execute"`
 }
 
-type PlatformSchema struct {
-	OS         string
-	Arch       string
-	GolangArch string
-}
-
 // KConfig is used to parse and validate Kairos configuration files.
 type KConfig struct {
 	Source          string
@@ -58,18 +56,30 @@ type KConfig struct {
 	schemaType      interface{}
 }
 
-// GenerateSchema takes the given schema type and builds a JSON Schema out of it
-// if a URL is passed it will also add it as the $schema key, which is useful when
-// defining a version of a Root Schema which will be available online.
-func GenerateSchema(schemaType interface{}, url string) (string, error) {
+// MetaSchemaDraft07 is the JSON Schema dialect the generated documents are
+// written in. The reflector emits draft-07 keywords, "definitions" rather than
+// "$defs", so a consumer has to read the document as draft-07 to resolve the
+// references in it.
+const MetaSchemaDraft07 = "http://json-schema.org/draft-07/schema#"
+
+// GenerateSchema takes the given schema type and builds a JSON Schema out of it.
+// If an id is passed it is written to the $id key, which names the document, and
+// $schema is set to the dialect the document is written in. The $schema key
+// declares a dialect, not a location, so the id does not belong in it: a
+// validator that honours $schema tries to fetch its value as a meta-schema.
+//
+// Both keys are left out when id is empty. That is the form the in-process
+// validator compiles, so its dialect is unchanged by this.
+func GenerateSchema(schemaType interface{}, id string) (string, error) {
 	reflector := jsonschemago.Reflector{}
 
 	generatedSchema, err := reflector.Reflect(schemaType)
 	if err != nil {
 		return "", err
 	}
-	if url != "" {
-		generatedSchema.WithSchema(url)
+	if id != "" {
+		generatedSchema.WithID(id)
+		generatedSchema.WithSchema(MetaSchemaDraft07)
 	}
 
 	generatedSchemaJSON, err := json.MarshalIndent(generatedSchema, "", " ")

@@ -22,4 +22,5 @@ install:
   bundles:
     - rootfs_path: /var/lib/extensions/kubo
       targets:
-        - container://quay.io/kairos/ci-temp-images:bundles-test
+        # Rendered by bundles_test.go from BUNDLE_IMAGE.
+        - container://__BUNDLE_IMAGE__

@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -12,6 +13,7 @@ import (
 	edgevpnapi "github.com/mudler/edgevpn/api"
 	edgevpnclient "github.com/mudler/edgevpn/api/client"
 	"github.com/mudler/edgevpn/api/client/service"
+	edgevpncmd "github.com/mudler/edgevpn/cmd"
 	"github.com/mudler/edgevpn/pkg/blockchain"
 	"github.com/mudler/edgevpn/pkg/logger"
 	"github.com/mudler/edgevpn/pkg/node"
@@ -21,11 +23,56 @@ import (
 )
 
 var _ = Describe("EdgeVPN API CLI wiring", func() {
-	It("defaults role commands to the EdgeVPN Unix socket", func() {
+	It("points role commands at the address resolved for this machine", func() {
+		// The resolved address is the local daemon's on a node and the bridge's
+		// off one, so the spec asks for whichever this machine is rather than
+		// naming one. Build the app first: that is what resolves it, and this
+		// spec should not depend on another having run already.
+		NewApp()
+
 		apiFlag, ok := RoleCMD.Subcommands[0].Flags[0].(*cli.StringFlag)
 		Expect(ok).To(BeTrue())
-		Expect(apiFlag.Value).To(Equal(provider.DefaultEdgeVPNAPIAddress))
+		Expect(apiFlag.Value).To(Equal(provider.ResolveAPIAddress(provider.EdgeVPNEnvFile)))
 		Expect(apiFlag.EnvVars).To(Equal([]string{"EDGEVPN_API"}))
+	})
+
+	It("registers rotate-token with the documented defaults", func() {
+		app := NewApp()
+		var cmd *cli.Command
+		for _, c := range app.Commands {
+			if c.Name == "rotate-token" {
+				cmd = c
+				break
+			}
+		}
+		Expect(cmd).NotTo(BeNil(), "rotate-token should be reachable from the provider CLI")
+
+		flags := map[string]cli.Flag{}
+		for _, f := range cmd.Flags {
+			for _, n := range f.Names() {
+				flags[n] = f
+			}
+		}
+		dirs, ok := flags["config-dir"].(*cli.StringSliceFlag)
+		Expect(ok).To(BeTrue())
+		Expect(dirs.Value.Value()).To(Equal([]string{"/etc/kairos", "/oem"}))
+
+		rootDir, ok := flags["root-dir"].(*cli.StringFlag)
+		Expect(ok).To(BeTrue())
+		Expect(rootDir.Value).To(Equal("/"))
+
+		restart, ok := flags["restart"].(*cli.BoolFlag)
+		Expect(ok).To(BeTrue())
+		Expect(restart.Value).To(BeFalse())
+
+		Expect(flags).To(HaveKey("api"))
+	})
+
+	It("rejects rotate-token when no new token is supplied", func() {
+		app := NewApp()
+		err := app.Run([]string{"kairos", "rotate-token"})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("token is required"))
 	})
 
 	It("dials a running EdgeVPN API through a Unix socket", func() {
@@ -69,5 +116,58 @@ var _ = Describe("EdgeVPN API CLI wiring", func() {
 			return serviceClient.Get("role", "node-1")
 		}, 10*time.Second, 100*time.Millisecond).Should(Equal("master"))
 		fmt.Fprint(GinkgoWriter, "verified role command over ", address)
+	})
+})
+
+var _ = Describe("The recovery SSH server command", func() {
+	// context builds a cli.Context over the command's own flag set, the way
+	// urfave/cli does before it calls the action, so the assertions below see
+	// exactly the flags the running command sees.
+	newContext := func(args ...string) *cli.Context {
+		set := flag.NewFlagSet("recovery-ssh-server", flag.ContinueOnError)
+		for _, f := range RecoverySSHServerCMD().Flags {
+			Expect(f.Apply(set)).To(Succeed())
+		}
+		Expect(set.Parse(args)).To(Succeed())
+
+		return cli.NewContext(nil, set, nil)
+	}
+
+	It("can set the log level the recovery service asks for", func() {
+		Expect(newContext().Set("log-level", "fatal")).To(Succeed())
+	})
+
+	It("reads a whole EdgeVPN config, discovery included", func() {
+		c := newContext("--token", "atoken")
+		Expect(c.Set("log-level", "fatal")).To(Succeed())
+
+		nc := edgevpncmd.ConfigFromContext(c)
+		Expect(nc.NetworkToken).To(Equal("atoken"))
+		Expect(nc.LogLevel).To(Equal("fatal"))
+		// Both default to on. Read off a command that does not declare them
+		// they would be false, and the node would have no way to find a peer.
+		Expect(nc.Discovery.DHT).To(BeTrue())
+		Expect(nc.Discovery.MDNS).To(BeTrue())
+	})
+
+	It("takes the token from the variable the agent exports", func() {
+		var tokenFlag *cli.StringFlag
+		for _, f := range RecoverySSHServerCMD().Flags {
+			sf, ok := f.(*cli.StringFlag)
+			if ok && sf.Name == "token" {
+				tokenFlag = sf
+				break
+			}
+		}
+		Expect(tokenFlag).NotTo(BeNil())
+		// provider.Recovery spawns this command with EDGEVPNTOKEN set.
+		Expect(tokenFlag.EnvVars).To(ContainElement("EDGEVPNTOKEN"))
+	})
+
+	It("keeps the session flags the agent passes", func() {
+		c := newContext()
+		Expect(c.String("listen")).To(Equal("127.0.0.1:2222"))
+		Expect(c.String("service")).To(BeEmpty())
+		Expect(c.String("password")).To(BeEmpty())
 	})
 })

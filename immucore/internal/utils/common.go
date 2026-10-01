@@ -127,6 +127,29 @@ func CreateIfNotExists(path string) error {
 	return nil
 }
 
+// CreateDirIfNotExists is CreateIfNotExists for a caller that knows which mode
+// the directory has to have. A path that is already there is left alone, mode
+// included: whoever created it had a reason and it is not this function's to
+// override. Parents that have to be created along the way get mode too, minus
+// the umask, because that is what os.MkdirAll does with its mode argument;
+// only the last element is then set to exactly mode. A path whose parents may
+// be absent has to be checked against that before it goes in bindMountModes,
+// or a restrictive leaf mode silently applies to the parent as well.
+func CreateDirIfNotExists(path string, mode os.FileMode) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.MkdirAll(path, mode); err != nil {
+		return err
+	}
+	// MkdirAll applies the umask to the mode it is given, so it has to be set
+	// again to get the group and the other bits through.
+	return os.Chmod(path, mode)
+}
+
 // CleanupSlice will clean a slice of strings of empty items
 // Typos can be made on writing the cos-layout.env file and that could introduce empty items
 // In the lists that we need to go over, which causes bad stuff.
@@ -190,6 +213,7 @@ func RebootOrWait(msg string, err error) {
 	syscall.Sync()
 	if len(ReadCMDLineArg("rd.immucore.rebootonfailure")) > 0 {
 		KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Rebooting in 10 seconds", msg))
+		announceOnConsoles(ConsoleDevices(), failureLine(msg, err, "Rebooting in 10 seconds"))
 		time.Sleep(10 * time.Second)
 		if rerr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART); rerr != nil {
 			KLog.Logger.Err(rerr).Msg("reboot syscall failed; blocking to avoid boot continuation")
@@ -197,10 +221,44 @@ func RebootOrWait(msg string, err error) {
 		}
 	}
 	KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Halting boot", msg))
+	announceOnConsoles(ConsoleDevices(), failureLine(msg, err, "Halting boot"))
 	if herr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_HALT); herr != nil {
 		KLog.Logger.Err(herr).Msg("halt syscall failed; blocking to avoid boot continuation")
 		select {}
 	}
+}
+
+// failureLine is the operator-facing one-liner for a RebootOrWait failure.
+// err is included because on a headless boot it is the only diagnostic there
+// is: the structured log goes to the journal, which nobody can read from a
+// machine that is about to halt.
+func failureLine(msg string, err error, action string) string {
+	if err != nil {
+		return fmt.Sprintf("%s: %s - %s", msg, err, action)
+	}
+	return fmt.Sprintf("%s - %s", msg, action)
+}
+
+// announceOnConsoles writes text to every console in paths, then closes them.
+//
+// This exists because the logger alone does not reach serial. immucore logs to
+// stderr, systemd routes that to /dev/console, and /dev/console aliases only
+// the *last* console= stanza on the cmdline. On the usual
+// `console=ttyS0 console=tty1` that is tty1, so everything RebootOrWait says
+// lands on the framebuffer and a headless or remote machine gets a silent
+// halt with no reason given (kairos-io/kairos#4618).
+//
+// Unlike HaltWithBanner these fds are closed on return: RebootOrWait paints
+// once and then hands control to the reboot syscall, so there is no repaint
+// loop to keep them open for.
+func announceOnConsoles(paths []string, text string) {
+	consoles := openConsolesForWriting(paths...)
+	defer func() {
+		for _, f := range consoles {
+			_ = f.Close()
+		}
+	}()
+	paintBanner(consoles, text+"\n")
 }
 
 // SystemdBooted reports whether systemd is PID 1, using the same check as
@@ -265,23 +323,11 @@ func HaltWithBanner(banner, logMsg string, err error) {
 		}
 	}
 
-	// Best-effort silencing stack. Failure of any single step is fine — this
-	// is UX polish, not a correctness step.
-	//
-	//  1. Kernel console loglevel → EMERG-only. Kills `dmesg`-style noise.
-	//  2. systemd's own logging → target null. Kills its journal-to-console
-	//     bridge.
-	//  3. systemd's PID 1 ShowStatus → off via SIGRTMIN+21 (the show-status
-	//     OVERRIDE; the cylon job ticker re-enables the plain state on every
-	//     tick so only the override sticks; D-Bus is not reachable from the
-	//     initrd). See signalShowStatusOff for the musl/glibc signal-number
-	//     dance.
-	//  4. plymouth (if installed) re-enables status output on its own.
-	//     Quit it defensively.
-	_ = os.WriteFile("/proc/sys/kernel/printk", []byte("1 4 1 7\n"), 0o644)
-	_ = exec.Command("systemctl", "log-target", "null").Run()
-	signalShowStatusOff()
-	_ = exec.Command("plymouth", "quit", "--retain-splash").Run()
+	silenceConsole(
+		func(argv ...string) { _ = exec.Command(argv[0], argv[1:]...).Run() }, //nolint:gosec // fixed argv, see silenceConsole
+		func(level string) { _ = os.WriteFile("/proc/sys/kernel/printk", []byte(level), 0o644) },
+		signalShowStatusOff,
+	)
 
 	// Paint once after a short settle delay: the silencing calls above race
 	// any status line systemd already has in flight, so give those a moment
@@ -760,3 +806,46 @@ func Copy(src, dst string) error {
 	}
 	return nil
 }
+
+// silenceConsole is the best-effort stack that gets the console to itself
+// before HaltWithBanner paints the failure screen. Failure of any single step
+// is fine, this is UX polish and not a correctness step, which is why nothing
+// here returns an error.
+//
+// The steps, in the order they have to happen:
+//
+//  1. The boot splash animates on /dev/tty1 until something stops it, and it
+//     repaints every frame, so it would scroll the banner straight off the
+//     screen. Its unit conflicts with emergency.target, but this screen does
+//     not go through emergency.target, so stop it by name.
+//
+//     First, and the order is load-bearing: the splash quiets the kernel
+//     loglevel itself while it draws and restores the old value on the way
+//     out, so stopping it after step 2 would undo step 2.
+//
+//  2. Kernel console loglevel → EMERG-only. Kills `dmesg`-style noise.
+//
+//  3. systemd's own logging → target null. Kills its journal-to-console
+//     bridge.
+//
+//  4. systemd's PID 1 ShowStatus → off via SIGRTMIN+21 (the show-status
+//     OVERRIDE; the cylon job ticker re-enables the plain state on every tick
+//     so only the override sticks; D-Bus is not reachable from the initrd).
+//     See signalShowStatusOff for the musl/glibc signal-number dance.
+//
+//  5. plymouth (if installed) re-enables status output on its own. Quit it
+//     defensively.
+//
+// run, writePrintk and showStatusOff are injected so a test can assert the
+// order without signalling PID 1 or writing to /proc.
+func silenceConsole(run func(argv ...string), writePrintk func(level string), showStatusOff func()) {
+	run("systemctl", "stop", splashUnitName)
+	writePrintk("1 4 1 7\n")
+	run("systemctl", "log-target", "null")
+	showStatusOff()
+	run("plymouth", "quit", "--retain-splash")
+}
+
+// splashUnitName is the boot splash unit, named identically in the initramfs
+// (kairos-init's 50kairos-splash dracut module) and in the booted system.
+const splashUnitName = "kairos-splash.service"

@@ -44,10 +44,32 @@ func (r *ResetAction) Run() (err error) {
 	if r.spec.FormatPersistent {
 		persistent := r.spec.Partitions.Persistent
 		if persistent != nil {
+			// Same as the non-UKI reset: the audit trail rides over the
+			// format, and a failure to preserve it is a warning rather than a
+			// reason to leave the machine half reset.
+			stash, sErr := action.StashAuditLog(r.cfg, persistent)
+			if sErr != nil {
+				r.cfg.Logger.Warnf("could not preserve %s across the reset: %s", constants.AuditLogPath, sErr)
+			}
+
+			// Nothing mounts the persistent partition on a UKI recovery boot,
+			// but the stash above does while it reads, so the format needs the
+			// same unmount the GRUB path does. It is a no-op on a partition
+			// that is not mounted.
+			err = e.UnmountPartition(persistent)
+			if err != nil {
+				r.cfg.Logger.Errorf("unmounting persistent partition: %s", err.Error())
+				return err
+			}
+
 			err = e.FormatPartition(persistent)
 			if err != nil {
 				r.cfg.Logger.Errorf("formatting persistent partition: %s", err.Error())
 				return err
+			}
+
+			if rErr := action.RestoreAuditLog(r.cfg, persistent, stash); rErr != nil {
+				r.cfg.Logger.Warnf("could not restore %s after the reset: %s", constants.AuditLogPath, rErr)
 			}
 		}
 	}
