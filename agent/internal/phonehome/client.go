@@ -62,6 +62,10 @@ type Client struct {
 	mu   sync.Mutex
 	conn *websocket.Conn
 
+	// cpu keeps the previous /proc/stat reading across heartbeats, because CPU
+	// usage only exists as a delta between two samples.
+	cpu cpuTracker
+
 	// stopCancel cancels the derived context the Run loop uses; nil until Run
 	// starts. Stop() captures the current value under mu.
 	stopCancel context.CancelFunc
@@ -357,6 +361,7 @@ func (c *Client) sendHeartbeat(conn *websocket.Conn) error {
 		Addresses:    gatherAddresses(),
 		BootState:    detectBootState(c.logger.Logger),
 		Hostname:     gatherHostname(),
+		Metrics:      c.cpu.gather(),
 	}
 	data, _ := json.Marshal(hb)
 	msg := WSMessage{Type: "heartbeat", Data: data}

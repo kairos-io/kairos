@@ -328,6 +328,27 @@ var _ = Describe("mounting immutable setup", func() {
 			Expect(quarantine).To(BeNumerically("<", layerOf(layers, cnst.OpInitramfsHook)), actualDag)
 		})
 
+		It("writes the UKI sentinel before the initramfs hook the installer stage runs in", func() {
+			// 52_installer.yaml gates the installer stage on
+			// /run/cos/uki_install_mode, which WriteSentinelDagStep writes.
+			// The stage runs in the initramfs yip stage, so the sentinel has
+			// to be on disk by then or the guard reads an absent file and no
+			// installer ever starts on UKI live media. internalUtils
+			// .UkiSentinel names it (see the immucore utils specs); this is
+			// the ordering half of the same guarantee.
+			s := &state.State{Rootdir: "/"}
+			err := dag.RegisterUKI(s, g)
+			Expect(err).ToNot(HaveOccurred())
+			layers := g.Analyze()
+			actualDag := s.WriteDAG(g)
+
+			sentinel := layerOf(layers, cnst.OpSentinel)
+			Expect(sentinel).ToNot(Equal(-1), actualDag)
+			Expect(sentinel).To(BeNumerically("<", layerOf(layers, cnst.OpInitramfsHook)), actualDag)
+			// The rootfs stage reads it too (00_rootfs.yaml, 01_extra_binds.yaml).
+			Expect(sentinel).To(BeNumerically("<", layerOf(layers, cnst.OpRootfsHook)), actualDag)
+		})
+
 		It("generates UKI dag without ensure-partitions", func() {
 			s := &state.State{Rootdir: "/"}
 			err := dag.RegisterUKI(s, g)

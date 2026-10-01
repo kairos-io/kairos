@@ -113,11 +113,20 @@ func (u *UpgradeAction) Run() (err error) {
 		return err
 	}
 	cleanup.Push(umount)
-	umount, err = e.MountRWPartition(u.spec.Partitions.Recovery)
-	if err != nil {
-		return err
+	// The recovery partition is optional on a system upgrade. Only a recovery
+	// upgrade writes to it, and Sanitize already rejects that case when it is
+	// missing, so a machine without COS_RECOVERY has to get through here. The
+	// other optional partitions in this file (OEM, persistent, EFI) are
+	// already skipped when absent.
+	if u.spec.Partitions.Recovery != nil {
+		umount, err = e.MountRWPartition(u.spec.Partitions.Recovery)
+		if err != nil {
+			return err
+		}
+		cleanup.Push(umount)
+	} else {
+		u.Debug("No recovery partition on this machine, skipping its mount")
 	}
-	cleanup.Push(umount)
 
 	// Cleanup transition image file before leaving
 	cleanup.Push(func() error { return u.remove(upgradeImg.File) })
