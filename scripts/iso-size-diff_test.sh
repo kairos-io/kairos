@@ -54,6 +54,30 @@ make_uki_iso() {
     -o "$dir/$iso" "$stage/iso" >/dev/null 2>&1
 }
 
+# make_uki_iso_no_kairos_dir <root> <artifact-dir> <iso-name>
+#
+# A FAT efiboot.img that only has EFI/BOOT (systemd-boot), the way an ISO
+# built with a different UKI layout, or a partial/corrupted build, might
+# look. This is a different failure than a missing efiboot.img: xorriso and
+# mcopy both succeed on the image itself, it just doesn't have EFI/kairos in
+# it, so the error has to come from the mcopy step, not the "no efiboot.img"
+# check.
+make_uki_iso_no_kairos_dir() {
+  local dir="$1/$2" iso="$3" stage img
+  stage="$(mktemp -d "$WORK/stage.XXXXXX")"
+  mkdir -p "$dir" "$stage/iso"
+
+  head -c 4096 /dev/urandom >"$stage/BOOTX64.EFI"
+  img="$stage/iso/efiboot.img"
+  head -c $((4 * MIB)) /dev/zero >"$img"
+  mformat -i "$img" -F ::
+  mmd -i "$img" ::EFI ::EFI/BOOT
+  mcopy -i "$img" "$stage/BOOTX64.EFI" ::EFI/BOOT/BOOTX64.EFI
+
+  xorriso -as mkisofs -quiet -V UKI_ISO_INSTALL -e efiboot.img -no-emul-boot \
+    -o "$dir/$iso" "$stage/iso" >/dev/null 2>&1
+}
+
 # expect <name> <want-exit> <want-in-output|-> <args...>
 expect() {
   local name="$1" want="$2" grep_for="$3" out rc=0
@@ -124,6 +148,13 @@ expect "mixed set still gates the UKI" 1 "norole.efi grew" \
 make_plain_iso "$WORK/broken/cand" "$UKI" kairos-b-uki.iso $MIB
 expect "UKI ISO without efiboot.img is an error" 1 "Could not read the EFI image" \
   "$WORK/missing" "$WORK/broken/cand"
+
+# A UKI ISO with a valid efiboot.img but no EFI/kairos dir inside it is also
+# an error, not a quietly empty UKI table.
+mkdir -p "$WORK/nokairos/cand"
+make_uki_iso_no_kairos_dir "$WORK/nokairos/cand" "$UKI" kairos-b-uki.iso
+expect "UKI efiboot.img without EFI/kairos is an error" 1 "Could not read the EFI image" \
+  "$WORK/missing" "$WORK/nokairos/cand"
 
 expect "bad flag value is rejected" 1 "whole number" \
   --max-efi-mib lots "$WORK/small/base" "$WORK/small/cand"
