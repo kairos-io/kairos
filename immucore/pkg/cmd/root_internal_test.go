@@ -129,29 +129,22 @@ func TestWatchForTerminationStopsInterceptingAfterStop(t *testing.T) {
 	}
 }
 
-// TestSignalDuringDAGFiresOnSignalBeforeDAGCompletes reproduces
-// kairos-io/kairos#4813: root.go arms watchForTermination before g.Run, and
-// the watch's onSignal callback (production: haltTerminated, which paints
-// "KAIROS BOOT FAILED" and mutes the console) fires the instant a signal
-// arrives, with no check of whether the mount DAG actually finished. A
-// Conflicts= unit (initrd-cleanup.service against initrd-switch-root.target)
-// can deliver that signal mid-DAG even though the DAG goes on to complete
-// successfully, so a healthy boot gets painted as a hard failure.
-//
-// This test builds a real herd DAG with one slow step, arms the watch the
-// same way root.go does, raises SIGTERM partway through the step, and
-// asserts that onSignal already ran -- unconditionally -- while the DAG step
-// was still in flight. This is the bug: today there is no coordination
-// between the signal watch and DAG completion. Once root.go is fixed to only
-// halt when the DAG truly has not finished, this assertion should no longer
-// hold and the test must be flipped to assert the corrected behaviour.
-func TestSignalDuringDAGFiresOnSignalBeforeDAGCompletes(t *testing.T) {
+// A Conflicts= stop job (initrd-cleanup.service isolating
+// initrd-switch-root.target) can signal immucore while the mount DAG is still
+// running. When the DAG goes on to finish within the grace, onSignal must not
+// run: that path paints "KAIROS BOOT FAILED" and mutes the console on a boot
+// that is healthy.
+func TestSignalDuringDAGDoesNotHaltWhenDAGCompletes(t *testing.T) {
 	const stepDuration = 300 * time.Millisecond
+
+	prev := terminationGrace
+	terminationGrace = time.Second
+	t.Cleanup(func() { terminationGrace = prev })
 
 	dagFinished := make(chan struct{})
 	onSignalFired := make(chan struct{})
 
-	g := herd.DAG()
+	g := herd.DAG(herd.EnableInit)
 	err := g.Add("slow-mount-step", herd.WithCallback(func(_ context.Context) error {
 		time.Sleep(stepDuration)
 		close(dagFinished)
@@ -161,17 +154,12 @@ func TestSignalDuringDAGFiresOnSignalBeforeDAGCompletes(t *testing.T) {
 		t.Fatalf("adding DAG step: %v", err)
 	}
 
-	// Arm the watch before starting the DAG, exactly as root.go's
-	// NewApp Action does at lines 112/115.
 	stop := watchForTermination(true, func(os.Signal) { close(onSignalFired) })
 	defer stop()
 
 	runErr := make(chan error, 1)
 	go func() { runErr <- g.Run(context.Background()) }()
 
-	// Signal partway through the slow step: the DAG is demonstrably still
-	// in flight, matching initrd-cleanup.service isolating
-	// initrd-switch-root.target mid-mount on a real boot.
 	time.Sleep(stepDuration / 3)
 	if err := syscall.Kill(syscall.Getpid(), syscall.SIGTERM); err != nil {
 		t.Skipf("cannot signal self: %v", err)
@@ -179,18 +167,20 @@ func TestSignalDuringDAGFiresOnSignalBeforeDAGCompletes(t *testing.T) {
 
 	select {
 	case <-onSignalFired:
-		// Bug reproduced: onSignal already ran.
-	case <-time.After(2 * time.Second):
-		t.Fatal("onSignal was never invoked after SIGTERM")
-	}
-
-	select {
+		t.Fatal("onSignal ran while the DAG was still in flight")
 	case <-dagFinished:
-		t.Fatal("DAG had already finished by the time onSignal fired; this no longer reproduces the race")
-	default:
-		// This is the bug: onSignal fired while the DAG step was still
-		// running, with no check of DAG completion state.
 	}
 
-	<-runErr
+	if err := <-runErr; err != nil {
+		t.Fatalf("running DAG: %v", err)
+	}
+	stop()
+
+	// Wait past the grace: a stopped watch must not fire once its timer
+	// would have expired.
+	select {
+	case <-onSignalFired:
+		t.Fatal("onSignal ran after the DAG completed")
+	case <-time.After(terminationGrace + 200*time.Millisecond):
+	}
 }
