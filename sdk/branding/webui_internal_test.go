@@ -60,3 +60,48 @@ var _ = Describe("WebUI.URLs", func() {
 		Expect(WebUI{ListenAddress: "192.168.1.5"}.urls(ips("192.168.1.10"))).To(BeEmpty())
 	})
 })
+
+var _ = Describe("the web UI token", func() {
+	Describe("TokenMatches", func() {
+		It("accepts the token the image set", func() {
+			Expect(WebUI{Token: "abc"}.TokenMatches("abc")).To(BeTrue())
+		})
+
+		It("refuses anything else", func() {
+			Expect(WebUI{Token: "abc"}.TokenMatches("abd")).To(BeFalse())
+			Expect(WebUI{Token: "abc"}.TokenMatches("ab")).To(BeFalse())
+			Expect(WebUI{Token: "abc"}.TokenMatches("abcd")).To(BeFalse())
+			Expect(WebUI{Token: "abc"}.TokenMatches("")).To(BeFalse())
+		})
+
+		// A caller that forgot HasToken must not be handed an authorized
+		// request because the client sent no token either.
+		It("refuses every value when the image set no token", func() {
+			Expect(WebUI{}.HasToken()).To(BeFalse())
+			Expect(WebUI{}.TokenMatches("")).To(BeFalse())
+			Expect(WebUI{}.TokenMatches("anything")).To(BeFalse())
+		})
+	})
+
+	Describe("URLs", func() {
+		It("carries the token, so the printed URL and its QR code let the console user in", func() {
+			w := WebUI{Token: "abc"}
+			Expect(w.urls(ips("192.168.1.10"))).To(Equal([]string{"http://192.168.1.10:8080/?token=abc"}))
+		})
+
+		It("escapes a token that would otherwise break the URL", func() {
+			w := WebUI{Token: "a b&c=d/e+f"}
+			Expect(w.urls(ips("192.168.1.10"))).
+				To(Equal([]string{"http://192.168.1.10:8080/?token=a+b%26c%3Dd%2Fe%2Bf"}))
+		})
+
+		It("carries the token on a pinned host too", func() {
+			w := WebUI{ListenAddress: "192.168.1.5:9000", Token: "abc"}
+			Expect(w.urls(ips())).To(Equal([]string{"http://192.168.1.5:9000/?token=abc"}))
+		})
+
+		It("leaves the URL alone when the image set no token", func() {
+			Expect(WebUI{}.urls(ips("192.168.1.10"))).To(Equal([]string{"http://192.168.1.10:8080"}))
+		})
+	})
+})

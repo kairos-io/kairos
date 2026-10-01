@@ -299,6 +299,22 @@ func genericTests(vm VM) {
 
 		Expect(out).To(ContainSubstring("foo"))
 	})
+	By("checking /dev/shm is mounted nosuid and nodev", func() {
+		// The UKI initramfs mounts /dev/shm itself, and UkiPivotToSysroot
+		// moves it into the new root with MS_MOVE, which keeps the flags,
+		// so whatever immucore set is what the booted system runs with.
+		// A world-writable tmpfs that honours setuid bits and device nodes
+		// is the one entry of that table where that matters.
+		//
+		// Read the one /proc/mounts line rather than the whole mount
+		// output, so the assertion cannot be satisfied by some other
+		// filesystem that does carry the flags.
+		out, err := vm.Sudo(`grep " /dev/shm " /proc/mounts`)
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring(" /dev/shm tmpfs "), out)
+		Expect(out).To(ContainSubstring("nosuid"), out)
+		Expect(out).To(ContainSubstring("nodev"), out)
+	})
 	By("checking bpf mount", func() {
 		out, err := vm.Sudo("mount")
 		Expect(err).ToNot(HaveOccurred())

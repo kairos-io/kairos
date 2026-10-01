@@ -7,14 +7,16 @@
 The default **interactive installer** for [Kairos](https://kairos.io).
 
 `kairos-installer` is a standalone terminal UI that collects installation
-settings (disk, user, SSH keys, post-install action, plus any provider-supplied
-fields) and then drives [`kairos-agent`](../agent/) to perform the install.
+settings (disk, user, SSH keys, hostname, timezone and keymap, system
+extensions, post-install action, plus any provider-supplied fields) and then
+drives [`kairos-agent`](../agent/) to perform the install.
 It does **not** partition or install anything itself — that is `kairos-agent`'s
 job. The installer only owns the UX and hands a configuration to the agent.
 
 It also serves the **web installer**, on `:8080` by default, next to the
 terminal UI and in the same process, so a live boot offers both frontends
-without two services fighting over the port.
+without two services fighting over the port. Both frontends ask the same
+questions: see [The installer steps](#the-installer-steps).
 
 The terminal UI opens on that address: its first screen lists every URL the web
 installer answers on, and renders the first of them as a QR code so it can be
@@ -31,11 +33,9 @@ entry used to run.
 One process means one lifetime: quitting the terminal UI ends the web session
 too, unless an install started from the browser is still running, which the
 installer serves to the end before it exits. Nothing re-execs the installer on
-an interactive boot, so bringing the web UI back for that boot means starting
-the `kairos-webui` service by hand, once the installer has exited and released
-the port. An interactive boot ships that service on both init systems but
-leaves it disabled, so nothing competes with the in-process web UI while the
-installer is still up.
+an interactive boot, so bringing the web UI back for that boot means running
+the installer again by hand, once the first one has exited and released the
+port.
 
 It is shipped in Kairos images (by [`kairos-init`](../kairos-init/)) at
 `/system/installer/kairos-installer`, where `kairos-agent interactive-install`
@@ -53,16 +53,11 @@ wins):
 2. `/system/installer/installer` — **override slot** (you drop your binary here)
 3. `/system/installer/kairos-installer` — the default (this project)
 
-`kairos-agent webui` is a dispatcher onto the same binary, with the same
-resolution order, adding `--no-tui`. In that mode the installer serves only its
-web UI and draws no terminal UI, which is what the non-interactive live
-boot entry wants. The web installer is a frontend of the installer, not of the
-agent, so an image that ships its own installer serves its own web UI.
-
-That subcommand is **deprecated** and logs a warning to the journal (the agent
-runs quiet, so nothing is printed to the terminal): it exists only so the
-`kairos-webui` service keeps working, and it goes away with that service. Call
-the installer with `--no-tui` instead.
+Run the installer with `--no-tui` to serve only its web UI and draw no
+terminal UI. The web installer is a frontend of the installer, not of the
+agent, so an image that ships its own installer serves its own web UI. There
+is no `kairos-agent webui` subcommand and no `kairos-webui` service any more:
+every boot that runs the installer gets the web UI in that same process.
 
 The agent forwards `--source <uri>` to the installer. The installer, in turn,
 drives the install by running:
@@ -81,9 +76,10 @@ progress as **JSON Lines** on stdout:
 {"event":"error","message":"no target device found"}
 ```
 
-The web UI is a third frontend on that same contract, not a separate path into
-the agent. Its `/ws` re-publishes the events above as one JSON object per
-frame:
+The web UI is another frontend on that same contract, not a separate path into
+the agent. The browser builds the cloud-config with the wizard, and the server
+sends it to `manual-install` the same way the terminal UI does. Its `/ws`
+re-publishes the events above as one JSON object per frame:
 
 ```json
 {"type":"step","step":"partition"}
@@ -97,6 +93,131 @@ page shows the whole install rather than whatever arrives next.
 
 The full, authoritative contract is documented in kairos-agent:
 **[`docs/installer-contract.md`](https://github.com/kairos-io/kairos-agent/blob/main/docs/installer-contract.md)**.
+
+---
+
+## The installer steps
+
+The questions are defined once, in `internal/wizard`, as data: an ordered list
+of steps, each with its fields. The terminal UI and the web UI both draw that
+list, and both send every answer through the same `wizard.Apply`, so a value
+one frontend refuses the other refuses too, with the same message.
+
+| Step | Asks for | Can be skipped |
+| --- | --- | --- |
+| `disk` | the disk to install to | no |
+| `user` | a user name and a password | yes |
+| `ssh_keys` | SSH public keys, or `github:` and `gitlab:` user names | yes |
+| `hostname` | the host name | yes |
+| `locale` | the timezone and the console keymap | yes |
+| `extensions` | system extensions from the live media or the catalogs | yes |
+| `provider` | the fields a provider plugin asks for; a field the plugin asks only after a yes gets that yes or no in front of it | yes, and it is shown only when a provider asks something |
+| `finish` | reboot, power off, or nothing after the install | no, it starts on nothing |
+
+`wizard.Render` turns the answers into a `#cloud-config`, and
+`wizard.Finalize` writes the confirmed disk and finish action over it just
+before the install starts. So a cloud-config edited by hand still installs to
+the disk the operator confirmed, whatever its `install.device` says.
+
+### Terminal UI
+
+After the prerequisites, the terminal UI asks how to install. **Quick
+install**, the default, asks for the disk and goes straight to the summary:
+no user is created and nothing else is configured, so `enter`, `enter`,
+`enter` and `y` install. The summary says that no user was set up, and `esc`
+twice goes back to the choice, keeping the disk. **Customize** asks for the
+disk, then offers **Start Install** (with the finish action) or **Customize
+Further**, which opens a menu of the optional steps. On an image branded with
+`interactive_install_advanced_disabled` there is nothing to customize, so the
+terminal UI does not ask how to install: it asks for the disk, then offers
+**Start Install** with the finish action. The summary page shows the generated cloud-config: `e` opens it in an
+editor (`ctrl+s` keeps the edit, `ctrl+r` builds it again from the answers,
+`esc` drops the edit), and `v` shows it read-only. `enter` on the summary asks
+for a `y` before it erases the disk and starts the install. A long list, such
+as the timezones, filters with `/`, and an optional list starts on "(leave
+unset)". The extensions step reads the live media and the catalogs when it is
+opened, not when the installer starts.
+
+### Web installer
+
+The web installer at `/` is a step-by-step wizard over the same steps. Each
+step is one screen, and a rail on the side jumps between them. The last screen,
+**Review and install**, shows the generated cloud-config in a text box that can
+be edited by hand, checks it against the schema as you type, and has a
+**Regenerate from answers** button. Install stays disabled until you tick the
+box that confirms the disk will be erased. On an image branded with
+`interactive_install_advanced_disabled`, the text box is read only and there is
+no Regenerate button, as the terminal UI has no editor there.
+
+The page talks to these endpoints:
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /api/wizard` | the steps, with the disks and extensions found on this machine, and `advanced_disabled` |
+| `POST /api/step/:id` | check one step's values and return the updated answers, or the errors per field |
+| `POST /api/render` | build the cloud-config from the answers |
+| `POST /validate-json` | check a cloud-config against the schema |
+| `POST /install` | start the install |
+| `GET /ws` | the install progress |
+
+`POST /install` takes JSON (`cloud_config`, `device`, `finish_action`) or the
+older form fields, so a script can still post a finished cloud-config to it
+directly. The JSON keys of the previous web UI, `cloud-config` and
+`installation-device`, are still read; the new keys win when both are sent. The device and finish action it is given win over the ones in the
+text.
+
+---
+
+## Driving an install with an agent (MCP)
+
+Alongside its other two frontends, `kairos-installer` serves the same install
+contract over the [Model Context Protocol](https://modelcontextprotocol.io), so
+an AI agent can do what a person does on the screen. The transport is streamable
+HTTP, and it is a route on the web installer's own server rather than a second
+listener: **`/mcp`** on whatever address the web UI is on, `:8080` by default.
+
+It runs in both modes, including `--no-tui`. That mode is the one with no
+console session to install from, so it is the one that most needs an agent to be
+able to drive it.
+
+| Tool | What it does | Writes anything? |
+| --- | --- | --- |
+| `list_disks` | the disks an install can target | no |
+| `list_prerequisites` | run the provider `tui-check-*` plugins | no |
+| `apply_prerequisites` | act on those checks | yes, whatever the plugin does |
+| `get_install_options` | agent binary, disks, finish actions, progress steps | no |
+| `install` | perform the install | **repartitions a disk** |
+| `collect_debug_bundle` | write a debug bundle | writes the bundle |
+
+`install` refuses to run unless `confirm=true` and the device is an
+installation candidate at the moment of the call, and it runs once per boot.
+
+### Turning it off
+
+**Nothing on this endpoint is authenticated.** Anything that can reach the web
+installer can call every tool, `install` included, and a `cloud_config` passed
+to `install` reaches the installed system.
+
+That is exactly the web installer's own exposure, which is the point of sharing
+its listener: there is one address on the machine to reason about, one
+`webui.listen_address` that moves it, and `webui.disable` switches this off with
+it, because there is no server left to hang the route on. An image that wants
+the browser installer without the agent one says so in
+`/etc/kairos/agent.yaml`:
+
+```yaml
+mcp:
+  disable: true
+```
+
+That block is what an operator has on a real boot, because `kairos-agent
+interactive-install` execs the installer with a fixed argument list and no flag
+of yours ever reaches it.
+
+```sh
+kairos-installer            # TUI and web UI, MCP at :8080/mcp
+kairos-installer --no-tui   # web UI, MCP at :8080/mcp
+```
 
 ---
 
@@ -141,7 +262,7 @@ any language. Your binary must:
 
 - accept `--source <uri>` (the agent forwards it; it may be empty);
 - accept `--no-tui`, and in that mode draw no terminal UI: it is how
-  `kairos-agent webui` asks for a web-only frontend on a non-interactive boot.
+  an operator asks for a web-only frontend without a terminal to draw on.
   Plain log lines on stdout/stderr are fine there, since nothing owns the
   screen. Serving nothing and exiting 0 is a valid answer if you have no web UI;
 - run on the inherited terminal (stdin/stdout/stderr are passed through);
@@ -177,22 +298,37 @@ copy it either.
 
 To customize the UX itself, fork or vendor this repo:
 
-- **`internal/tui`** — the bubbletea model and pages, including
-  `cloudconfig.go` which turns the collected model into a `#cloud-config`.
+- **`internal/wizard`** - the steps both frontends ask, how their answers are
+  checked, and how the answers become a `#cloud-config`.
+- **`internal/tui`** - the bubbletea model and pages that draw those steps.
 
 ---
 
 ## Architecture
 
 ```
-main.go               flags(--source, --no-tui) → serve the web UI, and unless
-                      --no-tui, launch the bubbletea program alongside it
-internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
-                      the install page calls kairos-sdk/agentrun and renders progress
-internal/webui/       the web frontend: embedded assets, cloud-config
+main.go               flags (--source, --no-tui, --collect-debug-bundle),
+                      serves the web UI with the MCP endpoint mounted on it,
+                      and unless --no-tui runs the bubbletea program alongside
+internal/wizard/      the steps both frontends ask, their checks, and the
+                      cloud-config the answers render to
+internal/tui/         the terminal UX: model, pages and branding over the wizard
+                      steps; the install page calls kairos-sdk/agentrun and
+                      renders progress
+internal/webui/       the web frontend: embedded wizard assets, the /api
+                      endpoints over the wizard steps, cloud-config
                       validation, and the install/progress websocket. It calls
                       kairos-sdk/agentrun too, so /ws carries the same typed
-                      progress events the TUI renders
+                      progress events the TUI renders. It owns the router, so
+                      the MCP route hangs off it
+internal/mcp/         the same install contract exposed as MCP tools an agent
+                      can call, sharing the cloud-config shaping with the TUI.
+                      An http.Handler, not a server
+internal/checks/      gathers provider prerequisite checks over the bus and
+                      applies the answers the user gave
+internal/disks/       block-device discovery for the disk-selection page
+internal/debugbundle/ collects, serves and copies out a debug bundle
+prereqs/              the Check and prompt types providers and the TUI share
 ```
 
 Echo writes its own log to a file (`/var/log/kairos/webui.log`) whenever the TUI
@@ -200,14 +336,17 @@ is running, because its default handler writes JSON to stdout and that would
 land on top of the alt screen. With `--no-tui` it logs to stdout, so it ends up
 in the journal.
 
-`--source` reaches both frontends: the web UI passes it to `manual-install` the
-same way `agentrun.Command` does for the TUI, so an install driven from the
-browser pulls the image the boot asked for.
+`--source` reaches all three frontends: the web UI passes it to
+`manual-install` the same way `agentrun.Command` does for the TUI, and the MCP
+server keeps it as the default its `install` tool uses when the caller names no
+`source`, reporting it as `default_source` from `get_install_options`. So an
+install driven from the browser or by an agent pulls the image the boot asked
+for, the same one the terminal installer would.
 
-The reusable pieces live in **kairos-sdk**: `kairos-sdk/agentrun` drives
-`kairos-agent manual-install` and parses its JSON-Lines progress, and
-`kairos-sdk/bus` is the provider plugin bus (`agent.interactive-install →
-[]YAMLPrompt`). This project is mostly the bubbletea UI on top of those.
+The reusable pieces live in the **SDK**: `sdk/agentrun` drives
+`kairos-agent manual-install` and parses its JSON-Lines progress, and `sdk/bus`
+is the provider plugin bus (`agent.interactive-install → []YAMLPrompt`). This
+package is the three frontends (TUI, web UI and MCP) on top of those.
 
 Decoupling: this module depends only on `kairos-sdk`, the charmbracelet TUI
 libraries, and `go-pluggable`. It never imports `kairos-agent` — the only

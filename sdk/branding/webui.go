@@ -2,6 +2,7 @@ package branding
 
 import (
 	"net"
+	"net/url"
 
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
@@ -13,6 +14,12 @@ import (
 // It is empty when the image turned the web UI off, and when the host has no
 // address worth offering. Neither is an error: it only means there is no URL
 // to show.
+//
+// A URL carries the token when the image set one, because the user these are
+// printed for is at the console of the machine being installed, and a URL that
+// answers 401 is not an address they can use. Physical access to that console
+// already installs the machine, so the token is not being given away to anyone
+// who could not have it.
 func (w WebUI) URLs() []string {
 	return w.urls(machine.LocalIPs)
 }
@@ -38,7 +45,7 @@ func (w WebUI) urls(localIPs func() []string) []string {
 	// host, which is what the default ":8080" means, says the server answers
 	// on every interface, so every usable local address is a way in.
 	if host != "" && !isWildcardHost(host) {
-		return []string{"http://" + net.JoinHostPort(host, port)}
+		return []string{w.url(net.JoinHostPort(host, port))}
 	}
 
 	var out []string
@@ -46,9 +53,18 @@ func (w WebUI) urls(localIPs func() []string) []string {
 		if !isOfferableIP(ip) {
 			continue
 		}
-		out = append(out, "http://"+net.JoinHostPort(ip, port))
+		out = append(out, w.url(net.JoinHostPort(ip, port)))
 	}
 	return out
+}
+
+// url builds the URL for one host:port, with the token when there is one.
+func (w WebUI) url(hostPort string) string {
+	u := "http://" + hostPort
+	if w.HasToken() {
+		u += "/?" + TokenParam + "=" + url.QueryEscape(w.Token)
+	}
+	return u
 }
 
 // isWildcardHost reports whether host is the "any address" form, 0.0.0.0 or ::.

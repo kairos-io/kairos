@@ -158,3 +158,103 @@ func TestCatalogURLsFallsBackToTheDefault(t *testing.T) {
 		t.Fatalf("CatalogURLs() = %q, want the configured list in order", got)
 	}
 }
+
+func TestParseCmdline(t *testing.T) {
+	tests := []struct {
+		name    string
+		cmdline string
+		want    []Extension
+	}{
+		{
+			name:    "nothing declared",
+			cmdline: "console=tty1 rd.immucore.debug",
+		},
+		{
+			name:    "one URL",
+			cmdline: "console=tty1 kairos.extensions=https://10.0.0.1/tools.sysext.raw quiet",
+			want:    []Extension{{Name: "https://10.0.0.1/tools.sysext.raw"}},
+		},
+		{
+			// The whole point on netboot: pixiecore mints one served URL per
+			// image, and they arrive in one value.
+			name:    "a comma separated list keeps its order",
+			cmdline: "kairos.extensions=oci://ghcr.io/example/b.sysext.raw,oci://ghcr.io/example/a.sysext.raw",
+			want: []Extension{
+				{Name: "oci://ghcr.io/example/b.sysext.raw"},
+				{Name: "oci://ghcr.io/example/a.sysext.raw"},
+			},
+		},
+		{
+			// A cmdline entry means what a cloud config entry means, so a
+			// catalog name and a version constraint work here too.
+			name:    "a catalog name with a version",
+			cmdline: "kairos.extensions=fwupd@2.1.7",
+			want:    []Extension{{Name: "fwupd", Version: "2.1.7"}},
+		},
+		{
+			// A digest-pinned reference is one image, and its `@` is part of
+			// the reference rather than a version separator.
+			name:    "a digest pinned reference keeps its digest",
+			cmdline: "kairos.extensions=oci://ghcr.io/example/tools.sysext.raw@sha256:abc",
+			want:    []Extension{{Name: "oci://ghcr.io/example/tools.sysext.raw@sha256:abc"}},
+		},
+		{
+			// A template that always emits the keyword turns it off by
+			// emitting no value, so an empty value cannot be an error.
+			name:    "an empty value declares nothing",
+			cmdline: "console=tty1 kairos.extensions= quiet",
+		},
+		{
+			name:    "a bare keyword declares nothing",
+			cmdline: "console=tty1 kairos.extensions quiet",
+		},
+		{
+			name:    "empty entries in a list are skipped",
+			cmdline: "kairos.extensions=,fwupd,,",
+			want:    []Extension{{Name: "fwupd"}},
+		},
+		{
+			// Two boots' worth of templating, or a build that appends, can
+			// leave the key twice. Both are declarations.
+			name:    "a repeated key accumulates",
+			cmdline: "kairos.extensions=fwupd kairos.extensions=gpg",
+			want:    []Extension{{Name: "fwupd"}, {Name: "gpg"}},
+		},
+		{
+			// Substring matches must not count: kairos.extensions.catalogs is
+			// not this key, and neither is a vendor's own prefix.
+			name:    "a different key with the same prefix is not this one",
+			cmdline: "kairos.extensions.catalogs=https://example/i.json my.kairos.extensions=fwupd",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := ParseCmdline(tc.cmdline)
+			if err != nil {
+				t.Fatalf("ParseCmdline(%q): %v", tc.cmdline, err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("ParseCmdline(%q) = %v, want %v", tc.cmdline, got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("entry %d = %+v, want %+v", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+// An extension that was asked for and silently not installed is the failure
+// this path exists to close, so a value that cannot be read has to stop the
+// install rather than be skipped.
+func TestParseCmdlineRejectsAnUnreadableEntry(t *testing.T) {
+	_, err := ParseCmdline("kairos.extensions=fwupd@")
+	if err == nil {
+		t.Fatal("ParseCmdline accepted a name with an empty version")
+	}
+	if !strings.Contains(err.Error(), CmdlineKey) {
+		t.Errorf("error %q does not name the key that carried the bad value", err)
+	}
+}

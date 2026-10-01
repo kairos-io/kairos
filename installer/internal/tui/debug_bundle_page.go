@@ -12,6 +12,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
 
 type bundleState int
@@ -55,13 +56,13 @@ func (p *debugBundlePage) Init() tea.Cmd {
 		// spawning the worker, so the worker never touches the mainModel global
 		// (which the Update goroutine mutates on WindowSizeMsg / navigation).
 		agentBin := agentrun.ResolveAgentBin()
-		redacted, _ := RenderRedactedCloudConfig(&mainModel)
-		cmd := agentrun.Command(agentBin, "<config>", mainModel.source, mainModel.finishAction)
+		redacted := bundledCloudConfig()
+		cmd := agentrun.Command(agentBin, "<config>", mainModel.answers.Source, mainModel.answers.FinishAction)
 		ctx := debugbundle.Context{
 			AgentBin:            agentBin,
 			AgentArgs:           cmd.Args[1:],
-			Disk:                mainModel.disk,
-			Source:              mainModel.source,
+			Disk:                mainModel.answers.Disk,
+			Source:              mainModel.answers.Source,
 			Version:             version,
 			CloudConfigRedacted: redacted,
 		}
@@ -70,6 +71,18 @@ func (p *debugBundlePage) Init() tea.Cmd {
 		}()
 	})
 	return func() tea.Msg { return CheckBundleMsg{} }
+}
+
+// bundledCloudConfig is the install's configuration with every password
+// redacted. A configuration that cannot be produced, such as hand-edited text
+// that does not parse, is replaced whole by a redacted placeholder: there is
+// no way to know where a password is in it.
+func bundledCloudConfig() string {
+	cfg, err := currentCloudConfig()
+	if err != nil {
+		return "#cloud-config\n# " + wizard.Redacted + " (the configuration could not be produced)\n"
+	}
+	return wizard.Redact(cfg)
 }
 
 // buildBundle collects extras, generates the tarball, and starts the HTTP
