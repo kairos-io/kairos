@@ -11,8 +11,8 @@ type P2PSchema struct {
 	NetworkID    string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
 	DNS          bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
 	DisableDHT   bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
-	LogLevel     string   `json:"loglevel,omitempty" default:"debug" description:"Log level of the p2p provider"`
-	MinimumNodes int      `json:"minimum_nodes,omitempty" description:"Number of nodes the network waits for before assigning roles"`
+	LogLevel     string   `json:"loglevel,omitempty" default:"debug" enum:"[\"trace\",\"debug\",\"info\",\"warn\",\"error\",\"fatal\"]" description:"Log level of the p2p provider"`
+	MinimumNodes int      `json:"minimum_nodes,omitempty" minimum:"0" description:"Number of nodes the network waits for before assigning roles"`
 	DynamicRoles bool     `json:"dynamic_roles,omitempty" description:"Re-assign roles as nodes join and leave, instead of pinning them on the first election"`
 	P2PNetworkExtended
 	VPN `json:"vpn,omitempty"`

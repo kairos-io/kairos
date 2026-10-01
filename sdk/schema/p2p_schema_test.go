@@ -260,6 +260,21 @@ loglevel: debug`
 		})
 	})
 
+	Context("loglevel outside the known levels", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+loglevel: LOUD`
+		})
+
+		It("fails", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "trace", "debug", "info", "warn", "error", "fatal"`))
+		})
+	})
+
 	Context("minimum_nodes", func() {
 		BeforeEach(func() {
 			yaml = `#cloud-config
@@ -271,6 +286,21 @@ minimum_nodes: 3`
 
 		It("validates", func() {
 			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("negative minimum_nodes", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+minimum_nodes: -1`
+		})
+
+		It("fails", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(config.ValidationError.Error()).To(MatchRegexp("must be >= 0 but found -1"))
 		})
 	})
 
