@@ -49,49 +49,61 @@ func answerProbe(ro bool, err error) {
 }
 
 var _ = Describe("parseWriteProtected", func() {
-	It("reports not set when the stanza is absent", func() {
+	// The feature is opt-in. Absent means off, not "ask the device".
+	It("is off when the stanza is absent", func() {
 		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.debug")
-		_, set := parseWriteProtected()
-		Expect(set).To(BeFalse())
+		Expect(parseWriteProtected()).To(Equal(writeProtectedOff))
 	})
 
-	It("reads a bare token as on", func() {
+	It("reads a bare token as enabled, which means ask the device", func() {
 		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.write_protected")
-		forced, set := parseWriteProtected()
-		Expect(set).To(BeTrue())
-		Expect(forced).To(BeTrue())
+		Expect(parseWriteProtected()).To(Equal(writeProtectedDetect))
 	})
 
-	It("reads =0 as off", func() {
-		setCmdline("rd.immucore.write_protected=0")
-		forced, set := parseWriteProtected()
-		Expect(set).To(BeTrue())
-		Expect(forced).To(BeFalse())
+	It("reads =1, =true, =auto and an empty value as enabled too", func() {
+		for _, v := range []string{"=1", "=true", "=auto", "="} {
+			setCmdline("rd.immucore.write_protected" + v)
+			Expect(parseWriteProtected()).To(Equal(writeProtectedDetect), v)
+		}
 	})
 
-	It("reads =1 as on", func() {
-		setCmdline("rd.immucore.write_protected=1")
-		forced, set := parseWriteProtected()
-		Expect(set).To(BeTrue())
-		Expect(forced).To(BeTrue())
+	It("reads =0, =false and =no as off", func() {
+		for _, v := range []string{"=0", "=false", "=no"} {
+			setCmdline("rd.immucore.write_protected" + v)
+			Expect(parseWriteProtected()).To(Equal(writeProtectedOff), v)
+		}
 	})
 
-	// A prefix match would have read this as a request to turn the layout on,
-	// which silently makes every persistent write ephemeral. Exact tokens only.
+	It("reads =force as force", func() {
+		setCmdline("rd.immucore.write_protected=force")
+		Expect(parseWriteProtected()).To(Equal(writeProtectedForce))
+	})
+
+	// A prefix match would have read this as the flag. Exact tokens only.
 	It("does not match a stanza that merely starts with the key", func() {
 		setCmdline("rd.immucore.write_protectedx")
-		_, set := parseWriteProtected()
-		Expect(set).To(BeFalse())
+		Expect(parseWriteProtected()).To(Equal(writeProtectedOff))
 	})
 
-	It("does not match =10 as off", func() {
-		// 10 is not one of the off spellings, so it is on. It has to get there
-		// by parsing the value, not by a substring match on "=1", which would
-		// also read =10 as on but for the wrong reason.
+	It("does not read the store size sub-key as the flag", func() {
+		// rd.immucore.write_protected.cow= shares the prefix; a prefix match
+		// would enable the layout for anyone who only wanted to size the store.
+		setCmdline("rd.immucore.write_protected.cow=tmpfs:2G")
+		Expect(parseWriteProtected()).To(Equal(writeProtectedOff))
+	})
+
+	It("reads an unknown value as enabled, not as force and not as off", func() {
+		// Presence is the intent, and enabled cannot make a writable disk
+		// ephemeral; force could.
 		setCmdline("rd.immucore.write_protected=10")
-		forced, set := parseWriteProtected()
-		Expect(set).To(BeTrue())
-		Expect(forced).To(BeTrue())
+		Expect(parseWriteProtected()).To(Equal(writeProtectedDetect))
+	})
+
+	It("lets the last of several tokens win", func() {
+		setCmdline("rd.immucore.write_protected=force rd.immucore.write_protected=0")
+		Expect(parseWriteProtected()).To(Equal(writeProtectedOff))
+		setCmdline("rd.immucore.write_protected=0 rd.immucore.write_protected")
+		Expect(parseWriteProtected()).To(Equal(writeProtectedDetect))
 	})
 })
 
@@ -124,38 +136,54 @@ var _ = Describe("writeProtectedCandidates", func() {
 })
 
 var _ = Describe("WriteProtected", func() {
-	It("lets the cmdline override a device that says writable", func() {
-		setCmdline("rd.immucore.write_protected")
-		answerProbe(false, nil)
+	It("does not probe, and reports writable, when the cmdline says nothing", func() {
+		// Opt-in: a unit that was never told about write-protected media boots
+		// as it always did, and pays no ten-second wait for labels either.
+		setCmdline("root=LABEL=COS_ACTIVE")
+		answerProbeWith(func(string) (bool, error) {
+			Fail("the probe ran without the flag")
+			return true, nil
+		})
+		Expect(WriteProtected()).To(BeFalse())
+	})
+
+	It("uses the device when the flag is present and the device says read-only", func() {
+		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.write_protected")
+		answerProbe(true, nil)
 		Expect(WriteProtected()).To(BeTrue())
 	})
 
-	It("lets the cmdline override a device that says read-only", func() {
+	It("keeps the ordinary layout when the flag is present but the device says writable", func() {
+		// The form to bake into an install: the writable first boot stays
+		// ordinary and the layout switches on once the disk is frozen.
+		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.write_protected")
+		answerProbe(false, nil)
+		Expect(WriteProtected()).To(BeFalse())
+	})
+
+	It("applies the layout to a writable device when forced", func() {
+		setCmdline("rd.immucore.write_protected=force")
+		answerProbeWith(func(string) (bool, error) {
+			Fail("force must not ask the device")
+			return false, nil
+		})
+		Expect(WriteProtected()).To(BeTrue())
+	})
+
+	It("stays off with =0 even when the device says read-only", func() {
 		setCmdline("rd.immucore.write_protected=0")
 		answerProbe(true, nil)
 		Expect(WriteProtected()).To(BeFalse())
 	})
 
-	It("uses the device when the cmdline says nothing", func() {
-		setCmdline("root=LABEL=COS_ACTIVE")
-		answerProbe(true, nil)
-		Expect(WriteProtected()).To(BeTrue())
-	})
-
-	It("reports writable when the device says writable", func() {
-		setCmdline("root=LABEL=COS_ACTIVE")
-		answerProbe(false, nil)
-		Expect(WriteProtected()).To(BeFalse())
-	})
-
-	It("reports writable when no device can answer", func() {
-		setCmdline("root=LABEL=COS_ACTIVE")
+	It("reports writable when enabled but no device can answer", func() {
+		setCmdline("rd.immucore.write_protected")
 		answerProbe(false, errors.New("no such device"))
 		Expect(WriteProtected()).To(BeFalse())
 	})
 
 	It("is memoized, so the probe runs once however often it is asked", func() {
-		setCmdline("root=LABEL=COS_ACTIVE")
+		setCmdline("rd.immucore.write_protected")
 		calls := 0
 		answerProbeWith(func(string) (bool, error) {
 			calls++
@@ -171,7 +199,7 @@ var _ = Describe("WriteProtected", func() {
 
 var _ = Describe("WriteProtected candidate order", func() {
 	It("takes the first device that answers, not the first device", func() {
-		setCmdline("root=LABEL=COS_ACTIVE")
+		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.write_protected")
 		answerProbeWith(func(device string) (bool, error) {
 			if device == "/dev/disk/by-label/COS_PERSISTENT" {
 				return false, errors.New("no such file or directory")
@@ -182,7 +210,7 @@ var _ = Describe("WriteProtected candidate order", func() {
 	})
 
 	It("waits for a label that appears late", func() {
-		setCmdline("root=LABEL=COS_ACTIVE")
+		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.write_protected")
 		attempt := 0
 		answerProbeWith(func(string) (bool, error) {
 			attempt++
@@ -197,59 +225,12 @@ var _ = Describe("WriteProtected candidate order", func() {
 	})
 
 	It("does not probe at all on a boot the layout does not apply to", func() {
-		setCmdline("root=live:LABEL=COS_LIVE rd.cos.disable")
+		setCmdline("root=live:LABEL=COS_LIVE rd.cos.disable rd.immucore.write_protected")
 		answerProbeWith(func(string) (bool, error) {
 			Fail("the probe ran on live media")
 			return false, nil
 		})
 		Expect(WriteProtected()).To(BeFalse())
-	})
-})
-
-var _ = Describe("parseWriteProtected auto and the store sub-key", func() {
-	It("hands =auto back to the probe", func() {
-		setCmdline("rd.immucore.write_protected=auto")
-		forced, set := parseWriteProtected()
-		Expect(set).To(BeFalse())
-		Expect(forced).To(BeFalse())
-	})
-
-	It("lets a later =auto undo an earlier forced value", func() {
-		setCmdline("rd.immucore.write_protected=1 rd.immucore.write_protected=auto")
-		_, set := parseWriteProtected()
-		Expect(set).To(BeFalse())
-	})
-
-	It("does not read the store size sub-key as the flag", func() {
-		// rd.immucore.write_protected.cow= shares the prefix; a prefix match would
-		// turn the layout on for anyone who only wanted to size the store.
-		setCmdline("rd.immucore.write_protected.cow=tmpfs:2G")
-		_, set := parseWriteProtected()
-		Expect(set).To(BeFalse())
-	})
-})
-
-var _ = Describe("parseWriteProtected edge cases", func() {
-	It("reads the other off spellings", func() {
-		for _, v := range []string{"=false", "=no"} {
-			setCmdline("rd.immucore.write_protected" + v)
-			forced, set := parseWriteProtected()
-			Expect(set).To(BeTrue(), v)
-			Expect(forced).To(BeFalse(), v)
-		}
-	})
-
-	It("reads an empty value as on, like the bare token", func() {
-		setCmdline("rd.immucore.write_protected=")
-		forced, set := parseWriteProtected()
-		Expect(set).To(BeTrue())
-		Expect(forced).To(BeTrue())
-	})
-
-	It("lets the last of two tokens win", func() {
-		setCmdline("rd.immucore.write_protected rd.immucore.write_protected=0")
-		forced, _ := parseWriteProtected()
-		Expect(forced).To(BeFalse())
 	})
 })
 
@@ -285,7 +266,7 @@ var _ = Describe("ReadOnlyMountOptions", func() {
 
 var _ = Describe("Fsck on write-protected media", func() {
 	It("does not run at all", func() {
-		setCmdline("rd.immucore.write_protected")
+		setCmdline("rd.immucore.write_protected=force")
 		answerProbe(false, nil)
 
 		// A device that cannot exist, so a fsck that did run would fail. The
