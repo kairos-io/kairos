@@ -56,12 +56,12 @@ var cisAccountFiles = []cisAccountFile{
 // Section 6 (time sync) is not covered here: steps_init.go already enables
 // systemd-timesyncd on Debian/Ubuntu/SUSE/Hadron and chronyd on the RHEL
 // family, and both ship distro-default NTP sources that satisfy CIS 6.
-// SELinux enforcing on RHEL is left for a follow-up ticket. pam_faillock:
-// Hadron's system-auth and RHEL 9's authselect default already wire it, so
-// the shipped faillock.conf takes effect there on its own. Wiring the
-// module into the PAM auth stack on Ubuntu, Debian and Alpine bases is
-// left for a follow-up ticket for the same reason (per-distro boot testing
-// needed to avoid locking accounts out).
+// SELinux enforcing on RHEL is left for a follow-up ticket. pam_faillock and
+// pam_pwquality are wired into the PAM stack with each distro's own tool
+// (pam-auth-update on Debian/Ubuntu, authselect on the RHEL family,
+// pam-config for pwquality on SUSE); Hadron's system-auth loads both
+// itself. SUSE gets no faillock (pam-config has no module for it) and
+// Alpine images do not authenticate through PAM.
 func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Stage {
 	if config.ContainsSkipStep(values.CISHardeningStep) {
 		l.Logger.Warn().Msg("Skipping CIS hardening stage")
@@ -174,10 +174,8 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 			},
 		},
 		schema.Stage{
-			// Inert until pam_faillock is present in the PAM auth
-			// stack. Distros where it is not, ignore the file; distros
-			// where it is (RHEL 9 default), pick up CIS parameters
-			// without further work.
+			// Read by pam_faillock once the wiring stages below (or
+			// Hadron's own system-auth) put the module in the stack.
 			Name: "Install CIS faillock lockout policy",
 			Files: []schema.File{
 				{
@@ -189,7 +187,21 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 				},
 			},
 		},
+		schema.Stage{
+			Name: "Install the faillock tally reset for first-boot provisioning",
+			Files: []schema.File{
+				{
+					Path:        bundled.CISFaillockResetCloudConfigPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISFaillockResetCloudConfig,
+				},
+			},
+		},
 	)
+
+	stages = append(stages, getCISPamWiringStages()...)
 
 	// login.defs: per-key "only tighten" logic. The stage never loosens a
 	// base image's stricter value (Hadron ships PASS_MAX_DAYS 60 and
@@ -252,4 +264,82 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 	}
 
 	return stages
+}
+
+// debianFamilyRegex matches the Debian-family bases pam-auth-update
+// manages.
+const debianFamilyRegex = "Ubuntu.*|Debian.*"
+
+// pamModulePresent builds an If condition that is true only when the given
+// PAM module is installed under any of the multiarch or lib64 security
+// directories the supported distros use. Wiring a module that is not on
+// disk into a stack fails every authentication through it.
+func pamModulePresent(module string) string {
+	return fmt.Sprintf("ls /usr/lib/*/security/%[1]s /lib/*/security/%[1]s /usr/lib64/security/%[1]s /lib64/security/%[1]s /usr/lib/security/%[1]s /lib/security/%[1]s 2>/dev/null | grep -q .", module)
+}
+
+// getCISPamWiringStages wires pam_faillock (CIS L1 5.4.2) and
+// pam_pwquality (5.4.1) into the auth and password stacks so the shipped
+// faillock.conf and pwquality.conf take effect. Each stage runs only on its
+// distro family and only when the tool and the module are both present;
+// a stage that does not apply is skipped, never approximated.
+func getCISPamWiringStages() []schema.Stage {
+	return []schema.Stage{
+		{
+			// Profiles are written in the same stage that enables them,
+			// guarded on the module: pam-auth-update enables Default: yes
+			// profiles on any later run, so a profile left on disk
+			// without the module would lock everyone out later.
+			Name:     "Wire pam_faillock into the Debian/Ubuntu PAM stack",
+			OnlyIfOs: debianFamilyRegex,
+			If:       "command -v pam-auth-update >/dev/null && " + pamModulePresent("pam_faillock.so"),
+			Files: []schema.File{
+				{
+					Path:        bundled.CISPamConfigFaillockPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISPamConfigFaillock,
+				},
+				{
+					Path:        bundled.CISPamConfigFaillockNotifyPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISPamConfigFaillockNotify,
+				},
+			},
+			Commands: []string{
+				"DEBIAN_FRONTEND=noninteractive pam-auth-update --enable kairos-faillock kairos-faillock-notify",
+			},
+		},
+		{
+			// libpam-pwquality ships its own profile; enabling it again
+			// is idempotent and covers an image where it was disabled.
+			Name:     "Wire pam_pwquality into the Debian/Ubuntu PAM stack",
+			OnlyIfOs: debianFamilyRegex,
+			If:       "command -v pam-auth-update >/dev/null && test -f /usr/share/pam-configs/pwquality && " + pamModulePresent("pam_pwquality.so"),
+			Commands: []string{
+				"DEBIAN_FRONTEND=noninteractive pam-auth-update --enable pwquality",
+			},
+		},
+		{
+			Name:     "Wire pam_faillock into the RHEL-family PAM stack with authselect",
+			OnlyIfOs: values.RHELFamilyRegex,
+			If:       "command -v authselect >/dev/null && " + pamModulePresent("pam_faillock.so"),
+			Commands: []string{bundled.CISAuthselectFaillock},
+		},
+		{
+			Name:     "Wire pam_faillock into the RHEL-family PAM stack without authselect",
+			OnlyIfOs: values.RHELFamilyRegex,
+			If:       "! command -v authselect >/dev/null && " + pamModulePresent("pam_faillock.so"),
+			Commands: []string{bundled.CISRHELFaillockFallback},
+		},
+		{
+			Name:     "Wire pam_pwquality into the SUSE PAM stack with pam-config",
+			OnlyIfOs: values.AllSuseRegex,
+			If:       "command -v pam-config >/dev/null && pam-config --help 2>&1 | grep -Eq -- '--pwquality( |$)' && " + pamModulePresent("pam_pwquality.so"),
+			Commands: []string{bundled.CISSUSEPwquality},
+		},
+	}
 }
