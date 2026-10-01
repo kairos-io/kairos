@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/immucore/internal/utils"
@@ -105,14 +106,14 @@ func NewApp() *cli.App {
 			return nil
 		}
 
-		// A signal that arrives while the DAG is still running means the mount
-		// graph never completed. Exiting quietly here is what leaves a booted
-		// system with no binds, no /etc overlay and no /usr/local, so take over
-		// the console instead of letting the boot continue.
+		// A signal that arrives while the DAG is still running does not stop it.
+		// Exiting quietly here is what leaves a booted system with no binds, no
+		// /etc overlay and no /usr/local, so if the DAG then fails to finish in
+		// time, take over the console instead of letting the boot continue.
 		stopWatching := watchForTermination(normalBoot, haltTerminated)
-		defer stopWatching()
 
 		err = g.Run(context.Background())
+		stopWatching()
 		utils.KLog.Logger.Info().Msg(st.WriteDAG(g))
 		// Emit the boot timeline (slowest-first) to the log and a machine-readable
 		// trace file under constants.LogDir for diagnosing slow/hung boots.
@@ -152,17 +153,26 @@ func Run() int {
 	return 0
 }
 
-// watchForTermination calls onSignal if immucore is signalled before its mount
-// DAG finishes. It returns a function that stops the watch, to be deferred by
-// the caller once the DAG has run. Production passes haltTerminated.
+// terminationGrace is how long a signalled immucore keeps waiting for its
+// mount DAG before declaring the boot failed. It stays under systemd's default
+// 90s stop timeout, so the banner is still on screen before the SIGKILL lands.
+var terminationGrace = 60 * time.Second
+
+// watchForTermination calls onSignal if immucore is signalled and its mount DAG
+// then does not finish within terminationGrace. It returns a function that
+// stops the watch, to be called as soon as the DAG has run, whatever its
+// result: a failed DAG is reported by the failure summary, not by onSignal.
+// Production passes haltTerminated.
 //
 // Only a normal boot is guarded. Live media runs a no-op DAG, and UKI makes
 // immucore the init, where a signal is not a mid-mount interruption of a
 // system that is about to switch root.
 //
 // The oneshot unit keeps RemainAfterExit=yes, so on a healthy boot the process
-// has already exited by the time systemd acts on Conflicts= during the switch
-// to the real root. Nothing is left to signal, and this watch never fires.
+// has usually exited by the time systemd acts on Conflicts= during the switch
+// to the real root. When the stop job lands earlier, the signal is caught here
+// and the DAG keeps running, so a DAG that finishes within the grace never
+// reaches onSignal.
 func watchForTermination(normalBoot bool, onSignal func(os.Signal)) func() {
 	if !normalBoot {
 		return func() {}
@@ -170,7 +180,7 @@ func watchForTermination(normalBoot bool, onSignal func(os.Signal)) func() {
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
-	stop := watchSignals(signals, onSignal)
+	stop := watchSignals(signals, terminationGrace, onSignal)
 
 	return func() {
 		signal.Stop(signals)
@@ -178,16 +188,30 @@ func watchForTermination(normalBoot bool, onSignal func(os.Signal)) func() {
 	}
 }
 
-// watchSignals calls onSignal with the first signal to arrive on ch. The
-// returned function ends the watch; calling it after a signal has already been
-// handled is harmless.
-func watchSignals(ch <-chan os.Signal, onSignal func(os.Signal)) func() {
+// watchSignals waits for the first signal on ch and, unless the returned stop
+// function is called within grace of it arriving, calls onSignal with it.
+// Calling stop after onSignal has already run is harmless.
+func watchSignals(ch <-chan os.Signal, grace time.Duration, onSignal func(os.Signal)) func() {
 	done := make(chan struct{})
 	go func() {
+		var sig os.Signal
 		select {
-		case sig := <-ch:
+		case sig = <-ch:
+		case <-done:
+			return
+		}
+
+		utils.KLog.Logger.Warn().Str("signal", sig.String()).Dur("grace", grace).
+			Msg("signalled before the mount DAG completed, waiting for it to finish")
+
+		timer := time.NewTimer(grace)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
 			onSignal(sig)
 		case <-done:
+			utils.KLog.Logger.Info().Str("signal", sig.String()).
+				Msg("mount DAG finished after the signal, not halting the boot")
 		}
 	}()
 
@@ -195,12 +219,13 @@ func watchSignals(ch <-chan os.Signal, onSignal func(os.Signal)) func() {
 	return func() { once.Do(func() { close(done) }) }
 }
 
-// haltTerminated takes over the console and stops the boot. Nothing mounted
-// the real root, so there is no system worth continuing into.
+// haltTerminated takes over the console and stops the boot. The DAG was
+// signalled and did not finish in time, so the real root is not mounted and
+// there is no system worth continuing into.
 func haltTerminated(sig os.Signal) {
 	utils.HaltWithBanner(
 		utils.RenderTerminatedMessage(sig.String(), constants.LogDir),
-		fmt.Sprintf("terminated by %s before the mount DAG completed", sig),
+		fmt.Sprintf("terminated by %s and the mount DAG did not complete within %s", sig, terminationGrace),
 		fmt.Errorf("immucore terminated by %s", sig),
 	)
 	// Reached only on non-systemd hosts (Alpine/openrc), where HaltWithBanner

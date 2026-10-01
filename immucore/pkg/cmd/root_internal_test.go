@@ -27,7 +27,7 @@ func TestWatchSignalsReportsTheFirstSignal(t *testing.T) {
 	ch := make(chan os.Signal, 1)
 	seen := make(chan os.Signal, 1)
 
-	stop := watchSignals(ch, func(sig os.Signal) { seen <- sig })
+	stop := watchSignals(ch, 0, func(sig os.Signal) { seen <- sig })
 	defer stop()
 
 	ch <- syscall.SIGTERM
@@ -40,7 +40,7 @@ func TestWatchSignalsIgnoresSignalsAfterStop(t *testing.T) {
 	ch := make(chan os.Signal, 1)
 	seen := make(chan os.Signal, 1)
 
-	stop := watchSignals(ch, func(sig os.Signal) { seen <- sig })
+	stop := watchSignals(ch, 0, func(sig os.Signal) { seen <- sig })
 	stop()
 
 	// Give the goroutine time to observe the stop before the signal lands.
@@ -55,7 +55,7 @@ func TestWatchSignalsIgnoresSignalsAfterStop(t *testing.T) {
 }
 
 func TestWatchSignalsStopIsIdempotent(t *testing.T) {
-	stop := watchSignals(make(chan os.Signal), func(os.Signal) {})
+	stop := watchSignals(make(chan os.Signal), 0, func(os.Signal) {})
 	stop()
 	stop()
 }
@@ -77,7 +77,17 @@ func TestWatchForTerminationIsInertOutsideANormalBoot(t *testing.T) {
 	}
 }
 
+// shortenGrace makes a signalled watch give up on the DAG almost at once, for
+// tests that only care that the signal reaches onSignal.
+func shortenGrace(t *testing.T) {
+	t.Helper()
+	prev := terminationGrace
+	terminationGrace = 10 * time.Millisecond
+	t.Cleanup(func() { terminationGrace = prev })
+}
+
 func TestWatchForTerminationInterceptsSigterm(t *testing.T) {
+	shortenGrace(t)
 	seen := make(chan os.Signal, 1)
 
 	stop := watchForTermination(true, func(sig os.Signal) { seen <- sig })
