@@ -96,44 +96,6 @@ var _ = Describe("progressLog", func() {
 	})
 })
 
-var _ = Describe("renderCloudConfig", func() {
-	It("writes the device the form named", func() {
-		out, err := renderCloudConfig("#cloud-config\nusers:\n  - name: kairos\n", "/dev/sda")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(HavePrefix("#cloud-config\n"))
-		Expect(out).To(ContainSubstring("device: /dev/sda"))
-		Expect(out).To(ContainSubstring("name: kairos"))
-	})
-
-	It("overrides a device left in the pasted config", func() {
-		// The dropdown is what the operator confirmed. A stale device in
-		// the YAML must not send the install to a different disk.
-		out, err := renderCloudConfig("#cloud-config\ninstall:\n  device: /dev/vdb\n  auto: true\n", "/dev/sda")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(ContainSubstring("device: /dev/sda"))
-		Expect(out).ToNot(ContainSubstring("/dev/vdb"))
-		Expect(out).To(ContainSubstring("auto: true"))
-	})
-
-	It("leaves the config alone when no device was given", func() {
-		out, err := renderCloudConfig("#cloud-config\ninstall:\n  device: /dev/vdb\n", "")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(ContainSubstring("device: /dev/vdb"))
-	})
-
-	It("still produces a config when the form was submitted empty", func() {
-		out, err := renderCloudConfig("", "auto")
-		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(ContainSubstring("device: auto"))
-	})
-
-	It("reports YAML that does not parse", func() {
-		_, err := renderCloudConfig("#cloud-config\nusers: [unterminated\n", "/dev/sda")
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("not valid YAML"))
-	})
-})
-
 var _ = Describe("finishAction", func() {
 	It("is reboot when both boxes are ticked", func() {
 		// The agent's Lifecycle hook reboots before it looks at poweroff,
@@ -159,7 +121,7 @@ var _ = Describe("startInstall", func() {
 		GinkgoT().Setenv("KAIROS_AGENT_BIN", filepath.Join(tmp, "does-not-exist"))
 		GinkgoT().Setenv("PATH", tmp)
 
-		err := startInstall(newProgressLog(), "", "#cloud-config\n", "/dev/sda", "")
+		err := startInstall(newProgressLog(), "", "#cloud-config\n", "")
 		Expect(err).To(MatchError(errNoAgent))
 
 		left, gerr := filepath.Glob(filepath.Join(tmp, "install-webui-*.yaml"))
@@ -177,7 +139,7 @@ exit 0
 `)
 		GinkgoT().Setenv("KAIROS_AGENT_BIN", bin)
 
-		Expect(startInstall(log, "", "#cloud-config\n", "/dev/sda", "")).To(Succeed())
+		Expect(startInstall(log, "", "#cloud-config\n", "")).To(Succeed())
 		msgs := drain(log)
 
 		Expect(msgs).To(ContainElement(Message{Type: MessageStep, Step: "partition"}))
@@ -194,7 +156,7 @@ exit 1
 `)
 		GinkgoT().Setenv("KAIROS_AGENT_BIN", bin)
 
-		Expect(startInstall(log, "", "#cloud-config\n", "/dev/sda", "")).To(Succeed())
+		Expect(startInstall(log, "", "#cloud-config\n", "")).To(Succeed())
 		msgs := drain(log)
 
 		Expect(msgs).To(ContainElement(Message{Type: MessageError, Message: "no such device"}))
@@ -206,7 +168,7 @@ exit 1
 		log := newProgressLog()
 		GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent("exit 7\n"))
 
-		Expect(startInstall(log, "", "#cloud-config\n", "/dev/sda", "")).To(Succeed())
+		Expect(startInstall(log, "", "#cloud-config\n", "")).To(Succeed())
 		msgs := drain(log)
 
 		Expect(msgs).To(HaveLen(2))
@@ -215,7 +177,7 @@ exit 1
 		Expect(msgs[1]).To(Equal(Message{Type: MessageDone, OK: false}))
 	})
 
-	It("hands the agent the device the form named", func() {
+	It("hands the agent the finalized cloud-config as given", func() {
 		log := newProgressLog()
 		out := filepath.Join(GinkgoT().TempDir(), "seen.yaml")
 		// The config file is the last argument; copy it out before the run
@@ -226,7 +188,7 @@ cat "$cfg" > `+out+`
 exit 0
 `))
 
-		Expect(startInstall(log, "", "#cloud-config\nusers:\n  - name: kairos\n", "/dev/sdb", "")).To(Succeed())
+		Expect(startInstall(log, "", "#cloud-config\ninstall:\n  device: /dev/sdb\nusers:\n  - name: kairos\n", "")).To(Succeed())
 		drain(log)
 
 		seen, err := os.ReadFile(out)
@@ -241,7 +203,7 @@ exit 0
 		GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent("exit 0\n"))
 
 		log := newProgressLog()
-		Expect(startInstall(log, "", "#cloud-config\n", "/dev/sda", "")).To(Succeed())
+		Expect(startInstall(log, "", "#cloud-config\n", "")).To(Succeed())
 		drain(log)
 
 		left, err := filepath.Glob(filepath.Join(tmp, "install-webui-*.yaml"))
@@ -261,7 +223,7 @@ exit 0
 				"printf 'plain line\\n'\n"+
 				"exit 0\n"))
 
-		Expect(startInstall(log, "", "#cloud-config\n", "/dev/sda", "")).To(Succeed())
+		Expect(startInstall(log, "", "#cloud-config\n", "")).To(Succeed())
 
 		var logs []string
 		for _, m := range drain(log) {
@@ -324,7 +286,7 @@ exit 0
 		log := newProgressLog()
 		argv := recordArgs()
 
-		Expect(startInstall(log, "oci://foo:bar", "#cloud-config\n", "/dev/sda", "")).To(Succeed())
+		Expect(startInstall(log, "oci://foo:bar", "#cloud-config\n", "")).To(Succeed())
 		drain(log)
 
 		seen, err := os.ReadFile(argv)
@@ -338,7 +300,7 @@ exit 0
 		log := newProgressLog()
 		argv := recordArgs()
 
-		Expect(startInstall(log, "", "#cloud-config\n", "/dev/sda", "")).To(Succeed())
+		Expect(startInstall(log, "", "#cloud-config\n", "")).To(Succeed())
 		drain(log)
 
 		seen, err := os.ReadFile(argv)
@@ -352,7 +314,7 @@ exit 0
 		log := newProgressLog()
 		argv := recordArgs()
 
-		Expect(startInstall(log, "oci://foo:bar", "#cloud-config\n", "/dev/vda", "reboot")).To(Succeed())
+		Expect(startInstall(log, "oci://foo:bar", "#cloud-config\n", "reboot")).To(Succeed())
 		drain(log)
 
 		seen, err := os.ReadFile(argv)

@@ -1,4 +1,4 @@
-package tui
+package wizard
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	"time"
 
 	sdkCatalog "github.com/kairos-io/kairos/v4/sdk/extensions"
-	sdkExtensions "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 )
 
 // liveMediaDir is where the ISO root is mounted while the installer runs, on
@@ -178,15 +177,12 @@ func discoverExtensions(ctx context.Context, client *http.Client, root string, u
 	return choices, catalogErr
 }
 
-// selectedExtensions turns the chosen entries into the install.extensions list
-// the agent's install hook reads.
-func selectedExtensions(choices []extensionChoice, selected map[int]bool) sdkExtensions.Extensions {
-	var chosen sdkExtensions.Extensions
-	for i, choice := range choices {
-		if !selected[i] {
-			continue
-		}
-		chosen = append(chosen, sdkExtensions.Extension{Name: choice.Name, Version: choice.Version})
+// toChoice shapes a discovered extension for the step. Value is what goes into
+// install.extensions[].name.
+func (c extensionChoice) toChoice() Choice {
+	detail := c.Origin
+	if c.Latest != "" {
+		detail = fmt.Sprintf("%s, latest %s", c.Origin, c.Latest)
 	}
-	return chosen
+	return Choice{Value: c.Name, Label: c.Label, Detail: detail}
 }
