@@ -476,6 +476,7 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 			TimedCallback(cnst.OpMountBind,
 				func(_ context.Context) error {
 					var err *multierror.Error
+					var failed []string
 					internalUtils.KLog.Logger.Debug().Strs("mounts", s.BindMounts).Msg("Mounting binds")
 
 					for _, p := range s.SortedBindMounts() {
@@ -488,12 +489,15 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 						}
 						// Append to errors only if it's not an already mounted error
 						if err2 != nil && !errors.Is(err2, cnst.ErrAlreadyMounted) {
-							internalUtils.KLog.Logger.Err(err2).Send()
+							internalUtils.KLog.Logger.Err(err2).Str("what", p).Msg("Bind mount failed")
 							err = multierror.Append(err, err2)
+							failed = append(failed, p)
 						}
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount end")
 					}
-					internalUtils.KLog.Logger.Warn().Err(err.ErrorOrNil()).Send()
+					if len(failed) > 0 {
+						internalUtils.KLog.Logger.Warn().Err(err.ErrorOrNil()).Strs("failed", failed).Msg("Some bind mounts failed")
+					}
 					return err.ErrorOrNil()
 				},
 			),

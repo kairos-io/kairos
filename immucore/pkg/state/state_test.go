@@ -1,10 +1,13 @@
 package state_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
@@ -192,6 +195,71 @@ var _ = Describe("mounting immutable setup", func() {
 				"OpMountBind must not run when its one remaining hard dependency, OpLoadConfig, fails")
 			Expect(filepath.Join(root, "etc", "ssh")).ToNot(BeADirectory(),
 				"nothing should have been mounted, since the bind list itself never loaded")
+		})
+	})
+
+	Context("OpMountBind warning log", func() {
+		warnLines := func(buf *bytes.Buffer) []map[string]interface{} {
+			var warns []map[string]interface{}
+			for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+				if line == "" {
+					continue
+				}
+				entry := map[string]interface{}{}
+				Expect(json.Unmarshal([]byte(line), &entry)).To(Succeed(), line)
+				if entry["level"] == "warn" {
+					warns = append(warns, entry)
+				}
+			}
+			return warns
+		}
+
+		addDeps := func() {
+			for _, name := range []string{cnst.OpLoadConfig, cnst.OpOverlayMount, cnst.OpCustomMounts} {
+				Expect(g.Add(name, herd.WithCallback(func(context.Context) error {
+					return nil
+				}))).To(Succeed())
+			}
+		}
+
+		It("does not log a warning when every bind mounted", func() {
+			buf := &bytes.Buffer{}
+			internalUtils.KLog = logger.NewBufferLogger(buf)
+
+			s := &state.State{Rootdir: GinkgoT().TempDir()}
+			addDeps()
+			Expect(s.MountCustomBindsDagStep(g)).To(Succeed())
+			Expect(g.Run(context.Background())).To(Succeed())
+
+			Expect(warnLines(buf)).To(BeEmpty(), buf.String())
+		})
+
+		It("names the binds that did not mount", func() {
+			buf := &bytes.Buffer{}
+			internalUtils.KLog = logger.NewBufferLogger(buf)
+
+			// A regular file where /etc should be makes creating any
+			// mountpoint under it fail before mount is attempted, whatever
+			// privileges the test runs with.
+			root := GinkgoT().TempDir()
+			Expect(os.WriteFile(filepath.Join(root, "etc"), nil, 0o644)).To(Succeed())
+			s := &state.State{
+				Rootdir:    root,
+				BindMounts: []string{"/etc/ssh", "/etc/systemd"},
+			}
+			addDeps()
+			Expect(s.MountCustomBindsDagStep(g)).To(Succeed())
+			Expect(g.Run(context.Background())).To(Succeed())
+
+			var summary []map[string]interface{}
+			for _, w := range warnLines(buf) {
+				if w["message"] == "Some bind mounts failed" {
+					summary = append(summary, w)
+				}
+			}
+			Expect(summary).To(HaveLen(1), buf.String())
+			Expect(summary[0]).To(HaveKeyWithValue("failed", ConsistOf("/etc/ssh", "/etc/systemd")))
+			Expect(summary[0]).To(HaveKey("error"))
 		})
 	})
 
