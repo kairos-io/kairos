@@ -114,11 +114,13 @@ The immutable rootfs can be configured with the following kernel parameters:
   comment in `internal/utils/common.go` describes. Raise `TimeoutStartSec=` on
   `immucore.service` if you need to hold a breakpoint open longer than that.
 
-* `rd.immucore.write_protected`: Overrides the detection of write-protected media.
-  Present on its own, or as `=1`, it forces the read-only layout on; `=0` forces
-  it off. Absent, immucore asks the block device itself, which is the normal
-  case: a unit installed while its disk was writable and then write-protected
-  needs no change to its cmdline, with the exceptions listed under Limits. See
+* `rd.immucore.write_protected`: Enables the write-protected media layout.
+  Absent, immucore never asks the block device and a frozen disk fails as it
+  always did. Present on its own, or as `=1` or `=auto`, immucore asks the
+  device and applies the layout only if it is write-protected, so the flag can
+  be baked into an install while the disk is still writable. `=0` turns it
+  off; `=force` applies the layout without asking, for testing on a writable
+  disk. See
   [Read-only media boot](#read-only-media-boot-rdimmucorewrite_protected) below for
   what the layout actually does.
 
@@ -139,7 +141,8 @@ Some units ship with a drive that is write-protected in hardware. The unit is
 installed normally while the drive is still writable, the switch is flipped, and
 from then on every boot sees a block device the kernel refuses writes to.
 
-immucore detects that and changes the layout so the machine still boots and its
+Told to expect it (`rd.immucore.write_protected` on the cmdline), immucore
+detects that and changes the layout so the machine still boots and its
 applications can still write. Reads fall through to whatever provisioning left on
 the persistent partition; writes go to RAM and are gone on the next boot.
 
@@ -182,17 +185,33 @@ appear before concluding it cannot tell, in which case it assumes writable media
 and says so in the log. A dm-crypt mapper is also checked against the devices
 underneath it, as insurance.
 
-`rd.immucore.write_protected` overrides the answer in either direction, for hardware
-that misreports and for testing the path on a writable disk: bare or `=1` forces
-the layout on, `=0` forces it off, and `=auto` is the default, the probe
-decides. The last one on the cmdline wins.
+The feature is opt-in. Without `rd.immucore.write_protected` on the cmdline
+immucore does not even ask the device, and a frozen disk fails the way it
+always did. With it:
 
-Auto is the default on purpose. Every software write filter (Windows UWF,
-Deep Freeze, `overlayroot`, `systemd.volatile=`) is off until turned on,
-because none of them can know what you want. Here the disk decides and the
-kernel reports it, so "off by default" would send a frozen unit into a reboot
-loop unless somebody remembered a flag, and "on by default" would make every
-writable install silently ephemeral.
+| cmdline | Behaviour |
+|---|---|
+| absent, `=0` | off: no probe, no sentinel, the ordinary layout |
+| `rd.immucore.write_protected`, `=1`, `=auto` | enabled: the device decides; the layout applies only if it is write-protected |
+| `=force` | the layout applies without asking, for testing on a writable disk |
+
+The last one on the cmdline wins. Every other write filter (Windows UWF, Deep
+Freeze, `overlayroot`, `systemd.volatile=`) is off until turned on, and so is
+this.
+
+Bake the flag into the install, because `/oem/grubenv` cannot be edited once
+the disk is frozen:
+
+```yaml
+install:
+  grub_options:
+    extra_cmdline: "rd.immucore.write_protected"
+```
+
+That is why "enabled" asks the device rather than forcing the layout: with the
+flag baked in, the writable first boot stays ordinary and saves its machine-id,
+hostname and cluster state to disk, and the layout switches on by itself the
+first time the disk boots frozen.
 
 #### What is not written, and why
 
@@ -286,7 +305,8 @@ over the longest interval between reboots.
   `kairos-init validate` warns when the kernel in an image does not have it.
 * LVM installs are not detected. The persistent, state and recovery labels are on
   logical volumes that do not exist until LVM activation, which runs inside the
-  graph, after detection. Pass `rd.immucore.write_protected` on such a unit.
+  graph, after detection. Pass `rd.immucore.write_protected=force` on such a
+  unit, once the disk is frozen.
 * Encrypted persistent partitions do not unlock on write-protected media. kcrypt
   opens the mapper through `anatol/luks.go`, which never sets the device-mapper
   read-only flag, and the kernel refuses a read-write mapper over a device it

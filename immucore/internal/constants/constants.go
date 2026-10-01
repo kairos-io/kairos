@@ -183,10 +183,11 @@ const (
 	// and the filesystem above is an ordinary writable ext4, which is what a
 	// container runtime's own overlayfs needs underneath it.
 	//
-	// CmdlineWriteProtected overrides the device probe in both directions: present
-	// forces the read-only layout on, "=0" forces it off. Matched as an exact
-	// token, the way ParseAutoCreateDisk matches its stanza, so a typo that
-	// merely starts with the key cannot switch the layout on by accident.
+	// CmdlineWriteProtected is the gate. Absent or "=0", the layout is never
+	// applied and the device is not asked; present, the device decides;
+	// "=force" applies it without asking. Matched as an exact token, the way
+	// ParseAutoCreateDisk matches its stanza, so a typo that merely starts
+	// with the key cannot switch the layout on by accident.
 	CmdlineWriteProtected = "rd.immucore.write_protected"
 	// WriteProtectedSentinelName is the extra sentinel written under /run/cos/ when
 	// the media is write-protected. Additive, exactly like InRAMSentinelName:

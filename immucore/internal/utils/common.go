@@ -524,50 +524,73 @@ func RootRW() string {
 	return "ro"
 }
 
-// parseWriteProtected reads rd.immucore.write_protected from the kernel cmdline. The
-// stanza has four shapes:
-//   - absent, or =auto        -> set=false, the device probe decides
-//   - bare token, or =1/=true -> forced=true
-//   - =0 or =false            -> forced=false
+// writeProtectedMode is what the cmdline asks for. The feature is opt-in: a
+// unit that was never told about write-protected media boots exactly as it
+// always did, frozen disk or not.
+type writeProtectedMode int
+
+const (
+	// writeProtectedOff: the stanza is absent or =0. Nothing is probed.
+	writeProtectedOff writeProtectedMode = iota
+	// writeProtectedDetect: the stanza is present. The device is asked, and
+	// the layout applies only if it says it is write-protected. This is the
+	// form to bake into an install: the writable first boot stays ordinary
+	// and the layout switches on by itself once the disk is frozen, which
+	// matters because /oem/grubenv cannot be edited after that.
+	writeProtectedDetect
+	// writeProtectedForce: =force. The layout applies without asking, for
+	// testing it on a writable disk.
+	writeProtectedForce
+)
+
+// parseWriteProtected reads rd.immucore.write_protected from the kernel
+// cmdline:
+//   - absent, =0, =false, =no      -> off
+//   - bare token, =1, =true, =auto -> detect
+//   - =force                       -> force
 //
-// The last one on the cmdline wins, so =auto after a forced value hands the
-// decision back to the probe.
+// The last one on the cmdline wins. Any other value counts as detect, with a
+// warning, since its presence is the intent and detect cannot make a writable
+// disk ephemeral.
 //
 // Uses exact-token matching, not ReadCMDLineArg's HasPrefix, for the reason
 // ParseAutoCreateDisk gives: a prefix match would read a typo such as
-// rd.immucore.write_protectedx as a request to turn the layout on, and turning it on
-// by accident makes every persistent write ephemeral. The same rule keeps
-// rd.immucore.write_protected.cow=, the sub-key for the store size, from being read
-// as the flag.
+// rd.immucore.write_protectedx as the flag. The same rule keeps
+// rd.immucore.write_protected.cow=, the sub-key for the store size, from being
+// read as the flag.
 //
-// A cmdline that cannot be read reports set=false rather than forced=false, so
-// the caller falls through to the probe. Defaulting to "writable" on an
-// unreadable cmdline would point the failure the wrong way.
-func parseWriteProtected() (forced, set bool) {
+// A cmdline that cannot be read is reported as off, because the gate cannot be
+// seen, and says so.
+func parseWriteProtected() writeProtectedMode {
 	cmdline, err := os.ReadFile(GetHostProcCmdline())
 	if err != nil {
-		KLog.Logger.Warn().Err(err).Msg("Could not read the kernel cmdline, falling back to probing the device")
-		return false, false
+		KLog.Logger.Warn().Err(err).Msg("Could not read the kernel cmdline; the write-protected media layout stays off")
+		return writeProtectedOff
 	}
 
+	mode := writeProtectedOff
 	key := constants.CmdlineWriteProtected
 	for _, tok := range strings.Fields(string(cmdline)) {
 		if tok == key {
-			forced, set = true, true
+			mode = writeProtectedDetect
 			continue
 		}
-		if strings.HasPrefix(tok, key+"=") {
-			switch strings.TrimPrefix(tok, key+"=") {
-			case "0", "false", "no":
-				forced, set = false, true
-			case "auto":
-				forced, set = false, false
-			default:
-				forced, set = true, true
-			}
+		if !strings.HasPrefix(tok, key+"=") {
+			continue
+		}
+		switch v := strings.TrimPrefix(tok, key+"="); v {
+		case "0", "false", "no":
+			mode = writeProtectedOff
+		case "", "1", "true", "auto":
+			mode = writeProtectedDetect
+		case "force":
+			mode = writeProtectedForce
+		default:
+			KLog.Logger.Warn().Str("value", v).Msg("Unknown value for " + key + ", reading it as enabled")
+			mode = writeProtectedDetect
 		}
 	}
-	return forced, set
+	return mode
 }
 
 // deviceReadOnly is a seam for the tests. Nothing else reassigns it.
@@ -623,10 +646,9 @@ func writeProtectedCandidates() []string {
 // rather than a copy.
 var WriteProtected = sync.OnceValue(detectWriteProtected)
 
-// detectWriteProtected works out whether the media is write-protected. The cmdline
-// overrides the device probe in both directions, because hardware that
-// misreports exists in both: CmdlineWriteProtected on its own forces the read-only
-// layout, and "=0" forces it off.
+// detectWriteProtected works out whether the write-protected media layout
+// applies to this boot: only when the cmdline enables it, and then only when
+// the device says it is write-protected, unless the cmdline forces it.
 func detectWriteProtected() bool {
 	// The layout is only registered by the normal-boot and in-RAM DAGs, so the
 	// question is not asked anywhere else, and every step that consults the
@@ -641,13 +663,13 @@ func detectWriteProtected() bool {
 		return false
 	}
 
-	if forced, set := parseWriteProtected(); set {
-		if forced {
-			KLog.Logger.Warn().Msg("Read-only media layout forced on the cmdline")
-		} else {
-			KLog.Logger.Info().Msg("Read-only media layout disabled on the cmdline")
-		}
-		return forced
+	switch parseWriteProtected() {
+	case writeProtectedOff:
+		KLog.Logger.Debug().Msg("Write-protected media layout not enabled on the cmdline; not probing")
+		return false
+	case writeProtectedForce:
+		KLog.Logger.Warn().Msg("Write-protected media layout forced on the cmdline")
+		return true
 	}
 
 	// The candidates are udev symlinks. immucore.service is ordered after
