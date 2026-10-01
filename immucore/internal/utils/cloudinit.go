@@ -28,17 +28,13 @@ func RunStage(stage string) error {
 	// Run all stages for each of the default cloud config paths + extra cloud config paths.
 	// Only pass paths that actually exist: yip's own path resolution falls back to treating
 	// a missing path as literal YAML when it isn't a directory, an existing file or a URL, so
-	// a path that simply hasn't been created yet (e.g. /usr/local/cloud-config/ before the
-	// rootfs stage creates it) would otherwise surface as a spurious unmarshal error on every
-	// boot instead of a real stage failure.
-	var cloudInitPaths []string
-	for _, p := range constants.GetCloudInitPaths() {
-		if _, statErr := os.Stat(p); statErr == nil {
-			cloudInitPaths = append(cloudInitPaths, p)
-		}
-	}
+	// a path that simply hasn't been created yet (e.g. /usr/local/cloud-config/, which a
+	// bundled fs.after step creates once the system has booted, after immucore has run) would
+	// otherwise surface as a spurious unmarshal error on every boot instead of a real stage
+	// failure. The check runs before each sub-stage, so a
+	// path created by an earlier sub-stage is still picked up by the later ones.
 	for _, s := range []string{stageBefore, stage, stageAfter} {
-		err = yip.Run(s, vfs.OSFS, c, cloudInitPaths...)
+		err = yip.Run(s, vfs.OSFS, c, existingPaths(constants.GetCloudInitPaths())...)
 		if err != nil {
 			allErrors = multierror.Append(allErrors, err)
 		}
@@ -100,6 +96,17 @@ func RunStage(stage string) error {
 	}
 
 	return nil
+}
+
+// existingPaths returns the paths that exist on the local filesystem, in order.
+func existingPaths(paths []string) []string {
+	var existing []string
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			existing = append(existing, p)
+		}
+	}
+	return existing
 }
 
 // KairosConfigURIFromCmdline reads the kernel cmdline (via GetHostProcCmdline so tests
