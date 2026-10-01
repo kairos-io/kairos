@@ -119,6 +119,25 @@ on:
         type: boolean
         default: false
 
+      test_sysext_overlay:
+        description: |
+          Bake the CI-only sysext test extensions onto the ISO as
+          auroraboot's --overlay-iso tree. Explicit opt-in: default
+          false so a release caller cannot accidentally leak the test
+          extensions into a shipped ISO. When true, the caller ships
+          `tests/assets/sysext-uki` on trusted_boot cells and
+          `tests/assets/sysext-grub` on the rest -- the two directories
+          exist because the UKI cell enrolls the test certificate
+          (tests/assets/keys/db.auth, the EFI signed variable derived
+          from db.pem) into the Secure Boot db, so the kernel accepts a
+          verity root-hash signed with the corresponding db.key; a
+          plain GRUB cell enrolls nothing and cannot. One extension is
+          verity+signed, the other is verity-only.
+          The extensions are what tests/sysext_live_media_test.go and
+          tests/uki_test.go's boot-assessment spec assert on.
+        type: boolean
+        default: false
+
       single_efi_cmdline:
         description: |
           Bake an extra single-EFI boot entry into the UKI, in
@@ -248,12 +267,21 @@ jobs:
       # tests/assets/keys/db.auth, not at /db.auth. Pass the path
       # unconditionally; factory-action ignores it on non-UKI cells.
       keys_dir: 'tests/assets/keys'
-      # sysext_dir bakes work.sysext.raw + hello-broke.sysext.raw into
-      # the UKI ISO. Without it the boot-assessment test's sysext
-      # assertions ("/run/extensions should contain work.sysext.raw",
-      # uki_test.go:296-303) fail because there is no sysext to load.
-      # Same shape as keys_dir; ignored on non-UKI cells.
-      sysext_dir: '$PWD/tests/assets/sysext'
+      # sysext_dir bakes the CI-only test extensions onto the ISO as
+      # auroraboot's --overlay-iso tree. Gated on `test_sysext_overlay`
+      # so a release caller cannot leak them; on release cells the
+      # default is empty and factory-action omits --overlay-iso
+      # entirely. When opted in, the directory is picked from
+      # trusted_boot: a UKI boot enrolls the test certificate
+      # (tests/assets/keys/db.auth, derived from db.pem) into the
+      # Secure Boot db and can activate a verity root-hash signed with
+      # the corresponding db.key, while a plain GRUB boot enrolls
+      # nothing and cannot, and a signed image the kernel refuses is
+      # an all-or-nothing failure in systemd-sysext's merge_subprocess.
+      # The two asset directories track that split: sysext-uki ships a
+      # verity+signed work.sysext.raw and sysext-grub a verity-only
+      # one, both with the same hello.sh payload.
+      sysext_dir: ${{ inputs.test_sysext_overlay && (inputs.trusted_boot && '$PWD/tests/assets/sysext-uki' || '$PWD/tests/assets/sysext-grub') || '' }}
       single_efi_cmdline: ${{ inputs.single_efi_cmdline }}
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}

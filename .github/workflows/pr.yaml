@@ -279,6 +279,11 @@ jobs:
       # install-upgrade qemu test has something to upgrade.
       # Factory-action ignores it on non-UKI cells.
       single_efi_cmdline: 'testentry: nothing'
+      # Opt in to the CI-only sysext overlay. _build-iso.yaml picks
+      # tests/assets/sysext-uki for UKI cells and tests/assets/sysext-grub
+      # for the rest. Release cells do not set this and therefore ship no
+      # test extensions.
+      test_sysext_overlay: true
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
@@ -346,6 +351,7 @@ jobs:
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
+      test_sysext_overlay: true
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
@@ -377,6 +383,7 @@ jobs:
           - {test: 'upgrade-with-cli'}
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
+          - {test: 'sysext'}
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
