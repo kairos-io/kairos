@@ -88,6 +88,33 @@ users:
 				return out
 			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("Permissive"))
 		})
+
+		By("rebooting to recovery")
+		out, err := vm.Sudo("kairos-agent bootentry --select recovery")
+		Expect(err).ToNot(HaveOccurred(), out)
+		vm.Reboot()
+		vm.EventuallyConnects(600)
+
+		By("checking the recovery sentinel exists")
+		out, err = vm.Sudo("stat /run/cos/recovery_mode")
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		By("checking the recovery kernel cmdline has no selinux tokens")
+		out, err = vm.Sudo("cat /proc/cmdline")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).ToNot(ContainSubstring("selinux=1"))
+		Expect(out).ToNot(ContainSubstring("rd.cos.selinux"))
+
+		By("checking /etc/selinux/config is pinned to disabled on recovery")
+		out, err = vm.Sudo("cat /etc/selinux/config")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring("SELINUX=disabled"))
+
+		By("checking the relabel unit was not created on recovery")
+		Eventually(func() string {
+			out, _ := vm.Sudo("systemctl status kairos-selinux-relabel")
+			return out
+		}, 1*time.Minute, 2*time.Second).Should(ContainSubstring("Unit kairos-selinux-relabel.service could not be found"))
 	})
 
 	It("boots enforcing when install.selinux.mode is enforcing", func() {
