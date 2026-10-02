@@ -79,6 +79,17 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # See _unit-tests.yaml for the rationale. Same key -> the cross-
+      # compile of kairos / kairos-installer / provider-kairos reuses
+      # any incremental artifacts unit-tests warmed up.
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-build-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
       - name: Build kairos
         run: make kairos ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
 

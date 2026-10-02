@@ -80,6 +80,15 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # See _unit-tests.yaml for the rationale.
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-build-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
       - name: Build kcrypt-challenger
         run: make kcrypt-challenger ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
 

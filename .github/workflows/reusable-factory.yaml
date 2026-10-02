@@ -742,6 +742,13 @@ jobs:
           load: true
           tags: ${{ steps.setup.outputs.image_tag }}
           labels: ${{ inputs.image_labels }}
+          # Per-PR (falls back to per-ref) scope keeps stale kairos-init
+          # embedding from crossing branches -- the reason _build-iso.yaml
+          # used to set no_cache: true.
+          cache-from: |
+            type=gha,scope=iso-${{ github.event.pull_request.number || github.ref_name }}-${{ inputs.custom_job_name_format || format('{0}-{1}', inputs.arch, inputs.model) }}
+          cache-to: |
+            type=gha,mode=max,scope=iso-${{ github.event.pull_request.number || github.ref_name }}-${{ inputs.custom_job_name_format || format('{0}-{1}', inputs.arch, inputs.model) }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
