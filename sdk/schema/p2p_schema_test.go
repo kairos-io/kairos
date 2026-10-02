@@ -196,4 +196,79 @@ vpn:
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
+
+	// `enabled` is the spelling the kubernetes blocks use, and the one the
+	// provider now reads here too. `enable` stays accepted so existing
+	// cloud-configs keep validating. See kairos-io/kairos#1016.
+	Context("With a network_token and p2p.auto.enabled = true", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enabled: true`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With a network_token and p2p.auto.enabled = false", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enabled: false`
+		})
+
+		It("errors", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(
+				strings.Contains(config.ValidationError.Error(), `value must be true`),
+			).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and p2p.auto.enabled = false", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("HA with enabled", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enabled: true
+  ha:
+    enabled: true
+    master_nodes: 2`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and both spellings of p2p.auto", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false
+  enable: false`
+		})
+
+		It("errors, because the two can disagree and the provider refuses them too", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+		})
+	})
 })

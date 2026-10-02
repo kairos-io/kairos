@@ -106,7 +106,7 @@ var _ = Describe("NewK8sNode", func() {
 				P2P: &providerConfig.P2P{
 					Role: RoleMaster,
 					Auto: providerConfig.Auto{
-						Enable: &enabled,
+						Enabled: &enabled,
 					},
 				},
 			}
