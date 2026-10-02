@@ -18,9 +18,12 @@ package config_test
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
+	sdkAgentConstants "github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
@@ -132,3 +135,70 @@ var _ = Describe("Install image slots", Label("install", "config"), func() {
 		Entry("ext4", "ext4"),
 	)
 })
+
+// An ISO that ships recovery.squashfs leaves recoveryImg.Label empty, because
+// the squashfs is deployed with no label and gets SystemLabel later, in
+// elemental.DeployImage. A config that spells out the label the boot path
+// already looks for is a no-op, not a broken install, so it has to keep
+// working. See https://github.com/kairos-io/kairos/pull/4915#discussion_r4164668785
+var _ = Describe("Install image slots with the recovery squashfs present", Label("install", "config"), func() {
+	var c *sdkConfig.Config
+	var fs *vfst.TestFS
+	var cleanup func()
+
+	installSpecFor := func(cc string) (interface{ GetTarget() string }, error) {
+		cfg, err := config.ScanNoLogs(collector.Readers(strings.NewReader(cc)))
+		Expect(err).ToNot(HaveOccurred())
+		c.Collector = cfg.Collector
+		return config.NewInstallSpec(c)
+	}
+
+	BeforeEach(func() {
+		var err error
+		var memLog bytes.Buffer
+		logger := sdkLogger.NewBufferLogger(&memLog)
+		logger.SetLevel("debug")
+
+		fs, cleanup, err = vfst.NewTestFS(nil)
+		Expect(err).ToNot(HaveOccurred())
+
+		c = config.NewConfig(
+			config.WithFs(fs),
+			config.WithMounter(v1mock.NewErrorMounter()),
+			config.WithRunner(v1mock.NewFakeRunner()),
+			config.WithSyscall(&v1mock.FakeSyscall{}),
+			config.WithLogger(logger),
+			config.WithCloudInitRunner(&v1mock.FakeCloudInitRunner{}),
+			config.WithClient(&v1mock.FakeHTTPClient{}),
+			config.WithPlatform("linux/amd64"),
+		)
+		c.Install = &sdkInstall.Install{}
+		c.Bundles = sdkBundles.Bundles{}
+		c.Collector = collector.Config{}
+
+		setupIsoBaseTreeDetection(fs)
+		setupRecoverySquashfs(fs)
+	})
+
+	AfterEach(func() { cleanup() })
+
+	It("accepts the label the initramfs already looks for", func() {
+		_, err := installSpecFor("#cloud-config\ninstall:\n  device: /dev/sda\n  recovery-system:\n    label: " + sdkConstants.SystemLabel + "\n")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("still refuses a label the initramfs will not look for", func() {
+		_, err := installSpecFor("#cloud-config\ninstall:\n  device: /dev/sda\n  recovery-system:\n    label: MY_RECOVERY\n")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("install.recovery-system.label cannot be set"))
+	})
+})
+
+// setupRecoverySquashfs makes NewInstallSpec take the recoveryExists branch,
+// the one a default ISO install takes.
+func setupRecoverySquashfs(fs *vfst.TestFS) {
+	recoveryImgFile := filepath.Join(sdkAgentConstants.LiveDir, sdkAgentConstants.RecoverySquashFile)
+	Expect(fsutils.MkdirAll(fs, filepath.Dir(recoveryImgFile), sdkAgentConstants.DirPerm)).ToNot(HaveOccurred())
+	_, err := fs.Create(recoveryImgFile)
+	Expect(err).ToNot(HaveOccurred())
+}
