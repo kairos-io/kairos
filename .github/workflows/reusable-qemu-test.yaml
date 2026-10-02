@@ -263,22 +263,7 @@ jobs:
           sudo mv luet /usr/bin/luet
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
-          # luet pulls the repository index from quay on first use. When that
-          # pull returns an empty blob, luet resolves against an empty tree
-          # and reports the packages as not found rather than as a failed
-          # fetch, which reddens one leg of a 14 way matrix. The repository
-          # is cached, so the empty index has to be dropped before a retry
-          # or the next attempt reads the same thing.
-          for attempt in 1 2 3; do
-            if LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d; then
-              exit 0
-            fi
-            echo "luet install failed on attempt ${attempt}, dropping the cached repository index"
-            sudo rm -rf /var/cache/luet/repos/kairos
-            sleep "$((attempt * 10))"
-          done
-          echo "luet install did not succeed in 3 attempts"
-          exit 1
+          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
       - name: Install cinc-auditor and openssh-client for the DevSec ssh-baseline profile
         # cinc-auditor is a FOSS drop-in for chef/inspec (InSpec >= 5 is no
         # longer under an OSS licence). It runs the profile from
