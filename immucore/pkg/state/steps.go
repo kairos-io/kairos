@@ -40,13 +40,12 @@ func (s *State) MountRootDagStep(g *herd.Graph) error {
 	err = g.Add(cnst.OpMountState,
 		TimedCallback(cnst.OpMountState,
 			func(_ context.Context) error {
-				fstab, err := op.MountOPWithFstab(
-					internalUtils.GetState(),
+				stateDevice := internalUtils.GetState()
+				fstab, err := op.MountOPWithFstabFn(
+					stateDevice,
 					s.path("/run/initramfs/cos-state"),
-					internalUtils.DiskFSType(internalUtils.GetState()),
-					[]string{
-						s.RootMountMode,
-					}, 60*time.Second)
+					internalUtils.DiskFSType(stateDevice),
+					s.readOnlyOrMode, 60*time.Second)
 				for _, f := range fstab {
 					s.fstabs = append(s.fstabs, f)
 				}
@@ -96,16 +95,12 @@ func (s *State) MountRootDagStep(g *herd.Graph) error {
 		herd.WithDeps(cnst.OpDiscoverState),
 		TimedCallback(cnst.OpMountRoot,
 			func(_ context.Context) error {
-				fstab, err := op.MountOPWithFstab(
+				fstab, err := op.MountOPWithFstabFn(
 					s.TargetDevice,
 					s.Rootdir,
 					"ext4", // TODO: Get this just in time? Currently if using DiskFSType is run immediately which is bad because its not mounted
-					[]string{
-						s.RootMountMode,
-						"suid",
-						"dev",
-						"exec",
-						"async",
+					func(fstype string) []string {
+						return append(s.readOnlyOrMode(fstype), "suid", "dev", "exec", "async")
 					}, 10*time.Second)
 				for _, f := range fstab {
 					s.fstabs = append(s.fstabs, f)
@@ -210,11 +205,24 @@ func (s *State) RunKcrypt(g *herd.Graph, opts ...herd.OpOption) error {
 	}))...)
 }
 
+// upgradeKcryptPartitions is a seam for the tests. Nothing else reassigns it.
+var upgradeKcryptPartitions = internalUtils.UpgradeKcryptPartitions
+
 // RunKcryptUpgrade will upgrade encrypted partitions created with 1.x to the new 2.x format, where
 // we inspect the uuid of the partition directly to know which label to use for the key
 // As those old installs have an old agent the only way to do it is during the first boot after the upgrade to the newest immucore.
 func (s *State) RunKcryptUpgrade(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpKcryptUpgrade, append(opts, TimedCallback(cnst.OpKcryptUpgrade, func(_ context.Context) error {
-		return internalUtils.UpgradeKcryptPartitions()
+		if s.WriteProtected {
+			// The upgrade rewrites the LUKS header (cryptsetup luksUUID --uuid),
+			// which is a write to the very device the media refuses writes to.
+			// It cannot succeed, so it is skipped rather than allowed to fail the
+			// step. A partition still on the old format on write-protected media
+			// stays on the old format; the unlock path handles both.
+			internalUtils.KLog.Logger.Info().
+				Msg("Skipping the kcrypt partition upgrade: it rewrites LUKS headers, and the media is write-protected")
+			return nil
+		}
+		return upgradeKcryptPartitions()
 	}))...)
 }
