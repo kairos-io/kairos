@@ -444,7 +444,7 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				fstab, err2 := op.MountOPWithFstabFn(
 					source,
 					target,
-					internalUtils.DiskFSType(source),
+					"ext4",
 					mountOptions,
 					30*time.Second,
 				)
