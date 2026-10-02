@@ -253,7 +253,12 @@ jobs:
       - name: Encryption deps
         if: ${{ startsWith(inputs.test, 'encryption-') }}
         run: |
-          curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+          # -f matters: without it curl writes the body of an HTTP error to
+          # the output file and still exits 0, so a bad gateway from the
+          # release host installs an error page as /usr/bin/luet and the
+          # first thing to fail is an unrelated looking luet command.
+          curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
+            https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
           chmod +x luet
           sudo mv luet /usr/bin/luet
           sudo mkdir -p /etc/luet/repos.conf.d/
@@ -270,7 +275,7 @@ jobs:
         if: ${{ inputs.test == 'ssh-hardening' }}
         run: |
           sudo apt-get install -y openssh-client
-          curl -L https://omnitruck.cinc.sh/install.sh | sudo bash -s -- -P cinc-auditor
+          curl -fL --retry 5 --retry-all-errors --retry-delay 2 https://omnitruck.cinc.sh/install.sh | sudo bash -s -- -P cinc-auditor
           cinc-auditor --version
       - name: Setup bridge network for VM-to-VM communication
         if: inputs.use_bridge_network
