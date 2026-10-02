@@ -95,6 +95,15 @@ func (r *ResetAction) Run() (err error) {
 		}
 	}
 
+	// Before reset hook happens once partitions are already formatted and
+	// mounted and before deploying the OS image, the same place the GRUB path
+	// runs it.
+	err = Hook(r.cfg, constants.BeforeResetHook)
+	if err != nil {
+		r.cfg.Logger.Errorf("running before-reset hook: %s", err.Error())
+		return err
+	}
+
 	// REMOUNT /efi as RW (its RO by default)
 	umount, err := e.MountRWPartition(r.spec.Partitions.EFI)
 	if err != nil {

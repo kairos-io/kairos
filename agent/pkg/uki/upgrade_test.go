@@ -115,7 +115,11 @@ var _ = Describe("Uki upgrade action", func() {
 	})
 
 	It("fails the active upgrade when the artifact has no valid signature", func() {
-		// strict mode also surfaces the pre-upgrade stage errors
+		// strict mode also surfaces the pre-upgrade stage errors, so the test
+		// fs needs the cmdline every stage reads, otherwise the run stops at
+		// the before-upgrade hook rather than at the signature check
+		Expect(fsutils.MkdirAll(fs, "/proc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/proc/cmdline", []byte(""), os.ModePerm)).To(Succeed())
 		config.Strict = true
 		// the source contains no artifact, so the signature check fails before
 		// any artifact rotation happens
@@ -196,6 +200,53 @@ var _ = Describe("Uki upgrade action", func() {
 			content, err := fs.ReadFile("/efi/EFI/Kairos/passive.efi")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(string(content)).To(Equal("old active"))
+		})
+	})
+
+	Describe("the documented upgrade stages", func() {
+		// The GRUB upgrade runs before-upgrade and after-upgrade, and
+		// docs/architecture/cloud-init.md does not mark either of them as GRUB
+		// only, so a Trusted Boot upgrade has to run them as well. See
+		// kairos-io/kairos#4806.
+
+		It("runs before-upgrade on an active upgrade", func() {
+			// the source holds no artifact, so the run fails at the signature
+			// check, long after the hook is due
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).To(ContainElement(constants.BeforeUpgradeHook))
+		})
+
+		It("runs before-upgrade on a recovery upgrade", func() {
+			spec.Entry = constants.BootEntryRecovery
+			Expect(spec.RecoveryUpgrade()).To(BeTrue())
+
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).To(ContainElement(constants.BeforeUpgradeHook))
+		})
+
+		It("runs before-upgrade on a single entry upgrade", func() {
+			spec.Entry = "kairos-uki-test-nonexistent-entry"
+
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).To(ContainElement(constants.BeforeUpgradeHook))
+		})
+
+		It("runs before-upgrade only once the EFI partition is mounted RW", func() {
+			// the stage writes to the ESP, so it is no use before the remount
+			mounter.ErrorOnMount = true
+
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).ToNot(ContainElement(constants.BeforeUpgradeHook))
+		})
+
+		It("does not run after-upgrade when the new artifact was not written", func() {
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).ToNot(ContainElement(constants.AfterUpgradeHook))
 		})
 	})
 
