@@ -759,10 +759,22 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 	cfg.Logger.Infof("Setting image size to %dMiB", spec.Partitions.EFI.Size)
 
 	err = unmarshallFullSpec(cfg, "install", spec)
+	if err != nil {
+		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+
+	// resolve also the target of the spec so we can partition properly, the same
+	// way NewInstallSpec does it. Without this a script:// device is handed to
+	// the partitioner as a literal path, and a /dev/disk/by-X device is never
+	// resolved nor rejected when it names a partition.
+	spec.Target, err = resolveTarget(spec.Target)
+	if err != nil {
+		return nil, err
+	}
 
 	// Add default values for the skip partitions for our default entries
 	spec.SkipEntries = append(spec.SkipEntries, constants.UkiDefaultSkipEntries()...)
-	return spec, err
+	return spec, nil
 }
 
 // ReadUkiInstallSpecFromConfig will return a proper v1.InstallUkiSpec based on an agent Config
