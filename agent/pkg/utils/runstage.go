@@ -28,20 +28,30 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// CloudInitPaths returns the paths a stage reads when nothing overrides them:
+// the built-in defaults, followed by whatever the config adds.
+func CloudInitPaths(cfg *sdkConfig.Config) []string {
+	return append(constants.GetCloudInitPaths(), cfg.CloudInitPaths...)
+}
+
 // RunstageAnalyze
 func RunStageAnalyze(cfg *sdkConfig.Config, stage string) error {
-	return runstage(cfg, stage, true)
+	return RunStageWithPaths(cfg, stage, true, CloudInitPaths(cfg))
 }
 
 // RunStage will run yip
 func RunStage(cfg *sdkConfig.Config, stage string) error {
-	return runstage(cfg, stage, false)
+	return RunStageWithPaths(cfg, stage, false, CloudInitPaths(cfg))
 }
 
-func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
+// RunStageWithPaths runs (or analyzes) a stage against exactly cloudInitPaths.
+// The defaults from constants.GetCloudInitPaths() are not added, so a caller
+// that wants them has to ask for them via CloudInitPaths. This is what backs
+// `run-stage --override-cloud-init-paths`, the only way to run one
+// cloud-config without the machine's whole /oem coming along with it.
+func RunStageWithPaths(cfg *sdkConfig.Config, stage string, analyze bool, cloudInitPaths []string) error {
 	var allErrors error
 
-	cloudInitPaths := append(constants.GetCloudInitPaths(), cfg.CloudInitPaths...)
 	cfg.Logger.Debugf("Cloud-init paths set to %v", cloudInitPaths)
 	if analyze {
 		cfg.Logger.Info("Analyze mode, showing DAG")
