@@ -54,25 +54,65 @@ upgrade:
 		Expect(config.ValidationError.Error()).To(ContainSubstring("expected integer, but got string"))
 	})
 
-	It("rejects a boot entry that is neither the active nor the recovery one", func() {
+	// `kairos-agent upgrade --boot-entry foo` writes `upgrade.entry: foo` into
+	// the scanned config, and the UKI upgrade path installs whichever
+	// systemd-boot entry it names, so the key cannot be constrained to the two
+	// GRUB entry names.
+	It("accepts a boot entry named after a systemd-boot entry", func() {
 		config := validate(`#cloud-config
 users:
 - name: kairos
 upgrade:
-  entry: passive`)
+  entry: my-entry`)
 
-		Expect(config.IsValid()).To(BeFalse())
-		Expect(config.ValidationError.Error()).To(ContainSubstring("/upgrade/entry"))
+		Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
 	})
 
-	It("rejects a recovery flag that is not a boolean", func() {
+	DescribeTable("accepts every form of recovery the agent reads as a boolean",
+		func(value string) {
+			config := validate(`#cloud-config
+users:
+- name: kairos
+upgrade:
+  recovery: ` + value)
+
+			Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+		},
+		Entry("the literal", "true"),
+		Entry("a quoted literal, which is what a template writes", `"true"`),
+		Entry("a quoted literal in upper case", `"TRUE"`),
+		Entry("a single letter", `"t"`),
+		Entry("a number", "1"),
+		Entry("zero", "0"),
+	)
+
+	DescribeTable("rejects a recovery value the agent cannot read as a boolean",
+		func(value string) {
+			config := validate(`#cloud-config
+users:
+- name: kairos
+upgrade:
+  recovery: ` + value)
+
+			Expect(config.IsValid()).To(BeFalse())
+			Expect(config.ValidationError.Error()).To(ContainSubstring("/upgrade/recovery"))
+		},
+		// YAML 1.2 reads an unquoted yes as a string, and
+		// strconv.ParseBool rejects it, so the agent does too.
+		Entry("yes", "yes"),
+		Entry("a word", "maybe"),
+		Entry("a mapping", "{}"),
+	)
+
+	It("accepts the other flags written as a template would write them", func() {
 		config := validate(`#cloud-config
 users:
 - name: kairos
 upgrade:
-  recovery: "true"`)
+  reboot: "true"
+  poweroff: "false"
+  allow-insecure-registries: 1`)
 
-		Expect(config.IsValid()).To(BeFalse())
-		Expect(config.ValidationError.Error()).To(ContainSubstring("/upgrade/recovery"))
+		Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
 	})
 })

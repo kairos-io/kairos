@@ -34,7 +34,20 @@ reset:
 		Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
 	})
 
-	It("rejects reset-persistent written as a string", func() {
+	It("accepts the flags written as a template would write them", func() {
+		config := validate(`#cloud-config
+users:
+- name: kairos
+reset:
+  reset-persistent: "true"
+  reset-oem: 1
+  reboot: "false"
+  poweroff: 0`)
+
+		Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+	})
+
+	It("rejects reset-persistent written as a word the agent cannot read", func() {
 		config := validate(`#cloud-config
 users:
 - name: kairos
@@ -43,6 +56,5 @@ reset:
 
 		Expect(config.IsValid()).To(BeFalse())
 		Expect(config.ValidationError.Error()).To(ContainSubstring("/reset/reset-persistent"))
-		Expect(config.ValidationError.Error()).To(ContainSubstring("expected boolean, but got string"))
 	})
 })
