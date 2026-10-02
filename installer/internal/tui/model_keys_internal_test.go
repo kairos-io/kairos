@@ -2,6 +2,9 @@ package tui
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"os/exec"
 	"reflect"
 	"strings"
 	"time"
@@ -145,5 +148,87 @@ var _ = Describe("keys the step pages keep from the installer", func() {
 		Expect(edit.area.Value()).To(ContainSubstring("q"))
 		msgs = press(tea.KeyMsg{Type: tea.KeyEsc})
 		Expect(msgs).To(ContainElement(BackMsg{}))
+	})
+})
+
+var _ = Describe("the shell key", func() {
+	var started int
+
+	BeforeEach(func() {
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		mainModel = InitialModel(&l, "")
+		started = 0
+		prev := shellCommand
+		DeferCleanup(func() { shellCommand = prev })
+		shellCommand = func() *exec.Cmd {
+			started++
+			return exec.Command("true")
+		}
+	})
+	press := func(k tea.KeyMsg) tea.Cmd {
+		_, cmd := mainModel.Update(k)
+		return cmd
+	}
+	ctrlT := tea.KeyMsg{Type: tea.KeyCtrlT}
+
+	It("hands the terminal to a shell from the welcome page", func() {
+		cmd := press(ctrlT)
+		Expect(cmd).NotTo(BeNil())
+		// tea.ExecProcess returns the program's internal handover message,
+		// which is how we know the TUI suspends rather than quits.
+		Expect(fmt.Sprintf("%T", cmd())).To(Equal("tea.execMsg"))
+		Expect(started).To(Equal(1))
+	})
+
+	It("stays on the same page when the shell exits, whatever its status", func() {
+		mainModel.navigationStack = []string{welcomePageID}
+		mainModel.currentPageID = "prerequisites"
+		for _, msg := range []tea.Msg{shellFinishedMsg{}, shellFinishedMsg{err: errors.New("exit status 1")}} {
+			_, cmd := mainModel.Update(msg)
+			Expect(resolves(cmd)).To(BeEmpty())
+			Expect(mainModel.currentPageID).To(Equal("prerequisites"))
+			Expect(mainModel.navigationStack).To(Equal([]string{welcomePageID}))
+		}
+	})
+
+	It("opens a shell from a text field instead of typing into it", func() {
+		var step *stepPage
+		for _, p := range mainModel.pages {
+			if sp, ok := p.(*stepPage); ok && sp.ID() == wizard.StepHostname {
+				step = sp
+			}
+		}
+		Expect(step).ToNot(BeNil())
+		mainModel.navigationStack = []string{"customization"}
+		mainModel.currentPageID = wizard.StepHostname
+		step.Init()
+		Expect(press(ctrlT)).NotTo(BeNil())
+		Expect(started).To(Equal(1))
+		Expect(step.values()[wizard.FieldHostname]).To(BeEmpty())
+	})
+
+	It("is left to the edit page's text area", func() {
+		mainModel.answers.Disk = "/dev/vda"
+		mainModel.navigationStack = []string{"summary"}
+		mainModel.currentPageID = editPageID
+		for _, p := range mainModel.pages {
+			if e, ok := p.(*editPage); ok {
+				e.Init()
+			}
+		}
+		press(ctrlT)
+		Expect(started).To(Equal(0))
+	})
+
+	It("is ignored while the install is running", func() {
+		mainModel.currentPageID = "install_process"
+		press(ctrlT)
+		Expect(started).To(Equal(0))
+	})
+
+	It("is named in the help line", func() {
+		withTermSize(200, 40, func() {
+			Expect(mainModel.View()).To(ContainSubstring("ctrl+t: shell"))
+		})
 	})
 })
