@@ -343,3 +343,35 @@ func TestStateRegistersGetAndNoApply(t *testing.T) {
 		t.Errorf("state lost its get subcommand, subcommands %v", names)
 	}
 }
+
+// `upgrade --dry-run` must be registered as a bool flag that defaults to off,
+// so a plain `upgrade` keeps running the real upgrade.
+func TestUpgradeRegistersDryRunFlag(t *testing.T) {
+	var upgradeCmd *cli.Command
+	for _, c := range cmds {
+		if c.Name == "upgrade" {
+			upgradeCmd = c
+			break
+		}
+	}
+	if upgradeCmd == nil {
+		t.Fatal("no upgrade command registered")
+	}
+
+	for _, f := range upgradeCmd.Flags {
+		for _, name := range f.Names() {
+			if name != "dry-run" {
+				continue
+			}
+			bf, ok := f.(*cli.BoolFlag)
+			if !ok {
+				t.Fatalf("dry-run is a %T, want *cli.BoolFlag", f)
+			}
+			if bf.Value {
+				t.Fatal("dry-run defaults to true, a plain upgrade would not upgrade")
+			}
+			return
+		}
+	}
+	t.Fatal("upgrade does not register a --dry-run flag")
+}

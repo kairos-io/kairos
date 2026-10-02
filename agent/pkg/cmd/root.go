@@ -109,6 +109,7 @@ var cmds = []*cli.Command{
 			&cli.BoolFlag{Name: constants.BootRecovery, Usage: "Upgrade recovery"},
 			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
 			&allowInsecureRegistriesFlag,
+			&cli.BoolFlag{Name: "dry-run", Usage: "Resolve the upgrade and print a summary of what would be done, without changing the system"},
 		},
 		Description: `
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
@@ -119,6 +120,8 @@ as a value for the --source flag.
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
 To pull from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate, pass the --allow-insecure-registries flag (or set "upgrade.allow-insecure-registries: true" in the cloud config).
+
+To check what an upgrade would do before running it, pass the --dry-run flag. It resolves the source (including the cloud config), the image size and where the transition image would be written, checks that the image manifest can be fetched from the registry, prints a summary and exits without changing the system.
 
 To retrieve all the available versions, use "kairos upgrade list-releases". Use the --registry flag to specify a custom registry to retrieve the versions from, otherwise it will default to quay.io/kairos.
 
@@ -248,7 +251,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			}
 
 			return agent.Upgrade(source, c.Bool("strict-validation"), constants.GetUserConfigDirs(),
-				upgradeEntry, c.Bool("allow-insecure-registries"), c.StringSlice("exclude-path")...,
+				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.StringSlice("exclude-path")...,
 			)
 		},
 	},
