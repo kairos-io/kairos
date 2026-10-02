@@ -18,7 +18,16 @@ stages:
           }
 
           start() {
-            kairos-agent run-stage fs
+            # cos-setup-fs.service caps the same stage with
+            # TimeoutStartSec=90, because run-stage fs pulls config_url
+            # fetches against a network that is not up at this ordering
+            # point. openrc has no equivalent, and this service runs before
+            # cos-setup-boot in the boot runlevel, so a stall here holds the
+            # login prompt for ever. timeout is a busybox applet
+            # (CONFIG_TIMEOUT=y on Alpine) and takes the seconds first. eend 0
+            # keeps a timeout from failing the runlevel, which is what the
+            # systemd side does when it proceeds past the timeout.
+            timeout 90 kairos-agent run-stage fs
             eend 0
           }
       - path: /etc/init.d/cos-setup-boot
@@ -66,18 +75,35 @@ stages:
           supervisor=supervise-daemon
           name="cos-setup-reconcile"
           # supervise-daemon resolves $command before it forks and refuses to
-          # start if it is not on $PATH, so this has to name the binary that
+          # start if it is not on $PATH, so this has to name a binary that
           # exists. The systemd side runs the same stage from
-          # cos-setup-reconcile.service.
-          command="/usr/bin/kairos-agent"
-          command_args="run-stage reconcile"
+          # cos-setup-reconcile.service, every 60min off
+          # cos-setup-reconcile.timer.
+          #
+          # The interval lives inside the supervised command rather than in
+          # respawn_delay, because respawn_delay means two different things on
+          # the two openrc releases Kairos builds Alpine flavours from:
+          #
+          #   0.55.1 (Alpine 3.21) sleeps respawn_delay verbatim, but defaults
+          #   respawn_period to 0, so the respawn counter never resets and the
+          #   default respawn_max of 10 retires the service after 11 passes.
+          #   0.63 (Alpine 3.23) resets the counter, but clamps the sleep to
+          #   respawn_delay_cap, 30s by default, so an hourly delay would fire
+          #   every 30 seconds. sh/supervise-daemon.sh passes neither
+          #   --respawn-delay-cap nor --respawn-delay-step, and the flags do
+          #   not exist on 0.55.1, so they cannot be set from here either.
+          #
+          # A sleep in the loop is the same interval on both.
+          command="/bin/sh"
+          command_args="-c 'while true; do /usr/bin/kairos-agent run-stage reconcile; sleep 3600; done'"
           supervise_daemon_args="--stdout /var/log/cos-setup-reconcile.log --stderr /var/log/cos-setup-reconcile.log"
           pidfile="/run/cos-setup-reconcile.pid"
-          # run-stage exits when the stage is done and supervise-daemon
-          # respawns it after this delay, so the delay is the interval
-          # between passes. 3600 matches cos-setup-reconcile.timer's
-          # OnUnitActiveSec=60min.
-          respawn_delay=3600
+          # The loop is what is supervised, so a respawn now only happens if
+          # the loop itself dies. 0 is unlimited; the default 10 would retire
+          # the service for the rest of the boot. Keep the delay under 0.63's
+          # 30s respawn_delay_cap so it is honoured on both releases.
+          respawn_max=0
+          respawn_delay=5
           set -o allexport
           if [ -f /etc/environment ]; then . /etc/environment; fi
           set +o allexport
