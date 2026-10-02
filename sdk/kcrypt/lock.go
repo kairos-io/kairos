@@ -14,6 +14,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
@@ -301,18 +302,21 @@ func formatLuks(device, name, mapper, label, pass string, logger sdkLogger.Kairo
 }
 
 func waitDevice(device string, attempts int) error {
-	for tries := 0; tries < attempts; tries++ {
-		// Just settle, no trigger - we're waiting for the device to appear
+	err := retry.Do(func() error {
+		// Just settle, no trigger - we're waiting for the device to appear.
+		// A settle failure isn't something another attempt can fix, so it
+		// bails out immediately instead of being retried.
 		if err := UdevAdmSettle(nil, 10*time.Second); err != nil {
-			return err
+			return retry.Unrecoverable(err)
 		}
 		_, err := os.Lstat(device)
 		if !os.IsNotExist(err) {
 			return nil
 		}
-		time.Sleep(1 * time.Second)
-	}
-	return fmt.Errorf("no device found %s", device)
+		return fmt.Errorf("no device found %s", device)
+	}, retry.Config{Attempts: uint(attempts), Delay: retry.Fixed(1 * time.Second)})
+
+	return err
 }
 
 // UdevAdmTrigger triggers udev events for all subsystems and devices.
