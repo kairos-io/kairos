@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/kairos-io/kairos/v4/sdk/bus"
+	fsutils "github.com/kairos-io/kairos/v4/sdk/utils/fs"
 	"github.com/mudler/go-pluggable"
 	yip "github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v3"
@@ -53,6 +55,15 @@ func (p ClusterPlugin) onBoot(event *pluggable.Event) pluggable.EventResponse {
 
 	if len(config.Cluster.ClusterConfigPath) != 0 {
 		configFilePath = config.Cluster.ClusterConfigPath
+	}
+
+	// On a UKI install or reset, this runs in the initramfs stage, before
+	// anything else has created the cloud-config directory (that normally
+	// happens as a side effect of the first RunStage call, post-pivot). Create
+	// it here rather than rely on that ordering.
+	if err := fsutils.MkdirAll(filesystem, filepath.Dir(configFilePath), 0755); err != nil {
+		response.Error = fmt.Sprintf("failed to create cloud config directory: %s", err.Error())
+		return response
 	}
 
 	// open our cloud configuration file for writing
