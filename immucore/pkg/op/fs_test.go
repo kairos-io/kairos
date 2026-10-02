@@ -176,6 +176,38 @@ var _ = Describe("MountWithBaseOverlay", func() {
 		Expect(filepath.Join(root, "mnt")).To(BeADirectory())
 	})
 
+	It("gives the upperdir the mode the image gave the lowerdir", func() {
+		// The merged directory reports the metadata of the upperdir, so a
+		// lowerdir the image keeps to itself has to stay that way. /root is
+		// 0700 root:root in every base image and is on the default RW_PATHS
+		// list a recovery boot falls back to.
+		lower := filepath.Join(root, "root")
+		Expect(os.MkdirAll(lower, 0o700)).To(Succeed())
+		Expect(os.Chmod(lower, 0o700)).To(Succeed())
+
+		operation := op.MountWithBaseOverlay("/root", root, base)
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		info, err := os.Stat(op.OverlayUpperDir("/root", base))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
+	})
+
+	It("does not tighten a lowerdir the image leaves open", func() {
+		// The other default RW_PATHS entries. /srv is 0755 and has to stay
+		// readable, so the fix above must not restrict everything instead.
+		lower := filepath.Join(root, "srv")
+		Expect(os.MkdirAll(lower, 0o755)).To(Succeed())
+		Expect(os.Chmod(lower, 0o755)).To(Succeed())
+
+		operation := op.MountWithBaseOverlay("/srv", root, base)
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		info, err := os.Stat(op.OverlayUpperDir("/srv", base))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o755)))
+	})
+
 	It("reports ErrMountTargetMissing when the lowerdir cannot be created", func() {
 		if os.Geteuid() == 0 {
 			Skip("root bypasses directory write permissions")

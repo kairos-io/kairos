@@ -114,7 +114,7 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 				return err
 			}
 
-			if err := internalUtils.CreateBindStateDir(rootMount, stateDir); err != nil {
+			if err := internalUtils.CreateDirLike(rootMount, stateDir); err != nil {
 				return err
 			}
 			// The sync has no --delete and no one-time guard, so it re-runs on
@@ -129,13 +129,21 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 	}
 }
 
+// OverlayUpperDir returns the upper directory of the overlay that is stacked
+// on mountpoint, e.g. /root is backed by <base>/root/.overlay/upper.
+func OverlayUpperDir(mountpoint, base string) string {
+	mountpoint = strings.TrimLeft(mountpoint, "/")
+	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
+	return filepath.Join(base, bindMountPath, ".overlay", "upper")
+}
+
 // https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L145
 func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 	mountpoint = strings.TrimLeft(mountpoint, "/") // normalize, remove / upfront as we are going to re-use it in subdirs
 	rootMount := filepath.Join(root, mountpoint)
 	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
 
-	upperdir := filepath.Join(base, bindMountPath, ".overlay", "upper")
+	upperdir := OverlayUpperDir(mountpoint, base)
 	workdir := filepath.Join(base, bindMountPath, ".overlay", "work")
 
 	tmpMount := mount.Mount{
@@ -166,9 +174,20 @@ func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 			if err := internalUtils.CreateIfNotExists(rootMount); err != nil {
 				return fmt.Errorf("%w: %s: %w", constants.ErrMountTargetMissing, rootMount, err)
 			}
-			// Make sure workdir and/or upper exists
-			_ = os.MkdirAll(upperdir, os.ModePerm)
-			_ = os.MkdirAll(workdir, os.ModePerm)
+			// The upperdir is what the merged directory reports its mode and
+			// its owner from, so it has to be created with the ones the image
+			// gave the lowerdir. os.ModePerm instead exposes 0777 minus the
+			// initramfs umask: on a recovery or autoreset boot RW_PATHS is
+			// unset and /root is on the default list, so the image's 0700
+			// root:root came up as 0755 and any local account could read it.
+			if err := internalUtils.CreateDirLike(rootMount, upperdir); err != nil {
+				return fmt.Errorf("creating overlay upperdir %s: %w", upperdir, err)
+			}
+			// The workdir is the kernel's scratch space and is never part of
+			// the merged view, so it only has to exist.
+			if err := os.MkdirAll(workdir, 0700); err != nil {
+				return fmt.Errorf("creating overlay workdir %s: %w", workdir, err)
+			}
 			return nil
 		},
 	}
