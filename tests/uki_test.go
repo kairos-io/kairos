@@ -376,10 +376,10 @@ func genericTests(vm VM) {
 		}
 		Expect(merged).To(BeTrue(), "no %s hierarchy in %s", mergedExtensionHierarchy, out)
 	})
-	By("Checking that we can read content from a sysext", func() {
-		out, err := vm.Sudo("cat " + mergedExtensionFile)
+	By("Checking that we can run a command from a sysext", func() {
+		out, err := vm.Sudo(mergedExtensionCommand)
 		Expect(err).ToNot(HaveOccurred(), out)
-		Expect(out).To(ContainSubstring("ID=_any"))
+		Expect(out).To(ContainSubstring(mergedExtensionOutput))
 	})
 
 }

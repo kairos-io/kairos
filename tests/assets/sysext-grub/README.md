@@ -39,18 +39,16 @@ The UKI equivalent lives in `tests/assets/sysext-uki/`. Its
 
 What the extension is:
 
-- A `/usr/local/bin/` layer with a `hello.sh` script that prints the
-  literal string `Hello world`. **That payload no longer reaches the
-  host.** `/usr/local` is the COS_PERSISTENT mount and
+- A `/usr/bin/` layer with a `hello.sh` script that prints the literal
+  string `Hello world`. `tests/sysext_live_media_test.go` runs the
+  script by name and asserts on that string, so keep the exact casing if
+  you regenerate. The payload used to sit in `/usr/local/bin/`, which is
+  where COS_PERSISTENT is mounted;
   `kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml` no longer lists
   any `/usr/local/*` path in `SYSTEMD_SYSEXT_HIERARCHIES`, because a
-  successful merge makes every hierarchy it covers read-only. The
-  extension still merges, through the
-  `usr/lib/extension-release.d/extension-release.work` it carries, and
-  `tests/sysext_live_media_test.go` asserts on that file instead.
-  Regenerate this image with the script at `/usr/bin/hello.sh` and the
-  spec can go back to running the command; keep the exact casing of
-  `Hello world` if you do.
+  successful merge makes every hierarchy it covers read-only and that
+  cost the persistent partition its writable half. `/usr/bin` is where a
+  sysext-delivered binary belongs anyway.
 - `work.sysext.raw` is a systemd-repart DDI with only the erofs data and
   verity hash partitions (no root-verity-sig partition).
 
@@ -58,7 +56,7 @@ Rebuilding `work.sysext.raw` needs a custom repart definitions directory,
 because `systemd-repart -S` (i.e. `--make-ddi=sysext`) drops in the stock
 sysext definitions which include the verity signature partition, and
 that partition insists on a signing key. Prepare a SOURCE_DIR with
-`usr/local/bin/hello.sh` and
+`usr/bin/hello.sh` (mode 0755) and
 `usr/lib/extension-release.d/extension-release.work` (with `ID=_any`),
 then:
 
@@ -86,6 +84,9 @@ systemd-repart --seed=00000000-0000-0000-0000-000000000000 \
     --definitions=defs.d --root=SOURCE_DIR OUTPUT_FILE
 ```
 
-The fixed seed keeps the generated UUIDs and the resulting bytes
-reproducible across rebuilds. `mkfs.erofs` (Arch: `erofs-utils`; Fedora:
-`erofs-utils`; Debian: `erofs-utils`) has to be on PATH.
+The seed only fixes what repart derives from it, not the whole image:
+`mkfs.erofs` stamps a random filesystem UUID into the data partition, so
+its verity root hash, and the two partition UUIDs repart derives from
+that hash, change on every rebuild. Expect different bytes each time.
+`mkfs.erofs` (Arch: `erofs-utils`; Fedora: `erofs-utils`; Debian:
+`erofs-utils`) has to be on PATH.

@@ -26,15 +26,18 @@ const liveMediaExtension = "work.sysext.raw"
 // partition mount, and a merge would turn it read-only.
 const sysextHierarchiesEnv = `SYSTEMD_SYSEXT_HIERARCHIES="/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"`
 
-// Both test extensions still carry their payload at /usr/local/bin/hello.sh,
-// which is no longer a merged hierarchy, so hello.sh does not reach the host.
-// What they do carry inside a merged hierarchy is their own
-// usr/lib/extension-release.d entry, and seeing it on the host is the same
-// proof that the overlay went up. Regenerate both images with the payload at
-// /usr/bin/hello.sh and these two can go back to running the command.
+// Both test extensions carry their payload at /usr/bin/hello.sh, which is a
+// merged hierarchy, so a successful merge puts the script on the host's PATH.
+// Running it is the strongest proof the overlay went up: it needs the image to
+// be accepted by the boot's image policy, merged, and visible to a fresh
+// process. The payload used to live at /usr/local/bin/hello.sh, which stopped
+// being a merged hierarchy when /usr/local came off the list; the images were
+// regenerated rather than the assertion weakened. See each asset's README for
+// the rebuild recipe.
 const (
-	mergedExtensionHierarchy = "/usr/lib"
-	mergedExtensionFile      = "/usr/lib/extension-release.d/extension-release.work"
+	mergedExtensionHierarchy = "/usr/bin"
+	mergedExtensionCommand   = "hello.sh"
+	mergedExtensionOutput    = "Hello world"
 )
 
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
@@ -120,10 +123,10 @@ users:
 				Expect(merged).To(BeTrue(), "no %s hierarchy in %s", mergedExtensionHierarchy, out)
 			})
 
-			By("reading content the extension brought in", func() {
-				out, err := vm.Sudo("cat " + mergedExtensionFile)
+			By("running a command the extension provides", func() {
+				out, err := vm.Sudo(mergedExtensionCommand)
 				Expect(err).ToNot(HaveOccurred(), out)
-				Expect(out).To(ContainSubstring("ID=_any"))
+				Expect(out).To(ContainSubstring(mergedExtensionOutput))
 			})
 		})
 	})

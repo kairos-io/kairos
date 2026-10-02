@@ -25,28 +25,47 @@ The split keeps that assertion out of the GRUB path.
 
 What the extensions are:
 
-- Each is a `/usr/local/bin/` layer with a `hello.sh` script that prints
-  the literal string `Hello world`. **That payload no longer reaches the
-  host.** `/usr/local` is the COS_PERSISTENT mount and
+- `work.sysext.raw` is a `/usr/bin/` layer with a `hello.sh` script that
+  prints the literal string `Hello world`. `tests/uki_test.go` runs the
+  script by name and asserts on that string, so keep the exact casing if
+  you regenerate. The payload used to sit in `/usr/local/bin/`, which is
+  where COS_PERSISTENT is mounted;
   `kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml` no longer lists
   any `/usr/local/*` path in `SYSTEMD_SYSEXT_HIERARCHIES`, because a
-  successful merge makes every hierarchy it covers read-only. The
-  extension still merges, through the
-  `usr/lib/extension-release.d/extension-release.work` it carries, and
-  `tests/uki_test.go` and `tests/sysext_live_media_test.go` assert on
-  that file instead. Regenerate this image with the script at
-  `/usr/bin/hello.sh` and both specs can go back to running the command;
-  keep the exact casing of `Hello world` if you do.
+  successful merge makes every hierarchy it covers read-only and that
+  cost the persistent partition its writable half. `/usr/bin` is where a
+  sysext-delivered binary belongs anyway.
 - `work.sysext.raw` is a systemd-repart DDI (erofs data + verity hash +
   verity signature partition).
-- `hello-broke.sysext.raw` is a plain squashfs bake with the same script.
+- `hello-broke.sysext.raw` is a plain squashfs bake with the same script,
+  still at `/usr/local/bin/hello.sh`. It is never merged (the image
+  policy rejects it, which is the point of shipping it), so where its
+  payload sits does not matter.
 
-Rebuilding `work.sysext.raw`:
+Rebuilding `work.sysext.raw` takes the same explicit definitions
+directory as the GRUB asset plus a signature partition, because
+`systemd-repart -S` needs systemd's stock `sysext.repart.d` installed on
+the build host and fails with `DDI type 'sysext' is not defined` without
+it. Prepare a SOURCE_DIR with `usr/bin/hello.sh` (mode 0755) and
+`usr/lib/extension-release.d/extension-release.work` (with `ID=_any`),
+write the `defs.d` from `../sysext-grub/README.md`, add:
 
 ```
-systemd-repart -S -s SOURCE_DIR OUTPUT_FILE \
-    --private-key=tests/assets/keys/db.key \
-    --certificate=tests/assets/keys/db.pem
+cat > defs.d/30-root-verity-sig.conf <<'EOF'
+[Partition]
+Type=root-verity-sig
+Verity=signature
+VerityMatchKey=root
+EOF
+```
+
+then, with a 0600 copy of the key (repart refuses a more permissive one):
+
+```
+systemd-repart --seed=00000000-0000-0000-0000-000000000000 \
+    --empty=create --size=auto --offline=yes \
+    --definitions=defs.d --root=SOURCE_DIR OUTPUT_FILE \
+    --private-key=db.key --certificate=tests/assets/keys/db.pem
 ```
 
 Rebuilding `hello-broke.sysext.raw` (with
