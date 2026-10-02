@@ -135,12 +135,14 @@ token is only needed when no other stanza is present.
 
 * `kairos.ram.create_partitions`: On first boot, if `COS_OEM` and/or
   `COS_PERSISTENT` are missing, create (and format) them automatically. With
-  no value, the largest EMPTY candidate (non-removable, non-virtual) disk is
-  auto-selected — disks that already carry a partition table are likely in
-  use by another system, so they are only picked when no empty disk exists
-  (and then the wipe guard below still applies). Largest-first matches the
-  rule kairos-agent uses for `device: auto` at install time. Boot stops with
-  a message only when no eligible disk exists at all. Existing partitions
+  no value a candidate (non-removable, non-virtual) disk is auto-selected.
+  When exactly one of the two labels is already present somewhere, the disk
+  carrying it wins, because the missing sibling belongs next to it. Otherwise
+  the largest EMPTY disk wins: a disk that already carries a partition table
+  is likely in use by another system, so it is only picked when no empty disk
+  exists, and then the wipe guard below still applies. Largest-first matches
+  the rule kairos-agent uses for `device: auto` at install time. Boot stops
+  with a message only when no eligible disk exists at all. Existing partitions
   are never touched: if one of the two labels already exists, only the
   missing one is created.
 
@@ -170,17 +172,29 @@ How the target disk is resolved when partitions need creating:
 | Selection | `kairos.ram.wipe` | Target |
 |---|---|---|
 | `create_partitions=/dev/X` | any | `/dev/X`, verbatim |
+| bare `create_partitions`, exactly one of the two labels present | any | the candidate disk carrying that label, ahead of both rows below |
 | bare `create_partitions` | unset | largest EMPTY candidate disk; if none is empty, largest overall (then hits the consent rule below) |
 | bare `create_partitions` | set | largest candidate disk, regardless of state |
+
+The first row only applies when the machine-wide scan found exactly one of
+`COS_OEM` and `COS_PERSISTENT`. When it found neither, that preference is
+skipped on purpose: the scan reads plaintext labels only, so an encrypted
+install is invisible to it before kcrypt unlock, and preferring a disk that
+"looks like ours" would steer the boot onto that install instead of onto an
+empty disk.
 
 And what happens to the resolved target:
 
 | Target disk state | `kairos.ram.wipe` | Result |
 |---|---|---|
-| Empty (no partition table) | any | fresh GPT + partitions created |
+| Empty (no partition table) | any | fresh GPT + partitions created, when both labels are missing; append otherwise |
 | Already carries `COS_OEM` or `COS_PERSISTENT` | any | append-only: the missing label is created next to the existing one, nothing else is touched |
-| Carries only foreign partitions | unset | **boot halts** with the wipe-required screen |
+| Carries any other partition table | unset | append-only if the disk is exempt from the wipe guard, otherwise **boot halts** with the wipe-required screen |
 | Carries only foreign partitions | set | fresh GPT when both labels are missing (destroys the disk), append otherwise |
+
+A fresh GPT is written only when both labels are missing AND the resolved
+disk has no partition table, or the operator set `kairos.ram.wipe`. Anything
+else appends, which never destroys what is already on the disk.
 
 Candidate disks exclude removable media (USB, SD), CD-ROM and virtual
 devices (loop, ram, zram, nbd, device-mapper, md). Largest-first matches the
