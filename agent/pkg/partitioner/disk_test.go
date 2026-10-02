@@ -664,3 +664,46 @@ func TestBug4257ExactDiskFromReport(t *testing.T) {
 	t.Logf("lastDataSector=%d diskSectors=%d", lastDataSector, diskSectors)
 	t.Logf("img path (kept in temp dir for inspection): %s", imgPath)
 }
+
+// TestNewDiskBackendRecordsPath pins the one property of the backend that
+// go-diskfs needs in order to recover from a busy device: Backend.Path().
+//
+// When BLKRRPART cannot make the kernel re-read the table, go-diskfs falls
+// back to per-partition BLKPG reconciliation, and the first thing that
+// fallback does is read Backend.Path(); an empty path makes it give up with
+// "backend has no path; cannot reconcile partitions", which turns a transient
+// EBUSY into a failed install (kairos-io/kairos#5134). diskfs.Open leaves the
+// path empty, so NewDisk has to build the backend itself.
+func TestNewDiskBackendRecordsPath(t *testing.T) {
+	const diskBytes int64 = 64 * 1024 * 1024
+
+	imgPath := filepath.Join(t.TempDir(), "disk.img")
+	f, err := os.Create(imgPath)
+	if err != nil {
+		t.Fatalf("create img: %v", err)
+	}
+	if err := f.Truncate(diskBytes); err != nil {
+		t.Fatalf("truncate img: %v", err)
+	}
+	_ = f.Close()
+
+	d, err := NewDisk(imgPath)
+	if err != nil {
+		t.Fatalf("NewDisk: %v", err)
+	}
+	defer func() { _ = d.Close() }()
+
+	if got := d.Backend.Path(); got != imgPath {
+		t.Fatalf("Backend.Path() = %q, want %q; the BLKPG fallback refuses to run without it", got, imgPath)
+	}
+
+	// The disk must still be writable: NewDisk is expected to keep the
+	// read-write exclusive open that diskfs.Open defaulted to.
+	parts := partitions.PartitionList{
+		{Name: sdkConstants.EfiPartName, FS: sdkConstants.EfiFs, FilesystemLabel: sdkConstants.EfiLabel, Size: 16},
+		{Name: sdkConstants.OEMPartName, FilesystemLabel: sdkConstants.OEMLabel, Size: 16},
+	}
+	if err := d.NewPartitionTable(sdkConstants.GPT, parts); err != nil {
+		t.Fatalf("NewPartitionTable on a path-backed disk: %v", err)
+	}
+}
