@@ -4,6 +4,13 @@ stages:
     - name: "Enable systemd-network config files for DHCP"  # Needed if systemd-networkd runs in the initramfs!
       only_service_manager: "systemd"
       only_os: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Rocky.*|AlmaLinux.*|Oracle.*Linux.*|SUSE.*|[Oo]penSUSE.*|Hadron.*|Red.*Hat.*"
+      # The RHEL family follows its base image and uses NetworkManager, so
+      # systemd-networkd is only there when the user put it in the base image.
+      # Test for the binary rather than reading it off the OS name, the same
+      # way the build steps do. dracut's 01systemd-networkd module installs it
+      # at this path, so the check answers for the initramfs here and for the
+      # booted system in the initramfs stage below.
+      if: "test -f /usr/lib/systemd/systemd-networkd"
       directories:
         - path: "/etc/systemd/network"  # doesnt exist on initramfs
           permissions: 0775
@@ -36,6 +43,10 @@ stages:
     - name: "Enable systemd-network config files for DHCP"
       only_service_manager: "systemd"
       only_os: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Rocky.*|AlmaLinux.*|Oracle.*Linux.*|SUSE.*|[Oo]penSUSE.*|Hadron.*|Red.*Hat.*"
+      # Without this the stage wrote two .network files nothing reads and then
+      # ran networkctl, which is not installed on a NetworkManager image, so
+      # the stage failed on every boot of every RHEL family image.
+      if: "test -f /usr/lib/systemd/systemd-networkd"
       files:
         - path: /etc/systemd/network/20-dhcp.network
           permissions: 0644
@@ -74,15 +85,20 @@ stages:
       commands:
         - rm /etc/resolv.conf
         - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
-    - name: "Enabled systemd-networkd on Red Hat if available"
-      only_os: "Red.*Hat.*"
+    # RHEL is not a special case here: Fedora, CentOS, Rocky, AlmaLinux and
+    # Oracle Linux carry the same services and are handled together everywhere
+    # else, including values.RHELFamilyRegex in the build steps. Only RHEL's
+    # PRETTY_NAME contains "Red Hat", so the old regex silently skipped the
+    # rest of the family.
+    - name: "Enable systemd-networkd on the Red Hat family if available"
+      only_os: "Fedora.*|CentOS.*|Rocky.*|AlmaLinux.*|Oracle.*Linux.*|Red.*Hat.*"
       only_service_manager: "systemd"
       if: '[ -f /usr/lib/systemd/systemd-networkd ]'
       systemctl:
         enable:
           - systemd-networkd
-    - name: "Enable systemd-resolved on Red Hat if available"
-      only_os: "Red.*Hat.*"
+    - name: "Enable systemd-resolved on the Red Hat family if available"
+      only_os: "Fedora.*|CentOS.*|Rocky.*|AlmaLinux.*|Oracle.*Linux.*|Red.*Hat.*"
       only_service_manager: "systemd"
       if: '[ -f /usr/lib/systemd/systemd-resolved ]'
       systemctl:
