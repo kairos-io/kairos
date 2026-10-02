@@ -1,0 +1,76 @@
+name: Docker daemon read
+
+# Reads an image back out of the local Docker daemon on every runner
+# image the project builds on, to settle kairos-io/kairos#4946.
+#
+# That issue reports a `docker-daemon:` image reading back as an empty
+# tree on the Ubuntu 26.04 engine. hadron's `build-grub-iso-arm64` job
+# is pinned to `ubuntu-24.04-arm` because of it, and renovate's bump of
+# hadron's base image to 26.04 was closed with "aurora fails under
+# ubuntu 26 arm", so the whole base image is held at 24.04 by this one
+# read. The same read is what a user makes when they build an ISO from
+# an image they built locally, so it is not only a CI problem.
+#
+# Nothing in the repository exercised that path: the engine is not part
+# of the unit-test environment, so the test this runs is skipped unless
+# KAIROS_DAEMON_READ_TEST is set. Running it across both runner images
+# and both architectures is what tells an engine regression apart from
+# a property of the image being read, and each leg prints its engine
+# version so a failure is dated rather than guessed at.
+#
+# `FROM scratch` keeps the fixture build offline, so a rate-limited or
+# network-restricted runner cannot turn a leg red for an unrelated
+# reason.
+#
+# On the plain `pull_request` trigger, not `pull_request_target`: the
+# job needs no repository secrets, and gating it behind pr.yaml's
+# `authorize` job would leave it waiting for a maintainer click, which
+# is what made #4946 unreproducible in the first place. See
+# pr-fork-checks.yaml for the reasoning on that trigger.
+
+on:
+  pull_request:
+    paths:
+      - 'sdk/utils/image/**'
+      - '.github/workflows/docker-daemon-read.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-daemon-read-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  daemon-read:
+    name: daemon-read (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    # Every leg is a data point. One engine failing must not cancel the
+    # comparison that makes the failure mean something.
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-24.04
+          - ubuntu-26.04
+          - ubuntu-24.04-arm
+          - ubuntu-26.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Record the engine
+        run: |
+          docker version
+          docker info --format 'server={{.ServerVersion}} driver={{.Driver}} arch={{.Architecture}} os={{.OperatingSystem}}'
+
+      - name: Read a local image back through GetImage
+        env:
+          KAIROS_DAEMON_READ_TEST: '1'
+        run: go test ./sdk/utils/image/ -run TestDockerDaemon -v -count 1
