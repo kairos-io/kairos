@@ -36,7 +36,11 @@ stages:
             You are booting from livecd mode. Run 'kairos-agent install' to install the system.
           permissions: 0644
       commands:
-        - sed -i -e 's/tty1.*//g' /etc/inittab
-        - sed -i -e 's/ttyS0.*//g' /etc/inittab
-        - echo "tty1::respawn:/sbin/agetty --autologin root -i --noclear tty1" >> /etc/inittab
+        # The console the user sees is not always the first one. logind starts
+        # tty1 to tty6 on the systemd side and Alpine's stock inittab starts
+        # the same six, so every virtual console is covered here, not tty1
+        # alone. Only ttyS0 collides with 10_accounting.yaml, which rewrites
+        # that one line in the initramfs.after stage.
+        - sed -i -e 's/tty[1-6].*//g' -e 's/ttyS0.*//g' /etc/inittab
+        - for n in 1 2 3 4 5 6; do echo "tty$n::respawn:/sbin/agetty --autologin root -i --noclear tty$n" >> /etc/inittab; done
         - echo "ttyS0::respawn:/sbin/agetty --autologin root -i --noclear ttyS0" >> /etc/inittab
