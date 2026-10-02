@@ -40,9 +40,17 @@ The UKI equivalent lives in `tests/assets/sysext-uki/`. Its
 What the extension is:
 
 - A `/usr/local/bin/` layer with a `hello.sh` script that prints the
-  literal string `Hello world`. `tests/sysext_live_media_test.go`
-  asserts on that string with `ContainSubstring("Hello world")`; keep
-  the exact casing if you regenerate.
+  literal string `Hello world`. **That payload no longer reaches the
+  host.** `/usr/local` is the COS_PERSISTENT mount and
+  `kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml` no longer lists
+  any `/usr/local/*` path in `SYSTEMD_SYSEXT_HIERARCHIES`, because a
+  successful merge makes every hierarchy it covers read-only. The
+  extension still merges, through the
+  `usr/lib/extension-release.d/extension-release.work` it carries, and
+  `tests/sysext_live_media_test.go` asserts on that file instead.
+  Regenerate this image with the script at `/usr/bin/hello.sh` and the
+  spec can go back to running the command; keep the exact casing of
+  `Hello world` if you do.
 - `work.sysext.raw` is a systemd-repart DDI with only the erofs data and
   verity hash partitions (no root-verity-sig partition).
 

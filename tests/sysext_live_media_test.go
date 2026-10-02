@@ -20,6 +20,23 @@ import (
 // no test signing key enrolled.
 const liveMediaExtension = "work.sysext.raw"
 
+// The hierarchy list the kairos drop-in installs, spelled out so that
+// `systemd-sysext status` reports on what the boot merged instead of on its
+// own defaults. /usr/local is deliberately not in it: it is the persistent
+// partition mount, and a merge would turn it read-only.
+const sysextHierarchiesEnv = `SYSTEMD_SYSEXT_HIERARCHIES="/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"`
+
+// Both test extensions still carry their payload at /usr/local/bin/hello.sh,
+// which is no longer a merged hierarchy, so hello.sh does not reach the host.
+// What they do carry inside a merged hierarchy is their own
+// usr/lib/extension-release.d entry, and seeing it on the host is the same
+// proof that the overlay went up. Regenerate both images with the payload at
+// /usr/bin/hello.sh and these two can go back to running the command.
+const (
+	mergedExtensionHierarchy = "/usr/lib"
+	mergedExtensionFile      = "/usr/lib/extension-release.d/extension-release.work"
+)
+
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
 // is asserted in uki_test.go, where the extension reaches the EFI partition.
 // Here it has to reach /var/lib/kairos/extensions on persistent, be enabled
@@ -86,9 +103,8 @@ users:
 
 				// The hierarchies have to be spelled out the same way the
 				// kairos drop-in does, or systemd-sysext reports on its own
-				// defaults and misses the /usr/local ones.
-				env := "SYSTEMD_SYSEXT_HIERARCHIES=\"/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin\""
-				out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", env))
+				// defaults rather than on what this boot merged.
+				out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", sysextHierarchiesEnv))
 				Expect(err).ToNot(HaveOccurred(), out)
 
 				var sysexts sysextStatus
@@ -96,18 +112,18 @@ users:
 
 				var merged bool
 				for _, sysext := range sysexts {
-					if sysext.Hierarchy == "/usr/local/bin" {
+					if sysext.Hierarchy == mergedExtensionHierarchy {
 						Expect(sysext.Extensions).To(ContainElement("work"))
 						merged = true
 					}
 				}
-				Expect(merged).To(BeTrue(), "no /usr/local/bin hierarchy in %s", out)
+				Expect(merged).To(BeTrue(), "no %s hierarchy in %s", mergedExtensionHierarchy, out)
 			})
 
-			By("running a command the extension provides", func() {
-				out, err := vm.Sudo("hello.sh")
+			By("reading content the extension brought in", func() {
+				out, err := vm.Sudo("cat " + mergedExtensionFile)
 				Expect(err).ToNot(HaveOccurred(), out)
-				Expect(out).To(ContainSubstring("Hello world"))
+				Expect(out).To(ContainSubstring("ID=_any"))
 			})
 		})
 	})

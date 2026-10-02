@@ -26,10 +26,17 @@ The split keeps that assertion out of the GRUB path.
 What the extensions are:
 
 - Each is a `/usr/local/bin/` layer with a `hello.sh` script that prints
-  the literal string `Hello world`. `tests/uki_test.go` and
-  `tests/sysext_live_media_test.go` assert on that string with
-  `ContainSubstring("Hello world")`; keep the exact casing if you
-  regenerate.
+  the literal string `Hello world`. **That payload no longer reaches the
+  host.** `/usr/local` is the COS_PERSISTENT mount and
+  `kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml` no longer lists
+  any `/usr/local/*` path in `SYSTEMD_SYSEXT_HIERARCHIES`, because a
+  successful merge makes every hierarchy it covers read-only. The
+  extension still merges, through the
+  `usr/lib/extension-release.d/extension-release.work` it carries, and
+  `tests/uki_test.go` and `tests/sysext_live_media_test.go` assert on
+  that file instead. Regenerate this image with the script at
+  `/usr/bin/hello.sh` and both specs can go back to running the command;
+  keep the exact casing of `Hello world` if you do.
 - `work.sysext.raw` is a systemd-repart DDI (erofs data + verity hash +
   verity signature partition).
 - `hello-broke.sysext.raw` is a plain squashfs bake with the same script.

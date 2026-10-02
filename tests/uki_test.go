@@ -360,24 +360,26 @@ func genericTests(vm VM) {
 		}
 
 		// when calling the status we need to set the hierarchy env variable so it can find them
-		env := "SYSTEMD_SYSEXT_HIERARCHIES=\"/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin\""
-		out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", env))
+		out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", sysextHierarchiesEnv))
 		Expect(err).ToNot(HaveOccurred(), out)
 		// marshall output to struct
 		var sysexts sysextStatus
 		err = json.Unmarshal([]byte(out), &sysexts)
 		Expect(err).ToNot(HaveOccurred())
 		// check if sysexts are loaded
+		var merged bool
 		for _, sysext := range sysexts {
-			if sysext.Hierarchy == "/usr/local/bin" {
+			if sysext.Hierarchy == mergedExtensionHierarchy {
 				Expect(sysext.Extensions).To(ContainElement("work"))
+				merged = true
 			}
 		}
+		Expect(merged).To(BeTrue(), "no %s hierarchy in %s", mergedExtensionHierarchy, out)
 	})
-	By("Checking that we can run a command from a sysext", func() {
-		out, err := vm.Sudo("hello.sh")
+	By("Checking that we can read content from a sysext", func() {
+		out, err := vm.Sudo("cat " + mergedExtensionFile)
 		Expect(err).ToNot(HaveOccurred(), out)
-		Expect(out).To(ContainSubstring("Hello world"))
+		Expect(out).To(ContainSubstring("ID=_any"))
 	})
 
 }
