@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/joho/godotenv"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/kernel"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/system"
@@ -223,6 +224,12 @@ func (v *Validator) Validate() error {
 					v.Log.Logger.Info().Str("module", found).Msg("Found kernel module in the initrd")
 				}
 			}
+
+			if err := validateSplashInInitrd(bundled.SplashBinaryPath, string(out)); err != nil {
+				multi = multierror.Append(multi, err)
+			} else {
+				v.Log.Logger.Info().Msg("Boot splash initrd check passed")
+			}
 		}
 	}
 
@@ -252,6 +259,68 @@ func (v *Validator) Validate() error {
 	}
 
 	return multi.ErrorOrNil()
+}
+
+// validateSplashInInitrd checks that an image carrying the boot splash binary
+// also has the splash dracut module inside the initrd.
+//
+// The splash is optional, so the binary on the rootfs is what decides whether
+// the module is expected. installSplashBinary writes nothing at
+// bundled.SplashBinaryPath when there is no multi-call binary to point it at,
+// and the 50kairos-splash module's check() then drops the module. That is an
+// image built without a splash, not a broken one, so there is nothing to
+// report.
+//
+// When the binary is on the rootfs and the module is not in the initrd, the
+// initrd was built before the binary was installed, or a cached initrd was
+// reused. Both ship an image whose animation never draws in the initramfs
+// half of the boot, and both leave every other check green: the units, the
+// dracut config and the module source are all written to the rootfs by an
+// earlier stage, so inspecting the rootfs cannot tell the two cases apart.
+// Only the initrd can.
+//
+// The path is an argument so a test can exercise this against a temporary
+// tree; the caller passes the real one.
+func validateSplashInInitrd(splashBinaryPath, lsinitrdOutput string) error {
+	// Lstat, not Stat: the default install is a symlink to the multi-call
+	// binary, and Stat on a dangling one would report the splash as absent
+	// and skip a check that should run.
+	if _, err := os.Lstat(splashBinaryPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("[INITRD] failed checking for the boot splash binary at %s: %s", splashBinaryPath, err)
+	}
+
+	// What the initrd should hold is always the real installed paths, never
+	// splashBinaryPath: that argument says where to look on the rootfs, and
+	// a test points it at a temporary tree, but the module copies the binary
+	// in under its own name either way.
+	//
+	// Two entries, not one substring: the module installs the executable and
+	// the unit separately, and an initrd with only one of them is a splash
+	// that cannot start. lsinitrd prints paths without a leading slash, so
+	// the binary is matched on its path without one.
+	//
+	// The service file name carries no directory, because the module
+	// installs it under dracut's systemdsystemunitdir, which differs between
+	// base images.
+	want := []string{
+		strings.TrimPrefix(bundled.SplashBinaryPath, "/"),
+		filepath.Base(bundled.DracutSplashServicePath),
+	}
+
+	var missing []string
+	for _, entry := range want {
+		if !strings.Contains(lsinitrdOutput, entry) {
+			missing = append(missing, entry)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("[INITRD] %s is installed but the boot splash dracut module is not in the initrd, missing: %s", splashBinaryPath, strings.Join(missing, ", "))
+	}
+
+	return nil
 }
 
 // ValidateServices performs comprehensive service validations for all systemd-based flavors
