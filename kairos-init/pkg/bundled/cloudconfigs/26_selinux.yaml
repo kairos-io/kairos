@@ -1,7 +1,7 @@
 name: "SELinux"
 stages:
   initramfs:
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && grep -q "selinux=1" /proc/cmdline'
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -f "/run/cos/autoreset_mode" ] && grep -q "selinux=1" /proc/cmdline'
       name: "SELinux relabel unit"
       only_service_manager: "systemd"
       files:
@@ -86,7 +86,7 @@ stages:
       commands:
         - /usr/local/bin/setup-selinux-relabel-unit
         - systemctl enable kairos-selinux-relabel
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && grep -q "selinux=1" /proc/cmdline'
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -f "/run/cos/autoreset_mode" ] && grep -q "selinux=1" /proc/cmdline'
       name: "file_contexts.subs from state bind mounts"
       files:
         - path: /usr/local/bin/fix-selinux-file-contexts
@@ -134,7 +134,7 @@ stages:
             CFG=/etc/selinux/config
             [ -f "$CFG" ] || exit 0
 
-            if [ -f "/run/cos/recovery_mode" ]; then
+            if [ -f "/run/cos/recovery_mode" ] || [ -f "/run/cos/autoreset_mode" ]; then
                 MODE=disabled
             elif grep -q "selinux=1" /proc/cmdline; then
                 if grep -q "rd.cos.selinux=enforcing" /proc/cmdline; then
