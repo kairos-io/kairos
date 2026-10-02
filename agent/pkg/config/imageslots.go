@@ -58,7 +58,11 @@ type imageSlot struct {
 // being applied. See kairos-io/kairos#4914.
 func checkImageSlots(slots []imageSlot) error {
 	for _, s := range slots {
-		if s.got.Label != s.computed.Label {
+		// got.Label == boundTo is the label the boot path already looks for,
+		// so writing it out in the config changes nothing and is accepted.
+		// That is the only reachable value when computed.Label is empty, which
+		// is what a default ISO install leaves on the recovery slot.
+		if s.got.Label != s.computed.Label && s.got.Label != s.boundTo {
 			return fmt.Errorf(
 				"%s.label cannot be set: the initramfs finds this image at /dev/disk/by-label/%s, so labeling it %q installs a system that cannot mount its root. Remove the key",
 				s.key, s.boundTo, s.got.Label)
