@@ -42,6 +42,11 @@ stages:
 		Expect(out).ToNot(ContainSubstring("stages:"))
 	})
 
+	It("refuses ssh keys with no username rather than dropping them", func() {
+		_, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", SSHKeys: []string{"ssh-ed25519 AAAA"}})
+		Expect(err).To(MatchError(ContainSubstring("nowhere to put them")))
+	})
+
 	It("uses the initramfs stage for the user when there are no ssh keys", func() {
 		out, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", Username: "kairos", PasswordHash: "$6$salt$x"})
 		Expect(err).ToNot(HaveOccurred())

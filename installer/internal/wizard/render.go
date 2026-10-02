@@ -121,10 +121,14 @@ func Render(a Answers) (string, error) {
 	return "#cloud-config\n" + string(dat), nil
 }
 
-// checkWritten refuses a hostname, timezone or keymap that Apply would have
-// refused.
+// checkWritten refuses the answers Apply would have refused: a hostname,
+// timezone or keymap of the wrong shape, and SSH keys with no user to own
+// them. The web UI sends its answers from the browser, so the last one can
+// reach Render without ever going through the SSH keys step.
 func checkWritten(a Answers) error {
 	switch {
+	case len(a.SSHKeys) > 0 && a.Username == "":
+		return fmt.Errorf("%d ssh key(s) were given but no username: the keys are written as the user's authorized keys, so an install with no user has nowhere to put them", len(a.SSHKeys))
 	case a.Hostname != "" && !validHostname(a.Hostname):
 		return fmt.Errorf("the hostname %q is not a valid host name", a.Hostname)
 	case a.Timezone != "" && !validTimezone(a.Timezone):
