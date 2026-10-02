@@ -575,6 +575,7 @@ jobs:
           - {test: 'encryption-on-boot'}
           - {test: 'encryption-on-boot-no-tpm'}
           - {test: 'encryption-on-boot-remote'}
+          - {test: 'encryption-reset-parity'}
     name: test-standard-encryption / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     # See test-core-fips above.

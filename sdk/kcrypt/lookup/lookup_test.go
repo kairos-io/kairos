@@ -354,3 +354,108 @@ func TestMountSourceForLabel(t *testing.T) {
 		}
 	})
 }
+
+func TestLabelIsEncrypted(t *testing.T) {
+	noBlkid := func(string) (*partitions.Partition, error) {
+		return nil, fmt.Errorf("blkid: not found")
+	}
+	noProbe := func(string) (string, error) {
+		return "", fmt.Errorf("blkid unavailable")
+	}
+	disksWith := func(parts ...*partitions.Partition) []*partitions.Disk {
+		return []*partitions.Disk{{Name: "vda", Partitions: parts}}
+	}
+
+	tests := []struct {
+		name        string
+		disks       []*partitions.Disk
+		label       string
+		blkidLookup func(string) (*partitions.Partition, error)
+		fsProbe     func(string) (string, error)
+		want        bool
+		wantErr     string
+	}{
+		{
+			name: "plaintext partition is not encrypted",
+			disks: disksWith(
+				&partitions.Partition{Name: "vda5", FilesystemLabel: constants.PersistentLabel, FS: "ext4"},
+			),
+			label: constants.PersistentLabel,
+		},
+		{
+			name: "LUKS container carrying the outer label is encrypted",
+			disks: disksWith(
+				&partitions.Partition{Name: "vda5", FilesystemLabel: constants.PersistentLUKSLabel, FS: constants.LUKSFs},
+			),
+			label: constants.PersistentLabel,
+			want:  true,
+		},
+		{
+			name: "LUKS container sharing the plaintext label is encrypted (pre kairos-io/kairos#4403)",
+			disks: disksWith(
+				&partitions.Partition{Name: "vda5", FilesystemLabel: constants.PersistentLabel, FS: constants.LUKSFs},
+			),
+			label: constants.PersistentLabel,
+			want:  true,
+		},
+		{
+			name:    "a label found nowhere is an error, not plaintext",
+			disks:   disksWith(),
+			label:   constants.PersistentLabel,
+			wantErr: "was not found",
+		},
+		{
+			name: "an undeterminable filesystem is an error, not plaintext",
+			disks: disksWith(
+				&partitions.Partition{Name: "vda5", Path: "/dev/vda5", FilesystemLabel: constants.PersistentLabel, FS: ""},
+			),
+			label:   constants.PersistentLabel,
+			wantErr: "could not be determined",
+		},
+		{
+			name: "a missing filesystem type is answered by the device probe",
+			disks: disksWith(
+				&partitions.Partition{Name: "vda5", Path: "/dev/vda5", FilesystemLabel: constants.PersistentLabel, FS: ""},
+			),
+			label:   constants.PersistentLabel,
+			fsProbe: func(string) (string, error) { return constants.LUKSFs, nil },
+			want:    true,
+		},
+		{
+			name:  "a partition only blkid sees is probed on the device (pre kairos-sdk#822)",
+			disks: disksWith(),
+			label: constants.PersistentLabel,
+			blkidLookup: func(string) (*partitions.Partition, error) {
+				return &partitions.Partition{Name: "vda5", Path: "/dev/vda5"}, nil
+			},
+			fsProbe: func(string) (string, error) { return constants.LUKSFs, nil },
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			blkidLookup := tt.blkidLookup
+			if blkidLookup == nil {
+				blkidLookup = noBlkid
+			}
+			fsProbe := tt.fsProbe
+			if fsProbe == nil {
+				fsProbe = noProbe
+			}
+			got, err := LabelIsEncrypted(tt.disks, tt.label, blkidLookup, fsProbe)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("LabelIsEncrypted() error = %v, want it to contain %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LabelIsEncrypted() error = %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("LabelIsEncrypted() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
