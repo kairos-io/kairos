@@ -63,7 +63,7 @@ network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="`
 
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
-			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "master", "worker", "none"`))
+			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "", "master", "worker", "none"`))
 		})
 	})
 
@@ -194,6 +194,68 @@ vpn:
 
 		It("succeedes", func() {
 			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+})
+
+var _ = Describe("P2P Schema role", func() {
+	var config *KConfig
+	var err error
+	var yaml string
+
+	// The provider is the only consumer of p2p.role
+	// (provider/internal/role/p2p/k8s.go), and it accepts the empty string,
+	// "master" and "worker". Anything else stops the bootstrap, so what the
+	// schema declares has to line up with that set.
+	DescribeTable("accepts the values the provider reads",
+		func(role string) {
+			yaml = `#cloud-config
+users:
+- name: kairos
+p2p:
+  network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+  role: ` + role + `
+  auto:
+    enable: true`
+
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.IsValid()).To(BeTrue(), func() string {
+				if config.ValidationError == nil {
+					return ""
+				}
+				return config.ValidationError.Error()
+			})
+		},
+		// Documented in installation/p2p.md as the way to leave the role
+		// unset, and the value the provider checks for.
+		Entry("the empty string", `""`),
+		Entry("master", `"master"`),
+		Entry("worker", `"worker"`),
+		// Was the schema's advertised default, so it is in the wild.
+		Entry("none", `"none"`),
+	)
+
+	Context("with a role no handler implements", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+users:
+- name: kairos
+p2p:
+  network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+  role: "leader"
+  auto:
+    enable: true`
+		})
+
+		JustBeforeEach(func() {
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("errors", func() {
+			Expect(config.IsValid()).To(BeFalse())
+			Expect(config.ValidationError.Error()).To(MatchRegexp("role"))
 		})
 	})
 })
