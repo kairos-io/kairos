@@ -1,9 +1,12 @@
 package role
 
 import (
+	"bytes"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
@@ -233,19 +236,42 @@ func (k *K0sNode) PropagateData() error {
 		}
 	}
 
-	kubeconfig, err := utils.SH("k0s config create") //nolint:errcheck
+	bin := utils.K0sBin()
+	if bin == "" {
+		// Same resolution the token calls above rely on.
+		bin = K0sDistroName
+	}
+	kubeconfig, err := K0sAdminKubeconfig(bin)
 	if err != nil {
 		c.Logger.Error(err)
 		return err
 	}
-	if kubeconfig != "" {
-		err := c.Client.Set("kubeconfig", "master", base64.RawURLEncoding.EncodeToString([]byte(kubeconfig)))
+	if len(kubeconfig) > 0 {
+		err := c.Client.Set("kubeconfig", "master", base64.RawURLEncoding.EncodeToString(kubeconfig))
 		if err != nil {
 			c.Logger.Error(err)
 		}
 	}
 
 	return nil
+}
+
+// K0sAdminKubeconfig returns the admin kubeconfig that "<bin> kubeconfig admin"
+// prints on stdout, with the credentials embedded so it is usable off the node.
+// Only stdout is read, because k0s logs to stderr and those lines would
+// otherwise end up inside the kubeconfig.
+func K0sAdminKubeconfig(bin string) ([]byte, error) {
+	out, err := exec.Command(bin, "kubeconfig", "admin").Output()
+	if err == nil {
+		return out, nil
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && len(bytes.TrimSpace(exitErr.Stderr)) > 0 {
+		return nil, fmt.Errorf("%s kubeconfig admin: %w: %s", bin, err, bytes.TrimSpace(exitErr.Stderr))
+	}
+
+	return nil, fmt.Errorf("%s kubeconfig admin: %w", bin, err)
 }
 
 func (k *K0sNode) WorkerArgs() ([]string, error) {
