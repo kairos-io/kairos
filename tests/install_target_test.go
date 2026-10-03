@@ -92,7 +92,7 @@ var _ = Describe("kairos install test different targets", Label("install-target"
 			By("checking that vm has rebooted to 'active'", func() {
 				var out string
 				Eventually(func() string {
-					out, err = vm.Sudo("kairos-agent state boot")
+					out, err = vm.Sudo("kairos-agent state get boot")
 					if err != nil {
 						fmt.Println(err.Error())
 						return ""
@@ -151,7 +151,7 @@ var _ = Describe("kairos install test different targets", Label("install-target"
 
 			By("checking that vm has rebooted to 'active'", func() {
 				Eventually(func() string {
-					out, _ := vm.Sudo("kairos-agent state boot")
+					out, _ := vm.Sudo("kairos-agent state get boot")
 					return out
 				}, 40*time.Minute, 10*time.Second).Should(
 					Or(

@@ -79,6 +79,21 @@ var _ = Describe("Default logs journal list", Label("logs", "cmd"), func() {
 			"k3s", "k3s-agent", "k0scontroller", "k0sworker"))
 	})
 
+	// Same blind spot, one step further out: the sweep reads the
+	// cloud-configs, so it does not see a unit written by a kairos-init stage
+	// either. kairos-splash is one. GetServicesStage writes it to
+	// /usr/lib/systemd/system, which is neither the directory nor the
+	// frontend the sweep above looks at, so it went missing from this list
+	// for the whole of the splash feature's first release.
+	//
+	// Spelled out rather than derived from bundled.SplashServicePath on
+	// purpose: kairos-init embeds binaries that are built rather than
+	// committed, and importing it here would stop a plain `go test ./...` in
+	// this package from compiling.
+	It("still covers the units the kairos-init stages write", func() {
+		Expect(defaultLogsConfig().Journal).To(ContainElement("kairos-splash"))
+	})
+
 	// The sweep above reads the cloud-configs, so it is blind to a unit the
 	// agent writes under /etc/systemd/system itself. phone-home is the one
 	// such unit today: enablePhoneHome writes phonehome.ServicePath and runs

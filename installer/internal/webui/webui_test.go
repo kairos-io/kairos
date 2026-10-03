@@ -93,8 +93,8 @@ var _ = Describe("WebUI", func() {
 
 			Expect(rec.Code).To(Equal(http.StatusOK))
 			body := rec.Body.String()
-			Expect(body).To(ContainSubstring("Welcome to the Installer!"))
-			Expect(body).To(ContainSubstring("cloud-config"))
+			Expect(body).To(ContainSubstring("Installation steps"))
+			Expect(body).To(ContainSubstring("/wizard.js"))
 		})
 
 		It("serves progress.html", func() {
@@ -206,9 +206,8 @@ var _ = Describe("WebUI", func() {
 			contentStr := string(content)
 
 			// Check for key elements
-			Expect(contentStr).To(ContainSubstring("Welcome to the Installer!"))
-			Expect(contentStr).To(ContainSubstring("cloud-config"))
-			Expect(contentStr).To(ContainSubstring("Install"))
+			Expect(contentStr).To(ContainSubstring("Installation steps"))
+			Expect(contentStr).To(ContainSubstring("/wizard.js"))
 			Expect(contentStr).To(ContainSubstring("Web Installer"))
 		})
 

@@ -94,6 +94,17 @@ var _ = Describe("Common helpers", func() {
 			Expect(filepath.Join(dir, "active.conf")).ToNot(BeAnExistingFile())
 			Expect(filepath.Join(dir, "passive.efi")).To(BeAnExistingFile())
 		})
+
+		It("reports an unreadable artifact dir instead of panicking", func() {
+			// WalkDirFs calls the callback with a nil DirEntry when it cannot
+			// stat the root, so the callback has to check the error before it
+			// touches info. See kairos-io/kairos#4774.
+			var err error
+			Expect(func() {
+				err = removeArtifactSetWithRole(fs, filepath.Join(dir, "missing"), "active")
+			}).ToNot(Panic())
+			Expect(err).To(MatchError(os.ErrNotExist))
+		})
 	})
 
 	Describe("copyArtifactSetRole", func() {

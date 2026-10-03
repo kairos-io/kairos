@@ -231,8 +231,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # FIPS core cell. hadron-fips is a distinct base image from
           # hadron (FIPS-hardened kernel + userspace); passing fips:true
           # additionally flips the FIPS=fips build_arg in images/Dockerfile
@@ -279,6 +279,11 @@ jobs:
       # install-upgrade qemu test has something to upgrade.
       # Factory-action ignores it on non-UKI cells.
       single_efi_cmdline: 'testentry: nothing'
+      # Opt in to the CI-only sysext overlay. _build-iso.yaml picks
+      # tests/assets/sysext-uki for UKI cells and tests/assets/sysext-grub
+      # for the rest. Release cells do not set this and therefore ship no
+      # test extensions.
+      test_sysext_overlay: true
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
@@ -290,10 +295,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # rpi cells: raw disk image, no ISO. Still on hadron base.
-          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
           # only builds on that. Model-derived knobs (grype/sbom/
           # cleanup) turn off scans and enable disk cleanup; see
@@ -346,6 +351,7 @@ jobs:
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
+      test_sysext_overlay: true
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
@@ -391,7 +397,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
@@ -534,7 +540,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'
@@ -569,6 +575,7 @@ jobs:
           - {test: 'encryption-on-boot'}
           - {test: 'encryption-on-boot-no-tpm'}
           - {test: 'encryption-on-boot-remote'}
+          - {test: 'encryption-reset-parity'}
     name: test-standard-encryption / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     # See test-core-fips above.
@@ -577,7 +584,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'

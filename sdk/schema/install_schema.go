@@ -21,7 +21,6 @@ type InstallSchema struct {
 	SelinuxOptions      `json:"selinux,omitempty"`
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
-	SkipEncryptCopyPlugins  bool                `json:"skip_copy_kcrypt_plugin,omitempty"`
 	Partitions              ElementalPartitions `json:"partitions,omitempty"`
 	GrubDefEntry            string              `json:"grub-entry-name,omitempty"`
 	ExtraPartitions         []*Partition        `json:"extra-partitions,omitempty"`

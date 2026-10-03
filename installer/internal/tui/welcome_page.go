@@ -19,14 +19,18 @@ const welcomePageID = "welcome"
 // same process is already serving can be reached, and renders that address as
 // a QR code so it can be opened from a phone without typing it.
 //
-// Under Advanced it also offers the other remote install the live media has
-// always had: the pairing flow, where the agent prints a go-nodepair QR code
-// and waits for `kairosctl register` to send a configuration over it.
+// Under Advanced it also offers the two remote flows the media has always
+// had as boot entries of their own: the pairing install, where the agent
+// prints a go-nodepair QR code and waits for `kairosctl register` to send a
+// configuration over it, and remote recovery, where it prints a network token
+// as a QR code and waits for `kairos bridge` to connect over it.
 //
 // Until the interactive installer becomes the default live boot, the web UI
 // address and the pairing QR code are both produced by the default boot entry
 // instead. That entry goes away with the boot flip, which is why the installer
-// has to carry them.
+// has to carry them. Remote recovery is the `remoterecovery` entry in
+// `/etc/kairos/branding/grubmenu.cfg`, and carrying it here is what lets that
+// entry go away too.
 //
 // With nothing to offer, because the image disabled the web UI, the host has
 // no address another machine could open, and no provider is installed to pair
@@ -42,9 +46,18 @@ type welcomePage struct {
 	// offering it then would strand the user.
 	pairing bool
 
+	// recovery is whether handing the terminal to `kairos-agent recovery`
+	// would reach the remote recovery flow. It needs the same two things as
+	// pairing, an agent to hand the terminal to and a provider to answer the
+	// challenge, so the two are offered and withheld together.
+	recovery bool
+
 	// pairErr is what the pairing handover failed with, kept on screen so a
 	// user who pressed "a" and came straight back is told why.
 	pairErr string
+
+	// recoveryErr is the same for the recovery handover on "r".
+	recoveryErr string
 
 	loaded bool
 }
@@ -55,10 +68,19 @@ func (w *welcomePage) ID() string    { return welcomePageID }
 func (w *welcomePage) Title() string { return "Welcome" }
 
 func (w *welcomePage) Help() string {
+	help := "enter: continue"
 	if w.pairing {
-		return "enter: continue • a: pair with a QR code"
+		help += " • a: pair with a QR code"
 	}
-	return "enter: continue"
+	if w.recovery {
+		help += " • r: remote recovery"
+	}
+	return help
+}
+
+// Skipped reports that the page had nothing to show and moved on.
+func (w *welcomePage) Skipped() bool {
+	return w.loaded && len(w.urls) == 0 && !w.pairing && !w.recovery
 }
 
 // Init reads the web UI's addresses once, renders the QR for the first one,
@@ -79,15 +101,17 @@ func (w *welcomePage) Init() tea.Cmd {
 			w.qr = renderQR(w.urls[0])
 		}
 		w.pairing = pairingAvailable()
+		w.recovery = recoveryAvailable()
 		w.loaded = true
 		mainModel.log.Logger.Debug().
 			Int("urls", len(w.urls)).
 			Bool("qr", w.qr != "").
 			Bool("pairing", w.pairing).
+			Bool("recovery", w.recovery).
 			Msg("Welcome page built")
 	}
 
-	if len(w.urls) == 0 && !w.pairing {
+	if len(w.urls) == 0 && !w.pairing && !w.recovery {
 		return func() tea.Msg { return GoToPageMsg{PageID: "prerequisites"} }
 	}
 	return nil
@@ -97,7 +121,24 @@ func (w *welcomePage) Init() tea.Cmd {
 // terminal to has returned.
 type pairingFinishedMsg struct{ err error }
 
+// recoveryFinishedMsg reports that the recovery session the TUI handed the
+// terminal to has returned.
+type recoveryFinishedMsg struct{ err error }
+
 func (w *welcomePage) Update(msg tea.Msg) (Page, tea.Cmd) {
+	if done, ok := msg.(recoveryFinishedMsg); ok {
+		// Unlike the pairing install, recovery does not change the machine:
+		// the operator who connected over the bridge has disconnected and the
+		// agent has given the terminal back. Whatever this boot was for is
+		// still ahead, so the installer stays on the welcome page.
+		if done.err != nil {
+			w.recoveryErr = done.err.Error()
+		} else {
+			w.recoveryErr = ""
+		}
+		return w, nil
+	}
+
 	if done, ok := msg.(pairingFinishedMsg); ok {
 		if done.err != nil {
 			w.pairErr = done.err.Error()
@@ -120,6 +161,10 @@ func (w *welcomePage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	case "a":
 		if w.pairing {
 			return w, startPairing(mainModel.source)
+		}
+	case "r":
+		if w.recovery {
+			return w, startRecovery()
 		}
 	}
 	return w, nil
@@ -155,28 +200,35 @@ func (w *welcomePage) View() string {
 }
 
 // advancedLines renders the Advanced section, which offers the pairing
-// install. It is empty when no provider is installed to pair with. separated
-// asks for a blank line above it, which is wanted only when something was
-// rendered before it.
+// install and remote recovery. It is empty when neither can run, which on a
+// live image means no provider is installed to answer either challenge.
+// separated asks for a blank line above it, which is wanted only when
+// something was rendered before it.
 func (w *welcomePage) advancedLines(separated bool) []string {
-	if !w.pairing {
+	if !w.pairing && !w.recovery {
 		return nil
 	}
 
 	headingStyle := lipgloss.NewStyle().Foreground(kairosHighlight).Bold(true)
 	keyStyle := lipgloss.NewStyle().Foreground(kairosAccent).Bold(true)
+	errStyle := lipgloss.NewStyle().Foreground(kairosHighlight2)
 
 	var out []string
 	if separated {
 		out = append(out, "")
 	}
-	out = append(out,
-		headingStyle.Render("Advanced"),
-		"",
-		"  "+keyStyle.Render("a")+"  show a QR code and install from \"kairosctl register\"",
-	)
+	out = append(out, headingStyle.Render("Advanced"), "")
+	if w.pairing {
+		out = append(out, "  "+keyStyle.Render("a")+"  show a QR code and install from \"kairosctl register\"")
+	}
+	if w.recovery {
+		out = append(out, "  "+keyStyle.Render("r")+"  show a QR code and hand this machine to \"kairos bridge\"")
+	}
 	if w.pairErr != "" {
-		out = append(out, "", "  "+lipgloss.NewStyle().Foreground(kairosHighlight2).Render("pairing install failed: "+w.pairErr))
+		out = append(out, "", "  "+errStyle.Render("pairing install failed: "+w.pairErr))
+	}
+	if w.recoveryErr != "" {
+		out = append(out, "", "  "+errStyle.Render("remote recovery failed: "+w.recoveryErr))
 	}
 	return out
 }
@@ -209,6 +261,32 @@ var pairingCommand = func(source string) *exec.Cmd {
 func startPairing(source string) tea.Cmd {
 	return tea.ExecProcess(pairingCommand(source), func(err error) tea.Msg {
 		return pairingFinishedMsg{err: err}
+	})
+}
+
+// recoveryAvailable reports whether remote recovery could actually run. It is
+// the same pair of requirements as pairing: an agent to hand the terminal to,
+// and a provider to turn the recovery event into a network token. Without a
+// provider `kairos-agent recovery` has no token to draw and waits on a prompt
+// under an empty screen.
+//
+// It is a var so a spec can decide the answer without installing a provider.
+var recoveryAvailable = func() bool {
+	return agentrun.ResolveAgentBin() != "" && sdkbus.HasProviders()
+}
+
+// recoveryCommand builds the command the TUI suspends itself for. It is a var
+// so a spec can drive the handover without running a real kairos-agent.
+var recoveryCommand = func() *exec.Cmd {
+	return agentrun.RecoveryCommand(agentrun.ResolveAgentBin())
+}
+
+// startRecovery hands the terminal to the agent's remote recovery, the same
+// way startPairing does. The agent gives the terminal back when the operator
+// on the other end of the bridge is done, and the TUI is restored.
+func startRecovery() tea.Cmd {
+	return tea.ExecProcess(recoveryCommand(), func(err error) tea.Msg {
+		return recoveryFinishedMsg{err: err}
 	})
 }
 

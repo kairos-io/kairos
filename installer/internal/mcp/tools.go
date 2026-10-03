@@ -2,12 +2,14 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/disks"
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 )
@@ -51,6 +53,7 @@ type installOptionsInput struct{}
 
 type installOptionsOutput struct {
 	AgentBinary     string       `json:"agent_binary" jsonschema:"path to the kairos-agent binary that performs the install, empty when none was found"`
+	DefaultSource   string       `json:"default_source,omitempty" jsonschema:"the image an install pulls when the install tool is called without a source, from the source this installer was started with. Empty means kairos-agent picks its own"`
 	FinishActions   []string     `json:"finish_actions" jsonschema:"accepted values of the install tool's finish_action"`
 	Steps           []string     `json:"steps" jsonschema:"the progress steps an install reports, in the order the agent emits them"`
 	Disks           []disks.Disk `json:"disks" jsonschema:"the disks an installation can target"`
@@ -228,6 +231,7 @@ func (s *Server) applyPrerequisites(_ context.Context, _ *mcp.CallToolRequest, i
 func (s *Server) installOptions(_ context.Context, _ *mcp.CallToolRequest, _ installOptionsInput) (*mcp.CallToolResult, installOptionsOutput, error) {
 	out := installOptionsOutput{
 		AgentBinary:     s.installer.ResolveAgentBin(),
+		DefaultSource:   s.source,
 		FinishActions:   FinishActions,
 		Steps:           agentrun.Steps,
 		MinDiskBytes:    disks.MinSizeBytes,
@@ -269,6 +273,16 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		return errorResult("refusing to install: %q is not an installation candidate on this machine. The candidates are: %s.", in.Device, names), out, nil
 	}
 
+	// A caller that names no source gets the one the boot pinned, which is what
+	// this tool's schema promises and what the other two frontends do. Without
+	// it the agent resolves its own default instead, and the machine comes up
+	// on a different image from the one the TUI would have installed, with
+	// nothing reporting that it happened.
+	source := in.Source
+	if source == "" {
+		source = s.source
+	}
+
 	finishAction := in.FinishAction
 	if finishAction == "" {
 		finishAction = FinishNone
@@ -282,9 +296,11 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		return errorResult("no kairos-agent binary was found, so nothing can be installed"), out, nil
 	}
 
-	// One install per server. A second one would race the first over the same
-	// disk, and a retry after a successful install would wipe what was just
-	// written.
+	// One install per server: a second MCP call would race the first over the
+	// same disk, and a retry after a successful install would wipe what was
+	// just written. This covers MCP only. An install started from the TUI or
+	// the browser is refused by agentrun's process-wide guard below, which is
+	// the one all three frontends share.
 	if !s.installing.TryLock() {
 		return errorResult("an install is already running on this session"), out, nil
 	}
@@ -293,7 +309,7 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		return errorResult("this session already installed to %q. Start a new installer to install again.", in.Device), out, nil
 	}
 
-	cloudConfig, err := renderCloudConfig(in.Device, in.Source, finishAction, in.CloudConfig)
+	cloudConfig, err := renderCloudConfig(in.Device, source, finishAction, in.CloudConfig)
 	if err != nil {
 		return errorResult("could not build the cloud-config: %v", err), out, nil
 	}
@@ -308,7 +324,7 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 	s.log.Logger.Info().Str("device", in.Device).Str("agent", agentBin).Msg("Starting an install driven over MCP")
 
 	var sawError string
-	runErr := s.installer.Run(agentBin, cfgPath, in.Source, finishAction,
+	runErr := s.installer.Run(agentBin, cfgPath, source, finishAction,
 		func(ev agentrun.ProgressEvent) {
 			switch ev.Event {
 			case agentrun.EventStep:
@@ -322,6 +338,14 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		},
 		func(line string) { s.log.Print(line) },
 	)
+
+	// Another frontend of this same installer holds the disk. Nothing was
+	// started, so say that rather than reporting an install that failed: the
+	// caller's answer is to wait, not to fix anything.
+	if errors.Is(runErr, agentrun.ErrInstallInProgress) {
+		out.Error = runErr.Error()
+		return errorResult("refusing to install: an install started from another frontend of this installer is already running. Wait for it to finish."), out, nil
+	}
 
 	switch {
 	case sawError != "":
@@ -384,4 +408,27 @@ func stepList(steps []string) string {
 	}
 
 	return strings.Join(steps, ", ")
+}
+
+// renderCloudConfig builds the cloud-config an MCP install runs with: the
+// caller's own YAML, with the confirmed device, source and finish action
+// written over it by wizard.Finalize. FinishNone is the MCP spelling of the
+// wizard's empty finish action.
+func renderCloudConfig(device, source, finishAction, extra string) (string, error) {
+	if finishAction == FinishNone {
+		finishAction = ""
+	}
+	out, err := wizard.Finalize(extra, wizard.Overrides{
+		Device: device, Source: source, FinishAction: finishAction, DefaultNoUsers: true,
+	})
+	if err != nil {
+		// The MCP tool argument is named cloud_config, and its callers
+		// already match on this wording.
+		inner := errors.Unwrap(err)
+		if inner == nil {
+			inner = err
+		}
+		return "", fmt.Errorf("cloud_config is not valid YAML: %w", inner)
+	}
+	return out, nil
 }

@@ -34,6 +34,14 @@ const (
 	serviceSSHD              = "sshd"
 )
 
+// osDracutFamilies is the yip OnlyIfOs value for "every distribution whose
+// initramfs is built by dracut", which is every supported one except Alpine.
+// The stages that write dracut config, dracut modules or units into the
+// initramfs all gate on it, so they share the constant rather than five
+// copies of a regex that has to be edited in lockstep when a distribution is
+// added.
+const osDracutFamilies = `Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\sHat.*|Rocky.*|AlmaLinux.*|Oracle\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*`
+
 // GetInitrdStage Returns the initrd stage
 // This stage cleans up any existing initrd files and creates a new one
 // In the case of Trusted boot systems, we dont do anything but remove the initrd files as the initrd is created and
@@ -455,6 +463,31 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 				},
 			},
 		},
+		// The booted-system half of `kairos splash`: it covers switch-root to
+		// login prompt, where the initramfs unit has already been killed.
+		// Enabled unconditionally because the unit's own conditions decide
+		// whether it draws, and every one of them is evaluated per boot:
+		// removing `splash` from the command line, or adding kairos.splash=0
+		// at the boot menu, is enough to turn it off on a machine that is
+		// already installed.
+		{
+			Name:                 "Install the boot splash service",
+			OnlyIfServiceManager: serviceManagerSystemd,
+			Files: []schema.File{
+				{
+					Path:        bundled.SplashServicePath,
+					Owner:       0,
+					Group:       0,
+					Permissions: 0644,
+					Content:     fmt.Sprintf(bundled.SplashService, bundled.SplashDuration),
+				},
+			},
+			Systemctl: schema.Systemctl{
+				Enable: []string{
+					"kairos-splash",
+				},
+			},
+		},
 		{
 			Name:                 "Enable timesyncd service",
 			OnlyIfServiceManager: serviceManagerSystemd,
@@ -621,6 +654,8 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 				"rc-update add cgroups sysinit",
 				"rc-update add ntpd boot",
 				"rc-update add crond",
+				"rc-update add auditd boot",
+				"rc-update add sysctl boot",
 			},
 		},
 		{
@@ -995,7 +1030,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add xhci_pci_renesas module to initramfs",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: osDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutXhciRenesasPath,
@@ -1008,7 +1043,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add sysext module to initramfs",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: osDracutFamilies,
 				If:       strconv.FormatBool(sysextModule),
 				Files: []schema.File{
 					{
@@ -1022,7 +1057,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add network module to initramfs",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: osDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutNetworkPath,
@@ -1035,7 +1070,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add immucore module to initramfs",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: osDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutConfigPath,
@@ -1064,6 +1099,46 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 						Group:       0,
 						Permissions: 0644,
 						Content:     bundled.ImmucoreServiceDracut,
+					},
+				},
+			},
+			// The splash is the initramfs half of `kairos splash`; the
+			// booted-system half is installed by GetServicesStage. Both are
+			// inert unless `splash` is on the kernel command line, which
+			// BootArgsCfg puts there for the grub entries. A trusted-boot
+			// image never reaches this function, so a UKI initrd has no
+			// splash: it is not built with dracut at all.
+			{
+				Name:     "Add splash module to initramfs",
+				OnlyIfOs: osDracutFamilies,
+				Files: []schema.File{
+					{
+						Path:        bundled.DracutSplashPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashDracutConfig,
+					},
+					{
+						Path:        bundled.DracutSplashModuleSetupPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0755,
+						Content:     bundled.SplashModuleSetupDracut,
+					},
+					{
+						Path:        bundled.DracutSplashServicePath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashServiceDracut,
+					},
+					{
+						Path:        bundled.DracutSplashImmucoreQuietPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashImmucoreQuietDracut,
 					},
 				},
 			},

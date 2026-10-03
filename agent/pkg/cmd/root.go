@@ -381,29 +381,6 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 		},
 	},
 	{
-		Name:        "webui",
-		Usage:       "Starts the webui (deprecated)",
-		Description: "DEPRECATED: starts the webui installer by delegating to the image's installer with its terminal UI suppressed. The web UI is served by the installer itself; run the installer with --no-tui instead. This subcommand is kept for the kairos-webui service and will be removed with it.",
-		Aliases:     []string{"w"},
-		Flags:       []cli.Flag{&sourceFlag},
-		// Reject a bad --source here, like the three install commands do,
-		// rather than in the browser's progress stream once the spawned
-		// manual-install hits its own check. validateSource passes on the
-		// empty string, so the kairos-webui service is unaffected.
-		Before: func(c *cli.Context) error {
-			return validateSource(c.String("source"))
-		},
-		Action: func(c *cli.Context) error {
-			log := sdkLogger.NewKairosLogger("agent", "info", true)
-			if viper.GetBool("debug") {
-				log.SetLevel("debug")
-			}
-
-			// The deprecated subcommand is what has to keep calling it.
-			return agent.WebUI(c.String("source"), log) //nolint:staticcheck
-		},
-	},
-	{
 		Name:        "config",
 		Usage:       "Shows the machine configuration",
 		Description: "Show the runtime configuration of the machine. It will scan the machine for all the configuration and will return the config file processed and found.",
@@ -459,6 +436,13 @@ enabled: true`,
 		Description: "Print machine state information, e.g. `state get uuid` returns the machine uuid",
 		Aliases:     []string{},
 		Action: func(c *cli.Context) error {
+			// `state` takes no arguments of its own. Without this an unknown
+			// subcommand falls through to here, prints the state and exits 0,
+			// so a caller cannot tell a typo from the command it meant to run.
+			if c.Args().Present() {
+				return fmt.Errorf("unknown subcommand %q for \"state\"", c.Args().First())
+			}
+
 			runtime, err := state.NewRuntime()
 			if err != nil {
 				return err
@@ -468,16 +452,6 @@ enabled: true`,
 			return err
 		},
 		Subcommands: []*cli.Command{
-			{
-				Name:        "apply",
-				Usage:       "Applies a machine state",
-				Description: "Applies machine configuration in runtimes",
-				Aliases:     []string{"a"},
-				Action: func(c *cli.Context) error {
-					// TODO
-					return nil
-				},
-			},
 			{
 				Name:        "get",
 				Usage:       "get specific ",
@@ -1195,6 +1169,51 @@ The command automatically:
 						return fmt.Errorf("failed to scan config: %w", err)
 					}
 					return kcrypt.UnlockAllEncryptedPartitions(cfg.Logger)
+				},
+			},
+			{
+				Name:      "encrypt",
+				Usage:     "Encrypt plaintext partitions in place, by filesystem label",
+				ArgsUsage: "LABEL [LABEL...]",
+				Description: `Encrypt the given partitions in place, using the configured method
+(local TPM, or the kcrypt challenger server when one is configured).
+
+WARNING: Encrypting a partition DESTROYS ALL DATA on it!
+
+This is the manual counterpart of boot time encryption
+(kcrypt.encrypt_on_boot): the same operation, run from the command line,
+typically from recovery. It is defensive by default:
+
+- A partition that is already a LUKS container is skipped, so the command
+  is safe to re-run.
+- Partitions the running system depends on (OEM, state, recovery, EFI)
+  are refused. Encrypt those at install time instead.
+- A mounted partition is refused; unmount it first.
+- A label that cannot be found, or whose filesystem cannot be determined,
+  is an error rather than a guess.
+- The result is verified before success is reported.
+
+The command prompts for confirmation unless --i-know-what-i-am-doing is
+given. The partitions are left locked; they unlock on the next boot, or
+with 'kairos-agent kcrypt unlock-all'.`,
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "i-know-what-i-am-doing",
+						Usage: "Skip confirmation prompt (DANGEROUS: encrypting destroys all data on the partitions)",
+					},
+				},
+				Before: func(c *cli.Context) error {
+					return checkRoot()
+				},
+				Action: func(c *cli.Context) error {
+					if c.NArg() == 0 {
+						return fmt.Errorf("no partition labels given; usage: kairos-agent kcrypt encrypt LABEL [LABEL...]")
+					}
+					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+					if err != nil {
+						return fmt.Errorf("failed to scan config: %w", err)
+					}
+					return action.KcryptEncrypt(cfg, c.Args().Slice(), c.Bool("i-know-what-i-am-doing"))
 				},
 			},
 		},

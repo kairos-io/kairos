@@ -238,7 +238,7 @@ func expectStartedInstallation(vm VM) {
 func expectRebootedToActive(vm VM) {
 	By("checking that vm has rebooted to 'active'", func() {
 		Eventually(func() string {
-			out, _ := vm.Sudo("kairos-agent state boot")
+			out, _ := vm.Sudo("kairos-agent state get boot")
 			return out
 		}, 40*time.Minute, 10*time.Second).Should(
 			Or(

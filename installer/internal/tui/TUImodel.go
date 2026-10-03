@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -9,8 +10,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kairos-io/kairos/v4/sdk/branding"
-	sdkExtensions "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
 
 // Page interface that all pages must implement
@@ -40,33 +42,80 @@ type Model struct {
 	width           int
 	height          int
 	title           string
-	disk            string // Selected disk
-	username        string
-	sshKeys         []string // Store SSH keys
-	passwordHash    string
-	finishAction    string                   // Action after installation: reboot, poweroff, none
-	extraFields     map[string]any           // Dynamic fields for customization
-	extensions      sdkExtensions.Extensions // System extensions picked on the extensions page
 	log             *sdkLogger.KairosLogger
-	source          string // cli flags to interactive installer? what??
+	// source is the installer's --source. The welcome page's pairing reads
+	// it here; the install reads the copy in answers.
+	source string
 
 	installError     string // set when an install fails; shown on the debug bundle page
 	showAbortConfirm bool   // Show abort confirmation popup
+
+	answers     wizard.Answers // what the steps collected
+	steps       []wizard.Step  // wizard.Steps(), resolved at start; the extensions step once it is entered
+	cloudConfig string         // the text the operator saved on the edit page
+	edited      bool           // cloudConfig was changed by hand and replaces the rendered answers
+	viewOnly    bool           // the summary opened the configuration page with v, to read it only
+	// quick is the install mode page's choice: the disk step leads straight
+	// to the summary, and nothing but the disk is configured.
+	quick bool
 }
 
 var mainModel Model
 
-// normalizedFinishAction returns mainModel.finishAction if it is one of the
+// wizardEnv is where the wizard steps get their choices from. Tests replace
+// it so they never scan disks, read branding or fetch a catalog.
+var wizardEnv wizard.Env = wizard.NewSystemEnv()
+
+// keyCapturer is a page that needs a key the model would otherwise handle
+// itself (q, esc, ctrl+d), such as a text field that must be able to take a
+// q. ctrl+c is never offered: it always reaches the model.
+type keyCapturer interface {
+	CapturesKey(tea.KeyMsg) bool
+}
+
+// BackMsg asks the model to go back one page, the same way a global esc
+// does. A page that leaves by going forward to where it came from would put
+// itself on the navigation stack, and esc would lead back into it.
+type BackMsg struct{}
+
+// skipper is a page that had nothing to show and moved on by itself. Going
+// back passes over it, or it would move on again at once.
+type skipper interface {
+	Skipped() bool
+}
+
+// goBack pops the navigation stack to the last page that is not skipped and
+// Inits that page, so it shows current data: the disk step re-scans (#4260)
+// and a step page reloads the saved answers. It reports false when there is
+// nowhere to go back to.
+func goBack() (tea.Cmd, bool) {
+	stack := mainModel.navigationStack
+	for i := len(stack) - 1; i >= 0; i-- {
+		for _, p := range mainModel.pages {
+			if p.ID() != stack[i] {
+				continue
+			}
+			if s, ok := p.(skipper); ok && s.Skipped() {
+				break
+			}
+			mainModel.navigationStack = stack[:i]
+			mainModel.currentPageID = stack[i]
+			return p.Init(), true
+		}
+	}
+	return nil, false
+}
+
+// normalizedFinishAction returns the finish action if it is one of the
 // known post-install actions, and "nothing" otherwise. This keeps the
 // completed install page from rendering a blank action if an unexpected
 // value ever reaches it.
 func normalizedFinishAction() string {
-	switch mainModel.finishAction {
-	case "reboot", "poweroff":
-		return mainModel.finishAction
-	default:
-		return "nothing"
+	switch mainModel.answers.FinishAction {
+	case wizard.FinishReboot, wizard.FinishPoweroff:
+		return mainModel.answers.FinishAction
 	}
+	return "nothing"
 }
 
 // InitialModel Initialize the application
@@ -77,22 +126,26 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 		title:           branding.DefaultTitleInteractiveInstaller(),
 		source:          source,
 		log:             l,
-		finishAction:    "nothing",
 	}
-	mainModel.pages = []Page{
-		newWelcomePage(),
-		newPrerequisitesPage(),
-		newDiskSelectionPage(),
-		newInstallOptionsPage(),
-		newCustomizationPage(),
-		newUserPasswordPage(),
-		newSSHKeysPage(),
-		newExtensionsPage(),
-		newSummaryPage(),
-		newInstallProcessPage(),
-		newUserdataPage(),
-		newDebugBundlePage(),
+	// The steps are resolved once, without the extension catalog: the
+	// extensions step fetches it when it is entered, so the first frame
+	// does not wait up to the catalog timeout. The disk step re-scans on
+	// every visit.
+	mainModel.steps = wizard.Steps(context.Background(), noExtensionsEnv{wizardEnv})
+	mainModel.answers.Source = source
+	pages := []Page{newWelcomePage(), newPrerequisitesPage(), newInstallModePage()}
+	for _, s := range mainModel.steps {
+		if s.ID == wizard.StepFinish {
+			continue // the install options page asks it, next to Start Install
+		}
+		page := newStepPage(s)
+		page.pending = s.ID == wizard.StepExtensions
+		pages = append(pages, page)
+		if s.ID == wizard.StepDisk {
+			pages = append(pages, newInstallOptionsPage(), newCustomizationPage())
+		}
 	}
+	mainModel.pages = append(pages, newSummaryPage(), newEditPage(), newInstallProcessPage(), newDebugBundlePage())
 	mainModel.currentPageID = mainModel.pages[0].ID() // Start with the first page
 
 	mainModel.log.Logger.Debug().Msg("Initial model created")
@@ -122,6 +175,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		mainModel.width = msg.Width
 		mainModel.height = msg.Height
 		return m, nil
+	case BackMsg:
+		cmd, _ := goBack()
+		return mainModel, cmd
+	case extensionsLoadedMsg:
+		// Whichever page is showing: the operator may have left the step
+		// while the catalog was being read.
+		for _, p := range mainModel.pages {
+			if sp, ok := p.(*stepPage); ok && sp.ID() == wizard.StepExtensions {
+				return mainModel, sp.loaded(msg.step)
+			}
+		}
+		return mainModel, nil
 	}
 	// For navigation, access the mainModel so we can modify from anywhere
 	currentIdx := -1
@@ -194,6 +259,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	mainModel.log.Tracef("Dealing with message in mainModel.Update")
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if kc, ok := mainModel.pages[currentIdx].(keyCapturer); ok && msg.String() != "ctrl+c" && kc.CapturesKey(msg) {
+			break
+		}
 		switch msg.String() {
 		case "ctrl+c", "q":
 			mainModel.log.Debug("User requested to quit the installer")
@@ -203,12 +271,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			mainModel.log.Debug("User requested debug bundle")
 			return mainModel, func() tea.Msg { return GoToPageMsg{PageID: DebugBundlePageID} }
 		case "esc":
-			// Go back to previous page if we have navigation history
-			if len(mainModel.navigationStack) > 0 {
-				// Pop the last page from the stack
-				mainModel.currentPageID = mainModel.navigationStack[len(mainModel.navigationStack)-1]
-				mainModel.navigationStack = mainModel.navigationStack[:len(mainModel.navigationStack)-1]
-				return mainModel, mainModel.pages[currentIdx].Init()
+			if cmd, ok := goBack(); ok {
+				return mainModel, cmd
 			}
 		}
 	}
@@ -369,8 +433,11 @@ func (m Model) View() string {
 			fullHelp = help
 		} else if _, ok := mainModel.pages[currentIdx].(*summaryPage); ok {
 			fullHelp = help
-		} else if _, ok := mainModel.pages[currentIdx].(*userdataPage); ok {
-			fullHelp = help
+		} else if _, ok := mainModel.pages[currentIdx].(*editPage); ok {
+			fullHelp = help + " • ctrl+c: quit"
+		} else if _, ok := mainModel.pages[currentIdx].(*stepPage); ok {
+			// The step page says esc itself, and q types a q in its fields.
+			fullHelp = help + " • ctrl+c: quit"
 		} else {
 			fullHelp = help + " • ESC: back • q/ctrl+c: quit"
 		}
