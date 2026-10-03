@@ -7,7 +7,9 @@ import (
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	install "github.com/kairos-io/kairos/v4/sdk/types/install"
@@ -159,21 +161,76 @@ func writeGrubenvToState(c sdkConfig.Config, opts map[string]string) error {
 	return nil
 }
 
+// oemIsMounted reports whether something is already mounted at /oem.
+//
+// The grub options hook runs in two worlds. At install time nothing has
+// mounted /oem and the hook owns the mount. On the first boot of an installed
+// node immucore has already mounted COS_OEM there for the rest of the boot to
+// read.
+func oemIsMounted(c sdkConfig.Config) (bool, error) {
+	mounts, err := c.Mounter.List()
+	if err != nil {
+		return false, err
+	}
+	for _, m := range mounts {
+		if m.Path == cnst.OEMPath {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // writeGrubenvToOem writes grub options to OEM partition's grubenv file
 // Used when OEM is not encrypted to avoid having two grubenv files
+//
+// It leaves the mount table the way it found it. Unmounting /oem on the first
+// boot left the rest of the boot without the user's cloud-config: the
+// first-boot cloud-config stage runs after this hook, and so does the
+// config.Scan that `agent run` does once the hooks are done, and both read
+// /oem. Nothing said a word about it, because every mount call here used to
+// discard its result (kairos-io/kairos#5168).
 func writeGrubenvToOem(c sdkConfig.Config, opts map[string]string) error {
-	_ = machine.Umount(cnst.OEMDir)
-	_ = machine.Umount(cnst.OEMPath)
+	mounted, err := oemIsMounted(c)
+	if err != nil {
+		// An unreadable mount table is not a reason to write the options
+		// into whatever /oem happens to be, so keep taking the mount over,
+		// which is what this function has always done, and say why.
+		c.Logger.Logger.Warn().Err(err).Msg("Could not read the mount table, mounting OEM for the write")
+		mounted = false
+	}
 
-	c.Logger.Logger.Debug().Msg("Mounting OEM partition")
-	_ = machine.Mount(cnst.OEMLabel, cnst.OEMPath)
-	defer func() {
-		_ = machine.Umount(cnst.OEMPath)
-	}()
+	if mounted {
+		c.Logger.Logger.Debug().Str("path", cnst.OEMPath).Msg("OEM is already mounted, writing through the existing mount")
+	} else {
+		device, err := lookup.MountSourceForLabel(cnst.OEMLabel)
+		if err != nil {
+			c.Logger.Logger.Error().Err(err).Str("label", cnst.OEMLabel).Msg("Failed to find the OEM partition")
+			return err
+		}
+
+		if err := fsutils.MkdirAll(c.Fs, cnst.OEMPath, cnst.DirPerm); err != nil {
+			c.Logger.Logger.Error().Err(err).Str("dir", cnst.OEMPath).Msg("Failed to create the OEM mountpoint")
+			return err
+		}
+
+		// At install time elemental has the partition at /run/cos/oem.
+		_ = c.Mounter.Unmount(cnst.OEMDir)
+
+		c.Logger.Logger.Debug().Str("device", device).Msg("Mounting OEM partition")
+		if err := c.Mounter.Mount(device, cnst.OEMPath, "auto", []string{}); err != nil {
+			// Writing on without the mount would put the options on the
+			// ephemeral root and report success.
+			c.Logger.Logger.Error().Err(err).Str("device", device).Msg("Failed to mount the OEM partition")
+			return err
+		}
+		defer func() {
+			c.Logger.Logger.Debug().Msg("Unmounting OEM partition")
+			_ = c.Mounter.Unmount(cnst.OEMPath)
+		}()
+	}
 
 	grubenvPath := filepath.Join(cnst.OEMPath, cnst.GrubEnv)
-	err := utils.SetPersistentVariables(grubenvPath, opts, &c)
-	if err != nil {
+	if err := utils.SetPersistentVariables(grubenvPath, opts, &c); err != nil {
 		c.Logger.Logger.Error().Err(err).Str("grubfile", grubenvPath).Msg("Failed to set grub options in OEM")
 		return err
 	}
