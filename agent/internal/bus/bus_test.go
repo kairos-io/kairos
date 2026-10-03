@@ -3,6 +3,7 @@ package bus_test
 import (
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/kairos-io/kairos/v4/agent/internal/bus"
 	sdkbus "github.com/kairos-io/kairos/v4/sdk/bus"
@@ -77,22 +78,45 @@ var _ = Describe("Bus", func() {
 			Expect(err.Error()).To(ContainSubstring("broken"))
 		})
 
-		It("still asks the providers that come after it", func() {
-			// Autoload sorts by the glob, so "a-broken" is asked before "b-good".
+		It("still asks the other providers", func() {
 			writeProvider(providerDir, "agent-provider-a-broken", `{"error":"down"}`)
 			writeProvider(providerDir, "agent-provider-b-good", `{"state":"reached"}`)
 
 			b := bus.NewBus()
 			b.Initialize(providerDir)
 
+			// Providers answer on their own goroutines, in no fixed order, so
+			// the listener has to guard what it records.
+			var mu sync.Mutex
 			var answered []string
 			b.Response(sdkbus.EventBootstrap, func(p *pluggable.Plugin, _ *pluggable.EventResponse) {
+				mu.Lock()
+				defer mu.Unlock()
 				answered = append(answered, p.Name)
 			})
 
 			_, err := b.Publish(sdkbus.EventBootstrap, struct{}{})
 			Expect(err).To(HaveOccurred())
+
+			mu.Lock()
+			defer mu.Unlock()
 			Expect(answered).To(ConsistOf("a-broken", "b-good"))
+		})
+
+		It("reports every provider that failed, not just the first", func() {
+			// Two failures in one Publish. Their responses are handled
+			// concurrently, so this is the spec that catches an unguarded
+			// append to the error slice.
+			writeProvider(providerDir, "agent-provider-a-broken", `{"error":"down"}`)
+			writeProvider(providerDir, "agent-provider-b-broken", `{"error":"also down"}`)
+
+			b := bus.NewBus()
+			b.Initialize(providerDir)
+
+			_, err := b.Publish(sdkbus.EventBootstrap, struct{}{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("down"))
+			Expect(err.Error()).To(ContainSubstring("also down"))
 		})
 
 		It("reports nothing once a later Publish succeeds", func() {

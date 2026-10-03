@@ -3,6 +3,7 @@ package bus_test
 import (
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
 	"github.com/mudler/go-pluggable"
@@ -51,24 +52,48 @@ var _ = Describe("Bus", func() {
 			Expect(err.Error()).To(ContainSubstring("broken"))
 		})
 
-		It("still asks the providers that come after it", func() {
-			// Autoload sorts by the glob, so "a-broken" is asked before "b-good".
+		It("still asks the other providers", func() {
 			writeProvider(providerDir, "kcrypt-discovery-a-broken", `{"error":"down"}`)
 			writeProvider(providerDir, "kcrypt-discovery-b-good", `{"data":"s3cret"}`)
 
 			b := bus.NewBus()
 			b.Initialize()
 
+			// Providers answer on their own goroutines, in no fixed order, so
+			// the listener has to guard what it records.
+			var mu sync.Mutex
 			var passwords []string
 			b.Response(bus.EventDiscoveryPassword, func(_ *pluggable.Plugin, r *pluggable.EventResponse) {
-				if r.Data != "" {
-					passwords = append(passwords, r.Data)
+				if r.Data == "" {
+					return
 				}
+				mu.Lock()
+				defer mu.Unlock()
+				passwords = append(passwords, r.Data)
 			})
 
 			_, err := b.Publish(bus.EventDiscoveryPassword, struct{}{})
 			Expect(err).To(HaveOccurred())
+
+			mu.Lock()
+			defer mu.Unlock()
 			Expect(passwords).To(ConsistOf("s3cret"))
+		})
+
+		It("reports every provider that failed, not just the first", func() {
+			// Two failures in one Publish. Their responses are handled
+			// concurrently, so this is the spec that catches an unguarded
+			// append to the error slice.
+			writeProvider(providerDir, "kcrypt-discovery-a-broken", `{"error":"the KMS is unreachable"}`)
+			writeProvider(providerDir, "kcrypt-discovery-b-broken", `{"error":"the token expired"}`)
+
+			b := bus.NewBus()
+			b.Initialize()
+
+			_, err := b.Publish(bus.EventDiscoveryPassword, struct{}{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("the KMS is unreachable"))
+			Expect(err.Error()).To(ContainSubstring("the token expired"))
 		})
 	})
 })

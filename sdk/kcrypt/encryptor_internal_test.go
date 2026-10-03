@@ -43,7 +43,7 @@ func newRemoteKMSEncryptorForTest() *RemoteKMSEncryptor {
 
 func TestGetPasswordFromChallengerKeepsTheAnswerOfAWorkingProvider(t *testing.T) {
 	dir := discoveryProviderDir(t)
-	// Autoload sorts by the glob, so "a-broken" is asked before "b-good".
+	// Both providers are asked at once; only "b-good" has an answer.
 	writeDiscoveryProvider(t, dir, "kcrypt-discovery-a-broken", `{"error":"the KMS is unreachable"}`)
 	writeDiscoveryProvider(t, dir, "kcrypt-discovery-b-good", `{"data":"s3cret"}`)
 
@@ -71,5 +71,42 @@ func TestGetPasswordFromChallengerReportsWhyNoProviderAnswered(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "the KMS is unreachable") {
 		t.Fatalf("expected the provider's own error, got %q", err)
+	}
+}
+
+// Two providers that both have an answer race on the single password the
+// handler keeps, which is why that variable is guarded.
+func TestGetPasswordFromChallengerWithTwoAnsweringProviders(t *testing.T) {
+	dir := discoveryProviderDir(t)
+	writeDiscoveryProvider(t, dir, "kcrypt-discovery-a-good", `{"data":"first"}`)
+	writeDiscoveryProvider(t, dir, "kcrypt-discovery-b-good", `{"data":"second"}`)
+
+	password, err := newRemoteKMSEncryptorForTest().
+		getPasswordFromChallenger(&partitions.Partition{Name: "vda2", FilesystemLabel: "COS_PERSISTENT"})
+	if err != nil {
+		t.Fatalf("expected a password, got error: %s", err)
+	}
+	// Either provider may answer first, but exactly one answer is kept.
+	if password != "first" && password != "second" {
+		t.Fatalf("expected one provider's password, got %q", password)
+	}
+}
+
+// Every provider that failed has to reach the caller, not just the first one
+// to answer.
+func TestGetPasswordFromChallengerReportsEveryFailure(t *testing.T) {
+	dir := discoveryProviderDir(t)
+	writeDiscoveryProvider(t, dir, "kcrypt-discovery-a-broken", `{"error":"the KMS is unreachable"}`)
+	writeDiscoveryProvider(t, dir, "kcrypt-discovery-b-broken", `{"error":"the token expired"}`)
+
+	_, err := newRemoteKMSEncryptorForTest().
+		getPasswordFromChallenger(&partitions.Partition{Name: "vda2", FilesystemLabel: "COS_PERSISTENT"})
+	if err == nil {
+		t.Fatal("expected an error when every provider failed")
+	}
+	for _, want := range []string{"the KMS is unreachable", "the token expired"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected %q in the error, got %q", want, err)
+		}
 	}
 }

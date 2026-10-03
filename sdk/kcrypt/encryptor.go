@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -233,15 +234,24 @@ func (e *RemoteKMSEncryptor) getPasswordFromChallenger(b *partitions.Partition) 
 
 	bus.Reload()
 
-	// Every registered provider is asked in turn, so keep the first password
-	// that arrives: a provider that answers after it must not overwrite it with
-	// its own empty one.
+	// Every registered provider is asked at once and answers on its own
+	// goroutine, so keep the first password that arrives and guard it: a
+	// provider that answers after it must not overwrite it with its own empty
+	// one, and two providers answering together must not race on it.
+	var passwordMu sync.Mutex
 	bus.Manager.Response(bus.EventDiscoveryPassword, func(_ *pluggable.Plugin, r *pluggable.EventResponse) {
 		if r.Errored() {
 			log.Logger.Error().Err(fmt.Errorf("failed discovery: %s", r.Error)).Msg("Plugin returned error")
 			return
 		}
-		if r.Data == "" || password != "" {
+		if r.Data == "" {
+			return
+		}
+
+		passwordMu.Lock()
+		defer passwordMu.Unlock()
+
+		if password != "" {
 			return
 		}
 		password = r.Data
