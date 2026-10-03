@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
@@ -341,5 +343,79 @@ func TestStateRegistersGetAndNoApply(t *testing.T) {
 	}
 	if !names["get"] {
 		t.Errorf("state lost its get subcommand, subcommands %v", names)
+	}
+}
+
+func TestPrintProviderReleasesPrintsEveryRelease(t *testing.T) {
+	var out strings.Builder
+
+	if printed := printProviderReleases(&out, []string{"v3.5.0", "v3.4.2", "v3.4.1"}); !printed {
+		t.Fatal("expected printProviderReleases to report that it printed something")
+	}
+
+	want := "Available releases from provider:\nv3.5.0\nv3.4.2\nv3.4.1\n"
+	if out.String() != want {
+		t.Fatalf("expected every release to be listed, got:\n%s", out.String())
+	}
+}
+
+func TestPrintProviderReleasesWithoutReleases(t *testing.T) {
+	var out strings.Builder
+
+	if printed := printProviderReleases(&out, nil); printed {
+		t.Fatal("expected printProviderReleases to report that it printed nothing")
+	}
+
+	if out.String() != "" {
+		t.Fatalf("expected no output, got:\n%s", out.String())
+	}
+}
+
+func TestReleaseCollectorKeepsEveryProvidersReleases(t *testing.T) {
+	rc := &releaseCollector{}
+	rc.collect(`["v3.5.0","v3.4.2"]`)
+	rc.collect(`["v3.3.1"]`)
+
+	got := rc.releases()
+	want := []string{"v3.5.0", "v3.4.2", "v3.3.1"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestReleaseCollectorSkipsEmptyAndUnreadableResponses(t *testing.T) {
+	rc := &releaseCollector{}
+	rc.collect("")
+	rc.collect("not json")
+	rc.collect(`["v3.5.0"]`)
+
+	got := rc.releases()
+	if len(got) != 1 || got[0] != "v3.5.0" {
+		t.Fatalf("expected only the readable response to be kept, got %v", got)
+	}
+}
+
+// Providers answer from their own goroutines, so the collector has to be safe
+// to call concurrently. Run with -race for this to mean anything.
+func TestReleaseCollectorIsSafeForConcurrentProviders(t *testing.T) {
+	rc := &releaseCollector{}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			rc.collect(fmt.Sprintf(`["v3.%d.0","v3.%d.1"]`, i, i))
+		}(i)
+	}
+	wg.Wait()
+
+	if got := rc.releases(); len(got) != 16 {
+		t.Fatalf("expected the releases of all 8 providers, got %d: %v", len(got), got)
 	}
 }
