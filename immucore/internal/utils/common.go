@@ -269,6 +269,23 @@ func SystemdBooted() bool {
 	return err == nil && st.IsDir()
 }
 
+// How long the failure screen stays up before HaltWithBanner reboots the
+// node, and how long it waits for the console to settle before painting.
+//
+// These are exported because the screen is not the only thing that has to
+// outlast them. When the banner is reached from the signal watch, systemd is
+// already stopping immucore.service and counting its stop timeout, and a
+// SIGKILL at the end of that timeout ends the countdown wherever it has got
+// to. So BannerSettleDelay + BannerRebootGrace is a lower bound on the
+// TimeoutStopSec= that the unit has to declare, and the unit that declares it
+// is ImmucoreServiceDracut in kairos-init/pkg/bundled. Raising either of these
+// without raising that is kairos-io/kairos#5144: the screen promises a reboot
+// the node never performs, and the boot continues to a degraded login.
+const (
+	BannerRebootGrace = 90 * time.Second
+	BannerSettleDelay = 1 * time.Second
+)
+
 // HaltWithBanner is the operator-facing halt used by boot-blocking
 // configuration errors (render the screen with RenderFailureScreen). Unlike
 // RebootOrWait, which just prints a one-line log message, HaltWithBanner
@@ -334,10 +351,9 @@ func HaltWithBanner(banner, logMsg string, err error) {
 	// to land before we draw over them. No periodic refresh — with the
 	// ticker disabled nothing else writes to the console, and repainting
 	// just flickers.
-	const grace = 90 * time.Second
 	footer := fmt.Sprintf("\n>>> Press any key to reboot now."+
-		"\n>>> Without input the system reboots automatically in %d seconds.\n", int(grace.Seconds()))
-	time.Sleep(1 * time.Second)
+		"\n>>> Without input the system reboots automatically in %d seconds.\n", int(BannerRebootGrace.Seconds()))
+	time.Sleep(BannerSettleDelay)
 	paintBanner(consoles, banner+footer)
 
 	keyPressed := make(chan struct{}, 1)
@@ -348,7 +364,7 @@ func HaltWithBanner(banner, logMsg string, err error) {
 	select {
 	case <-keyPressed:
 		KLog.Logger.Warn().Msg("key pressed on console; rebooting")
-	case <-time.After(grace):
+	case <-time.After(BannerRebootGrace):
 		KLog.Logger.Warn().Msg("no key press within grace period; rebooting")
 	}
 

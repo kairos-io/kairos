@@ -138,6 +138,23 @@ fi`
 // Wants= behaves identically whenever the unit is present and succeeds.
 // Removing the ordering altogether needs immucore to wait for its own
 // labelled devices first; see kairos-io/kairos#1378.
+//
+// TimeoutStopSec= is set because the Conflicts= above is how the failure
+// screen gets reached in the first place. A switch-root that starts while the
+// mount DAG is still running sends immucore a SIGTERM, immucore paints
+// "KAIROS BOOT FAILED" and offers a reboot in 90 seconds, and systemd is at
+// the same moment counting the stop timeout that ends in SIGKILL. With no
+// TimeoutStopSec= the manager default applies, which is the same 90 seconds,
+// so the kill always lands first: the node does not reboot, the switch-root
+// goes ahead, and the boot reaches a login prompt with no persistent binds.
+// 150 seconds covers immucore's whole budget (BannerSettleDelay plus
+// BannerRebootGrace in immucore/internal/utils, 91 seconds today, plus the
+// grace the signal watch gives the DAG before painting at all) and leaves
+// room for the handoff to systemd-reboot.service.
+//
+// It costs a healthy boot nothing. Type=oneshot with RemainAfterExit=yes
+// means the process has already exited by the time systemd acts on
+// Conflicts=, so there is no one left to wait for. See kairos-io/kairos#5144.
 const ImmucoreServiceDracut = `[Unit]
 Description=immucore
 DefaultDependencies=no
@@ -151,7 +168,8 @@ Conflicts=initrd-switch-root.target
 Type=oneshot
 RemainAfterExit=yes
 StandardOutput=journal+console
-ExecStart=/usr/bin/immucore`
+ExecStart=/usr/bin/immucore
+TimeoutStopSec=150`
 
 // ImmucoreModuleSetupDracut is the dracut module setup script that is used to install the immucore module and deps
 const ImmucoreModuleSetupDracut = `#!/bin/bash
