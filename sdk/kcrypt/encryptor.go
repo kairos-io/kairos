@@ -233,17 +233,22 @@ func (e *RemoteKMSEncryptor) getPasswordFromChallenger(b *partitions.Partition) 
 
 	bus.Reload()
 
+	// Every registered provider is asked in turn, so keep the first password
+	// that arrives: a provider that answers after it must not overwrite it with
+	// its own empty one.
 	bus.Manager.Response(bus.EventDiscoveryPassword, func(_ *pluggable.Plugin, r *pluggable.EventResponse) {
-		password = r.Data
 		if r.Errored() {
-			err = fmt.Errorf("failed discovery: %s", r.Error)
-			log.Logger.Error().Err(err).Msg("Plugin returned error")
-		} else {
-			log.Logger.Info().
-				Int("password_length", len(password)).
-				Str("partition", b.Name).
-				Msg("DECRYPTION: Received password from plugin")
+			log.Logger.Error().Err(fmt.Errorf("failed discovery: %s", r.Error)).Msg("Plugin returned error")
+			return
 		}
+		if r.Data == "" || password != "" {
+			return
+		}
+		password = r.Data
+		log.Logger.Info().
+			Int("password_length", len(password)).
+			Str("partition", b.Name).
+			Msg("DECRYPTION: Received password from plugin")
 	})
 
 	// Use kcryptConfig from the encryptor, scanning if not provided
@@ -267,18 +272,21 @@ func (e *RemoteKMSEncryptor) getPasswordFromChallenger(b *partitions.Partition) 
 	}
 
 	_, err = bus.Manager.Publish(bus.EventDiscoveryPassword, payload)
+
+	// A provider that answered is what unlocks the partition, so report success
+	// even when another provider alongside it failed.
+	if password != "" {
+		log.Logger.Info().Msg("Password retrieval successful")
+		return password, nil
+	}
+
 	if err != nil {
-		log.Logger.Error().Err(err).Msg("Failed to publish event to bus")
-		return password, err
+		log.Logger.Error().Err(err).Msg("No provider could supply the password")
+		return "", err
 	}
 
-	if password == "" {
-		log.Logger.Error().Msg("Received empty password from plugin")
-		return password, fmt.Errorf("received empty password")
-	}
-
-	log.Logger.Info().Msg("Password retrieval successful")
-	return
+	log.Logger.Error().Msg("Received empty password from plugin")
+	return "", fmt.Errorf("received empty password")
 }
 
 // TPMWithPCREncryptor encrypts partitions using TPM with PCR policy (UKI mode).

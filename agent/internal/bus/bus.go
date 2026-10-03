@@ -1,6 +1,7 @@
 package bus
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -27,6 +28,9 @@ func Reload() {
 type Bus struct {
 	*pluggable.Manager
 	registered bool
+	// providerErrs holds the errors providers reported during the most recent
+	// Publish. Publish returns them so the caller can decide what to do.
+	providerErrs []error
 }
 
 // LoadProviders autoloads the agent providers from the given paths. When no
@@ -41,6 +45,25 @@ func (b *Bus) LoadProviders(paths ...string) {
 
 func (b *Bus) HasRegisteredPlugins() bool {
 	return len(b.Plugins) > 0
+}
+
+// Publish sends the event to every registered provider and returns the first
+// failure it meets: the publishing error, or the errors the providers
+// themselves reported.
+//
+// Providers run one after the other inside Publish, and their responses are
+// handled inline, so a provider that fails must not end the process: that
+// would skip every provider after it and every deferred cleanup the caller
+// has in flight, in the middle of an install, an upgrade or a reset.
+func (b *Bus) Publish(event pluggable.EventType, obj interface{}) (*pluggable.Manager, error) {
+	b.providerErrs = nil
+
+	m, err := b.Manager.Publish(event, obj)
+	if err != nil {
+		return m, err
+	}
+
+	return m, errors.Join(b.providerErrs...)
 }
 
 func (b *Bus) Initialize(paths ...string) {
@@ -63,9 +86,9 @@ func (b *Bus) Initialize(paths ...string) {
 				)
 			}
 			if r.Errored() {
-				err := fmt.Sprintf("Provider %s at %s had an error: %s", p.Name, p.Executable, r.Error)
+				err := fmt.Errorf("provider %s at %s had an error: %s", p.Name, p.Executable, r.Error)
 				fmt.Println(err)
-				os.Exit(1)
+				b.providerErrs = append(b.providerErrs, err)
 			}
 
 			if r.State != "" {
