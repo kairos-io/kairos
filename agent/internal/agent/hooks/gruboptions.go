@@ -7,6 +7,7 @@ import (
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
@@ -168,17 +169,46 @@ func (b GrubFirstBootOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 
 // writeGrubenvToState writes grub options to STATE partition's grubenv file
 // Used when OEM is encrypted since GRUB can't read the OEM partition before decryption
+//
+// On a booted node the initramfs has already mounted COS_STATE read-only at
+// /run/initramfs/cos-state. Mounting the same device again at
+// /run/cos/state yields a second read-only mount of the same superblock, so
+// the write fails with EROFS. Remount read-write for the write and put the
+// flag back, which is what SelectBootEntry does for this same file.
 func writeGrubenvToState(c sdkConfig.Config, opts map[string]string) error {
-	_ = machine.Umount(cnst.StateDir)
-	c.Logger.Logger.Debug().Msg("Mounting STATE partition")
-	_ = machine.Mount(cnst.StateLabel, cnst.StateDir)
+	device, err := lookup.MountSourceForLabel(cnst.StateLabel)
+	if err != nil {
+		c.Logger.Logger.Error().Err(err).Str("label", cnst.StateLabel).Msg("Failed to find the STATE partition")
+		return err
+	}
+
+	if err := fsutils.MkdirAll(c.Fs, cnst.StateDir, cnst.DirPerm); err != nil {
+		c.Logger.Logger.Error().Err(err).Str("dir", cnst.StateDir).Msg("Failed to create the STATE mountpoint")
+		return err
+	}
+
+	c.Logger.Logger.Debug().Str("device", device).Msg("Mounting STATE partition")
+	_ = c.Mounter.Unmount(cnst.StateDir)
+	if err := c.Mounter.Mount(device, cnst.StateDir, "auto", []string{}); err != nil {
+		c.Logger.Logger.Error().Err(err).Str("device", device).Msg("Failed to mount the STATE partition")
+		return err
+	}
 	defer func() {
 		c.Logger.Logger.Debug().Msg("Unmounting STATE partition")
-		_ = machine.Umount(cnst.StateDir)
+		// Back to read-only first: the remount below changes the superblock,
+		// so it is also the one the initramfs mount of this device sees.
+		_ = c.Mounter.Mount(device, cnst.StateDir, "auto", []string{"remount", "ro"})
+		_ = c.Mounter.Unmount(cnst.StateDir)
 	}()
 
+	// Best effort: a remount that fails on a filesystem that is writable
+	// anyway must not stop the write, and the write reports the real error.
+	if err := c.Mounter.Mount(device, cnst.StateDir, "auto", []string{"remount", "rw"}); err != nil {
+		c.Logger.Logger.Warn().Err(err).Msg("Could not remount the STATE partition read-write")
+	}
+
 	grubenvPath := filepath.Join(cnst.StateDir, cnst.GrubEnv)
-	err := utils.SetPersistentVariables(grubenvPath, opts, &c)
+	err = utils.SetPersistentVariables(grubenvPath, opts, &c)
 	if err != nil {
 		c.Logger.Logger.Error().Err(err).Str("grubfile", grubenvPath).Msg("Failed to set grub options in STATE")
 		return err

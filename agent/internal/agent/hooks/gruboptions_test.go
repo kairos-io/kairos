@@ -2,7 +2,11 @@ package hook_test
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 
 	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
@@ -10,6 +14,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	install "github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -18,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
+	"k8s.io/mount-utils"
 )
 
 var _ = Describe("SelinuxGrubOpts", func() {
@@ -56,9 +62,51 @@ var _ = Describe("SelinuxGrubOpts", func() {
 	)
 })
 
+// roStateFS models what the initramfs leaves behind on a booted node:
+// COS_STATE's superblock is mounted read-only, so every write under
+// /run/cos/state fails with EROFS until something remounts it read-write.
+// Mounting the device a second time does not help, it shares the superblock.
+type roStateFS struct {
+	sdkFs.KairosFS
+	readOnly bool
+}
+
+func (f *roStateFS) WriteFile(name string, data []byte, perm os.FileMode) error {
+	if f.readOnly && strings.HasPrefix(name, cnst.StateDir) {
+		return &os.PathError{Op: "open", Path: name, Err: syscall.EROFS}
+	}
+	return f.KairosFS.WriteFile(name, data, perm)
+}
+
+// remountMounter flips that flag the way `mount -o remount,rw` flips the
+// superblock, and records every mount call so the test can assert the
+// read-only flag is put back.
+type remountMounter struct {
+	mount.Interface
+	fs  *roStateFS
+	log []string
+}
+
+func (m *remountMounter) Mount(source, target, fstype string, options []string) error {
+	m.log = append(m.log, fmt.Sprintf("%s %s [%s]", source, target, strings.Join(options, ",")))
+	if target == cnst.StateDir {
+		for _, o := range options {
+			switch o {
+			case "rw":
+				m.fs.readOnly = false
+			case "ro":
+				m.fs.readOnly = true
+			}
+		}
+	}
+	return m.Interface.Mount(source, target, fstype, options)
+}
+
 var _ = Describe("GrubFirstBootOptions", func() {
 	var cfg *sdkConfig.Config
 	var fs vfs.FS
+	var stateFS *roStateFS
+	var mounter *remountMounter
 	var memLog *bytes.Buffer
 	var ghwTest ghwMock.GhwMock
 	var cleanup func()
@@ -95,9 +143,12 @@ var _ = Describe("GrubFirstBootOptions", func() {
 			cnst.OEMPath:  &vfst.Dir{Perm: 0755},
 		})
 		Expect(err).ShouldNot(HaveOccurred())
+		stateFS = &roStateFS{KairosFS: fs, readOnly: true}
+		mounter = &remountMounter{Interface: mount.NewFakeMounter(nil), fs: stateFS}
 		cfg = config.NewConfig(
-			config.WithFs(fs),
+			config.WithFs(stateFS),
 			config.WithLogger(logger),
+			config.WithMounter(mounter),
 		)
 		cfg.Collector = collector.Config{}
 		cfg.GrubOptions = map[string]string{"default_menu_entry": "My Kairos"}
@@ -110,7 +161,8 @@ var _ = Describe("GrubFirstBootOptions", func() {
 	It("writes to the STATE grubenv when COS_OEM is a LUKS container", func() {
 		// GRUB searches the filesystems it can read for /grubenv, and an
 		// encrypted COS_OEM is not one of them, so the only grubenv that can
-		// ever be loaded on this node is the STATE one.
+		// ever be loaded on this node is the STATE one. STATE arrives
+		// read-only from the initramfs, so getting there means remounting it.
 		Expect(runWithOEM(&sdkPartitions.Partition{
 			Name:            "vda2",
 			Path:            "/dev/vda2",
@@ -124,6 +176,22 @@ var _ = Describe("GrubFirstBootOptions", func() {
 		_, readErr := grubenv(cnst.OEMPath)
 		Expect(readErr).To(HaveOccurred(),
 			"nothing may be written to the encrypted OEM, where it would be lost")
+	})
+
+	It("leaves the STATE partition read-only again", func() {
+		// The remount changes the superblock, so it also changes the
+		// initramfs mount of the same device at /run/initramfs/cos-state.
+		// Leaving STATE writable after the hook is not this hook's business.
+		Expect(runWithOEM(&sdkPartitions.Partition{
+			Name:            "vda2",
+			Path:            "/dev/vda2",
+			FilesystemLabel: cnst.OEMLabel,
+			FS:              "crypto_LUKS",
+		})).Should(Succeed())
+
+		Expect(stateFS.readOnly).To(BeTrue(), "mount calls: %v", mounter.log)
+		Expect(mounter.log).To(ContainElement("/dev/vda1 " + cnst.StateDir + " [remount,rw]"))
+		Expect(mounter.log).To(ContainElement("/dev/vda1 " + cnst.StateDir + " [remount,ro]"))
 	})
 
 	It("writes to the OEM grubenv when COS_OEM is plaintext", func() {
