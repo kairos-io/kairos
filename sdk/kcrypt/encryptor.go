@@ -115,16 +115,17 @@ func (e *RemoteKMSEncryptor) unlockPartition(partitionLabel string) error {
 			continue
 		}
 
-		// Verify the partition is now visible
-		checkPath, _ := utils.SH(fmt.Sprintf("blkid -L %s", partitionLabel))
-		if strings.TrimSpace(checkPath) != "" {
+		// Verify the mapper device the unlock should have created is there. The
+		// filesystem label stays on the LUKS container, so a lookup by label
+		// answers the same before and after the unlock and cannot verify it.
+		if !partitionLocked(info) {
 			e.logger.Logger.Info().
 				Str("partition", partitionLabel).
 				Msg("Partition unlocked and verified")
 			return nil
 		}
 
-		lastErr = fmt.Errorf("partition unlocked but not visible")
+		lastErr = fmt.Errorf("unlock reported success but %s was not created", lookup.MapperPath(info))
 	}
 
 	return fmt.Errorf("failed after 10 attempts: %w", lastErr)
@@ -362,16 +363,17 @@ func (e *TPMWithPCREncryptor) unlockPartition(partitionLabel string) error {
 			continue
 		}
 
-		// Verify the partition is now visible
-		checkPath, _ := utils.SH(fmt.Sprintf("blkid -L %s", partitionLabel))
-		if strings.TrimSpace(checkPath) != "" {
+		// Verify the mapper device the unlock should have created is there. The
+		// filesystem label stays on the LUKS container, so a lookup by label
+		// answers the same before and after the unlock and cannot verify it.
+		if !partitionLocked(info) {
 			e.logger.Logger.Info().
 				Str("partition", partitionLabel).
 				Msg("Partition unlocked and verified")
 			return nil
 		}
 
-		lastErr = fmt.Errorf("partition unlocked but not visible")
+		lastErr = fmt.Errorf("unlock reported success but %s was not created", lookup.MapperPath(info))
 	}
 
 	return fmt.Errorf("failed after 10 attempts: %w", lastErr)
@@ -507,16 +509,17 @@ func (e *LocalTPMNVEncryptor) unlockPartition(partitionLabel string) error {
 			continue
 		}
 
-		// Verify the partition is now visible
-		checkPath, _ := utils.SH(fmt.Sprintf("blkid -L %s", partitionLabel))
-		if strings.TrimSpace(checkPath) != "" {
+		// Verify the mapper device the unlock should have created is there. The
+		// filesystem label stays on the LUKS container, so a lookup by label
+		// answers the same before and after the unlock and cannot verify it.
+		if !partitionLocked(info) {
 			e.logger.Logger.Info().
 				Str("partition", partitionLabel).
 				Msg("Partition unlocked and verified")
 			return nil
 		}
 
-		lastErr = fmt.Errorf("partition unlocked but not visible")
+		lastErr = fmt.Errorf("unlock reported success but %s was not created", lookup.MapperPath(info))
 	}
 
 	return fmt.Errorf("failed after 10 attempts: %w", lastErr)
