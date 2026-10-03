@@ -8,6 +8,7 @@ import (
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	install "github.com/kairos-io/kairos/v4/sdk/types/install"
@@ -119,6 +120,21 @@ func SelinuxGrubOpts(selinux install.SelinuxOptions) map[string]string {
 	}
 }
 
+// OEMIsEncrypted reports whether the partition labelled COS_OEM is a LUKS
+// container on this node. It is the runtime equivalent of the install hook's
+// read of install.encrypted_partitions: by the time the first boot runs, that
+// config is no longer the authority on what is on the disk, so the block
+// devices are asked instead. The classification is the one every other
+// consumer of the question uses (the kcrypt encrypt subcommand, immucore's
+// encrypt-pending step), so none of them drifts on the edge cases.
+func OEMIsEncrypted() (bool, error) {
+	disks, err := lookup.ScanBlockDevices()
+	if err != nil {
+		return false, err
+	}
+	return lookup.LabelIsEncrypted(disks, cnst.OEMLabel, lookup.FindByBlkid, lookup.FilesystemType)
+}
+
 // GrubFirstBootOptions is a hook that runs on the first boot to add grub options.
 type GrubFirstBootOptions struct{}
 
@@ -128,10 +144,22 @@ func (b GrubFirstBootOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	}
 	c.Logger.Logger.Info().Msg("Running GrubOptions hook")
 	c.Logger.Debugf("Setting grub options: %s", c.GrubOptions)
-	// At first boot, we don't know if OEM is encrypted, so assume it's not encrypted
-	// and write to OEM only (if OEM is actually encrypted, grubenv will be written to STATE during install)
-	err := grubOptions(c, c.GrubOptions, false)
+
+	// GRUB finds its environment block by searching the filesystems it can
+	// read, so a grubenv on an encrypted COS_OEM is loaded by nobody. These
+	// are the top-level grub_options, which the install hook never sees, so
+	// writing them to OEM on an encrypted node loses them for good. Ask the
+	// disk which grubenv GRUB will be able to read.
+	oemEncrypted, err := OEMIsEncrypted()
 	if err != nil {
+		// Keep the previous target rather than move the file on a guess, and
+		// say why the question went unanswered, because on an encrypted node
+		// the options are about to be written where GRUB cannot read them.
+		c.Logger.Logger.Warn().Err(err).Msg("Could not determine whether COS_OEM is encrypted, writing grub options to OEM; if it is encrypted GRUB cannot read them")
+		oemEncrypted = false
+	}
+
+	if err := grubOptions(c, c.GrubOptions, oemEncrypted); err != nil {
 		return err
 	}
 	c.Logger.Logger.Info().Msg("Finish GrubOptions hook")
