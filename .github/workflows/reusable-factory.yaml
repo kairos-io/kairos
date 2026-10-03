@@ -719,7 +719,7 @@ jobs:
           echo "   Image Tag: $IMAGE_TAG"
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@bedaf135699075c88620cd30772b9b6eadc9ba99  # master
+        uses: docker/setup-buildx-action@594f3bf4285d9ea8dc53c9a0c9c4092420091003  # master
         with:
           platforms: linux/${{ inputs.arch }}
 
