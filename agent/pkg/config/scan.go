@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/kairos/v4/internal/version"
@@ -66,6 +67,9 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	}
 
 	result.Collector = *genericConfig
+	if err := validateRegistryAuthKeys(result.Collector.Values); err != nil {
+		return result, err
+	}
 	configStr, err := genericConfig.String()
 	if err != nil {
 		return result, err
@@ -160,7 +164,83 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	}
 
 	litter.Config.HideZeroValues = true
-	result.Logger.Debugf("Loaded config: %s", litter.Sdump(result))
+	result.Logger.Debugf("Loaded config: %s", RedactedConfigDump(result))
 
 	return result, nil
+}
+
+// RedactedConfigDump returns a redacted snapshot of configuration data only.
+// Runtime services and providers are excluded from the diagnostic output.
+func RedactedConfigDump(result *sdkConfig.Config) string {
+	if err := validateRegistryAuthKeys(result.Collector.Values); err != nil {
+		return err.Error()
+	}
+	data, err := yaml.Marshal(map[string]interface{}{
+		"config":    result,
+		"collector": result.Collector.Values,
+	})
+	if err != nil {
+		return "configuration diagnostic unavailable"
+	}
+	var snapshot map[string]interface{}
+	if err := yaml.Unmarshal(data, &snapshot); err != nil {
+		return "configuration diagnostic unavailable"
+	}
+	return litter.Sdump(redactConfigValues(snapshot))
+}
+
+func isSensitiveConfigKey(key string) bool {
+	key = strings.ToLower(key)
+	if key == "ssh_authorized_keys" {
+		return false
+	}
+	for _, part := range []string{"auth", "passwd", "password", "token", "secret"} {
+		if strings.Contains(key, part) {
+			return true
+		}
+	}
+	return false
+}
+
+func redactConfigValues(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case collector.ConfigValues:
+		out := collector.ConfigValues{}
+		for key, child := range typed {
+			if isSensitiveConfigKey(key) {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case map[string]interface{}:
+		out := map[string]interface{}{}
+		for key, child := range typed {
+			if isSensitiveConfigKey(key) {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case map[interface{}]interface{}:
+		out := map[interface{}]interface{}{}
+		for key, child := range typed {
+			if text, ok := key.(string); ok && isSensitiveConfigKey(text) {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(typed))
+		for i, child := range typed {
+			out[i] = redactConfigValues(child)
+		}
+		return out
+	default:
+		return value
+	}
 }
