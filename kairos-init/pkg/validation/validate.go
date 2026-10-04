@@ -48,32 +48,16 @@ func NewValidator(logger logger.KairosLogger) *Validator {
 func (v *Validator) Validate() error {
 	var multi *multierror.Error
 
-	binaries := []string{
-		"immucore",
-		"kairos-agent",
-		"sudo",
-		"less",
-		"kcrypt-discovery-challenger",
-	}
-	// Why do we check for "mount.nfs" ?? Is it that required somehow? Do we consider part of the requirements
-	if v.System.Family != values.HadronFamily {
-		binaries = append(binaries, "mount.nfs")
+	// The image describes itself in /etc/kairos-release, and that is the only
+	// description available here. Read it once, up front, because what is
+	// checked below depends on it.
+	vals, releaseErr := godotenv.Read("/etc/kairos-release")
+	if releaseErr != nil {
+		vals = map[string]string{}
 	}
 
-	if config.DefaultConfig.Variant == "standard" {
-		binaries = append(binaries, "agent-provider-kairos", "kairos", "edgevpn")
-	}
-
-	vals, err := godotenv.Read("/etc/kairos-release")
-	if err == nil {
-		provider := vals["KAIROS_SOFTWARE_VERSION"]
-		switch provider {
-		case "k3s":
-			binaries = append(binaries, "k3s")
-		case "k0s":
-			binaries = append(binaries, "k0s")
-		}
-	}
+	variant, variantErr := imageVariant(vals)
+	binaries := expectedBinaries(v.System.Family, variant, vals)
 
 	// Alter path to include our providers path
 	originalPath := os.Getenv("PATH")
@@ -143,8 +127,7 @@ func (v *Validator) Validate() error {
 		"KAIROS_RELEASE",
 	}
 
-	vals, err = godotenv.Read("/etc/kairos-release")
-	if err != nil {
+	if releaseErr != nil {
 		multi = multierror.Append(multi, fmt.Errorf("[RELEASE] could not open kairos-release file"))
 	} else {
 		for _, key := range keys {
@@ -154,10 +137,14 @@ func (v *Validator) Validate() error {
 		}
 	}
 
-	if config.DefaultConfig.Variant == "standard" {
-		if vals["KAIROS_VARIANT"] != "standard" {
-			multi = multierror.Append(multi, fmt.Errorf("[RELEASE] KAIROS_VARIANT is not standard"))
-		}
+	// A KAIROS_VARIANT nobody recognizes is reported here rather than silently
+	// validated as core. An absent one is already covered by the key loop
+	// above, so imageVariant stays quiet about it.
+	if variantErr != nil {
+		multi = multierror.Append(multi, variantErr)
+	}
+
+	if variant == config.StandardVariant {
 		if vals["KAIROS_SOFTWARE_VERSION"] == "" {
 			multi = multierror.Append(multi, fmt.Errorf("[RELEASE] KAIROS_SOFTWARE_VERSION is empty"))
 		}
@@ -243,7 +230,7 @@ func (v *Validator) Validate() error {
 	}
 
 	// Validate exactly one kernel is installed
-	if err := v.ValidateKernel(); err != nil {
+	if err := v.ValidateKernel(imageModel(vals)); err != nil {
 		multi = multierror.Append(multi, err)
 	}
 
@@ -328,9 +315,83 @@ func (v *Validator) ValidateGettyServices() error {
 	return v.ValidateGettyServicesWithPaths(defaultSystemdSearchPaths)
 }
 
-// ValidateKernel checks that the kernel chooser can find a valid kernel under /lib/modules.
-func (v *Validator) ValidateKernel() error {
-	return v.ValidateKernelWithPath("/lib/modules", config.DefaultConfig.Model)
+// ValidateKernel checks that the kernel chooser can find a valid kernel under
+// /lib/modules for the given model.
+func (v *Validator) ValidateKernel(model string) error {
+	return v.ValidateKernelWithPath("/lib/modules", model)
+}
+
+// expectedBinaries is the set of binaries an image has to ship for the family
+// it is built on and the variant and provider it records in vals, its own
+// kairos-release.
+func expectedBinaries(family values.Family, variant config.Variant, vals map[string]string) []string {
+	binaries := []string{
+		"immucore",
+		"kairos-agent",
+		"sudo",
+		"less",
+		"kcrypt-discovery-challenger",
+	}
+
+	// Why do we check for "mount.nfs" ?? Is it that required somehow? Do we consider part of the requirements
+	if family != values.HadronFamily {
+		binaries = append(binaries, "mount.nfs")
+	}
+
+	if variant == config.StandardVariant {
+		binaries = append(binaries, "agent-provider-kairos", "kairos", "edgevpn")
+	}
+
+	// The provider's name is in KAIROS_SOFTWARE_VERSION_PREFIX.
+	// KAIROS_SOFTWARE_VERSION beside it holds that provider's version, such as
+	// v1.35.5+k3s1, so it never equals a bare provider name.
+	switch vals["KAIROS_SOFTWARE_VERSION_PREFIX"] {
+	case "k3s":
+		binaries = append(binaries, "k3s")
+	case "k0s":
+		binaries = append(binaries, "k0s")
+	}
+
+	return binaries
+}
+
+// imageVariant reports the variant the image under validation was built as.
+//
+// It comes from the image's own kairos-release rather than from
+// config.DefaultConfig.Variant, because --provider is registered on the root
+// command's local flag set (main.go) and cobra does not pass a local flag to a
+// subcommand. So preRun sees no provider on a validate run and resolves the
+// variant to core every time, whatever the image is. This is the same reason
+// the FIPS note above gives, and reading the image is also what lets validate
+// be run against an image somebody else built.
+//
+// An absent KAIROS_VARIANT is reported by the kairos-release key check, so it
+// returns core here without a second error.
+func imageVariant(vals map[string]string) (config.Variant, error) {
+	raw := vals["KAIROS_VARIANT"]
+	if raw == "" {
+		return config.CoreVariant, nil
+	}
+
+	var variant config.Variant
+	if err := variant.FromString(raw); err != nil {
+		return config.CoreVariant, fmt.Errorf("[RELEASE] KAIROS_VARIANT: %w", err)
+	}
+
+	return variant, nil
+}
+
+// imageModel reports the model the image under validation was built for.
+// KAIROS_MODEL is written by the init stage from the same --model the kernel
+// step used, and --model is local to the root command too, so the release file
+// is the only place validate can read it from. An image that records no model
+// is validated as generic, which is what the flag itself defaults to.
+func imageModel(vals map[string]string) string {
+	if model := vals["KAIROS_MODEL"]; model != "" {
+		return model
+	}
+
+	return values.Generic.String()
 }
 
 // ValidateKernelWithPath checks that the kernel chooser can find a valid kernel in the given
