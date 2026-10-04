@@ -145,8 +145,15 @@ func NewApp() *cli.App {
 
 // Run runs the immucore CLI with os.Args and returns a process exit code.
 func Run() int {
-	if err := NewApp().Run(os.Args); err != nil {
-		fmt.Println(err)
+	return runApp(NewApp(), os.Args)
+}
+
+// runApp runs app with args and returns a process exit code. A fatal error is
+// written to stderr, next to the boot-failure summary the action already
+// prints there, so stdout carries only what the command was asked to produce.
+func runApp(app *cli.App, args []string) int {
+	if err := app.Run(args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	return 0
