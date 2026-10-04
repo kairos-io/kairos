@@ -81,7 +81,6 @@ var allowInsecureRegistriesFlag = cli.BoolFlag{
 
 var kcryptNVIndexFlag = cli.StringFlag{
 	Name:  "nv-index",
-	Value: kcrypt.DefaultLocalPassphraseNVIndex,
 	Usage: "NV index to operate on (defaults to configured index or 0x1500000)",
 }
 
