@@ -193,9 +193,17 @@ func grubOptions(c sdkConfig.Config, opts map[string]string, oemEncrypted bool) 
 	return writeGrubenvToOem(c, opts)
 }
 
-// extractKcryptCmdline extracts kcrypt.challenger config from the Kairos config and
+// extractKcryptCmdline extracts the kcrypt config from the Kairos config and
 // formats it as kernel command line arguments for use in grub.
-// This allows kcrypt-challenger to access KMS settings even when COS_OEM is encrypted.
+// This allows kcrypt to read its settings even when COS_OEM is encrypted and
+// the configuration files on it cannot be read yet.
+//
+// Each setting is written under the key its reader asks for.
+// extractKcryptConfigFromCollector in sdk/kcrypt takes challenger_server,
+// mdns and certificate from kcrypt.challenger, and nv_index, c_index and
+// tpm_device from the top level of the kcrypt block, which is where
+// schema.KcryptSchema declares them. Writing the TPM settings under
+// kcrypt.challenger instead puts them where nothing reads them.
 func extractKcryptCmdline(c *sdkConfig.Config) string {
 	var cmdlineArgs []string
 
@@ -216,43 +224,35 @@ func extractKcryptCmdline(c *sdkConfig.Config) string {
 		return ""
 	}
 
-	challengerVal, hasChallengerKey := kcryptMap["challenger"]
-	if !hasChallengerKey {
-		return ""
+	// The challenger block is optional. A node that unlocks against its own
+	// TPM has no key management server and still needs the TPM settings
+	// below, so an absent challenger block is not a reason to stop.
+	if challengerVal, hasChallenger := kcryptMap["challenger"]; hasChallenger {
+		challengerMap, ok := challengerVal.(collector.ConfigValues)
+		if !ok {
+			c.Logger.Logger.Debug().Msg("kcrypt.challenger config is not in expected format")
+		} else {
+			if server, ok := challengerMap["challenger_server"].(string); ok && server != "" {
+				// URL encode any special characters in the server URL
+				cmdlineArgs = append(cmdlineArgs, fmt.Sprintf("kcrypt.challenger.challenger_server=%s", server))
+			}
+
+			if mdns, ok := challengerMap["mdns"].(bool); ok && mdns {
+				cmdlineArgs = append(cmdlineArgs, "kcrypt.challenger.mdns=true")
+			}
+
+			if cert, ok := challengerMap["certificate"].(string); ok && cert != "" {
+				cmdlineArgs = append(cmdlineArgs, fmt.Sprintf("kcrypt.challenger.certificate=%s", cert))
+			}
+		}
 	}
 
-	challengerMap, ok := challengerVal.(collector.ConfigValues)
-	if !ok {
-		c.Logger.Logger.Debug().Msg("kcrypt.challenger config is not in expected format")
-		return ""
-	}
-
-	// Extract individual settings and add as cmdline parameters
-	// Using kcrypt.challenger.* prefix to match the expected config structure
-
-	if server, ok := challengerMap["challenger_server"].(string); ok && server != "" {
-		// URL encode any special characters in the server URL
-		cmdlineArgs = append(cmdlineArgs, fmt.Sprintf("kcrypt.challenger.challenger_server=%s", server))
-	}
-
-	if mdns, ok := challengerMap["mdns"].(bool); ok && mdns {
-		cmdlineArgs = append(cmdlineArgs, "kcrypt.challenger.mdns=true")
-	}
-
-	if cert, ok := challengerMap["certificate"].(string); ok && cert != "" {
-		cmdlineArgs = append(cmdlineArgs, fmt.Sprintf("kcrypt.challenger.certificate=%s", cert))
-	}
-
-	if nvIndex, ok := challengerMap["nv_index"].(string); ok && nvIndex != "" {
-		cmdlineArgs = append(cmdlineArgs, fmt.Sprintf("kcrypt.challenger.nv_index=%s", nvIndex))
-	}
-
-	if cIndex, ok := challengerMap["c_index"].(string); ok && cIndex != "" {
-		cmdlineArgs = append(cmdlineArgs, fmt.Sprintf("kcrypt.challenger.c_index=%s", cIndex))
-	}
-
-	if tpmDevice, ok := challengerMap["tpm_device"].(string); ok && tpmDevice != "" {
-		cmdlineArgs = append(cmdlineArgs, fmt.Sprintf("kcrypt.challenger.tpm_device=%s", tpmDevice))
+	// The local TPM settings live at the top level of the kcrypt block, in
+	// the order the schema declares them, so the cmdline is deterministic.
+	for _, key := range []string{"nv_index", "c_index", "tpm_device"} {
+		if value, ok := kcryptMap[key].(string); ok && value != "" {
+			cmdlineArgs = append(cmdlineArgs, fmt.Sprintf("kcrypt.%s=%s", key, value))
+		}
 	}
 
 	return strings.Join(cmdlineArgs, " ")
