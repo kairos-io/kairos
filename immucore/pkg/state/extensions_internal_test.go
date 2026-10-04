@@ -157,6 +157,36 @@ var _ = Describe("enabling extensions from a directory", func() {
 		Expect(string(content)).To(Equal("already"))
 	})
 
+	// The boot enables the boot state's directory and then "common", so the
+	// second pass meets the link the first one left. That link points into the
+	// final namespace and does not resolve while immucore is still in the
+	// initramfs, which is the case the guard has to survive.
+	It("keeps the boot state's image when common holds the same name", func() {
+		common := "/var/lib/kairos/extensions/common"
+		Expect(os.MkdirAll(s.path(common), 0755)).To(Succeed())
+		write(s.path(source), "work.sysext.raw")
+		write(s.path(common), "work.sysext.raw")
+
+		Expect(enableExtensionsFrom(s, source, dest, "sysext", rejects())).To(Succeed())
+		Expect(enableExtensionsFrom(s, common, dest, "sysext", rejects())).To(Succeed())
+
+		target, err := os.Readlink(filepath.Join(dest, "work.sysext.raw"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(target).To(Equal(filepath.Join(source, "work.sysext.raw")))
+	})
+
+	It("leaves an already enabled image alone when its link does not resolve", func() {
+		write(s.path(source), "work.sysext.raw")
+		Expect(os.Symlink("/var/lib/kairos/extensions/common/work.sysext.raw",
+			filepath.Join(dest, "work.sysext.raw"))).To(Succeed())
+
+		Expect(enableExtensionsFrom(s, source, dest, "sysext", rejects())).To(Succeed())
+
+		target, err := os.Readlink(filepath.Join(dest, "work.sysext.raw"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(target).To(Equal("/var/lib/kairos/extensions/common/work.sysext.raw"))
+	})
+
 	It("is not an error when the directory does not exist", func() {
 		Expect(enableExtensionsFrom(s, "/var/lib/kairos/extensions/recovery", dest, "sysext", rejects())).To(Succeed())
 	})
