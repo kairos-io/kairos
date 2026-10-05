@@ -23,6 +23,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 
 	"github.com/mudler/go-pluggable"
+	"golang.org/x/term"
 )
 
 func Reset(reboot, unattended, resetOem bool, dir ...string) error {
@@ -100,11 +101,12 @@ func resetUki(reboot, unattended, resetOem bool, dir ...string) error {
 }
 
 // operatorAbortedReset blocks on the prompt and reports whether the operator
-// asked to abort the reset. Only a real answer counts as an abort; a read
-// error (stdin at EOF, not a terminal) lets the reset go on.
-func operatorAbortedReset(prompt func(string) (string, error)) bool {
+// asked to abort the reset. On a terminal any return from the prompt is an
+// abort, including EOF from Ctrl-D. Without a terminal a read error (stdin at
+// EOF, /dev/null, a closed pipe) lets the reset go on.
+func operatorAbortedReset(prompt func(string) (string, error), stdinIsTerminal bool) bool {
 	_, err := prompt("")
-	return err == nil
+	return err == nil || stdinIsTerminal
 }
 
 // abortedResetExitCode runs the shell handed to the operator after an aborted
@@ -137,7 +139,7 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 		lock := sync.Mutex{}
 		go func() {
 			// Wait for user input and go back to shell
-			if !operatorAbortedReset(utils.Prompt) {
+			if !operatorAbortedReset(utils.Prompt, term.IsTerminal(int(os.Stdin.Fd()))) {
 				return
 			}
 			// give tty1 back

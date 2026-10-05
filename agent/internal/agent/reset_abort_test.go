@@ -9,16 +9,32 @@ import (
 )
 
 var _ = Describe("operatorAbortedReset", func() {
-	It("treats a real answer as an abort", func() {
-		Expect(operatorAbortedReset(func(string) (string, error) { return "", nil })).To(BeTrue())
+	answer := func(string) (string, error) { return "", nil }
+	eof := func(string) (string, error) { return "", io.EOF }
+	readErr := func(string) (string, error) { return "", errors.New("input/output error") }
+
+	Context("when stdin is a terminal", func() {
+		It("treats a real answer as an abort", func() {
+			Expect(operatorAbortedReset(answer, true)).To(BeTrue())
+		})
+
+		It("treats EOF from Ctrl-D as an abort", func() {
+			Expect(operatorAbortedReset(eof, true)).To(BeTrue())
+		})
 	})
 
-	It("does not treat EOF on stdin as an operator abort", func() {
-		Expect(operatorAbortedReset(func(string) (string, error) { return "", io.EOF })).To(BeFalse())
-	})
+	Context("when stdin is not a terminal", func() {
+		It("treats a real answer as an abort", func() {
+			Expect(operatorAbortedReset(answer, false)).To(BeTrue())
+		})
 
-	It("does not treat other read errors as an operator abort", func() {
-		Expect(operatorAbortedReset(func(string) (string, error) { return "", errors.New("input/output error") })).To(BeFalse())
+		It("does not treat EOF on stdin as an operator abort", func() {
+			Expect(operatorAbortedReset(eof, false)).To(BeFalse())
+		})
+
+		It("does not treat other read errors as an operator abort", func() {
+			Expect(operatorAbortedReset(readErr, false)).To(BeFalse())
+		})
 	})
 })
 
