@@ -13,7 +13,6 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
-	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkInstall "github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -111,7 +110,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			// Reset the version probe to the default (0 = unknown → 257+ behaviour)
 			// so tests are isolated from each other.
-			getSystemdBootMajorVersion = func(_ sdkFs.KairosFS, _ string) uint16 { return 0 }
+			getSystemdBootMajorVersion = func(_ *sdkConfig.Config, _ string) uint16 { return 0 }
 		})
 		Context("ListBootEntries", func() {
 			It("fails to list the boot entries when there is no loader.conf", func() {
@@ -435,7 +434,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			// systemd-boot 256 requires the boot assessment suffix in the EFI variable entry ID.
 			Context("systemd-boot 256 workaround", func() {
 				BeforeEach(func() {
-					getSystemdBootMajorVersion = func(_ sdkFs.KairosFS, _ string) uint16 { return 256 }
+					getSystemdBootMajorVersion = func(_ *sdkConfig.Config, _ string) uint16 { return 256 }
 				})
 
 				It("includes the assessment suffix in the EFI var for a default installation", func() {
@@ -588,8 +587,46 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 	})
 
 	Context("getSystemdBootMajorVersion", func() {
+		// The PE fixture the uki package uses. It is a real systemd-boot style
+		// binary, which is what pe.NewFile needs to parse an optional header.
+		sdBootFixture := func() []byte {
+			data, err := os.ReadFile(filepath.Join("..", "uki", "tests", "fbx64.efi"))
+			Expect(err).ToNot(HaveOccurred())
+			return data
+		}
+
 		It("returns 0 when the systemd-boot binary cannot be read", func() {
-			Expect(origGetSystemdBootMajorVersion(fs, "/nonexistent")).To(Equal(uint16(0)))
+			Expect(origGetSystemdBootMajorVersion(config, "/nonexistent")).To(Equal(uint16(0)))
+		})
+
+		It("says which path it could not read, so 0 is not silent", func() {
+			config.Arch = cnst.ArchRiscv64
+			Expect(origGetSystemdBootMajorVersion(config, "/efi")).To(Equal(uint16(0)))
+			Expect(memLog.String()).To(ContainSubstring("/efi/EFI/BOOT/BOOTRISCV64.EFI"))
+		})
+
+		DescribeTable("reads the binary the architecture names",
+			func(arch, name string) {
+				config.Arch = arch
+				Expect(fs.WriteFile(filepath.Join("/efi/EFI/BOOT", name), sdBootFixture(), os.ModePerm)).To(Succeed())
+
+				// The fixture carries MajorImageVersion 0, which is also the
+				// "could not read it" answer, so assert on the log instead: a
+				// read that found the file does not report that it could not.
+				Expect(origGetSystemdBootMajorVersion(config, "/efi")).To(Equal(uint16(0)))
+				Expect(memLog.String()).ToNot(ContainSubstring("could not read the systemd-boot version"))
+			},
+			Entry("amd64", cnst.ArchAmd64, "BOOTX64.EFI"),
+			Entry("arm64", cnst.ArchArm64, "BOOTAA64.EFI"),
+			Entry("riscv64", cnst.ArchRiscv64, "BOOTRISCV64.EFI"),
+		)
+
+		It("does not find the amd64 binary when the config says riscv64", func() {
+			Expect(fs.WriteFile("/efi/EFI/BOOT/BOOTX64.EFI", sdBootFixture(), os.ModePerm)).To(Succeed())
+			config.Arch = cnst.ArchRiscv64
+
+			Expect(origGetSystemdBootMajorVersion(config, "/efi")).To(Equal(uint16(0)))
+			Expect(memLog.String()).To(ContainSubstring("/efi/EFI/BOOT/BOOTRISCV64.EFI"))
 		})
 	})
 

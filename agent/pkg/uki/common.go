@@ -277,10 +277,7 @@ func removeDefaultKeysFromLoaderConf(fs sdkFs.KairosFS, efiDir string, logger sd
 // so it changes "efi /EFI/kairos/active.efi" to "uki /EFI/kairos/active.efi"
 func upgradeEfiKeysInLoaderEntries(arch string, fs sdkFs.KairosFS, efiDir string, logger sdkLogger.KairosLogger) error {
 	// Check sdboot version
-	sdboot := "BOOTX64.EFI"
-	if arch == "arm64" {
-		sdboot = "BOOTAA64.EFI"
-	}
+	sdboot := constants.GetSystemdBootFallBackEfi(arch)
 	majorVer, err := utils.GetMajorImageVersion(fs, filepath.Join(efiDir, "EFI/BOOT/", sdboot))
 	if err != nil {
 		logger.Warnf("could not get systemd-boot version, skipping efi key upgrade: %s", err)
