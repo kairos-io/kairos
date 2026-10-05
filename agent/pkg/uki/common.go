@@ -281,7 +281,7 @@ func upgradeEfiKeysInLoaderEntries(arch string, fs sdkFs.KairosFS, efiDir string
 	if arch == "arm64" {
 		sdboot = "BOOTAA64.EFI"
 	}
-	majorVer, err := utils.GetMajorImageVersion(filepath.Join(efiDir, "EFI/BOOT/", sdboot))
+	majorVer, err := utils.GetMajorImageVersion(fs, filepath.Join(efiDir, "EFI/BOOT/", sdboot))
 	if err != nil {
 		logger.Warnf("could not get systemd-boot version, skipping efi key upgrade: %s", err)
 		return nil

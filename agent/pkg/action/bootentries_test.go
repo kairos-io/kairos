@@ -13,6 +13,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkInstall "github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -110,7 +111,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			// Reset the version probe to the default (0 = unknown → 257+ behaviour)
 			// so tests are isolated from each other.
-			getSystemdBootMajorVersion = func(_ string) uint16 { return 0 }
+			getSystemdBootMajorVersion = func(_ sdkFs.KairosFS, _ string) uint16 { return 0 }
 		})
 		Context("ListBootEntries", func() {
 			It("fails to list the boot entries when there is no loader.conf", func() {
@@ -434,7 +435,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			// systemd-boot 256 requires the boot assessment suffix in the EFI variable entry ID.
 			Context("systemd-boot 256 workaround", func() {
 				BeforeEach(func() {
-					getSystemdBootMajorVersion = func(_ string) uint16 { return 256 }
+					getSystemdBootMajorVersion = func(_ sdkFs.KairosFS, _ string) uint16 { return 256 }
 				})
 
 				It("includes the assessment suffix in the EFI var for a default installation", func() {
@@ -588,7 +589,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 
 	Context("getSystemdBootMajorVersion", func() {
 		It("returns 0 when the systemd-boot binary cannot be read", func() {
-			Expect(origGetSystemdBootMajorVersion("/nonexistent")).To(Equal(uint16(0)))
+			Expect(origGetSystemdBootMajorVersion(fs, "/nonexistent")).To(Equal(uint16(0)))
 		})
 	})
 

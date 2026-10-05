@@ -53,9 +53,11 @@ var _ = Describe("Common helpers", func() {
 	var logger sdkLogger.KairosLogger
 
 	BeforeEach(func() {
-		// Several helpers in common.go mix the KairosFS abstraction with
-		// direct os.* calls, so tests use the real OS filesystem rooted in a
-		// temporary directory.
+		// common.go no longer mixes os.* calls into the KairosFS abstraction,
+		// so these specs could run against a virtual root. They still use the
+		// OS filesystem because every fixture below writes through os.*, and
+		// an OS filesystem rooted in a temporary directory cannot tell the two
+		// apart. Converting them is what would prove the file stays honest.
 		fs = vfs.OSFS
 		dir = GinkgoT().TempDir()
 		memLog = &bytes.Buffer{}

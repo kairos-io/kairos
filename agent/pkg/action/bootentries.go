@@ -21,6 +21,7 @@ import (
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils/partitions"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	"golang.org/x/sys/unix"
 )
@@ -134,12 +135,12 @@ func selectBootEntryGrub(cfg *sdkConfig.Config, entry string) error {
 // getSystemdBootMajorVersion returns the MajorImageVersion of the systemd-boot EFI binary
 // on the given EFI mount point. Returns 0 when the binary cannot be read (e.g. on
 // non-EFI systems). Declared as a variable so it can be overridden in tests.
-var getSystemdBootMajorVersion = func(efiMountPoint string) uint16 {
+var getSystemdBootMajorVersion = func(vfs sdkFs.KairosFS, efiMountPoint string) uint16 {
 	sdboot := "BOOTX64.EFI"
 	if runtime.GOARCH == "arm64" {
 		sdboot = "BOOTAA64.EFI"
 	}
-	ver, err := utils.GetMajorImageVersion(filepath.Join(efiMountPoint, "EFI/BOOT", sdboot))
+	ver, err := utils.GetMajorImageVersion(vfs, filepath.Join(efiMountPoint, "EFI/BOOT", sdboot))
 	if err != nil {
 		return 0
 	}
@@ -284,7 +285,7 @@ func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 	// Workaround for systemd-boot 256: the LoaderEntryOneShot EFI variable must
 	// contain the full filename including the boot assessment suffix
 	// (e.g. "active+3.conf"). Version 257+ dropped the assessment from the entry ID.
-	if getSystemdBootMajorVersion(efiPartition.MountPoint) == 256 {
+	if getSystemdBootMajorVersion(cfg.Fs, efiPartition.MountPoint) == 256 {
 		cfg.Logger.Debugf("systemd-boot 256 detected, resolving boot entry with assessment suffix")
 		bootConfigName, err = findEntryWithAssessment(cfg, efiPartition.MountPoint, bootConfigName)
 		if err != nil {
