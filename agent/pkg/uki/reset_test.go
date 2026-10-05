@@ -259,11 +259,29 @@ var _ = Describe("Uki reset action", func() {
 			"the persistent partition was formatted although it could not be unmounted")
 	})
 
-	It("fails when copying recovery artifacts to active fails", func() {
-		// a recovery prefixed conf file is parsed with an os based reader
-		// which does not see the test fs, so the copy fails
+	It("copies the recovery artifacts to active", func() {
 		Expect(fs.WriteFile("/efi/loader/entries/recovery.conf",
 			[]byte("title Kairos\nefi /EFI/kairos/recovery.efi\n"), os.ModePerm)).To(Succeed())
+
+		// The run still ends on the boot entry selection, which needs a GRUB
+		// configuration this fixture has no reason to carry. What this spec is
+		// about is the copy that happens before it.
+		err := reset.Run()
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).ToNot(ContainSubstring("copying recovery to active"))
+
+		// AddBootAssessment renames the entry once it is in place
+		content, err := fs.ReadFile("/efi/loader/entries/active+3.conf")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(content)).To(ContainSubstring("efi /EFI/kairos/active.efi"))
+		Expect(string(content)).To(ContainSubstring("title Kairos\n"))
+	})
+
+	It("fails when a recovery conf can not be parsed", func() {
+		// a .conf whose contents got replaced by newline-free garbage makes
+		// the reader fail on bufio.ErrTooLong rather than on open
+		Expect(fs.WriteFile("/efi/loader/entries/recovery.conf",
+			bytes.Repeat([]byte("x"), 128*1024), os.ModePerm)).To(Succeed())
 
 		err := reset.Run()
 		Expect(err).To(HaveOccurred())

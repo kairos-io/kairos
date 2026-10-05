@@ -13,7 +13,6 @@ import (
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
-	sdkutils "github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/sanity-io/litter"
 )
 
@@ -61,7 +60,7 @@ func removeArtifactSetWithRole(fs sdkFs.KairosFS, artifactDir, role string) erro
 		}
 
 		if !info.IsDir() && strings.HasPrefix(info.Name(), role) {
-			return os.Remove(path)
+			return fs.Remove(path)
 		}
 
 		return nil
@@ -87,13 +86,13 @@ func copyArtifactSetRole(fs sdkFs.KairosFS, artifactDir, oldRole, newRole string
 			return fmt.Errorf("copying artifact from %s to %s: %w", path, newPath, err)
 		}
 		if strings.HasSuffix(path, ".conf") {
-			if err := replaceRoleInKey(newPath, "efi", oldRole, newRole, logger); err != nil {
+			if err := replaceRoleInKey(fs, newPath, "efi", oldRole, newRole, logger); err != nil {
 				// Maybe this is a newer system where we use the "uki" key instead of "efi"
-				if err := replaceRoleInKey(newPath, "uki", oldRole, newRole, logger); err != nil {
+				if err := replaceRoleInKey(fs, newPath, "uki", oldRole, newRole, logger); err != nil {
 					return err
 				}
 			}
-			if err := replaceConfTitle(newPath, newRole); err != nil {
+			if err := replaceConfTitle(fs, newPath, newRole); err != nil {
 				return err
 			}
 		}
@@ -102,9 +101,9 @@ func copyArtifactSetRole(fs sdkFs.KairosFS, artifactDir, oldRole, newRole string
 	})
 }
 
-func replaceRoleInKey(path, key, oldRole, newRole string, logger sdkLogger.KairosLogger) (err error) {
+func replaceRoleInKey(fs sdkFs.KairosFS, path, key, oldRole, newRole string, logger sdkLogger.KairosLogger) (err error) {
 	// Extract the values
-	conf, err := sdkutils.SystemdBootConfReader(path)
+	conf, err := utils.SystemdBootConfReader(fs, path)
 	if err != nil {
 		logger.Errorf("Error reading conf file %s: %s", path, err)
 		return err
@@ -123,11 +122,11 @@ func replaceRoleInKey(path, key, oldRole, newRole string, logger sdkLogger.Kairo
 	}
 	logger.Debugf("Conf file %s new values %v", path, litter.Sdump(conf))
 
-	return os.WriteFile(path, []byte(newContents), os.ModePerm)
+	return fs.WriteFile(path, []byte(newContents), os.ModePerm)
 }
 
-func replaceConfTitle(path, role string) error {
-	conf, err := sdkutils.SystemdBootConfReader(path)
+func replaceConfTitle(fs sdkFs.KairosFS, path, role string) error {
+	conf, err := utils.SystemdBootConfReader(fs, path)
 	if err != nil {
 		return err
 	}
@@ -147,7 +146,7 @@ func replaceConfTitle(path, role string) error {
 		newContents = fmt.Sprintf("%s%s %s\n", newContents, k, v)
 	}
 
-	return os.WriteFile(path, []byte(newContents), os.ModePerm)
+	return fs.WriteFile(path, []byte(newContents), os.ModePerm)
 }
 
 func copyFile(src, dst string) (err error) {
@@ -194,7 +193,7 @@ func AddSystemdConfSortKey(fs sdkFs.KairosFS, artifactDir string, log sdkLogger.
 		// Only do files that are conf files but dont match the loader.conf
 		if !info.IsDir() && filepath.Ext(path) == ".conf" && !strings.Contains(info.Name(), "loader.conf") {
 			log.Logger.Debug().Str("path", path).Msg("Adding sort key to file")
-			conf, err := sdkutils.SystemdBootConfReader(path)
+			conf, err := utils.SystemdBootConfReader(fs, path)
 			if err != nil {
 				// The reader hands back a nil map when it fails, and the
 				// write below rebuilds the whole entry from that map. Writing
@@ -230,7 +229,7 @@ func AddSystemdConfSortKey(fs sdkFs.KairosFS, artifactDir string, log sdkLogger.
 			}
 			log.Logger.Trace().Str("contents", litter.Sdump(conf)).Str("path", path).Msg("Final values for conf file")
 
-			return os.WriteFile(path, []byte(newContents), 0600)
+			return fs.WriteFile(path, []byte(newContents), 0600)
 		}
 
 		return nil

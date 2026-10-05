@@ -16,6 +16,7 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/rs/zerolog"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 type UpgradeAction struct {
@@ -312,7 +313,11 @@ func (i *UpgradeAction) prepareFinalize(noroleEfi string) (*finalizeStage, error
 // refusals were already handled up in prepareFinalize before rotation.
 func (i *UpgradeAction) runFinalizeStep(stage *finalizeStage) error {
 	ctxPath := filepath.Join(stage.tempDir, "context.json")
-	if err := action.WriteFinalizeContext(i.cfg.Fs, ctxPath, stage.ctx); err != nil {
+	// stage.tempDir came from os.MkdirTemp and the target agent reads
+	// --context-file as a real path, so the context goes on the host
+	// filesystem, like the extraction and the chmod that put the binary
+	// beside it. cfg.Fs is the ESP's view and is not where this belongs.
+	if err := action.WriteFinalizeContext(vfs.OSFS, ctxPath, stage.ctx); err != nil {
 		return fmt.Errorf("writing finalize context: %w", err)
 	}
 
@@ -387,10 +392,10 @@ func (i *UpgradeAction) installEntry(entry string) error {
 		i.cfg.Logger.Errorf("copying conf files: %s", err.Error())
 		return err
 	}
-	err = replaceRoleInKey(targetConfPath, "efi", UnassignedArtifactRole, entry, i.cfg.Logger)
+	err = replaceRoleInKey(i.cfg.Fs, targetConfPath, "efi", UnassignedArtifactRole, entry, i.cfg.Logger)
 	if err != nil {
 		// Maybe a newer system where we use the "uki" key instead of "efi"
-		if err := replaceRoleInKey(targetConfPath, "uki", UnassignedArtifactRole, entry, i.cfg.Logger); err != nil {
+		if err := replaceRoleInKey(i.cfg.Fs, targetConfPath, "uki", UnassignedArtifactRole, entry, i.cfg.Logger); err != nil {
 			i.cfg.Logger.Errorf("replacing role in in key %s: %s", "uki", err.Error())
 			return err
 		}
@@ -407,7 +412,7 @@ func (i *UpgradeAction) installRecovery() error {
 	}
 
 	targetConfPath := filepath.Join(constants.UkiEfiDir, "loader", "entries", "recovery.conf")
-	err := replaceConfTitle(targetConfPath, "recovery")
+	err := replaceConfTitle(i.cfg.Fs, targetConfPath, "recovery")
 	if err != nil {
 		i.cfg.Logger.Errorf("replacing conf title: %s", err.Error())
 		return err

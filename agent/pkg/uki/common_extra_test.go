@@ -223,7 +223,7 @@ var _ = Describe("Common helpers", func() {
 
 	Describe("replaceRoleInKey", func() {
 		It("fails when the file does not exist", func() {
-			err := replaceRoleInKey(filepath.Join(dir, "missing.conf"), "efi", "a", "b", logger)
+			err := replaceRoleInKey(fs, filepath.Join(dir, "missing.conf"), "efi", "a", "b", logger)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -231,7 +231,7 @@ var _ = Describe("Common helpers", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("title Kairos\n"), 0644)).To(Succeed())
 
-			err := replaceRoleInKey(path, "efi", "a", "b", logger)
+			err := replaceRoleInKey(fs, path, "efi", "a", "b", logger)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no efi entry"))
 		})
@@ -240,7 +240,7 @@ var _ = Describe("Common helpers", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("efi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 
-			Expect(replaceRoleInKey(path, "efi", "active", "passive", logger)).To(Succeed())
+			Expect(replaceRoleInKey(fs, path, "efi", "active", "passive", logger)).To(Succeed())
 
 			conf, err := sdkutils.SystemdBootConfReader(path)
 			Expect(err).ToNot(HaveOccurred())
@@ -250,14 +250,14 @@ var _ = Describe("Common helpers", func() {
 
 	Describe("replaceConfTitle", func() {
 		It("fails when the file does not exist", func() {
-			Expect(replaceConfTitle(filepath.Join(dir, "missing.conf"), "active")).ToNot(Succeed())
+			Expect(replaceConfTitle(fs, filepath.Join(dir, "missing.conf"), "active")).ToNot(Succeed())
 		})
 
 		It("fails when there is no title", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("efi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 
-			err := replaceConfTitle(path, "active")
+			err := replaceConfTitle(fs, path, "active")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no title"))
 		})
@@ -266,7 +266,7 @@ var _ = Describe("Common helpers", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("title Kairos\n"), 0644)).To(Succeed())
 
-			err := replaceConfTitle(path, "wrongrole")
+			err := replaceConfTitle(fs, path, "wrongrole")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid role"))
 		})
@@ -275,7 +275,7 @@ var _ = Describe("Common helpers", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("title Kairos\n"), 0644)).To(Succeed())
 
-			Expect(replaceConfTitle(path, "recovery")).To(Succeed())
+			Expect(replaceConfTitle(fs, path, "recovery")).To(Succeed())
 
 			conf, err := sdkutils.SystemdBootConfReader(path)
 			Expect(err).ToNot(HaveOccurred())
