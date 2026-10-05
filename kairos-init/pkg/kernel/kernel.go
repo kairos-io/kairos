@@ -3,7 +3,6 @@ package kernel
 import (
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	semver "github.com/hashicorp/go-version"
@@ -23,8 +22,11 @@ func GetLatest(model string, l logger.KairosLogger) (string, error) {
 // under modulesPath is not a kernel.
 //
 // General selection rules:
-//  1. The highest semver directory is returned.
-//  2. If no directory name parses as semver, the greatest name in natural
+//  1. The greatest version-shaped directory name, in natural order, is
+//     returned. The name itself is returned, never a renormalised spelling of
+//     it: callers interpolate it into /usr/lib/modules and into depmod and
+//     apt arguments, so it has to name a directory that exists.
+//  2. If no directory name is version-shaped, the greatest name in natural
 //     order is used as a fallback.
 //  3. If no directories exist at all, an error is returned.
 //
@@ -33,10 +35,10 @@ func GetLatest(model string, l logger.KairosLogger) (string, error) {
 // spelled el9_5 or el10_0 on any architecture. See kairos-io/kairos#5213.
 //
 // RPi3/RPi4 models apply an extra preference step before the general rules:
-// directories ending in "-raspi" are tried first.  The highest semver raspi
-// directory wins; if none parse as semver the greatest raspi directory in
-// natural order is used.  Only when no raspi directory is present at all does
-// selection fall through to the general rules above.
+// directories ending in "-raspi" are tried first.  The greatest version-shaped
+// raspi directory wins; if none are version-shaped the greatest raspi
+// directory in natural order is used.  Only when no raspi directory is present
+// at all does selection fall through to the general rules above.
 func GetLatestFromPath(modulesPath, model string, l logger.KairosLogger) (string, error) {
 	var kernelVersion string
 
@@ -56,57 +58,60 @@ func GetLatestFromPath(modulesPath, model string, l logger.KairosLogger) (string
 	// Ubuntu RPi images must boot the raspi kernel: the generic HWE kernel lacks
 	// the Pi SD/MMC drivers needed under UEFI (see kairos-io/kairos#4222).
 	if model == values.Rpi3.String() || model == values.Rpi4.String() {
-		var raspiVersions []*semver.Version
+		var raspiVersioned []string
 		var raspiFallback []string
 		for _, dir := range dirs {
 			if !strings.HasSuffix(dir, "-raspi") {
 				continue
 			}
 			raspiFallback = append(raspiFallback, dir)
-			v, parseErr := semver.NewVersion(dir)
-			if parseErr != nil {
-				continue
+			if isVersionShaped(dir) {
+				raspiVersioned = append(raspiVersioned, dir)
 			}
-			raspiVersions = append(raspiVersions, v)
 		}
-		if len(raspiVersions) > 0 {
-			sort.Sort(semver.Collection(raspiVersions))
-			return raspiVersions[len(raspiVersions)-1].String(), nil
+		if len(raspiVersioned) > 0 {
+			return greatestNatural(raspiVersioned), nil
 		}
 		if len(raspiFallback) > 0 {
 			return greatestNatural(raspiFallback), nil
 		}
 	}
 
-	var versions []*semver.Version
-	var version *semver.Version
+	var versioned []string
 	for _, dir := range dirs {
-		// Parse the directory name as a semver version
-		version, err = semver.NewVersion(dir)
-		if err != nil {
-			l.Logger.Debug().Err(err).Str("version", dir).Msg("Failed to parse the version as semver, will use the full name instead")
+		if !isVersionShaped(dir) {
+			l.Logger.Debug().Str("version", dir).Msg("Directory name does not parse as a version, will use the full name instead")
 			continue
 		}
-		versions = append(versions, version)
+		versioned = append(versioned, dir)
 	}
 
 	// We could have no semver version but custom versions like 5.4.0-101-generic.fc32.x86_64
 	// In that case we need to just use the full name
-	if len(versions) == 0 {
+	if len(versioned) == 0 {
 		if len(dirs) == 0 {
 			return kernelVersion, fmt.Errorf("no kernel versions found")
 		}
 		kernelVersion = greatestNatural(dirs)
 	} else {
-		sort.Sort(semver.Collection(versions))
-		kernelVersion = versions[len(versions)-1].String()
-		if kernelVersion == "" {
-			l.Logger.Error().Msgf("Failed to find the latest kernel version")
-			return kernelVersion, fmt.Errorf("failed to find the latest kernel")
-		}
+		kernelVersion = greatestNatural(versioned)
 	}
 
 	return kernelVersion, nil
+}
+
+// isVersionShaped reports whether name looks like a version, which is what
+// decides whether a directory is a selection candidate at all.
+//
+// go-version answers that question well and it is the only thing it is used
+// for here. It must not order these names: it compares the prerelease segment
+// as text, and every Ubuntu kernel name carries its ABI number there, so
+// 5.15.0-99-generic comes out newer than 5.15.0-100-generic (both shipped on
+// 22.04). greatestNatural compares digit runs as numbers and gets it right.
+// See kairos-io/kairos#5215.
+func isVersionShaped(name string) bool {
+	_, err := semver.NewVersion(name)
+	return err == nil
 }
 
 // greatestNatural returns the greatest of names in natural order. names must

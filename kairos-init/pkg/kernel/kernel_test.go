@@ -271,3 +271,103 @@ func TestNaturalLessIsAStrictWeakOrdering(t *testing.T) {
 		}
 	}
 }
+
+// ubuntuABIOrder is a set of real Ubuntu kernel directory names in release
+// order. All of them parse as a version, so they never reach the fallback:
+// the ordering is whatever the version comparison does with the ABI number,
+// which every one of these names carries in the prerelease segment.
+var ubuntuABIOrder = []string{
+	"5.15.0-91-generic",
+	"5.15.0-99-generic",
+	"5.15.0-100-generic",
+	"5.15.0-151-generic",
+}
+
+func TestGetLatestFromPathPicksTheNewestUbuntuKernel(t *testing.T) {
+	log := newTestLogger()
+
+	// Every adjacent pair, so a regression names the two kernels it confused.
+	// Only the 99 to 100 step is wrong under a text comparison of the ABI
+	// number, which is why the whole ladder is here rather than one pair.
+	for i := 0; i < len(ubuntuABIOrder)-1; i++ {
+		older, newer := ubuntuABIOrder[i], ubuntuABIOrder[i+1]
+		t.Run(older+" < "+newer, func(t *testing.T) {
+			base := t.TempDir()
+			mkdirs(t, base, older, newer)
+
+			got, err := GetLatestFromPath(base, values.Generic.String(), log)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != newer {
+				t.Errorf("got kernel %q, want %q", got, newer)
+			}
+		})
+	}
+}
+
+// The RPi branch has its own selection step, so it needs its own ladder. The
+// Ubuntu raspi ABI numbers are four digits, and the branch is reached only
+// for the rpi3 and rpi4 models.
+func TestGetLatestFromPathPicksTheNewestRaspiKernel(t *testing.T) {
+	log := newTestLogger()
+
+	base := t.TempDir()
+	mkdirs(t, base, "6.8.0-999-raspi", "6.8.0-1018-raspi")
+
+	for _, model := range []string{values.Rpi3.String(), values.Rpi4.String()} {
+		t.Run(model, func(t *testing.T) {
+			got, err := GetLatestFromPath(base, model, log)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != "6.8.0-1018-raspi" {
+				t.Errorf("got kernel %q, want %q", got, "6.8.0-1018-raspi")
+			}
+		})
+	}
+}
+
+// The caller interpolates the answer into a path (/usr/lib/modules/%s) and
+// into depmod and apt arguments, so the directory name is the only acceptable
+// return value. A version comparison that returns its own normalised spelling
+// of the name would hand back a directory that does not exist.
+func TestGetLatestFromPathReturnsTheDirectoryName(t *testing.T) {
+	log := newTestLogger()
+
+	for _, name := range []string{"6.12-lts", "6.8.0-51-generic"} {
+		t.Run(name, func(t *testing.T) {
+			base := t.TempDir()
+			mkdirs(t, base, name)
+
+			got, err := GetLatestFromPath(base, values.Generic.String(), log)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != name {
+				t.Errorf("got kernel %q, want %q", got, name)
+			}
+		})
+	}
+}
+
+// Negative control for the shortcut fix: dropping the version filter and
+// ordering every directory naturally. "6.8.0-51.el9_5.x86_64" does not parse
+// as a version (the underscore), and it is the greater of the two in natural
+// order, so a natural-order-only selection returns it. A version-shaped name
+// must still win over one that is not version-shaped, which is the behaviour
+// the filter is there for.
+func TestGetLatestFromPathPrefersAVersionShapedName(t *testing.T) {
+	log := newTestLogger()
+
+	base := t.TempDir()
+	mkdirs(t, base, "6.8.0-51-generic", "6.8.0-51.el9_5.x86_64")
+
+	got, err := GetLatestFromPath(base, values.Generic.String(), log)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "6.8.0-51-generic" {
+		t.Errorf("got kernel %q, want %q", got, "6.8.0-51-generic")
+	}
+}
