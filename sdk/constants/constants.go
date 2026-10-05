@@ -83,3 +83,18 @@ const (
 const (
 	DefaultWebUIListenAddress = ":8080"
 )
+
+// Boot-mode sentinels immucore writes under SentinelDir, which downstream
+// cloud-config stages gate on with a yip `if:` and which kairos-agent reads back
+// into its runtime state. Shared so the writer and the readers cannot drift.
+const (
+	SentinelDir = "/run/cos"
+	// WriteProtectedSentinelName marks a boot on write-protected media, where the
+	// persistent partition is mounted through a copy-on-write snapshot in RAM.
+	// Additive: the BootState sentinel is written as well.
+	WriteProtectedSentinelName = "write_protected"
+	// PersistentSnapshotName is the device-mapper name of the copy-on-write
+	// snapshot immucore stacks over the persistent partition on read-only
+	// media. The agent reads its fill level back through this name.
+	PersistentSnapshotName = "kairos-persistent"
+)

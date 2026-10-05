@@ -114,7 +114,59 @@ The immutable rootfs can be configured with the following kernel parameters:
   comment in `internal/utils/common.go` describes. Raise `TimeoutStartSec=` on
   `immucore.service` if you need to hold a breakpoint open longer than that.
 
+* `rd.immucore.write_protected`: Enables the write-protected media layout.
+  Absent, immucore never asks the block device and a frozen disk fails as it
+  always did. Present on its own, or as `=1` or `=auto`, immucore asks the
+  device and applies the layout only if it is write-protected, so the flag can
+  be baked into an install while the disk is still writable. `=0` turns it
+  off; `=force` applies the layout without asking, for testing on a writable
+  disk. See [docs/write-protected-media.md](docs/write-protected-media.md)
+  for what the layout actually does.
+
+* `rd.immucore.write_protected.cow=<size>`: On read-only media, sizes the
+  tmpfs that holds the persistent partition's copy-on-write store. `2G`,
+  `25%` and `tmpfs:2G` all mean a tmpfs of that size.
+  `WRITE_PROTECTED_COW` in `cos-layout.env` is the same knob and wins over the
+  cmdline. Absent, the store is sized like `rd.immucore.overlay=`. Does nothing
+  on a writable disk. See [docs/write-protected-media.md](docs/write-protected-media.md).
+
 * `rd.immucore.sysrootwait=<seconds>`: Waits for the sysroot to be mounted up to <seconds> before continuing with the boot process. This is useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready. Sometimes dracut can be really slow and the default 1 minute of waiting is not enough. In those cases you can increase this value to wait more time. Defaults to 60s.
+
+### Read-only media boot (`rd.immucore.write_protected`)
+
+---
+
+Some units ship with a drive that is write-protected in hardware: installed
+while the drive is still writable, then the switch is flipped, and from then
+on every boot sees a block device the kernel refuses writes to.
+
+Told to expect it, immucore puts a device-mapper snapshot over the persistent
+partition with its copy-on-write store on a tmpfs, and mounts that read-write
+in the partition's place. Reads fall through to what provisioning left on the
+disk, writes land in RAM and are gone on the next boot, and the filesystem
+above is the partition's own ext4, which is what a container runtime's
+overlayfs needs underneath it. `/oem` is mounted read-only, and the per-boot
+writes to the disk (fsck, journal replay, the partition grow, the GRUB
+environment, the LUKS header upgrade) are skipped.
+
+The feature is opt-in. Bake `rd.immucore.write_protected` into the install
+while the disk is still writable; the writable first boot stays ordinary and
+the layout switches on by itself once the disk boots frozen:
+
+```yaml
+install:
+  grub_options:
+    extra_cmdline: "rd.immucore.write_protected"
+```
+
+The store is sized by `rd.immucore.write_protected.cow=<size>` or
+`WRITE_PROTECTED_COW` in `cos-layout.env`, default 25% of RAM. immucore
+writes `/run/cos/write_protected` and `kairos-agent state` reports
+`write_protected` and the store's fill level as `persistent_cow`.
+
+The layout, the forms of the flag, why a snapshot rather than an overlay,
+how to size the store, and the limits are in
+[docs/write-protected-media.md](docs/write-protected-media.md).
 
 ### In-RAM boot (`kairos.ram.*`)
 
