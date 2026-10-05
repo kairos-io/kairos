@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -99,10 +100,21 @@ func resetUki(reboot, unattended, resetOem bool, dir ...string) error {
 }
 
 // operatorAbortedReset blocks on the prompt and reports whether the operator
-// asked to abort the reset. Whatever makes the prompt return counts as an abort.
+// asked to abort the reset. Only a real answer counts as an abort; a read
+// error (stdin at EOF, not a terminal) lets the reset go on.
 func operatorAbortedReset(prompt func(string) (string, error)) bool {
-	prompt("") //nolint:errcheck
-	return true
+	_, err := prompt("")
+	return err == nil
+}
+
+// abortedResetExitCode runs the shell handed to the operator after an aborted
+// reset and returns the exit code for the agent once that shell is gone.
+func abortedResetExitCode(shell func() error) int {
+	if err := shell(); err != nil {
+		fmt.Printf("shell exited with error: %s\n", err)
+		return 1
+	}
+	return 0
 }
 
 // sharedReset is the common reset code for both uki and non-uki
@@ -125,7 +137,9 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 		lock := sync.Mutex{}
 		go func() {
 			// Wait for user input and go back to shell
-			operatorAbortedReset(utils.Prompt)
+			if !operatorAbortedReset(utils.Prompt) {
+				return
+			}
 			// give tty1 back
 			svc, err := machine.Getty(1)
 			if err == nil {
@@ -134,7 +148,7 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 
 			lock.Lock()
 			fmt.Println("Reset aborted")
-			panic(utils.Shell().Run())
+			os.Exit(abortedResetExitCode(utils.Shell().Run))
 		}()
 
 		if !agentConfig.Fast {
