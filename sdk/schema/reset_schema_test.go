@@ -58,3 +58,49 @@ reset:
 		Expect(config.ValidationError.Error()).To(ContainSubstring("/reset/reset-persistent"))
 	})
 })
+
+// The misspelled-key half of kairos-io/kairos#4925, for the reset block. A
+// reset that is told reset-persistant keeps the persistent partition and says
+// nothing about it.
+var _ = Describe("Reset block closed to undeclared keys", func() {
+	validate := func(yaml string) *KConfig {
+		config, err := NewConfigFromYAML(yaml, RootSchema{})
+		Expect(err).ToNot(HaveOccurred())
+		return config
+	}
+
+	DescribeTable("reports a key the reset block does not declare",
+		func(key string) {
+			config := validate(`#cloud-config
+users:
+- name: kairos
+reset:
+  ` + key + `: foo`)
+
+			Expect(config.IsValid()).To(BeFalse())
+			Expect(config.ValidationError.Error()).To(ContainSubstring(key))
+		},
+		Entry("a misspelling of reset-persistent", "reset-persistant"),
+		Entry("the underscore spelling of reset-oem", "reset_oem"),
+		Entry("a key that belongs to the upgrade block", "recovery-system"),
+	)
+
+	It("still accepts every key the block declares", func() {
+		config := validate(`#cloud-config
+users:
+- name: kairos
+reset:
+  reset-persistent: true
+  reset-oem: false
+  reboot: true
+  poweroff: false
+  grub-entry-name: Kairos
+  tty: ttyS0
+  extra-dirs-rootfs:
+  - /var/lib/longhorn
+  system:
+    uri: "oci:quay.io/kairos/opensuse:latest"`)
+
+		Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+	})
+})

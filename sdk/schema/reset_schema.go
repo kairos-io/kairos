@@ -1,5 +1,9 @@
 package schema
 
+import (
+	jsonschemago "github.com/swaggest/jsonschema-go"
+)
+
 // ResetSchema represents the reset block in the Kairos configuration. It
 // drives what `kairos-agent reset` does on the node.
 //
@@ -16,4 +20,17 @@ type ResetSchema struct {
 	Tty              string   `json:"tty,omitempty" description:"Console the reset writes its output to" examples:"[\"ttyS0\",\"tty1\"]"`
 	ExtraDirsRootfs  []string `json:"extra-dirs-rootfs,omitempty" description:"Directories to create in the reset rootfs, so a read-only system can still offer them as mount points"`
 	Active           Image    `json:"system,omitempty" description:"The image the system is reset to"`
+}
+
+var _ jsonschemago.Preparer = ResetSchema{}
+
+// PrepareJSONSchema closes the block to keys it does not declare, for the
+// reason UpgradeSchema's does. The fields ResetSpec leaves out of the list
+// above, Passive, Partitions, Target, Efi and GrubConf, carry no struct tag
+// and are filled by the agent rather than read from a config. ResetUkiSpec,
+// which reads the same block on Trusted Boot, declares a subset of it.
+func (ResetSchema) PrepareJSONSchema(schema *jsonschemago.Schema) error {
+	schema.WithAdditionalProperties(*(&jsonschemago.SchemaOrBool{}).WithTypeBoolean(false))
+
+	return nil
 }
