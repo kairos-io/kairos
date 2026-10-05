@@ -297,17 +297,77 @@ var _ = Describe("Uki upgrade action", func() {
 		})
 	})
 
-	It("fails a single entry upgrade when the target entry is not installed", func() {
-		spec.Entry = "kairos-uki-test-nonexistent-entry"
-		err := upgrader.Run()
-		Expect(err).To(HaveOccurred())
-	})
+	Describe("installing a single entry", func() {
+		// The dump into this directory goes through cfg.Fs, and the test
+		// runner stands in for rsync without copying anything, so the specs
+		// write what the dump would have produced straight into it. The path
+		// is predictable because fsutils.TempDir skips the random suffix on a
+		// vfst.TestFS.
+		var dumpDir string
 
-	It("fails a recovery upgrade when the recovery entry is not installed", func() {
-		spec.Entry = constants.BootEntryRecovery
-		Expect(spec.RecoveryUpgrade()).To(BeTrue())
-		err := upgrader.Run()
-		Expect(err).To(HaveOccurred())
+		BeforeEach(func() {
+			dumpDir = filepath.Join(os.TempDir(), "kairos-uki-entry-")
+			Expect(fsutils.MkdirAll(fs, filepath.Join(dumpDir, "EFI", "kairos"), constants.DirPerm)).To(Succeed())
+			Expect(fsutils.MkdirAll(fs, filepath.Join(dumpDir, "loader", "entries"), constants.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(dumpDir, "EFI", "kairos", UnassignedArtifactRole+".efi"), []byte("new artifact"), 0o644)).To(Succeed())
+			Expect(fs.WriteFile(
+				filepath.Join(dumpDir, "loader", "entries", UnassignedArtifactRole+".conf"),
+				[]byte("title Kairos\nefi /EFI/kairos/"+UnassignedArtifactRole+".efi\n"), 0o644)).To(Succeed())
+
+			// The entry being upgraded has to already be installed on the ESP
+			Expect(fsutils.MkdirAll(fs, "/efi/EFI/kairos", constants.DirPerm)).To(Succeed())
+			Expect(fsutils.MkdirAll(fs, "/efi/loader/entries", constants.DirPerm)).To(Succeed())
+		})
+
+		It("installs the artifact and the conf on the given filesystem", func() {
+			Expect(fs.WriteFile("/efi/EFI/kairos/recovery.efi", []byte("old artifact"), 0o644)).To(Succeed())
+			spec.Entry = constants.BootEntryRecovery
+			Expect(spec.RecoveryUpgrade()).To(BeTrue())
+
+			Expect(upgrader.Run()).To(Succeed())
+
+			efi, err := fs.ReadFile("/efi/EFI/kairos/recovery.efi")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(efi)).To(Equal("new artifact"))
+
+			conf, err := fs.ReadFile("/efi/loader/entries/recovery.conf")
+			Expect(err).ToNot(HaveOccurred())
+			// installEntry rewrites the role in the efi key, installRecovery
+			// then rewrites the title
+			Expect(string(conf)).To(ContainSubstring("efi /EFI/kairos/recovery.efi"))
+			Expect(string(conf)).ToNot(ContainSubstring(UnassignedArtifactRole))
+			Expect(string(conf)).To(ContainSubstring("title Kairos recovery"))
+		})
+
+		It("removes the dump directory from the filesystem it created it on", func() {
+			Expect(fs.WriteFile("/efi/EFI/kairos/recovery.efi", []byte("old artifact"), 0o644)).To(Succeed())
+			spec.Entry = constants.BootEntryRecovery
+
+			Expect(upgrader.Run()).To(Succeed())
+
+			exists, err := fsutils.Exists(fs, dumpDir)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeFalse(), "the dump directory should have been removed from the given filesystem")
+		})
+
+		It("fails a single entry upgrade when the target entry is not installed", func() {
+			spec.Entry = "kairos-uki-test-nonexistent-entry"
+			err := upgrader.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not stat target efi file"))
+			// Nothing was written for an entry that is not installed
+			exists, err := fsutils.Exists(fs, "/efi/loader/entries/kairos-uki-test-nonexistent-entry.conf")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeFalse())
+		})
+
+		It("fails a recovery upgrade when the recovery entry is not installed", func() {
+			spec.Entry = constants.BootEntryRecovery
+			Expect(spec.RecoveryUpgrade()).To(BeTrue())
+			err := upgrader.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not stat target efi file"))
+		})
 	})
 })
 

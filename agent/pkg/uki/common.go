@@ -149,14 +149,18 @@ func replaceConfTitle(fs sdkFs.KairosFS, path, role string) error {
 	return fs.WriteFile(path, []byte(newContents), os.ModePerm)
 }
 
-func copyFile(src, dst string) (err error) {
-	sourceFile, err := os.Open(src)
+// copyFile copies src to dst, both of them on fs. It exists next to
+// fsutils.Copy because dst here is on the EFI partition: the sync below, and
+// reporting the close that would flush it, are the difference between an entry
+// that boots after a power cut and one that does not.
+func copyFile(fs sdkFs.KairosFS, src, dst string) (err error) {
+	sourceFile, err := fs.Open(src)
 	if err != nil {
 		return fmt.Errorf("opening %s: %w", src, err)
 	}
 	defer sourceFile.Close()
 
-	destinationFile, err := os.Create(dst)
+	destinationFile, err := fs.Create(dst)
 	if err != nil {
 		return fmt.Errorf("creating %s: %w", dst, err)
 	}

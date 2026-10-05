@@ -291,7 +291,7 @@ var _ = Describe("Common helpers", func() {
 			dst := filepath.Join(dir, "dst")
 			Expect(os.WriteFile(src, []byte("payload"), 0644)).To(Succeed())
 
-			Expect(copyFile(src, dst)).To(Succeed())
+			Expect(copyFile(fs, src, dst)).To(Succeed())
 
 			content, err := os.ReadFile(dst)
 			Expect(err).ToNot(HaveOccurred())
@@ -302,7 +302,7 @@ var _ = Describe("Common helpers", func() {
 			missing := filepath.Join(dir, "missing")
 			var err error
 			Expect(func() {
-				err = copyFile(missing, filepath.Join(dir, "dst"))
+				err = copyFile(fs, missing, filepath.Join(dir, "dst"))
 			}).ToNot(Panic())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(missing))
@@ -316,7 +316,7 @@ var _ = Describe("Common helpers", func() {
 			Expect(os.WriteFile(src, []byte("payload"), 0644)).To(Succeed())
 			var err error
 			Expect(func() {
-				err = copyFile(src, dst)
+				err = copyFile(fs, src, dst)
 			}).ToNot(Panic())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(dst))

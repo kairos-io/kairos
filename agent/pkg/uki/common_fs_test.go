@@ -101,6 +101,19 @@ var _ = Describe("Common helpers on a filesystem that is not the OS root", func(
 		Expect(string(content)).To(ContainSubstring("sort-key 0001"))
 	})
 
+	It("copyFile reads and writes on the given filesystem", func() {
+		Expect(fs.WriteFile("/efi/EFI/Kairos/norole.efi", []byte("body"), 0o644)).To(Succeed())
+
+		Expect(copyFile(fs, "/efi/EFI/Kairos/norole.efi", "/efi/EFI/Kairos/recovery.efi")).To(Succeed())
+
+		content, err := fs.ReadFile("/efi/EFI/Kairos/recovery.efi")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(content)).To(Equal("body"))
+		// A copy that went through the global os package would have landed on
+		// the real root, where this path does not exist at all
+		Expect("/efi/EFI/Kairos/recovery.efi").ToNot(BeAnExistingFile())
+	})
+
 	It("copyArtifactSetRole produces a usable set on the given filesystem", func() {
 		Expect(fs.WriteFile("/efi/EFI/Kairos/active.efi", []byte("body"), 0o644)).To(Succeed())
 		Expect(fs.WriteFile("/efi/EFI/Kairos/active.conf", []byte("efi /EFI/Kairos/active.efi\ntitle Kairos\n"), 0o644)).To(Succeed())
