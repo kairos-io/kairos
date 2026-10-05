@@ -42,7 +42,7 @@ type InstallSchema struct {
 type Image struct {
 	Size          uint   `json:"size,omitempty"`
 	Source        string `json:"source,omitempty" description:"Container image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest"`
-	URIDeprecated string `json:"uri,omitempty" deprecated:"true" description:"Deprecated: superseded by source, which is what the installer prefers. Still honoured for now"`
+	URIDeprecated string `json:"uri,omitempty" deprecated:"true" description:"Deprecated: use source instead. Still honoured on system and recovery-system, ignored on passive"`
 }
 
 type Partition struct {
