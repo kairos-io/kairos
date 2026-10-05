@@ -93,14 +93,29 @@ func liveMediaExtensions(root string) ([]extensionChoice, error) {
 	return found, nil
 }
 
-// catalogExtensions lists every layer the catalogs at urls publish.
+// catalogExtensions lists the layers the catalogs at urls publish that this
+// node can actually install.
+//
+// A catalog indexes the base images a layer publishes, and a layer can carry no
+// system extension image at all: hadron-layers turns the extension build off per
+// layer on purpose, and a newly added layer has an index entry before its first
+// extension is pushed. Picking such a layer writes an install.extensions entry
+// that the agent then refuses, after the operator has committed to the install.
+//
+// The test is the resolver the agent itself uses, asked for the same thing the
+// screen offers: the layer name with no version, which is what an unpinned pick
+// writes. So the menu cannot drift from what the install will do, and a layer is
+// dropped rather than quietly offered at an older version. Resolving a name to
+// something other than the newest published version was rejected in
+// kairos-io/kairos#4718: a missing image has to fail rather than install a
+// version nobody asked for, and the earliest place to fail is before the pick.
 //
 // A catalog that cannot be fetched or parsed is skipped rather than failing the
 // call, the same contract the agent's FetchCatalogs follows: with several
 // catalogs configured, one unreachable index must not hide all the others. The
 // error is returned only when no catalog at all could be read, so the caller
 // can say "no network" instead of "no extensions published".
-func catalogExtensions(ctx context.Context, client *http.Client, urls []string) ([]extensionChoice, error) {
+func catalogExtensions(ctx context.Context, client *http.Client, urls []string, architecture string) ([]extensionChoice, error) {
 	var (
 		found    []extensionChoice
 		failures []error
@@ -114,6 +129,9 @@ func catalogExtensions(ctx context.Context, client *http.Client, urls []string) 
 		}
 		read++
 		for _, layer := range catalog.Layers {
+			if _, err := catalog.Resolve(layer.Name, "", architecture); err != nil {
+				continue
+			}
 			found = append(found, extensionChoice{
 				Label:  layer.Name,
 				Name:   layer.Name,
@@ -152,7 +170,7 @@ func fetchCatalog(ctx context.Context, client *http.Client, url string) (sdkCata
 // catalog entry cannot serve. The returned error reports that no catalog could
 // be read; the live media entries are returned with it, because an airgapped
 // install has to keep working.
-func discoverExtensions(ctx context.Context, client *http.Client, root string, urls []string) ([]extensionChoice, error) {
+func discoverExtensions(ctx context.Context, client *http.Client, root string, urls []string, architecture string) ([]extensionChoice, error) {
 	live, err := liveMediaExtensions(root)
 	if err != nil {
 		return nil, err
@@ -164,7 +182,7 @@ func discoverExtensions(ctx context.Context, client *http.Client, root string, u
 		taken[choice.Label] = true
 	}
 
-	published, catalogErr := catalogExtensions(ctx, client, urls)
+	published, catalogErr := catalogExtensions(ctx, client, urls, architecture)
 	for _, choice := range published {
 		if taken[choice.Label] {
 			continue
