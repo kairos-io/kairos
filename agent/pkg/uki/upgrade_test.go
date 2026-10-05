@@ -234,6 +234,63 @@ var _ = Describe("Uki upgrade action", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(string(content)).To(Equal("old active"))
 		})
+
+		Describe("when the target was built with an older kairos-init", func() {
+			BeforeEach(func() {
+				// Same stub as the parent, but the target's
+				// kairos-release carries a KAIROS_INIT_VERSION
+				// older than the running system's v4.3.0, so
+				// prepareFinalize reaches RefuseIfTargetIsDowngrade
+				// and refuses. Ginkgo runs this BeforeEach after
+				// the parent's, so this assignment is the one in
+				// effect, and the parent's DeferCleanup restores
+				// the production function either way.
+				origExtract := extractFromInitrd
+				extractFromInitrd = func(_ string, extractions map[string]string) ([]string, error) {
+					found := []string{}
+					for src, dst := range extractions {
+						var body []byte
+						if src == constants.KairosReleaseFile {
+							body = []byte(`KAIROS_INIT_VERSION="v4.2.0"` + "\n")
+						}
+						if err := os.WriteFile(dst, body, 0o644); err != nil {
+							return found, err
+						}
+						found = append(found, src)
+					}
+					return found, nil
+				}
+				DeferCleanup(func() { extractFromInitrd = origExtract })
+			})
+
+			It("refuses the upgrade and leaves the installed artifacts untouched", func() {
+				Expect(fs.WriteFile("/efi/EFI/Kairos/active.efi", []byte("old active"), os.ModePerm)).To(Succeed())
+				Expect(fs.WriteFile("/efi/EFI/Kairos/passive.efi", []byte("old passive"), os.ModePerm)).To(Succeed())
+
+				err := upgrader.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+				// Both versions are named, so the user can tell
+				// which image to rebuild.
+				Expect(err.Error()).To(ContainSubstring(`"v4.2.0"`))
+				Expect(err.Error()).To(ContainSubstring(`"v4.3.0"`))
+
+				// The gate runs before the rotation, so the entries
+				// the machine can still boot are exactly as they
+				// were. Together with the assertion on the error
+				// above, this is what fails if prepareFinalize is
+				// ever moved below the rotation in Run(): the
+				// refusal would then arrive with passive.efi
+				// already overwritten.
+				active, err := fs.ReadFile("/efi/EFI/Kairos/active.efi")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(active)).To(Equal("old active"))
+
+				passive, err := fs.ReadFile("/efi/EFI/Kairos/passive.efi")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(passive)).To(Equal("old passive"))
+			})
+		})
 	})
 
 	It("fails a single entry upgrade when the target entry is not installed", func() {
