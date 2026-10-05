@@ -33,6 +33,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -586,10 +587,16 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
+		if err := lockedContainerError(sdkConstants.OEMLabel, "reset-oem"); err != nil {
+			return nil, err
+		}
 		cfg.Logger.Warnf("no OEM partition found, won't format it")
 	}
 
 	if ep.Persistent == nil && spec.FormatPersistent {
+		if err := lockedContainerError(sdkConstants.PersistentLabel, "reset-persistent"); err != nil {
+			return nil, err
+		}
 		cfg.Logger.Warnf("no Persistent partition found, won't format it")
 	}
 
@@ -608,6 +615,30 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	}
 
 	return spec, nil
+}
+
+// lockedContainerError tells an absent partition from one that is there but
+// locked. Both reach the caller as a nil entry in ElementalPartitions: the ghw
+// walk matches the plaintext label, which lives inside the container, and
+// GetPartitionViaDM only finds a mapper that is already open. Warning for the
+// locked case would format nothing and still return a usable spec, so reset
+// would redeploy the OS, exit 0, and leave the operator believing the
+// partition had been reset. Returning an error names the one action that makes
+// the reset they asked for possible.
+func lockedContainerError(label, resetKey string) error {
+	container, err := lookup.FindLUKSContainerByLabel(label)
+	if err != nil || container == nil {
+		return nil
+	}
+
+	device := container.Path
+	if device == "" {
+		device = container.Name
+	}
+
+	return fmt.Errorf("%s is an encrypted container (%s) with no open mapper, so it cannot be formatted; "+
+		"unlock it first with `kairos-agent kcrypt unlock-all` and retry, or set `%s: false` to reset without it",
+		label, device, resetKey)
 }
 
 // ReadResetSpecFromConfig will return a proper ResetSpec based on an agent Config

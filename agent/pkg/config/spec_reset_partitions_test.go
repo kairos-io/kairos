@@ -23,6 +23,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkBundles "github.com/kairos-io/kairos/v4/sdk/types/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -134,6 +135,77 @@ var _ = Describe("NewResetSpec with optional partitions missing", Label("types",
 		Expect(spec.Partitions.Persistent).To(BeNil())
 		// FormatPersistent defaults to true, so the existing warning has to fire
 		// rather than the run ending in a panic.
+		Expect(memLog.String()).To(ContainSubstring("no Persistent partition found"))
+	})
+
+	// A locked LUKS container reaches NewResetSpec as the same nil entry an
+	// absent partition does: ghw matches the plaintext COS_PERSISTENT label,
+	// which lives inside the container, and GetPartitionViaDM only sees a
+	// mapper that is already open. Warning here would reset the OS and exit 0
+	// while leaving the data untouched, which is worse than the panic this PR
+	// removes, so these two specs pin the error instead.
+	It("refuses to reset a persistent partition that is a locked LUKS container", func() {
+		ghwTest = ghwMock.GhwMock{}
+		ghwTest.AddDisk(resetDisk(&sdkPartitions.Partition{
+			Name: "device5", PartitionLabel: "persistent",
+			FilesystemLabel: sdkConstants.PersistentLUKSLabel, FS: sdkConstants.LUKSFs,
+		}))
+		ghwTest.CreateDevices()
+
+		spec, err := config.NewResetSpec(c)
+		Expect(err).Should(HaveOccurred())
+		Expect(spec).To(BeNil())
+		Expect(err.Error()).To(ContainSubstring(sdkConstants.PersistentLabel))
+		Expect(err.Error()).To(ContainSubstring("no open mapper"))
+		Expect(err.Error()).To(ContainSubstring("reset-persistent"))
+		// The warning is the branch this replaces, so it must not also fire.
+		Expect(memLog.String()).ToNot(ContainSubstring("no Persistent partition found"))
+	})
+
+	It("refuses to reset an OEM partition that is a locked LUKS container when asked to format it", func() {
+		ghwTest = ghwMock.GhwMock{}
+		ghwTest.AddDisk(resetDisk(
+			&sdkPartitions.Partition{
+				Name: "device2", PartitionLabel: "oem",
+				FilesystemLabel: sdkConstants.OEMLUKSLabel, FS: sdkConstants.LUKSFs,
+			},
+			// Plaintext, so the persistent branch is out of the way and the
+			// error under test can only come from the OEM one.
+			&sdkPartitions.Partition{Name: "device5", FilesystemLabel: constants.PersistentLabel, FS: "ext4"},
+		))
+		ghwTest.CreateDevices()
+
+		// reset-oem is off by default, so the operator has to ask for it
+		// before a locked OEM container is in the way of anything.
+		c.Collector = collector.Config{Values: collector.ConfigValues{
+			"reset": map[string]interface{}{"reset-oem": true},
+		}}
+
+		spec, err := config.NewResetSpec(c)
+		Expect(err).Should(HaveOccurred())
+		Expect(spec).To(BeNil())
+		Expect(err.Error()).To(ContainSubstring(sdkConstants.OEMLabel))
+		Expect(err.Error()).To(ContainSubstring("reset-oem"))
+		Expect(memLog.String()).ToNot(ContainSubstring("no OEM partition found"))
+	})
+
+	// The branch only fires for a container that is there. An absent partition
+	// has to keep warning, or this change would turn every diskless-OEM reset
+	// into a hard failure.
+	It("still only warns when the missing partition is not an encrypted container", func() {
+		ghwTest = ghwMock.GhwMock{}
+		ghwTest.AddDisk(resetDisk())
+		ghwTest.CreateDevices()
+
+		c.Collector = collector.Config{Values: collector.ConfigValues{
+			"reset": map[string]interface{}{"reset-oem": true},
+		}}
+
+		spec, err := config.NewResetSpec(c)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(spec.Partitions.OEM).To(BeNil())
+		Expect(spec.Partitions.Persistent).To(BeNil())
+		Expect(memLog.String()).To(ContainSubstring("no OEM partition found"))
 		Expect(memLog.String()).To(ContainSubstring("no Persistent partition found"))
 	})
 })
