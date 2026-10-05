@@ -2,74 +2,48 @@ package mounts
 
 import (
 	"fmt"
-	"os"
-	"strings"
 
+	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/state"
-	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
+// This package used to carry its own copy of umount, remount and mount. The
+// copy in sdk/machine was fixed to resolve a filesystem label through
+// lookup.MountSourceForLabel, because `blkid -L <label>` races with udev
+// between a LUKS container and its unlocked mapper and so can answer with the
+// encrypted device (kairos-io/kairos#4685, kairos-io/kairos#4403). This copy
+// kept the blkid spelling and so kept the bug. There is one implementation
+// now, in sdk/machine, and these are the label-free wrappers the
+// state.PartitionState callers in sdk/system want.
+
+// PrepareWrite mounts partition at mountpath so the caller can write to it.
+//
+// A partition that is already mounted read only is remounted read write where
+// it is, because a second mount of the same device inherits the read only
+// flag from the first.
 func PrepareWrite(partition state.PartitionState, mountpath string) error {
 	if partition.Mounted && partition.IsReadOnly {
-		if mountpath == partition.MountPoint {
-			return remount("rw", partition.MountPoint)
-		}
-		err := remount("rw", partition.MountPoint)
-		if err != nil {
+		if err := machine.Remount("rw", partition.MountPoint); err != nil {
 			return err
 		}
-		return mount(partition.FilesystemLabel, mountpath)
+		if mountpath == partition.MountPoint {
+			return nil
+		}
 	}
 
-	return mount(partition.FilesystemLabel, mountpath)
+	return Mount(partition, mountpath)
 }
 
+// Mount mounts the partition carrying partition's filesystem label at
+// mountpath, creating mountpath if it is not there.
 func Mount(partition state.PartitionState, mountpath string) error {
-	return mount(partition.FilesystemLabel, mountpath)
+	return machine.Mount(partition.FilesystemLabel, mountpath)
 }
 
+// Umount unmounts partition from where it is mounted.
 func Umount(partition state.PartitionState) error {
 	if !partition.Mounted {
 		return fmt.Errorf("partition not mounted")
 	}
-	return umount(partition.MountPoint)
-}
-
-func umount(path string) error {
-	out, err := utils.SH(fmt.Sprintf("umount %s", path))
-	if err != nil {
-		return fmt.Errorf("failed umounting: %s: %w", out, err)
-	}
-	return nil
-}
-
-func remount(opt, path string) error {
-	out, err := utils.SH(fmt.Sprintf("mount -o %s,remount %s", opt, path))
-	if err != nil {
-		return fmt.Errorf("failed umounting: %s: %w", out, err)
-	}
-	return nil
-}
-
-func mount(label, mountpoint string) error {
-	part, _ := utils.SH(fmt.Sprintf("blkid -L %s", label))
-	if part == "" {
-		fmt.Printf("%s partition not found\n", label)
-		return fmt.Errorf("partition not found")
-	}
-
-	part = strings.TrimSuffix(part, "\n")
-
-	if !utils.Exists(mountpoint) {
-		err := os.MkdirAll(mountpoint, 0755)
-		if err != nil {
-			return err
-		}
-	}
-	mount, err := utils.SH(fmt.Sprintf("mount %s %s", part, mountpoint))
-	if err != nil {
-		fmt.Printf("could not mount: %s\n", mount+err.Error())
-		return err
-	}
-	return nil
+	return machine.Umount(partition.MountPoint)
 }
