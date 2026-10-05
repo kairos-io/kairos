@@ -98,6 +98,13 @@ func resetUki(reboot, unattended, resetOem bool, dir ...string) error {
 	return hook.Run(*cfg, resetSpec, hook.FinishReset...)
 }
 
+// operatorAbortedReset blocks on the prompt and reports whether the operator
+// asked to abort the reset. Whatever makes the prompt return counts as an abort.
+func operatorAbortedReset(prompt func(string) (string, error)) bool {
+	prompt("") //nolint:errcheck
+	return true
+}
+
 // sharedReset is the common reset code for both uki and non-uki
 // sets the config, runs the event handler, publish the envent and gets the config
 func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig.Config, err error) {
@@ -118,7 +125,7 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 		lock := sync.Mutex{}
 		go func() {
 			// Wait for user input and go back to shell
-			utils.Prompt("") //nolint:errcheck
+			operatorAbortedReset(utils.Prompt)
 			// give tty1 back
 			svc, err := machine.Getty(1)
 			if err == nil {
