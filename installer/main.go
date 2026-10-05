@@ -24,7 +24,7 @@ import (
 )
 
 // webUILogPath is where echo's own output goes while the TUI owns the
-// terminal. It matches the path the openrc kairos-webui service already uses.
+// terminal. It is the path the web UI has always logged to.
 // It is a var so a test can point it at a writable directory.
 var webUILogPath = "/var/log/kairos/webui.log"
 
@@ -46,10 +46,10 @@ func main() {
 	// Web-UI-only mode has no terminal UI to protect, so echo logs to stdout
 	// and lands in the journal, and serving it is the whole job.
 	//
-	// It is also the only mode a supervisor stops directly, so it is the only
-	// one that needs its own handler: `rc-service kairos-webui stop` and
-	// `systemctl stop kairos-webui` both send SIGTERM, and left at its
-	// default disposition that kills the process mid-response. Cancelling ctx
+	// It is also the only mode run outside a terminal, so it is the only one
+	// that needs its own handler: whatever supervises it sends SIGTERM, and
+	// left at its default disposition that kills the process mid-response.
+	// Cancelling ctx
 	// instead lets echo drain within its GracefulTimeout and exit 0. The
 	// interactive mode below needs nothing: bubbletea installs its own
 	// SIGINT/SIGTERM handler and quits the program, and signal delivery fans

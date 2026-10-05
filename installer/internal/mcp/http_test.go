@@ -114,7 +114,7 @@ func TestCrossOriginPostIsRejected(t *testing.T) {
 // http.CrossOriginProtection decides on Sec-Fetch-Site and Origin, and a
 // non-browser caller sends neither. Pinning that here so the test above is not
 // read as saying the port is protected. Anything that can reach it can call
-// every tool, which is the same exposure kairos-webui has on :8080 today.
+// every tool, which is the same exposure the web UI has on :8080 today.
 func TestARequestWithNoBrowserHeadersIsNotRejected(t *testing.T) {
 	endpoint := httpServer(t, newFakeServer(t, nil))
 

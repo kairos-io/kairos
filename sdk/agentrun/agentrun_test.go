@@ -321,3 +321,21 @@ var _ = Describe("PairingCommand", func() {
 		Expect(cmd.Env).To(BeNil())
 	})
 })
+
+var _ = Describe("RecoveryCommand", func() {
+	It("runs the agent's remote recovery", func() {
+		cmd := agentrun.RecoveryCommand("/usr/bin/kairos-agent")
+		Expect(cmd.Path).To(Equal("/usr/bin/kairos-agent"))
+		Expect(cmd.Args).To(Equal([]string{"/usr/bin/kairos-agent", "recovery"}))
+	})
+
+	It("does not take a source, because recovery installs nothing", func() {
+		cmd := agentrun.RecoveryCommand("/usr/bin/kairos-agent")
+		Expect(cmd.Args).NotTo(ContainElement("--source"))
+	})
+
+	It("does not ask for progress events, which would replace the QR code output", func() {
+		cmd := agentrun.RecoveryCommand("/usr/bin/kairos-agent")
+		Expect(cmd.Env).To(BeNil())
+	})
+})
