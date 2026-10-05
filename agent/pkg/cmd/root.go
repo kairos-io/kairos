@@ -721,7 +721,11 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 			// The persistent partition is formatted by default during reset
 			// (pkg/config/spec.go NewResetSpec sets FormatPersistent: true),
 			// so there's no useful CLI knob to surface here.
-			return agent.Reset(reboot, unattended, resetOem, constants.GetUserConfigDirs()...)
+			//
+			// strict-validation is declared on the app and not on this
+			// command, so it is read off the parent context, the same way
+			// install and upgrade read it.
+			return agent.Reset(reboot, unattended, resetOem, c.Bool("strict-validation"), constants.GetUserConfigDirs()...)
 		},
 		Usage: "Starts kairos reset mode",
 		Description: `
