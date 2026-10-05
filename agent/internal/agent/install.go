@@ -25,7 +25,6 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/branding"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
-	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -34,28 +33,21 @@ import (
 	"github.com/sanity-io/litter"
 )
 
-func displayInfo(agentConfig *branding.Config) {
-	if !agentConfig.WebUI.Disable {
-		ifaces := machine.Interfaces()
-		message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
-		if !agentConfig.WebUI.HasAddress() {
-			ips := machine.LocalIPs()
-			if len(ips) > 0 {
-				messageIps := " - WebUI installer: "
-				for _, ip := range ips {
-					// Skip printing local ips, makes no sense
-					if strings.Contains("127.0.0.1", ip) || strings.Contains("::1", ip) {
-						continue
-					}
-					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, sdkConstants.DefaultWebUIListenAddress)
-				}
-				message = message + messageIps
-			}
-		} else {
-			message = message + fmt.Sprintf(" - WebUI installer: %s", agentConfig.WebUI.ListenAddress)
-		}
-		fmt.Println(message)
-	}
+// installerInfoLine names the interfaces this node holds, so an operator who
+// has to reach it, to pair with `kairosctl register` or to open the web UI the
+// interactive installer serves, can read them off the installer's own screen.
+//
+// It advertises no web UI address. The plain installer this line belongs to
+// serves nothing on its own: it used to run next to a kairos-webui service
+// that listened on 8080, and that service is retired. The web UI now lives
+// inside the interactive installer, which prints its own address, so an
+// address printed here would point at a closed port.
+func installerInfoLine(ifaces []string) string {
+	return "Interfaces: " + strings.Join(ifaces, " ")
+}
+
+func displayInfo() {
+	fmt.Println(installerInfoLine(machine.Interfaces()))
 }
 
 func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValidations, useDefaultDirs, allowInsecureRegistries bool) error {
@@ -197,10 +189,10 @@ func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries 
 	cmd.ClearScreen()
 	cmd.PrintBranding(DefaultBanner)
 
-	// If there are no providers registered, we enter a shell for manual installation
-	// and print information about the webUI
+	// If there are no providers registered, we enter a shell for manual
+	// installation and print the interfaces it can be reached on.
 	if !bus.Manager.HasRegisteredPlugins() {
-		displayInfo(agentConfig)
+		displayInfo()
 		fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
 		return utils.Shell().Run()
 	}
@@ -229,7 +221,7 @@ func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries 
 
 	if tk != "" {
 		qr.Print(tk)
-		displayInfo(agentConfig)
+		displayInfo()
 	}
 
 	if _, err := bus.Manager.Publish(events.EventInstall, events.InstallPayload{Token: tk, Config: configStr}); err != nil {

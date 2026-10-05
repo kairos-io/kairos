@@ -2,6 +2,7 @@ package extensions
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -63,9 +64,14 @@ func TestPublishedCatalogRejectsLayersWithNoArtifacts(t *testing.T) {
 
 	// A layer is published as an image even when the sysext build is skipped,
 	// so the index carries entries with an empty `sysext` object. Asking for
-	// one has to fail with the architecture named, not resolve to nothing.
-	if _, err := catalog.Resolve("git", "", "amd64"); err == nil {
+	// one has to fail, and say that the layer publishes no image rather than
+	// name the architecture: no architecture would work.
+	_, err := catalog.Resolve("git", "", "amd64")
+	if err == nil {
 		t.Fatal("Resolve(git) succeeded, want an error: the layer publishes no sysext artifact")
+	}
+	if !strings.Contains(err.Error(), "publishes no system extension image") {
+		t.Errorf("Resolve(git) error = %v, want it to say the layer publishes no image", err)
 	}
 
 	// Same for an older version of a layer whose newest version does publish.
