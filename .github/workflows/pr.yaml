@@ -67,6 +67,51 @@ jobs:
     steps:
       - run: 'true'
 
+  # Cheap change detector for the flavor pipe. The wide base-image
+  # matrix in build-flavors is expensive per PR and only meaningful
+  # when a PR touches the kairos-init binary, the provider binary it
+  # invokes during standard-variant cells, the sdk/bus contract they
+  # exchange, its build machinery, or the workflow files that drive
+  # its build. This job outputs a single boolean the flavor pipe
+  # gates on; everything else is unaffected.
+  changes:
+    needs: authorize
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      flavor: ${{ steps.filter.outputs.flavor }}
+    steps:
+      - name: Detect flavor-relevant paths
+        id: filter
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          changed=$(gh pr diff --repo "$GITHUB_REPOSITORY" "$PR_NUMBER" --name-only)
+          echo "Changed files:"
+          echo "$changed"
+          # Paths whose diff can plausibly change what the flavor
+          # matrix builds:
+          #   - kairos-init/ : the binary being tested;
+          #   - provider/    : agent-provider-kairos is invoked
+          #                    over the go-pluggable bus for
+          #                    standard-variant (k3s/k0s) cells
+          #                    during kairos-init's build run;
+          #   - sdk/         : the bus event payloads the provider
+          #                    and kairos-init exchange;
+          #   - scripts/, Makefile, go.mod, go.sum : root build
+          #                    machinery and Go module state;
+          #   - the flavor / kairos / kairos-init reusable
+          #     workflows themselves.
+          if echo "$changed" | grep -qE '^(kairos-init/|provider/|sdk/|scripts/|Makefile$|go\.(mod|sum)$|\.github/workflows/_build-(flavors|kairos|kairos-init)\.yaml$)'; then
+            echo "flavor=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flavor=false" >> "$GITHUB_OUTPUT"
+          fi
+
   unit-tests:
     needs: authorize
     uses: ./.github/workflows/_unit-tests.yaml
@@ -97,6 +142,26 @@ jobs:
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
+    with:
+      matrix_scope: ci
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
+    secrets: inherit
+
+  # Flavor smoke matrix. For every supported base OS (ubuntu
+  # 24.04/25.10/26.04, debian 12/13, fedora 42/43, alpine, opensuse
+  # leap/tumbleweed, rockylinux/almalinux/oracle 9+10, centos stream,
+  # sle-micro) plus variant cells (k3s/k0s, FIPS, trusted-boot, nvidia
+  # jetson, rpi4, hadron main/v0.5.1), run kairos-init against the
+  # base image as a build-only smoke. No ISO, no qemu. Splits after
+  # build-kairos-init and runs in parallel with build-image-kairos-init
+  # / build-iso / test-* so a flavor breakage does not gate the
+  # release path and a bug on the release path does not mask a
+  # flavor regression.
+  build-flavors:
+    needs: [build-kairos-init, changes]
+    if: needs.changes.outputs.flavor == 'true'
+    uses: ./.github/workflows/_build-flavors.yaml
     with:
       matrix_scope: ci
       ref: refs/pull/${{ github.event.pull_request.number }}/head
@@ -166,8 +231,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # FIPS core cell. hadron-fips is a distinct base image from
           # hadron (FIPS-hardened kernel + userspace); passing fips:true
           # additionally flips the FIPS=fips build_arg in images/Dockerfile
@@ -214,6 +279,11 @@ jobs:
       # install-upgrade qemu test has something to upgrade.
       # Factory-action ignores it on non-UKI cells.
       single_efi_cmdline: 'testentry: nothing'
+      # Opt in to the CI-only sysext overlay. _build-iso.yaml picks
+      # tests/assets/sysext-uki for UKI cells and tests/assets/sysext-grub
+      # for the rest. Release cells do not set this and therefore ship no
+      # test extensions.
+      test_sysext_overlay: true
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
@@ -225,10 +295,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # rpi cells: raw disk image, no ISO. Still on hadron base.
-          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
           # only builds on that. Model-derived knobs (grype/sbom/
           # cleanup) turn off scans and enable disk cleanup; see
@@ -281,6 +351,7 @@ jobs:
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
+      test_sysext_overlay: true
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
@@ -312,6 +383,7 @@ jobs:
           - {test: 'upgrade-with-cli'}
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
+          - {test: 'sysext'}
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -325,7 +397,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
@@ -468,7 +540,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'
@@ -500,6 +572,10 @@ jobs:
           - {test: 'encryption-remote-ek-reenroll'}
           - {test: 'encryption-remote-mixed-modes'}
           - {test: 'encryption-kcrypt-cli'}
+          - {test: 'encryption-on-boot'}
+          - {test: 'encryption-on-boot-no-tpm'}
+          - {test: 'encryption-on-boot-remote'}
+          - {test: 'encryption-reset-parity'}
     name: test-standard-encryption / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     # See test-core-fips above.
@@ -508,7 +584,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'
@@ -536,7 +612,10 @@ jobs:
     uses: ./.github/workflows/_uki-test.yaml
     permissions:
       contents: read
-      packages: read
+      # _uki-test.yaml pushes the dynamically-built UKI upgrade image
+      # from the install-upgrade cell, so the callee declares
+      # packages: write and this caller has to cover it.
+      packages: write
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}

@@ -128,10 +128,20 @@ var _ = Describe("kairos autoinstall test", Label("acceptance"), func() {
 				Expect(out).To(ContainSubstring("--id fallback"))
 				Expect(out).To(ContainSubstring("--id recovery"))
 				Expect(out).To(ContainSubstring("--id statereset"))
-				// Now this one you can override with a custom grubmenu but by default we ship the remote recovery on it
+				// The override file still ships and still reaches the state
+				// partition, so a user entry dropped in it keeps working. It
+				// carries no Kairos entry of its own any more: remote
+				// recovery is offered by the interactive installer instead of
+				// by a boot entry (kairos-io/kairos#5064).
 				out, err = vm.Sudo("cat /run/initramfs/cos-state/grubmenu")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(out).To(ContainSubstring("remoterecovery"))
+				Expect(out).ToNot(ContainSubstring("remoterecovery"))
+				// Anchor on the start of a line so the header prose
+				// ("# Drop your own menuentry blocks in here.") does not
+				// satisfy the assertion. The unit test in
+				// kairos-init/pkg/bundled/extra_grub_cfg_test.go strips
+				// comment lines first for the same reason.
+				Expect(out).ToNot(MatchRegexp(`(?m)^\s*menuentry\b`))
 			})
 
 			By("checking additional mount specified, with no dir in rootfs", func() {

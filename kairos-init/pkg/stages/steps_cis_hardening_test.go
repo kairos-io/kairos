@@ -1,7 +1,11 @@
 package stages_test
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -13,6 +17,7 @@ import (
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/yip/pkg/schema"
+	"gopkg.in/yaml.v3"
 )
 
 // fileByPath returns the single yip file entry written to path across all the
@@ -39,6 +44,38 @@ func commandsFor(result []schema.Stage, path string) []string {
 		}
 	}
 	return cmds
+}
+
+// auditDirectives returns the lines of an audit rules file in the order
+// auditctl -R applies them, with blank and comment lines dropped the same way
+// auditctl drops them.
+func auditDirectives(content string) []string {
+	var out []string
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// auditDirectiveValue returns the integer argument of the single occurrence of
+// a one-argument audit directive such as -b or -f.
+func auditDirectiveValue(directives []string, flag string) int {
+	var values []int
+	for _, d := range directives {
+		fields := strings.Fields(d)
+		if len(fields) != 2 || fields[0] != flag {
+			continue
+		}
+		v, err := strconv.Atoi(fields[1])
+		ExpectWithOffset(1, err).ToNot(HaveOccurred(), "expected an integer argument to "+flag+", got "+fields[1])
+		values = append(values, v)
+	}
+	ExpectWithOffset(1, values).To(HaveLen(1), "expected exactly one "+flag+" directive")
+	return values[0]
 }
 
 // chmodMode returns the mode expression of the single chmod applied to path.
@@ -170,6 +207,201 @@ var _ = Describe("GetCISHardeningStage", func() {
 			})
 		})
 
+		Describe("the sysctl hardening drop-in", func() {
+			var sysctl schema.File
+
+			BeforeEach(func() {
+				sysctl = fileByPath(result, "/etc/sysctl.d/99-kairos-cis.conf")
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(sysctl.Path).To(Equal(bundled.CISSysctlPath))
+				Expect(sysctl.Permissions).To(Equal(uint32(0o644)))
+				Expect(sysctl.Owner).To(BeZero())
+				Expect(sysctl.Group).To(BeZero())
+			})
+
+			It("sets every key the issue enumerates", func() {
+				for _, kv := range []string{
+					"kernel.randomize_va_space = 2",
+					"net.ipv4.conf.all.rp_filter = 2",
+					"net.ipv4.conf.default.rp_filter = 2",
+					"net.ipv4.tcp_syncookies = 1",
+					"net.ipv4.conf.all.accept_source_route = 0",
+					"net.ipv4.conf.all.accept_redirects = 0",
+					"net.ipv4.conf.all.send_redirects = 0",
+					"net.ipv6.conf.all.accept_ra = 0",
+					"net.ipv6.conf.all.accept_redirects = 0",
+				} {
+					Expect(sysctl.Content).To(ContainSubstring(kv))
+				}
+			})
+
+			It("orders after the base distro drop-ins with a 99- prefix", func() {
+				Expect(sysctl.Path).To(HavePrefix("/etc/sysctl.d/99-"))
+			})
+		})
+
+		Describe("the audit rules drop-in", func() {
+			var rules schema.File
+
+			BeforeEach(func() {
+				rules = fileByPath(result, "/etc/audit/rules.d/50-kairos.rules")
+			})
+
+			It("is a 0640 root-owned file so CIS 4.1.4.5 stays green", func() {
+				Expect(rules.Path).To(Equal(bundled.CISAuditRulesPath))
+				Expect(rules.Permissions).To(Equal(uint32(0o640)))
+				Expect(rules.Owner).To(BeZero())
+				Expect(rules.Group).To(BeZero())
+			})
+
+			It("watches every account database the identity control names", func() {
+				for _, path := range []string{
+					"/etc/group", "/etc/passwd", "/etc/gshadow", "/etc/shadow",
+				} {
+					Expect(rules.Content).To(MatchRegexp(`-w ` + regexp.QuoteMeta(path) + ` -p wa -k identity`))
+				}
+			})
+
+			It("audits time, network-environment, MAC, login, session and DAC events", func() {
+				for _, key := range []string{
+					"time-change", "system-locale", "MAC-policy",
+					"logins", "session", "perm_mod", "access",
+					"mounts", "delete", "scope", "modules",
+				} {
+					Expect(rules.Content).To(
+						SatisfyAny(
+							ContainSubstring("-k "+key),
+							ContainSubstring("key="+key),
+						),
+						"expected key "+key+" in rules",
+					)
+				}
+			})
+
+			It("pairs each syscall rule with a b32 variant so 32-bit compat calls are caught", func() {
+				// The 32-bit ABI on amd64 (CONFIG_IA32_EMULATION) and
+				// aarch64 (CONFIG_COMPAT) reaches the same syscall
+				// numbers under arch=b32, so a b64-only rule leaves
+				// that path unaudited. The baseline pairs every
+				// -F arch=b64 -S ... rule with the same syscall list
+				// under -F arch=b32.
+				b64 := regexp.MustCompile(`(?m)^-a always,exit -F arch=b64 (.*)$`)
+				for _, m := range b64.FindAllStringSubmatch(rules.Content, -1) {
+					b32 := "-a always,exit -F arch=b32 " + m[1]
+					Expect(rules.Content).To(ContainSubstring(b32),
+						"missing b32 pair for: "+m[0])
+				}
+			})
+
+			It("sizes the backlog and sets a failure mode the kernel defaults leave off", func() {
+				// The openrc path loads this file on its own, with
+				// `auditctl -R`, and Alpine's audit package ships no
+				// rules of its own. Whatever is not here is not set:
+				// the kernel default backlog_limit is 64, far too
+				// small for the syscall rules below, and failure mode
+				// 0 discards the overrun without logging it.
+				directives := auditDirectives(rules.Content)
+
+				Expect(directives).To(ContainElement("-D"))
+				Expect(directives).To(ContainElement(MatchRegexp(`^--backlog_wait_time \d+$`)))
+
+				backlog := auditDirectiveValue(directives, "-b")
+				Expect(backlog).To(BeNumerically(">", 64), "backlog must be raised above the kernel default")
+
+				failureMode := auditDirectiveValue(directives, "-f")
+				Expect(failureMode).To(BeNumerically(">", 0), "failure mode 0 discards an overrun silently")
+			})
+
+			It("puts every global directive before the first rule and before -e", func() {
+				// auditctl -R applies lines in order and has no
+				// reordering of its own, unlike augenrules on the
+				// systemd path. A -b or -f written after the rules
+				// still applies, but one written after -e 2 is
+				// rejected with EPERM, and -D after a rule would
+				// delete the rules just loaded.
+				directives := auditDirectives(rules.Content)
+
+				firstRule := -1
+				for i, d := range directives {
+					if strings.HasPrefix(d, "-a ") || strings.HasPrefix(d, "-w ") {
+						firstRule = i
+						break
+					}
+				}
+				Expect(firstRule).To(BeNumerically(">", 0), "expected at least one rule, preceded by the base configuration")
+
+				for i, d := range directives {
+					for _, global := range []string{"-D", "-b ", "-f ", "--backlog_wait_time "} {
+						if d == strings.TrimSpace(global) || strings.HasPrefix(d, global) {
+							Expect(i).To(BeNumerically("<", firstRule),
+								"global directive "+d+" must come before the first rule")
+						}
+					}
+				}
+			})
+
+			It("locks the config with -e 2 as the last non-blank line", func() {
+				lines := strings.Split(strings.TrimRight(rules.Content, "\n"), "\n")
+				var last string
+				for i := len(lines) - 1; i >= 0; i-- {
+					if strings.TrimSpace(lines[i]) != "" {
+						last = strings.TrimSpace(lines[i])
+						break
+					}
+				}
+				Expect(last).To(Equal("-e 2"))
+			})
+		})
+
+		Describe("the auditd enable stage", func() {
+			It("enables auditd only where the systemd unit is present", func() {
+				var found bool
+				for _, st := range result {
+					for _, u := range st.Systemctl.Enable {
+						if u == "auditd" {
+							found = true
+							Expect(st.OnlyIfServiceManager).To(Equal("systemd"))
+							Expect(st.If).To(ContainSubstring("auditd.service"))
+						}
+					}
+				}
+				Expect(found).To(BeTrue(), "expected an Enable entry for auditd")
+			})
+		})
+
+		Describe("the Alpine openrc auditd drop-in", func() {
+			var confd schema.File
+			var stage schema.Stage
+
+			BeforeEach(func() {
+				confd = fileByPath(result, "/etc/conf.d/auditd")
+				for _, st := range result {
+					for _, f := range st.Files {
+						if f.Path == bundled.CISAuditdConfDPath {
+							stage = st
+						}
+					}
+				}
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(confd.Path).To(Equal(bundled.CISAuditdConfDPath))
+				Expect(confd.Permissions).To(Equal(uint32(0o644)))
+				Expect(confd.Owner).To(BeZero())
+				Expect(confd.Group).To(BeZero())
+			})
+
+			It("gates on Alpine only", func() {
+				Expect(stage.OnlyIfOs).To(Equal(values.AlpineRegex))
+			})
+
+			It("points RULEFILE_STARTUP at the CIS rules drop-in", func() {
+				Expect(confd.Content).To(ContainSubstring("RULEFILE_STARTUP=" + bundled.CISAuditRulesPath))
+			})
+		})
+
 		Describe("the account database permissions", func() {
 			It("tightens every database and backup the benchmark covers", func() {
 				for _, path := range []string{
@@ -238,11 +470,26 @@ var _ = Describe("GetCISHardeningStage", func() {
 			})
 
 			It("guards the chmod so a missing backup does not fail the build", func() {
+				accountDBs := map[string]struct{}{}
+				for _, p := range []string{
+					"/etc/passwd", "/etc/group", "/etc/shadow", "/etc/gshadow",
+					"/etc/passwd-", "/etc/group-", "/etc/shadow-", "/etc/gshadow-",
+				} {
+					accountDBs[p] = struct{}{}
+				}
 				for _, st := range result {
 					for _, cmd := range st.Commands {
-						if strings.HasPrefix(cmd, "chmod ") {
-							Expect(st.If).To(HavePrefix("test -f /etc/"))
+						if !strings.HasPrefix(cmd, "chmod ") {
+							continue
 						}
+						fields := strings.Fields(cmd)
+						if len(fields) != 3 {
+							continue
+						}
+						if _, ok := accountDBs[fields[2]]; !ok {
+							continue
+						}
+						Expect(st.If).To(HavePrefix("test -f /etc/"))
 					}
 				}
 			})
@@ -256,6 +503,494 @@ var _ = Describe("GetCISHardeningStage", func() {
 						Expect(f.Path).ToNot(HavePrefix("/etc/group"))
 						Expect(f.Path).ToNot(HavePrefix("/etc/shadow"))
 						Expect(f.Path).ToNot(HavePrefix("/etc/gshadow"))
+					}
+				}
+			})
+		})
+
+		Describe("the pwquality password policy", func() {
+			var pwq schema.File
+
+			BeforeEach(func() {
+				pwq = fileByPath(result, "/etc/security/pwquality.conf")
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(pwq.Path).To(Equal(bundled.CISPwqualityPath))
+				Expect(pwq.Permissions).To(Equal(uint32(0o644)))
+				Expect(pwq.Owner).To(BeZero())
+				Expect(pwq.Group).To(BeZero())
+			})
+
+			It("enforces the CIS 5.4.1 minimum length and character classes", func() {
+				for _, kv := range []string{
+					"minlen = 14",
+					"dcredit = -1",
+					"ucredit = -1",
+					"ocredit = -1",
+					"lcredit = -1",
+				} {
+					Expect(pwq.Content).To(ContainSubstring(kv))
+				}
+			})
+		})
+
+		Describe("the faillock lockout policy", func() {
+			var fl schema.File
+
+			BeforeEach(func() {
+				fl = fileByPath(result, "/etc/security/faillock.conf")
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(fl.Path).To(Equal(bundled.CISFaillockPath))
+				Expect(fl.Permissions).To(Equal(uint32(0o644)))
+				Expect(fl.Owner).To(BeZero())
+				Expect(fl.Group).To(BeZero())
+			})
+
+			It("locks accounts after five failures with a 900s window", func() {
+				for _, kv := range []string{
+					"deny = 5",
+					"unlock_time = 900",
+					"fail_interval = 900",
+					"even_deny_root",
+				} {
+					Expect(fl.Content).To(ContainSubstring(kv))
+				}
+			})
+		})
+
+		Describe("the faillock tally reset after user provisioning", func() {
+			var reset schema.File
+
+			BeforeEach(func() {
+				reset = fileByPath(result, bundled.CISFaillockResetCloudConfigPath)
+			})
+
+			It("ships a 0644 root-owned cloud-config under /system/oem", func() {
+				Expect(reset.Path).To(HavePrefix("/system/oem/"))
+				Expect(reset.Permissions).To(Equal(uint32(0o644)))
+				Expect(reset.Owner).To(BeZero())
+				Expect(reset.Group).To(BeZero())
+			})
+
+			It("runs at boot.after, once the boot stage has set user passwords", func() {
+				var cfg schema.YipConfig
+				Expect(yaml.Unmarshal([]byte(reset.Content), &cfg)).To(Succeed())
+				Expect(cfg.Stages).To(HaveKey("boot.after"))
+				Expect(cfg.Stages).To(HaveLen(1))
+				st := cfg.Stages["boot.after"]
+				Expect(st).To(HaveLen(1))
+				Expect(st[0].Commands).To(ConsistOf(ContainSubstring("/run/faillock")))
+			})
+
+			It("clears the tally files and nothing else", func() {
+				tally, err := os.MkdirTemp("", "faillock-*")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(tally)
+				Expect(os.WriteFile(filepath.Join(tally, "kairos"), []byte("x"), 0o600)).To(Succeed())
+				Expect(os.Mkdir(filepath.Join(tally, "keep.d"), 0o700)).To(Succeed())
+
+				var cfg schema.YipConfig
+				Expect(yaml.Unmarshal([]byte(reset.Content), &cfg)).To(Succeed())
+				cmd := strings.ReplaceAll(cfg.Stages["boot.after"][0].Commands[0], "/run/faillock", tally)
+				out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+				Expect(err).ToNot(HaveOccurred(), string(out))
+
+				Expect(filepath.Join(tally, "kairos")).ToNot(BeAnExistingFile())
+				Expect(filepath.Join(tally, "keep.d")).To(BeADirectory())
+				Expect(tally).To(BeADirectory())
+			})
+		})
+
+		Describe("the login.defs aging and umask defaults", func() {
+			var stage schema.Stage
+
+			BeforeEach(func() {
+				for _, st := range result {
+					if st.If == "test -f /etc/login.defs" {
+						stage = st
+					}
+				}
+				Expect(stage.Commands).ToNot(BeEmpty(), "expected a login.defs stage")
+			})
+
+			It("pins every key CIS 5.4.1 and 5.4.5 require", func() {
+				joined := strings.Join(stage.Commands, "\n")
+				for _, kv := range []string{
+					"PASS_MAX_DAYS", "365",
+					"PASS_MIN_DAYS", "1",
+					"PASS_WARN_AGE", "7",
+					"UMASK", "027",
+					"ENCRYPT_METHOD", "SHA512",
+				} {
+					Expect(joined).To(ContainSubstring(kv))
+				}
+			})
+
+			It("rewrites the existing line rather than appending blindly", func() {
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring("sed -i"))
+					Expect(cmd).To(ContainSubstring("printf"))
+				}
+			})
+
+			It("compares the shipped value against the CIS floor and skips when the base is already stricter", func() {
+				// Every command has to read the current value and branch
+				// on whether it is already at least as strict as CIS;
+				// otherwise the stage would loosen a base image's
+				// stricter policy (Hadron ships PASS_MAX_DAYS 60 and
+				// UMASK 077, both tighter than CIS).
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring(`cur=$(awk`),
+						"login.defs command missing current-value read: "+cmd)
+					Expect(cmd).To(SatisfyAny(
+						ContainSubstring(`[ "$cur" -le`),
+						ContainSubstring(`[ "$cur" -ge`),
+						ContainSubstring(`[ -n "$cur" ]`),
+					), "login.defs command missing tighten-only guard: "+cmd)
+				}
+			})
+
+			It("uses printf and not echo so backslash-t stays a real tab", func() {
+				// echo '\t' writes a literal backslash-t under most
+				// /bin/sh implementations; only printf expands it.
+				// The Hadron QA failure was exactly this.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).ToNot(MatchRegexp(`echo '[^']*\\t`),
+						"login.defs command uses echo with a literal \\t which will not expand: "+cmd)
+				}
+			})
+
+			It("guards the trailing newline before appending a new key", func() {
+				// Hadron's stock /etc/login.defs has no trailing
+				// newline. Without a guard, the appended key glues onto
+				// the last line and corrupts it.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring(`tail -c1`),
+						"login.defs command missing trailing-newline guard: "+cmd)
+				}
+			})
+
+			It("only matches live settings so comment prose is left alone", func() {
+				// A pattern like `#?[[:space:]]*KEY` also matches
+				// `# UMASK is the default umask value...`; sed'ing that
+				// turns the prose into a duplicate live setting.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).ToNot(ContainSubstring("#?"),
+						"login.defs detection must not accept commented lines: "+cmd)
+					Expect(cmd).ToNot(MatchRegexp(`\^\[\[:space:\]\]\*#`),
+						"login.defs sed must not match comment lines: "+cmd)
+				}
+			})
+
+			Context("when the shell runs the generated commands", func() {
+				// The unit-level tests above prove the command shape;
+				// this one runs it against tempfiles that reproduce
+				// each base image's shipped /etc/login.defs to catch
+				// regressions that only show up under sh.
+				var tmpdir string
+
+				BeforeEach(func() {
+					var err error
+					tmpdir, err = os.MkdirTemp("", "login-defs-*")
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					_ = os.RemoveAll(tmpdir)
+				})
+
+				runAgainst := func(initial string) string {
+					path := filepath.Join(tmpdir, "login.defs")
+					Expect(os.WriteFile(path, []byte(initial), 0o644)).To(Succeed())
+					for _, cmd := range stage.Commands {
+						// The stage writes /etc/login.defs; the test
+						// runs the same command against the tempfile.
+						scoped := strings.ReplaceAll(cmd, "/etc/login.defs", path)
+						out, err := exec.Command("sh", "-c", scoped).CombinedOutput()
+						Expect(err).ToNot(HaveOccurred(), "sh -c failed: %s\n%s", scoped, out)
+					}
+					got, err := os.ReadFile(path)
+					Expect(err).ToNot(HaveOccurred())
+					return string(got)
+				}
+
+				It("appends ENCRYPT_METHOD as a real tabbed line to a Hadron file with no trailing newline", func() {
+					initial := "USERGROUPS_ENAB yes\nPREVENT_NO_AUTH superuser"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("\nPREVENT_NO_AUTH superuser\n"),
+						"missing-newline base image had its last line corrupted: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^ENCRYPT_METHOD\tSHA512$`),
+						"ENCRYPT_METHOD not appended as a live tab-separated line: %q", got)
+					Expect(got).ToNot(ContainSubstring(`\t`),
+						"literal backslash-t leaked into the file: %q", got)
+				})
+
+				It("keeps a base image's stricter value on Hadron-shape inputs and only tightens weaker keys", func() {
+					// Hadron ships UMASK 077 (stricter than 027),
+					// PASS_MAX_DAYS 60 (stricter than 365) and
+					// PASS_MIN_DAYS 0 (weaker than 1). The stage must
+					// leave the two stricter keys alone and only raise
+					// PASS_MIN_DAYS.
+					initial := "UMASK 077\nPASS_MAX_DAYS 60\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\nENCRYPT_METHOD SHA512\n"
+					got := runAgainst(initial)
+					Expect(got).To(MatchRegexp(`(?m)^UMASK 077$`),
+						"UMASK 077 was loosened: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MAX_DAYS 60$`),
+						"PASS_MAX_DAYS 60 was loosened: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MIN_DAYS\t1$`),
+						"PASS_MIN_DAYS 0 was not tightened to 1: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_WARN_AGE 7$`),
+						"PASS_WARN_AGE 7 was churned unnecessarily: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^ENCRYPT_METHOD SHA512$`),
+						"ENCRYPT_METHOD SHA512 was churned unnecessarily: %q", got)
+					Expect(strings.Count(got, "UMASK")).To(Equal(1))
+					Expect(strings.Count(got, "PASS_MAX_DAYS")).To(Equal(1))
+				})
+
+				It("tightens weaker values on Ubuntu-shape inputs", func() {
+					// Ubuntu ships PASS_MAX_DAYS 99999 (weaker than CIS
+					// 365), UMASK 022 (weaker than 027), PASS_MIN_DAYS 0
+					// (weaker than 1). All three must be raised.
+					initial := "PASS_MAX_DAYS 99999\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\nUMASK 022\n"
+					got := runAgainst(initial)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MAX_DAYS\t365$`))
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MIN_DAYS\t1$`))
+					Expect(got).To(MatchRegexp(`(?m)^UMASK\t027$`))
+				})
+
+				It("leaves commented documentation intact and does not create duplicates from prose", func() {
+					initial := "# UMASK is the default umask value...\n# PASS_MAX_DAYS Maximum number of days...\nUSERGROUPS_ENAB yes\n"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("# UMASK is the default umask value..."),
+						"comment prose was rewritten: %q", got)
+					Expect(got).To(ContainSubstring("# PASS_MAX_DAYS Maximum number of days..."),
+						"comment prose was rewritten: %q", got)
+					Expect(strings.Count(got, "\nUMASK")).To(Equal(1),
+						"UMASK live line appeared more than once: %q", got)
+					Expect(strings.Count(got, "\nPASS_MAX_DAYS")).To(Equal(1),
+						"PASS_MAX_DAYS live line appeared more than once: %q", got)
+				})
+
+				It("appends when only a commented-out setting is present", func() {
+					initial := "#UMASK 022\n#PASS_MAX_DAYS 99999\n"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("#UMASK 022"),
+						"commented default was rewritten: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^UMASK\t027$`),
+						"missing appended UMASK when only commented default present: %q", got)
+				})
+			})
+		})
+
+		Describe("the cron and at directory permissions", func() {
+			It("tightens every path CIS 5.1 names", func() {
+				for _, path := range []string{
+					"/etc/crontab",
+					"/etc/cron.hourly", "/etc/cron.daily",
+					"/etc/cron.weekly", "/etc/cron.monthly",
+					"/etc/cron.d",
+					"/etc/cron.allow", "/etc/cron.deny",
+					"/etc/at.allow", "/etc/at.deny",
+				} {
+					var found bool
+					for _, st := range result {
+						if st.If != "test -e "+path {
+							continue
+						}
+						found = true
+						Expect(st.Commands).To(ContainElement(MatchRegexp(`^chown root:root ` + regexp.QuoteMeta(path) + `$`)))
+						Expect(st.Commands).To(ContainElement(MatchRegexp(`^chmod 0[67][04]0 ` + regexp.QuoteMeta(path) + `$`)))
+					}
+					Expect(found).To(BeTrue(), "expected a stage for "+path)
+				}
+			})
+
+			It("guards every cron chmod on the path existing so a missing subsystem does not fail the build", func() {
+				for _, st := range result {
+					for _, cmd := range st.Commands {
+						if !strings.HasPrefix(cmd, "chmod 0") {
+							continue
+						}
+						fields := strings.Fields(cmd)
+						if len(fields) != 3 {
+							continue
+						}
+						if !strings.HasPrefix(fields[2], "/etc/cron") && !strings.HasPrefix(fields[2], "/etc/at.") && fields[2] != "/etc/crontab" {
+							continue
+						}
+						Expect(st.If).To(HavePrefix("test -e "))
+					}
+				}
+			})
+		})
+
+		Describe("the PAM stack wiring", func() {
+			stageNamed := func(name string) schema.Stage {
+				var found []schema.Stage
+				for _, st := range result {
+					if st.Name == name {
+						found = append(found, st)
+					}
+				}
+				ExpectWithOffset(1, found).To(HaveLen(1), "expected exactly one stage named "+name)
+				return found[0]
+			}
+
+			Context("on Debian and Ubuntu", func() {
+				It("writes both faillock profiles and enables them with pam-auth-update", func() {
+					st := stageNamed("Wire pam_faillock into the Debian/Ubuntu PAM stack")
+					Expect(st.OnlyIfOs).To(Equal("Ubuntu.*|Debian.*"))
+					Expect(st.Commands).To(ConsistOf(
+						"DEBIAN_FRONTEND=noninteractive pam-auth-update --enable kairos-faillock kairos-faillock-notify"))
+					var paths []string
+					for _, f := range st.Files {
+						paths = append(paths, f.Path)
+						Expect(f.Permissions).To(Equal(uint32(0o644)))
+					}
+					Expect(paths).To(ConsistOf(bundled.CISPamConfigFaillockPath, bundled.CISPamConfigFaillockNotifyPath))
+				})
+
+				It("only writes the profiles when pam_faillock.so is on disk", func() {
+					// pam-auth-update enables Default: yes profiles on any
+					// later run; a profile naming a missing module would
+					// fail every authentication.
+					st := stageNamed("Wire pam_faillock into the Debian/Ubuntu PAM stack")
+					Expect(st.If).To(ContainSubstring("command -v pam-auth-update"))
+					Expect(st.If).To(ContainSubstring("security/pam_faillock.so"))
+				})
+
+				It("places authfail after pam_unix and preauth plus account reset before it", func() {
+					Expect(bundled.CISPamConfigFaillock).To(ContainSubstring("Priority: 0\n"))
+					Expect(bundled.CISPamConfigFaillock).To(MatchRegexp(`(?m)^\t\[default=die\]\tpam_faillock\.so authfail$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(ContainSubstring("Priority: 1024\n"))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^\trequisite\tpam_faillock\.so preauth$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^Account-Type: Primary$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^\trequired\tpam_faillock\.so$`))
+				})
+
+				It("enables the stock pwquality profile only when libpam-pwquality installed it", func() {
+					st := stageNamed("Wire pam_pwquality into the Debian/Ubuntu PAM stack")
+					Expect(st.OnlyIfOs).To(Equal("Ubuntu.*|Debian.*"))
+					Expect(st.If).To(ContainSubstring("test -f /usr/share/pam-configs/pwquality"))
+					Expect(st.If).To(ContainSubstring("security/pam_pwquality.so"))
+					Expect(st.Commands).To(ConsistOf("DEBIAN_FRONTEND=noninteractive pam-auth-update --enable pwquality"))
+				})
+			})
+
+			Context("on the RHEL family", func() {
+				It("uses authselect with-faillock when authselect is installed", func() {
+					st := stageNamed("Wire pam_faillock into the RHEL-family PAM stack with authselect")
+					Expect(st.OnlyIfOs).To(Equal(values.RHELFamilyRegex))
+					Expect(st.If).To(HavePrefix("command -v authselect >/dev/null && "))
+					Expect(st.If).To(ContainSubstring("security/pam_faillock.so"))
+					Expect(st.Commands).To(ConsistOf(bundled.CISAuthselectFaillock))
+					Expect(bundled.CISAuthselectFaillock).To(ContainSubstring("authselect enable-feature with-faillock"))
+					Expect(bundled.CISAuthselectFaillock).To(ContainSubstring(`authselect select "$profile" with-faillock --force`))
+				})
+
+				It("falls back to editing the plain stack only when authselect is missing", func() {
+					st := stageNamed("Wire pam_faillock into the RHEL-family PAM stack without authselect")
+					Expect(st.OnlyIfOs).To(Equal(values.RHELFamilyRegex))
+					Expect(st.If).To(HavePrefix("! command -v authselect >/dev/null && "))
+					Expect(st.Commands).To(ConsistOf(bundled.CISRHELFaillockFallback))
+				})
+
+				Context("when the fallback script runs against a stock EL9 stack", func() {
+					var tmpdir string
+					const stockSystemAuth = `#%PAM-1.0
+auth        required      pam_env.so
+auth        sufficient    pam_unix.so try_first_pass nullok
+auth        required      pam_deny.so
+
+account     required      pam_unix.so
+
+password    requisite     pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type=
+password    sufficient    pam_unix.so try_first_pass use_authtok nullok sha512 shadow
+password    required      pam_deny.so
+`
+
+					BeforeEach(func() {
+						var err error
+						tmpdir, err = os.MkdirTemp("", "pam-d-*")
+						Expect(err).ToNot(HaveOccurred())
+					})
+
+					AfterEach(func() {
+						_ = os.RemoveAll(tmpdir)
+					})
+
+					run := func() {
+						scoped := strings.ReplaceAll(bundled.CISRHELFaillockFallback, "/etc/pam.d/", tmpdir+"/")
+						out, err := exec.Command("sh", "-c", scoped).CombinedOutput()
+						Expect(err).ToNot(HaveOccurred(), string(out))
+					}
+
+					It("inserts preauth, authfail and the account line around pam_unix, once", func() {
+						for _, n := range []string{"system-auth", "password-auth"} {
+							Expect(os.WriteFile(filepath.Join(tmpdir, n), []byte(stockSystemAuth), 0o644)).To(Succeed())
+						}
+						run()
+						run()
+						for _, n := range []string{"system-auth", "password-auth"} {
+							got, err := os.ReadFile(filepath.Join(tmpdir, n))
+							Expect(err).ToNot(HaveOccurred())
+							lines := strings.Split(string(got), "\n")
+							idx := func(re string) int {
+								for i, l := range lines {
+									if regexp.MustCompile(re).MatchString(l) {
+										return i
+									}
+								}
+								return -1
+							}
+							pre := idx(`^auth\s+required\s+pam_faillock\.so preauth silent$`)
+							unix := idx(`^auth\s+sufficient\s+pam_unix\.so`)
+							fail := idx(`^auth\s+required\s+pam_faillock\.so authfail$`)
+							acct := idx(`^account\s+required\s+pam_faillock\.so$`)
+							acctUnix := idx(`^account\s+required\s+pam_unix\.so`)
+							Expect(pre).To(BeNumerically(">=", 0), n+": %s", got)
+							Expect(pre).To(Equal(unix-1), n)
+							Expect(fail).To(Equal(unix+1), n)
+							Expect(acct).To(Equal(acctUnix-1), n)
+							Expect(strings.Count(string(got), "pam_faillock.so")).To(Equal(3), "script is not idempotent in "+n)
+							Expect(string(got)).To(ContainSubstring("pam_pwquality.so"))
+						}
+					})
+
+					It("leaves an authselect-managed symlink and an unexpected stack alone", func() {
+						Expect(os.WriteFile(filepath.Join(tmpdir, "target"), []byte(stockSystemAuth), 0o644)).To(Succeed())
+						Expect(os.Symlink(filepath.Join(tmpdir, "target"), filepath.Join(tmpdir, "system-auth"))).To(Succeed())
+						odd := "auth required pam_sss.so\naccount required pam_sss.so\n"
+						Expect(os.WriteFile(filepath.Join(tmpdir, "password-auth"), []byte(odd), 0o644)).To(Succeed())
+						run()
+						got, _ := os.ReadFile(filepath.Join(tmpdir, "target"))
+						Expect(string(got)).To(Equal(stockSystemAuth))
+						got, _ = os.ReadFile(filepath.Join(tmpdir, "password-auth"))
+						Expect(string(got)).To(Equal(odd))
+					})
+				})
+			})
+
+			Context("on SUSE", func() {
+				It("swaps cracklib for pwquality with pam-config when pam-config knows the module", func() {
+					st := stageNamed("Wire pam_pwquality into the SUSE PAM stack with pam-config")
+					Expect(st.OnlyIfOs).To(Equal(values.AllSuseRegex))
+					Expect(st.If).To(ContainSubstring("pam-config --help"))
+					Expect(st.If).To(ContainSubstring("--pwquality"))
+					Expect(st.If).To(ContainSubstring("security/pam_pwquality.so"))
+					Expect(bundled.CISSUSEPwquality).To(ContainSubstring("pam-config -a --pwquality"))
+					Expect(bundled.CISSUSEPwquality).To(ContainSubstring("pam-config -d --cracklib"))
+				})
+			})
+
+			It("does not wire anything on Alpine, which has no PAM in the login path", func() {
+				for _, st := range result {
+					if strings.HasPrefix(st.Name, "Wire pam_") {
+						Expect(st.OnlyIfOs).ToNot(Equal(values.AlpineRegex))
+						Expect(st.OnlyIfOs).ToNot(BeEmpty(), st.Name+" must be gated on a distro family")
 					}
 				}
 			})

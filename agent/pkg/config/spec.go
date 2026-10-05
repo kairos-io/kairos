@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
@@ -392,15 +393,9 @@ func NewUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeSpec, error) {
 
 	// Deep look to see if upgrade.recovery == true in the config
 	// if yes, we set the upgrade spec "Entry" to "recovery"
-	entry := ""
-	_, ok := cfg.Collector.Values["upgrade"]
-	if ok {
-		_, ok = cfg.Collector.Values["upgrade"].(collector.ConfigValues)["recovery"]
-		if ok {
-			if cfg.Collector.Values["upgrade"].(collector.ConfigValues)["recovery"].(bool) {
-				entry = constants.BootEntryRecovery
-			}
-		}
+	entry, err := upgradeRecoveryEntry(cfg.Collector.Values)
+	if err != nil {
+		return nil, err
 	}
 
 	spec := &spec.UpgradeSpec{
@@ -628,15 +623,26 @@ func NewUkiResetSpec(cfg *sdkConfig.Config) (*spec.ResetUkiSpec, error) {
 		return sp, fmt.Errorf("uki reset can only be called from the recovery installed system")
 	}
 
-	// Fill persistent partition
-	sp.Partitions.Persistent = partitions.GetPartitionViaDM(cfg.Fs, sdkConstants.PersistentLabel)
-	sp.Partitions.OEM = partitions.GetPartitionViaDM(cfg.Fs, sdkConstants.OEMLabel)
-
-	// Get EFI partition
 	parts, err := partitions.GetAllPartitions(&cfg.Logger)
 	if err != nil {
 		return sp, fmt.Errorf("could not read host partitions")
 	}
+	ep := spec.NewElementalPartitionsFromList(parts)
+
+	// A UKI install encrypts OEM and persistent by default, and an encrypted
+	// partition only shows up as its device-mapper node. install.encrypted_partitions
+	// can name a subset though, so either of the two can also be a plain
+	// partition, which only shows up in the ghw list. Look in both places.
+	sp.Partitions.Persistent = ep.Persistent
+	if sp.Partitions.Persistent == nil {
+		sp.Partitions.Persistent = partitions.GetPartitionViaDM(cfg.Fs, sdkConstants.PersistentLabel)
+	}
+	sp.Partitions.OEM = ep.OEM
+	if sp.Partitions.OEM == nil {
+		sp.Partitions.OEM = partitions.GetPartitionViaDM(cfg.Fs, sdkConstants.OEMLabel)
+	}
+
+	// Get EFI partition
 	for _, p := range parts {
 		if p.FilesystemLabel == sdkConstants.EfiLabel {
 			sp.Partitions.EFI = p
@@ -1106,6 +1112,51 @@ func unmarshallFullSpec(r *sdkConfig.Config, subkey string, sp sdkSpec.Spec) err
 	checkDeprecatedURIUsage(r.Logger, sp)
 
 	return nil
+}
+
+// upgradeRecoveryEntry reads the boolean upgrade.recovery key and returns the
+// boot entry it selects, or the empty string when the key is absent or false.
+// The upgrade spec has no field for the key, so it is read off the merged
+// cloud config instead of through the spec unmarshalling. That map holds
+// whatever the user's YAML said, so every value is type checked and a wrong
+// type is reported with the key named.
+func upgradeRecoveryEntry(values collector.ConfigValues) (string, error) {
+	raw, ok := values["upgrade"]
+	if !ok || raw == nil {
+		return "", nil
+	}
+	upgrade, ok := raw.(collector.ConfigValues)
+	if !ok {
+		return "", fmt.Errorf("upgrade must be a mapping of keys, got a %T", raw)
+	}
+	raw, ok = upgrade["recovery"]
+	if !ok || raw == nil {
+		return "", nil
+	}
+	recovery, err := configBool(raw)
+	if err != nil {
+		return "", fmt.Errorf("upgrade.recovery must be true or false, got %v: %w", raw, err)
+	}
+	if !recovery {
+		return "", nil
+	}
+	return constants.BootEntryRecovery, nil
+}
+
+// configBool reads a cloud-config value as a boolean. The YAML parser gives
+// back a bool for true and false, an int for 1 and 0, and a string for
+// anything the user quoted, which templating engines do by default.
+func configBool(value interface{}) (bool, error) {
+	switch v := value.(type) {
+	case bool:
+		return v, nil
+	case int:
+		return v != 0, nil
+	case string:
+		return strconv.ParseBool(v)
+	default:
+		return false, fmt.Errorf("cannot read a %T as a boolean", value)
+	}
 }
 
 // applyAllowInsecureRegistries switches the config's ImageExtractor to one that

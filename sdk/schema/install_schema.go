@@ -23,16 +23,15 @@ type InstallSchema struct {
 	ImageDeprecated     string `json:"image,omitempty" deprecated:"true" description:"Deprecated and ignored: it was never read by the installer. Use source instead"`
 	NoUsers             bool   `json:"nousers,omitempty" description:"Skip the check that the config declares at least one administrative user. Intended for images that provision users by other means."`
 	PowerManagement
-	SkipEncryptCopyPlugins bool                `json:"skip_copy_kcrypt_plugin,omitempty"`
-	Partitions             ElementalPartitions `json:"partitions,omitempty"`
-	GrubDefEntry           string              `json:"grub-entry-name,omitempty"`
-	ExtraPartitions        []*Partition        `json:"extra-partitions,omitempty"`
-	Force                  bool                `json:"force,omitempty"`
-	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty"`
-	SSHHardening           bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
-	Active                 Image               `json:"system,omitempty"`
-	Recovery               Image               `json:"recovery-system,omitempty"`
-	Passive                Image               `json:"passive,omitempty"`
+	Partitions      ElementalPartitions `json:"partitions,omitempty"`
+	GrubDefEntry    string              `json:"grub-entry-name,omitempty"`
+	ExtraPartitions []*Partition        `json:"extra-partitions,omitempty"`
+	Force           bool                `json:"force,omitempty"`
+	ExtraDirsRootfs []string            `json:"extra-dirs-rootfs,omitempty"`
+	SSHHardening    bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
+	Active          Image               `json:"system,omitempty"`
+	Recovery        Image               `json:"recovery-system,omitempty"`
+	Passive         Image               `json:"passive,omitempty"`
 }
 
 // Image describes one of the install block's image slots (system,
@@ -82,8 +81,13 @@ type GrubOptionsSchema struct {
 // SelinuxOptions controls SELinux on the installed system (RHEL and SUSE
 // families). When enabled, the system boots with selinux=1
 // and the kairos-selinux-relabel unit runs on every non-recovery boot.
+//
+// Trusted Boot is supported as well, with one difference: the UKI cmdline is
+// signed when the image is built, so AuroraBoot reads these options from the
+// cloud-config passed to "auroraboot build-uki" rather than from the one the
+// node boots with.
 type SelinuxOptions struct {
-	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). GRUB-only: not supported under UKI"`
+	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). On Trusted Boot the cmdline is signed at build time, so this is read from the cloud-config given to 'auroraboot build-uki', not from the one the node boots with"`
 	Mode    string `json:"mode,omitempty" enum:"[\"enforcing\",\"permissive\"]" description:"SELinux mode: enforcing or permissive (default permissive). Enforcing is applied after the post-boot relabel, not from early boot"`
 }
 
