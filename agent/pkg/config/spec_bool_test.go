@@ -41,25 +41,31 @@ var boolKeys = []struct {
 	{"reset", "poweroff", func() sdkSpec.Spec { return &v1.ResetSpec{} }},
 }
 
-// boolValues are the ways a yes/no key gets written, and whether the decoder
-// reads each one.
+// boolValues are the ways a yes/no key gets written, and whether each reader
+// reads it. The two readers differ on one value: mapstructure's
+// WeaklyTypedInput reads the empty string as false, while configBool hands it
+// to strconv.ParseBool, which refuses it. A template with an unset variable
+// writes exactly that, so the difference is reachable.
 var boolValues = []struct {
-	value   string
-	decodes bool
+	value      string
+	viperReads bool
+	boolReads  bool
 }{
-	{"true", true},
-	{"false", true},
+	{"true", true, true},
+	{"false", true, true},
 	// A templating engine quotes its output, so a generated config writes
 	// the literal as a string.
-	{`"true"`, true},
-	{`"TRUE"`, true},
-	{`"t"`, true},
-	{"1", true},
-	{"0", true},
+	{`"true"`, true, true},
+	{`"TRUE"`, true, true},
+	{`"t"`, true, true},
+	{"1", true, true},
+	{"0", true, true},
+	// An unset template variable writes an empty string.
+	{`""`, true, false},
 	// Unquoted yes is a string in YAML 1.2 and strconv.ParseBool refuses
-	// it, so the decoder refuses it too.
-	{"yes", false},
-	{"maybe", false},
+	// it, so both readers refuse it.
+	{"yes", false, false},
+	{"maybe", false, false},
 }
 
 // The upgrade and reset blocks reach their spec through viper's Unmarshal,
@@ -80,17 +86,17 @@ func TestBoolKeysAgreeWithTheSchema(t *testing.T) {
 
 				vp := subFor(t, cc, k.block)
 				err := vp.Unmarshal(k.spec(), setDecoder, decodeHook)
-				if decodes := err == nil; decodes != v.decodes {
-					t.Fatalf("decoding %q: err %v, expected it to decode: %v", cc, err, v.decodes)
+				if decodes := err == nil; decodes != v.viperReads {
+					t.Fatalf("decoding %q: err %v, expected it to decode: %v", cc, err, v.viperReads)
 				}
 
 				config, err := schema.NewConfigFromYAML("#cloud-config\nusers:\n- name: kairos\n"+cc, schema.RootSchema{})
 				if err != nil {
 					t.Fatalf("building the config for %q: %v", cc, err)
 				}
-				if config.IsValid() != v.decodes {
+				if config.IsValid() != v.viperReads {
 					t.Fatalf("%q is decoded by the spec: %v, but the schema says it is valid: %v (%v)",
-						cc, v.decodes, config.IsValid(), config.ValidationError)
+						cc, v.viperReads, config.IsValid(), config.ValidationError)
 				}
 			})
 		}
@@ -106,17 +112,17 @@ func TestRecoveryKeyAgreesWithTheSchema(t *testing.T) {
 			cc := fmt.Sprintf("upgrade:\n  recovery: %s\n", v.value)
 
 			_, err := configBool(subFor(t, cc, "upgrade").Get("recovery"))
-			if reads := err == nil; reads != v.decodes {
-				t.Fatalf("configBool on %q: err %v, expected it to read: %v", cc, err, v.decodes)
+			if reads := err == nil; reads != v.boolReads {
+				t.Fatalf("configBool on %q: err %v, expected it to read: %v", cc, err, v.boolReads)
 			}
 
 			config, err := schema.NewConfigFromYAML("#cloud-config\nusers:\n- name: kairos\n"+cc, schema.RootSchema{})
 			if err != nil {
 				t.Fatalf("building the config for %q: %v", cc, err)
 			}
-			if config.IsValid() != v.decodes {
+			if config.IsValid() != v.boolReads {
 				t.Fatalf("%q is read by configBool: %v, but the schema says it is valid: %v (%v)",
-					cc, v.decodes, config.IsValid(), config.ValidationError)
+					cc, v.boolReads, config.IsValid(), config.ValidationError)
 			}
 		})
 	}
