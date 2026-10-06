@@ -321,6 +321,14 @@ on:
         default: false
         description: "Remove preinstalled packages to free disk space on the runner"
 
+# Least-privilege default for any job added to this workflow later. The
+# `build` job below declares its own `permissions:`, which replace this
+# block entirely for that job, so adding this does not narrow the token
+# the factory build already receives. See the note on `build` for why
+# that job needs packages: write.
+permissions:
+  contents: read
+
 jobs:
   build:
     permissions:
