@@ -345,6 +345,10 @@ on:
         default: false
         description: "Remove preinstalled packages to free disk space on the runner"
 
+# Every job declares the permissions it needs, so nothing is granted by
+# default.
+permissions: {}
+
 jobs:
   build:
     permissions:
