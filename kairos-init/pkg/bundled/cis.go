@@ -75,8 +75,13 @@ net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.all.accept_redirects = 0
 net.ipv4.conf.all.send_redirects = 0
 
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+
 net.ipv6.conf.all.accept_ra = 0
 net.ipv6.conf.all.accept_redirects = 0
+
+fs.suid_dumpable = 0
 `
 
 const CISAuditRulesPath = "/etc/audit/rules.d/50-kairos.rules"
@@ -453,3 +458,45 @@ var CISCronPaths = []CISCronPath{
 	{Path: "/etc/at.allow", Mode: "0640"},
 	{Path: "/etc/at.deny", Mode: "0640"},
 }
+
+// CISCoreDumpLimitsPath holds the hard core limit CIS 1.5.1 asks for. The
+// other half of the control, fs.suid_dumpable = 0, is in CISSysctl.
+const CISCoreDumpLimitsPath = "/etc/security/limits.d/50-kairos-cis.conf"
+
+// CISCoreDumpLimits is the content written to CISCoreDumpLimitsPath.
+const CISCoreDumpLimits = `# Managed by kairos-init. CIS 1.5.1: no core dumps.
+* hard core 0
+`
+
+// CISJournaldConfPath is the journald config CIS 4.2.2.2 and 4.2.2.3 read.
+// The benchmark parses this file only, not journald.conf.d drop-ins, so the
+// keys go into the [Journal] section here.
+const CISJournaldConfPath = "/etc/systemd/journald.conf"
+
+// CISJournaldSettings are the journald keys CIS 4.2.2 pins: compress large
+// journal files, and keep them on disk. On Kairos /var/log is a persistent
+// bind, so persistent storage survives reboots.
+var CISJournaldSettings = [][2]string{
+	{"Compress", "yes"},
+	{"Storage", "persistent"},
+}
+
+// CISHomePermsCloudConfigPath closes user home directories to other (CIS
+// 6.2.8). Users are provisioned from cloud-config at boot and yip creates
+// their home 0755, so this cannot be baked into the image; it runs after the
+// users are in place, on every boot, and only ever removes bits.
+const CISHomePermsCloudConfigPath = "/system/oem/35_cis_home_perms.yaml"
+
+// CISHomePermsCloudConfig is the content written to
+// CISHomePermsCloudConfigPath.
+const CISHomePermsCloudConfig = `#cloud-config
+# Managed by kairos-init. See CISHomePermsCloudConfigPath in
+# kairos-init/pkg/bundled/cis.go for why this runs at boot.after.
+name: "CIS home directory permissions"
+stages:
+  boot.after:
+    - name: "Close home directories to other users"
+      if: '[ -d /home ]'
+      commands:
+        - find /home -mindepth 1 -maxdepth 1 -type d -exec chmod g-w,o-rwx {} +
+`

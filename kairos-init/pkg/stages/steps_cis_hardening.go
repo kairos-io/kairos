@@ -146,6 +146,23 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 		},
 	}
 
+	stages = append(stages,
+		schema.Stage{
+			// CIS 6.1.5 checks /etc/gshadow, which Hadron does not ship.
+			Name:     "Create /etc/gshadow",
+			If:       "test ! -e /etc/gshadow && command -v grpconv >/dev/null",
+			Commands: []string{"grpconv"},
+		},
+		schema.Stage{
+			// CIS 6.1.6-6.1.9 check the `-` backups too. A copy of the live
+			// database is what a shadow utility would have left there.
+			Name: "Create missing account database backups",
+			Commands: []string{
+				"for f in passwd group shadow gshadow; do [ -e /etc/$f- ] || [ ! -e /etc/$f ] || cp -p /etc/$f /etc/$f-; done",
+			},
+		},
+	)
+
 	for _, f := range cisAccountFiles {
 		stages = append(stages, schema.Stage{
 			// Guarded on existence rather than done with a yip file
@@ -263,7 +280,126 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 		})
 	}
 
+	stages = append(stages, getCISBenchmarkGapStages()...)
+
 	return stages
+}
+
+// getCISBenchmarkGapStages covers the controls the CIS DIL benchmark run
+// against an installed Hadron system (tests/cis_test.go) found failing.
+func getCISBenchmarkGapStages() []schema.Stage {
+	journald := []string{}
+	for _, kv := range bundled.CISJournaldSettings {
+		// Drop any active value, make sure there is a [Journal] section, then
+		// put the key right under it. Commented defaults are left alone.
+		journald = append(journald, fmt.Sprintf(
+			"f=%[1]s; sed -i -E '/^[[:space:]]*%[2]s=/d' \"$f\"; "+
+				"if ! grep -q '^\\[Journal\\]' \"$f\"; then [ -n \"$(tail -c1 \"$f\")\" ] && printf '\\n' >> \"$f\"; printf '[Journal]\\n' >> \"$f\"; fi; "+
+				"sed -i '/^\\[Journal\\]/a %[2]s=%[3]s' \"$f\"",
+			bundled.CISJournaldConfPath, kv[0], kv[1]))
+	}
+
+	return []schema.Stage{
+		{
+			Name: "Install the CIS core dump limit",
+			Files: []schema.File{
+				{
+					Path:        bundled.CISCoreDumpLimitsPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISCoreDumpLimits,
+				},
+			},
+		},
+		{
+			Name:     "Set CIS journald compression and persistent storage",
+			If:       "test -f " + bundled.CISJournaldConfPath,
+			Commands: journald,
+		},
+		{
+			// CIS 4.2.3. Files created later by kairos itself are opened
+			// 0640 by the sdk logger.
+			Name:     "Restrict log file permissions",
+			If:       "test -d /var/log",
+			Commands: []string{"find /var/log -type f -exec chmod g-wx,o-rwx {} +"},
+		},
+		{
+			// CIS 5.3.3. Hadron's system-auth is plain PAM; the other
+			// families manage their stacks with their own tools. The
+			// benchmark wants single spaces after pam_unix.so, so the
+			// arguments are rewritten with one.
+			Name:     "Remember previous passwords in the Hadron PAM stack",
+			OnlyIfOs: "Hadron.*",
+			If:       "test -f /etc/pam.d/system-auth",
+			Commands: []string{
+				"grep -qE '^password[[:space:]].*pam_unix\\.so.*remember=' /etc/pam.d/system-auth || " +
+					"sed -i -E 's/^(password[[:space:]]+[^[:space:]]+[[:space:]]+pam_unix\\.so)[[:space:]]+(.*[^[:space:]])[[:space:]]*$/\\1 \\2 remember=5/' /etc/pam.d/system-auth",
+				"[ -e /etc/security/opasswd ] || install -m 0600 /dev/null /etc/security/opasswd",
+			},
+		},
+		{
+			// CIS 5.4.4 reads the shell startup files, not login.defs. Use
+			// the login.defs UMASK when it already meets the 027 floor
+			// (Hadron ships 077), else 027.
+			Name: "Set the CIS default umask for shells",
+			Commands: []string{
+				"u=$(awk '/^[[:space:]]*UMASK[[:space:]]/{print $2; exit}' /etc/login.defs 2>/dev/null); " +
+					"case \"$u\" in [0-7][2367]7) ;; *) u=027 ;; esac; " +
+					"for f in /etc/profile /etc/bash.bashrc /etc/bashrc; do " +
+					"[ -f \"$f\" ] || continue; " +
+					"grep -qE '^[[:space:]]*umask[[:space:]]+[0-7][2367]7[[:space:]]*$' \"$f\" && continue; " +
+					"[ -n \"$(tail -c1 \"$f\")\" ] && printf '\\n' >> \"$f\"; " +
+					"printf 'umask %s\\n' \"$u\" >> \"$f\"; " +
+					"done",
+			},
+		},
+		{
+			// CIS 5.6. Root still gets in through pam_rootok and sudo is
+			// not affected.
+			Name: "Restrict su to the wheel group",
+			If:   "test -f /etc/pam.d/su",
+			Commands: []string{
+				"if grep -qE '^auth[[:space:]]+required[[:space:]]+pam_wheel\\.so use_uid$' /etc/pam.d/su; then :; " +
+					"elif grep -qE '^#[[:space:]]*auth[[:space:]]+required[[:space:]]+pam_wheel\\.so[[:space:]]+use_uid' /etc/pam.d/su; then " +
+					"sed -i -E 's/^#[[:space:]]*auth[[:space:]]+required[[:space:]]+pam_wheel\\.so[[:space:]]+use_uid.*$/auth required pam_wheel.so use_uid/' /etc/pam.d/su; " +
+					"else sed -i '/pam_rootok\\.so/a auth required pam_wheel.so use_uid' /etc/pam.d/su; fi",
+			},
+		},
+		{
+			// CIS 6.1.12. Hadron ships the helper with a gid that has no
+			// group. dbus expects it owned by messagebus; chgrp clears the
+			// setuid bit, so the mode is put back.
+			Name: "Give the dbus launch helper its messagebus group",
+			If:   "command -v getent >/dev/null && getent group messagebus >/dev/null",
+			Commands: []string{
+				"for f in /usr/libexec/dbus-daemon-launch-helper /usr/lib/dbus-1.0/dbus-daemon-launch-helper; do " +
+					"[ -e \"$f\" ] || continue; " +
+					"getent group \"$(stat -c %g \"$f\")\" >/dev/null && continue; " +
+					"m=$(stat -c %a \"$f\"); chgrp messagebus \"$f\"; chmod \"$m\" \"$f\"; " +
+					"done",
+			},
+		},
+		{
+			// CIS 6.2.6: every directory in root's PATH has to exist, and
+			// Hadron's /etc/profile names /usr/local/sbin.
+			Name:     "Create /usr/local/sbin",
+			If:       "test ! -e /usr/local/sbin",
+			Commands: []string{"mkdir -p -m 0755 /usr/local/sbin"},
+		},
+		{
+			Name: "Install the CIS home directory permissions boot config",
+			Files: []schema.File{
+				{
+					Path:        bundled.CISHomePermsCloudConfigPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISHomePermsCloudConfig,
+				},
+			},
+		},
+	}
 }
 
 // debianFamilyRegex matches the Debian-family bases pam-auth-update
