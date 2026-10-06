@@ -481,20 +481,27 @@ var CISJournaldSettings = [][2]string{
 	{"Storage", "persistent"},
 }
 
-// CISHomePermsCloudConfigPath closes user home directories to other (CIS
-// 6.2.8). Users are provisioned from cloud-config at boot and yip creates
-// their home 0755, so this cannot be baked into the image; it runs after the
-// users are in place, on every boot, and only ever removes bits.
-const CISHomePermsCloudConfigPath = "/system/oem/35_cis_home_perms.yaml"
+// CISBootCloudConfigPath holds the CIS fixes that cannot be baked into the
+// image because what they fix only exists once the system has booted. It
+// runs on every boot, after users are provisioned, and only ever creates a
+// missing directory or removes permission bits.
+//
+//   - 6.2.6: root's PATH names /usr/local/sbin, and /usr/local is where
+//     COS_PERSISTENT is mounted, so the image's copy is hidden.
+//   - 6.2.8: users come from cloud-config and yip creates their home 0755.
+const CISBootCloudConfigPath = "/system/oem/35_cis_boot.yaml"
 
-// CISHomePermsCloudConfig is the content written to
-// CISHomePermsCloudConfigPath.
-const CISHomePermsCloudConfig = `#cloud-config
-# Managed by kairos-init. See CISHomePermsCloudConfigPath in
+// CISBootCloudConfig is the content written to CISBootCloudConfigPath.
+const CISBootCloudConfig = `#cloud-config
+# Managed by kairos-init. See CISBootCloudConfigPath in
 # kairos-init/pkg/bundled/cis.go for why this runs at boot.after.
-name: "CIS home directory permissions"
+name: "CIS boot-time hardening"
 stages:
   boot.after:
+    - name: "Create /usr/local/sbin"
+      if: '[ ! -e /usr/local/sbin ]'
+      commands:
+        - mkdir -p -m 0755 /usr/local/sbin
     - name: "Close home directories to other users"
       if: '[ -d /home ]'
       commands:

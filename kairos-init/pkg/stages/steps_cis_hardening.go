@@ -381,21 +381,14 @@ func getCISBenchmarkGapStages() []schema.Stage {
 			},
 		},
 		{
-			// CIS 6.2.6: every directory in root's PATH has to exist, and
-			// Hadron's /etc/profile names /usr/local/sbin.
-			Name:     "Create /usr/local/sbin",
-			If:       "test ! -e /usr/local/sbin",
-			Commands: []string{"mkdir -p -m 0755 /usr/local/sbin"},
-		},
-		{
-			Name: "Install the CIS home directory permissions boot config",
+			Name: "Install the CIS boot-time hardening config",
 			Files: []schema.File{
 				{
-					Path:        bundled.CISHomePermsCloudConfigPath,
+					Path:        bundled.CISBootCloudConfigPath,
 					Permissions: 0644,
 					Owner:       0,
 					Group:       0,
-					Content:     bundled.CISHomePermsCloudConfig,
+					Content:     bundled.CISBootCloudConfig,
 				},
 			},
 		},

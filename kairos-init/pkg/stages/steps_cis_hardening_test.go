@@ -1182,25 +1182,43 @@ var _ = Describe("GetCISHardeningStage gaps found by the CIS DIL benchmark run",
 		Expect(joined).To(MatchRegexp(`stat -c %a .*chgrp messagebus .*chmod "\$m"`))
 	})
 
-	It("creates /usr/local/sbin, which root's PATH names (CIS 6.2.6)", func() {
-		dir := GinkgoT().TempDir()
-		runScoped(stageNamed("Create /usr/local/sbin").Commands, map[string]string{"/usr/local/sbin": filepath.Join(dir, "sbin")})
-		Expect(filepath.Join(dir, "sbin")).To(BeADirectory())
-	})
+	Describe("the CIS boot cloud-config", func() {
+		var steps []schema.Stage
 
-	It("ships a boot cloud-config that closes home directories to other (CIS 6.2.8)", func() {
-		cc := fileByPath(result, bundled.CISHomePermsCloudConfigPath)
-		var cfg schema.YipConfig
-		Expect(yaml.Unmarshal([]byte(cc.Content), &cfg)).To(Succeed())
-		cmds := cfg.Stages["boot.after"][0].Commands
+		BeforeEach(func() {
+			cc := fileByPath(result, bundled.CISBootCloudConfigPath)
+			var cfg schema.YipConfig
+			Expect(yaml.Unmarshal([]byte(cc.Content), &cfg)).To(Succeed())
+			steps = cfg.Stages["boot.after"]
+		})
 
-		home := GinkgoT().TempDir()
-		user := filepath.Join(home, "kairos")
-		Expect(os.Mkdir(user, 0o755)).To(Succeed())
-		Expect(os.Chmod(user, 0o755)).To(Succeed())
-		runScoped(cmds, map[string]string{"/home": home})
-		info, err := os.Stat(user)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o750)))
+		stepNamed := func(name string) schema.Stage {
+			for _, st := range steps {
+				if st.Name == name {
+					return st
+				}
+			}
+			Fail("no boot.after step named " + name)
+			return schema.Stage{}
+		}
+
+		It("creates /usr/local/sbin, which root's PATH names (CIS 6.2.6)", func() {
+			// /usr/local is where COS_PERSISTENT is mounted, so a directory
+			// baked into the image is hidden at runtime.
+			dir := GinkgoT().TempDir()
+			runScoped(stepNamed("Create /usr/local/sbin").Commands, map[string]string{"/usr/local/sbin": filepath.Join(dir, "sbin")})
+			Expect(filepath.Join(dir, "sbin")).To(BeADirectory())
+		})
+
+		It("closes home directories to other (CIS 6.2.8)", func() {
+			home := GinkgoT().TempDir()
+			user := filepath.Join(home, "kairos")
+			Expect(os.Mkdir(user, 0o755)).To(Succeed())
+			Expect(os.Chmod(user, 0o755)).To(Succeed())
+			runScoped(stepNamed("Close home directories to other users").Commands, map[string]string{"/home": home})
+			info, err := os.Stat(user)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o750)))
+		})
 	})
 })
