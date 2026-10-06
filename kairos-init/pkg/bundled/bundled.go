@@ -757,6 +757,29 @@ function setKernelCmd {
     # or adding kairos.splash=0 at the boot menu, turns the animation off
     # without touching a unit file.
     set baseCmd="console=tty1 splash net.ifnames=1 rd.cos.oemlabel=COS_OEM rd.cos.oemtimeout=10 panic=5 rd.emergency=reboot rd.shell=0 systemd.crash_reboot=yes"
+    # quiet goes on the entries that animate, and only on those. Most of the
+    # text the splash exists to replace is printed before it can draw at all:
+    # the kernel prints from its first line, and systemd prints unit status
+    # from the moment it starts, while the initramfs unit has to wait for udev
+    # to make /dev/tty1. No unit ordering closes that window, so the command
+    # line has to.
+    #
+    # This is not silence. quiet lowers the kernel console level to
+    # CONSOLE_LOGLEVEL_QUIET, 4 in a stock build, so KERN_ERR and worse still
+    # reach tty1 and the serial console, and systemd reads it as
+    # SHOW_STATUS_ERROR, which still prints a unit that fails. The journal is
+    # untouched, and anything after $kernelcmd in the menuentry still wins, so
+    # adding loglevel=7 at the boot menu brings the full log back.
+    #
+    # Recovery and the automatic state reset stay verbose: they are where an
+    # operator goes to read the boot, and the booted-system animation that
+    # would otherwise hide it is already refused there by SplashService, which
+    # tests the /run/cos recovery_mode and autoreset_mode sentinels. They are
+    # also the two entries that set label=COS_SYSTEM, which is what tells them
+    # apart here.
+    if test "${label}" != "COS_SYSTEM"; then
+        set baseCmd="$baseCmd quiet"
+    fi
     if [ -n "$recoverylabel" ]; then
         set baseRootCmd="root=live:LABEL=$recoverylabel rd.live.dir=/ rd.live.squashimg=$img"
     else
