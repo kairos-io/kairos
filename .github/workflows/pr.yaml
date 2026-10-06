@@ -37,7 +37,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-pr-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  # Not `ci-pr-...`: that was the old pull_request_target pipeline's
+  # group, and sharing it lets a run of one workflow cancel the other.
+  group: ci-pr-smoke-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 
 jobs:
