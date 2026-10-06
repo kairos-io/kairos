@@ -177,3 +177,6 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
   that did not run costs nothing, `Collect` drops an empty journal. This applies
   to units written by the bundled cloud-configs, by a provider, and by the agent
   itself at runtime.
+- `make test` needs a running Docker daemon. Tests in `pkg/testartifacts`,
+  `cmd/test-artifacts` and `immucore/pkg/state` build keys and system extension
+  images with the AuroraBoot image, which `make test-images` pulls.

@@ -34,6 +34,13 @@ func BuildSysext(ctx context.Context, opts SysextOptions) (string, error) {
 	if (opts.KeyFile == "") != (opts.CertFile == "") {
 		return "", errors.New("a signed extension needs both KeyFile and CertFile")
 	}
+	for _, p := range []*string{&opts.Dir, &opts.KeyFile, &opts.CertFile} {
+		abs, err := absIfSet(*p)
+		if err != nil {
+			return "", err
+		}
+		*p = abs
+	}
 	if err := os.MkdirAll(opts.Dir, 0o755); err != nil {
 		return "", err
 	}
@@ -87,6 +94,10 @@ func BuildSysext(ctx context.Context, opts SysextOptions) (string, error) {
 // AuroraBoot image. A trusted boot image policy rejects it, which is what it
 // is for.
 func BuildPlainSquashfsSysext(ctx context.Context, dir, name string) (string, error) {
+	dir, err := absIfSet(dir)
+	if err != nil {
+		return "", err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -117,4 +128,13 @@ func BuildPlainSquashfsSysext(ctx context.Context, dir, name string) (string, er
 		return "", fmt.Errorf("building %s: %w", out, err)
 	}
 	return filepath.Join(dir, out), nil
+}
+
+// absIfSet makes a non-empty path absolute. docker run -v treats a relative
+// source as a named volume, so every path handed to it must be absolute.
+func absIfSet(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+	return filepath.Abs(path)
 }
