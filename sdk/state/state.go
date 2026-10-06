@@ -93,16 +93,31 @@ type FndMnt struct {
 }
 
 // Lsblk is the struct to marshal the output of lsblk.
+//
+// Size is a byte count because lsblkCommand passes --bytes. Without that flag
+// lsblk writes SIZE as a human readable string ("320G"), which does not
+// unmarshal into a number.
 type Lsblk struct {
 	BlockDevices []struct {
 		Path       string `json:"path,omitempty"`
 		Mountpoint string `json:"mountpoint,omitempty"`
 		FsType     string `json:"fstype,omitempty"`
-		Size       string `json:"size,omitempty"`
+		Size       uint64 `json:"size,omitempty"`
 		Label      string `json:"label,omitempty"`
 		RO         bool   `json:"ro,omitempty"`
+		PartUUID   string `json:"partuuid,omitempty"`
+		PartLabel  string `json:"partlabel,omitempty"`
 	} `json:"blockdevices,omitempty"`
 }
+
+// lsblkCommand is the lsblk invocation detectPartitionByLsblk reads.
+//
+// It asks for PARTUUID and PARTLABEL rather than UUID and the device's own
+// name because the other detection path, detectPartitionByFindmnt, fills
+// PartitionState.UUID from ghw's Partition.UUID (ID_PART_ENTRY_UUID) and
+// PartitionState.Label from ghw's Partition.Label (ID_PART_ENTRY_NAME). The
+// two paths describe the same fields, so they have to read the same values.
+const lsblkCommand = "lsblk %s -o PATH,FSTYPE,MOUNTPOINT,SIZE,RO,LABEL,PARTUUID,PARTLABEL -J --bytes"
 
 func detectPartitionByFindmnt(b *block.Partition) PartitionState {
 	// If mountpoint seems empty, try to get the mountpoint of the partition label also the RO status
@@ -114,6 +129,12 @@ func detectPartitionByFindmnt(b *block.Partition) PartitionState {
 		mnt := &FndMnt{}
 		if err == nil {
 			err = json.Unmarshal([]byte(out), mnt)
+			if err != nil {
+				// Same as in partitionStateFromLsblk: findmnt said the lookup
+				// worked, so a decode failure here is worth a line rather
+				// than a partition that quietly keeps ghw's answer.
+				Log.Debug().Err(err).Str("output", out).Msg("could not read the findmnt output, keeping the mount point ghw reported")
+			}
 			// This should not happen, if there were no targets, the command would have returned an error, but you never know...
 			if err == nil && len(mnt.Filesystems) == 1 {
 				mountpoint = mnt.Filesystems[0].Target
@@ -382,26 +403,50 @@ func detectPartitionByLabelLsblk(label string) PartitionState {
 // detectPartitionByLsblk generic function to get info about a partition via any given path
 // Could be /dev/disk/by-{label,path,uuid} for example or even a device directly like /dev/sda1
 func detectPartitionByLsblk(path string) PartitionState {
-	out, err := utils.SH(fmt.Sprintf("lsblk %s -o PATH,FSTYPE,MOUNTPOINT,SIZE,RO,LABEL -J", path))
-	mnt := &Lsblk{}
-	part := PartitionState{}
-	if err == nil {
-		err = json.Unmarshal([]byte(out), mnt)
-		// This should not happen, if there were no targets, the command would have returned an error, but you never know...
-		if err == nil && len(mnt.BlockDevices) == 1 {
-			blk := mnt.BlockDevices[0]
-			part.Found = true
-			part.Name = blk.Path
-			part.Mounted = blk.Mountpoint != ""
-			part.MountPoint = blk.Mountpoint
-			part.Type = blk.FsType
-			part.FilesystemLabel = blk.Label
-			// this seems to report always false. We can try to use findmnt here to know if its ro/rw
-			part.IsReadOnly = blk.RO
-		}
+	out, err := utils.SH(fmt.Sprintf(lsblkCommand, path))
+	if err != nil {
+		return PartitionState{}
 	}
 
-	return part
+	return partitionStateFromLsblk(out)
+}
+
+// partitionStateFromLsblk reads one lsblkCommand document. It returns the zero
+// PartitionState, which reads as not found, when the output cannot be decoded
+// or does not describe exactly one device.
+func partitionStateFromLsblk(out string) PartitionState {
+	mnt := &Lsblk{}
+	if err := json.Unmarshal([]byte(out), mnt); err != nil {
+		// The caller already checked the exit status, so this is output that
+		// lsblk reported as good and we still cannot read. Say so: the only
+		// other sign of it is a partition that reports itself absent.
+		Log.Debug().Err(err).Str("output", out).Msg("could not read the lsblk output, reporting the partition as not found")
+		return PartitionState{}
+	}
+
+	// This should not happen, if there were no targets, the command would have returned an error, but you never know...
+	if len(mnt.BlockDevices) != 1 {
+		return PartitionState{}
+	}
+
+	blk := mnt.BlockDevices[0]
+
+	// PARTUUID, PARTLABEL and the filesystem label are null for a device
+	// mapper target, which is what the encrypted partition path passes in.
+	// They decode to the empty string, and the size is the point there.
+	return PartitionState{
+		Found:           true,
+		Name:            blk.Path,
+		Mounted:         blk.Mountpoint != "",
+		MountPoint:      blk.Mountpoint,
+		Type:            blk.FsType,
+		FilesystemLabel: blk.Label,
+		Label:           blk.PartLabel,
+		UUID:            blk.PartUUID,
+		SizeBytes:       blk.Size,
+		// this seems to report always false. We can try to use findmnt here to know if its ro/rw
+		IsReadOnly: blk.RO,
+	}
 }
 
 func detectSystem(r *Runtime) {
