@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -69,6 +70,10 @@ func socketArgs() ([]string, error) {
 // tpm2-pcr-private.pem into dir, using AuroraBoot genkey. The certificates
 // expire after 30 days.
 func GenerateKeySet(ctx context.Context, dir string) error {
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}

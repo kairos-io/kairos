@@ -15,9 +15,9 @@ import (
 )
 
 // Extension images built by AuroraBoot in BeforeAll, the same way CI builds
-// the ones it bakes onto test ISOs. Reading real images rather than a
-// synthetic partition table is the point: a signed work.sysext.raw on a
-// GRUB live media is what once broke test-core/bundles.
+// the ones it bakes onto test ISOs. A signed extension on a GRUB live media is
+// the case the sweep must skip, and only a real image shows the partition
+// layout the sweep sees.
 var (
 	// signedWork is verity and signed, as on a UKI live media.
 	signedWork string
@@ -67,6 +67,61 @@ func encodeGPTTypeGUID(guid string) []byte {
 	return b
 }
 
+// These specs build their images with writeGPT and need no Docker.
+var _ = Describe("detecting a verity signature partition", func() {
+	DescribeTable("recognises the signature partition of every architecture Kairos builds",
+		func(guid string) {
+			path := filepath.Join(GinkgoT().TempDir(), "ext.sysext.raw")
+			writeGPT(path, 512, guid)
+
+			Expect(carriesVeritySignature(path)).To(BeTrue())
+		},
+		Entry("root-x86-64-verity-sig", "41092b05-9fc8-4523-994f-2def0408b176"),
+		Entry("root-arm64-verity-sig", "6db69de6-29f4-4758-a7a5-962190f00ce3"),
+		Entry("root-riscv64-verity-sig", "efe0f087-ea8d-4469-821a-4c2a96a8386a"),
+		Entry("usr-x86-64-verity-sig", "e7bb33fb-06cf-4e81-8273-e543b413e2e2"),
+		Entry("usr-arm64-verity-sig", "c23ce4ff-44bd-4b00-b2d4-b41b3419e02a"),
+		Entry("usr-riscv64-verity-sig", "d2f9000a-7a18-453f-b5cd-4d32f77a7b32"),
+	)
+
+	It("does not mistake a plain verity partition for a signed one", func() {
+		// A verity image with no signature activates by root hash alone, which
+		// needs no certificate, so it stays enabled on a GRUB boot.
+		path := filepath.Join(GinkgoT().TempDir(), "ext.sysext.raw")
+		writeGPT(path, 512,
+			"4f68bce3-e8cd-4db1-96e7-fbcaf984b709", // root-x86-64
+			"2c7357ed-ebd2-46d9-aec1-23d437ec2bf5", // root-x86-64-verity
+		)
+
+		Expect(carriesVeritySignature(path)).To(BeFalse())
+	})
+
+	It("reads an image built with a 4096 byte sector", func() {
+		path := filepath.Join(GinkgoT().TempDir(), "ext.sysext.raw")
+		writeGPT(path, 4096, "41092b05-9fc8-4523-994f-2def0408b176")
+
+		Expect(carriesVeritySignature(path)).To(BeTrue())
+	})
+
+	It("reports a file that is not an image as carrying no signature", func() {
+		path := filepath.Join(GinkgoT().TempDir(), "notes.txt")
+		Expect(os.WriteFile(path, []byte("not an image"), 0644)).To(Succeed())
+
+		Expect(carriesVeritySignature(path)).To(BeFalse())
+	})
+
+	It("is an error when the file does not exist", func() {
+		_, err := carriesVeritySignature(filepath.Join(GinkgoT().TempDir(), "absent.raw"))
+		Expect(err).To(HaveOccurred())
+	})
+})
+
+var _ = Describe("skipping an extension this boot cannot verify", func() {
+	It("keeps an image it cannot read, rather than disabling a working node", func() {
+		Expect(hasUnverifiableSignature(false, filepath.Join(GinkgoT().TempDir(), "absent.raw"))).To(BeFalse())
+	})
+})
+
 var _ = Describe("extension images", Ordered, Label("docker"), func() {
 	BeforeAll(func() {
 		if !testartifacts.DockerAvailable() {
@@ -93,7 +148,7 @@ var _ = Describe("extension images", Ordered, Label("docker"), func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	var _ = Describe("detecting a verity signature partition", func() {
+	Describe("detecting a verity signature partition", func() {
 		It("finds one in the signed extension the suite ships", func() {
 			// work.sysext.raw is verity and signed with a generated key,
 			// so it has a root-x86-64-verity-sig partition.
@@ -109,59 +164,13 @@ var _ = Describe("extension images", Ordered, Label("docker"), func() {
 		It("finds none in the verity-only extension the GRUB media ships", func() {
 			// The GRUB image has the same payload and the same verity hash
 			// partition as the UKI one, and no root-verity-sig partition. It is
-			// the case the synthetic writeGPT images below stand in for, built the way a GRUB
-			// live media carries it.
+			// built the way a GRUB live media carries it, and is the case the
+			// synthetic writeGPT images in the specs below stand in for.
 			Expect(carriesVeritySignature(verityOnlyWork)).To(BeFalse())
-		})
-
-		DescribeTable("recognises the signature partition of every architecture Kairos builds",
-			func(guid string) {
-				path := filepath.Join(GinkgoT().TempDir(), "ext.sysext.raw")
-				writeGPT(path, 512, guid)
-
-				Expect(carriesVeritySignature(path)).To(BeTrue())
-			},
-			Entry("root-x86-64-verity-sig", "41092b05-9fc8-4523-994f-2def0408b176"),
-			Entry("root-arm64-verity-sig", "6db69de6-29f4-4758-a7a5-962190f00ce3"),
-			Entry("root-riscv64-verity-sig", "efe0f087-ea8d-4469-821a-4c2a96a8386a"),
-			Entry("usr-x86-64-verity-sig", "e7bb33fb-06cf-4e81-8273-e543b413e2e2"),
-			Entry("usr-arm64-verity-sig", "c23ce4ff-44bd-4b00-b2d4-b41b3419e02a"),
-			Entry("usr-riscv64-verity-sig", "d2f9000a-7a18-453f-b5cd-4d32f77a7b32"),
-		)
-
-		It("does not mistake a plain verity partition for a signed one", func() {
-			// A verity image with no signature activates by root hash alone, which
-			// needs no certificate, so it stays enabled on a GRUB boot.
-			path := filepath.Join(GinkgoT().TempDir(), "ext.sysext.raw")
-			writeGPT(path, 512,
-				"4f68bce3-e8cd-4db1-96e7-fbcaf984b709", // root-x86-64
-				"2c7357ed-ebd2-46d9-aec1-23d437ec2bf5", // root-x86-64-verity
-			)
-
-			Expect(carriesVeritySignature(path)).To(BeFalse())
-		})
-
-		It("reads an image built with a 4096 byte sector", func() {
-			path := filepath.Join(GinkgoT().TempDir(), "ext.sysext.raw")
-			writeGPT(path, 4096, "41092b05-9fc8-4523-994f-2def0408b176")
-
-			Expect(carriesVeritySignature(path)).To(BeTrue())
-		})
-
-		It("reports a file that is not an image as carrying no signature", func() {
-			path := filepath.Join(GinkgoT().TempDir(), "notes.txt")
-			Expect(os.WriteFile(path, []byte("not an image"), 0644)).To(Succeed())
-
-			Expect(carriesVeritySignature(path)).To(BeFalse())
-		})
-
-		It("is an error when the file does not exist", func() {
-			_, err := carriesVeritySignature(filepath.Join(GinkgoT().TempDir(), "absent.raw"))
-			Expect(err).To(HaveOccurred())
 		})
 	})
 
-	var _ = Describe("skipping an extension this boot cannot verify", func() {
+	Describe("skipping an extension this boot cannot verify", func() {
 		// The regression this guards: the image satisfies root=verity+absent, so
 		// the policy check keeps it, the boot then fails to set it up with ENOKEY,
 		// and a refresh being all or nothing costs the node every other extension.
@@ -184,13 +193,9 @@ var _ = Describe("extension images", Ordered, Label("docker"), func() {
 		It("keeps the verity-only extension the GRUB media ships", func() {
 			Expect(hasUnverifiableSignature(false, verityOnlyWork)).To(BeFalse())
 		})
-
-		It("keeps an image it cannot read, rather than disabling a working node", func() {
-			Expect(hasUnverifiableSignature(false, filepath.Join(GinkgoT().TempDir(), "absent.raw"))).To(BeFalse())
-		})
 	})
 
-	var _ = Describe("the check the extension sweep actually runs", func() {
+	Describe("the check the extension sweep actually runs", func() {
 		// passes stands in for systemd-dissect accepting the image. That is the
 		// real answer for work.sysext.raw on a GRUB boot: it is verity and signed,
 		// and root=verity+absent is an overlap test, so the policy is satisfied.
