@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kairos-io/kairos/v4/installer/internal/checks"
 	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/mudler/go-pluggable"
 )
@@ -78,24 +79,28 @@ func (p *prerequisitesPage) Help() string {
 	return "↑/↓: move • ←/→ or space: change • enter: continue"
 }
 
+// Skipped reports that there were no checks, so the page moved on.
+func (p *prerequisitesPage) Skipped() bool { return p.loaded && len(p.checks) == 0 }
+
 // Init gathers the checks from providers synchronously (go-pluggable runs
-// plugins inline), mirroring the customization page. With no checks it emits a
-// navigation message to skip straight to disk selection.
+// plugins inline), the way the wizard asks them for their prompts. With no
+// checks it emits a navigation message to skip straight to the install mode
+// page.
 func (p *prerequisitesPage) Init() tea.Cmd {
 	if !p.loaded {
-		p.mgr = newCheckManager(*mainModel.log)
-		checks, err := gatherChecks(p.mgr, *mainModel.log, "")
+		p.mgr = checks.NewManager(*mainModel.log)
+		found, err := checks.Gather(p.mgr, *mainModel.log, "")
 		if err != nil {
 			mainModel.log.Logger.Warn().Err(err).Msg("gathering prerequisites checks")
 		}
-		p.checks = checks
+		p.checks = found
 		p.buildFields()
 		p.loaded = true
-		mainModel.log.Logger.Debug().Int("checks", len(checks)).Int("fields", len(p.fields)).Msg("Prerequisites gathered")
+		mainModel.log.Logger.Debug().Int("checks", len(found)).Int("fields", len(p.fields)).Msg("Prerequisites gathered")
 	}
 
 	if len(p.checks) == 0 {
-		return func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+		return func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 	}
 	return p.syncFocus()
 }
@@ -151,7 +156,7 @@ func (p *prerequisitesPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	case "enter":
 		// After an optional-action failure, enter means "continue anyway".
 		if p.failure == failOptional {
-			return p, func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+			return p, func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 		}
 		return p.proceed()
 	}
@@ -288,9 +293,9 @@ func (p *prerequisitesPage) clearFailure() {
 	p.results = nil
 }
 
-// advance returns the command that moves on to disk selection.
+// advance returns the command that moves on to the install mode page.
 func (p *prerequisitesPage) advance() tea.Cmd {
-	return func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+	return func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 }
 
 // proceed validates blockers, applies the user's decisions and advances to
@@ -312,7 +317,7 @@ func (p *prerequisitesPage) proceed() (Page, tea.Cmd) {
 
 	decisions := prereqs.BuildDecisions(p.checks, p.answers)
 	if len(decisions) > 0 {
-		results, err := applyDecisions(p.mgr, *mainModel.log, decisions, "")
+		results, err := checks.Apply(p.mgr, *mainModel.log, decisions, "")
 		if err != nil {
 			// A transport/exec failure is unrecoverable from here: block.
 			p.failure = failRequired
