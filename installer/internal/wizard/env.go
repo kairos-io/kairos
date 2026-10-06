@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -30,6 +31,10 @@ type SystemEnv struct {
 	LiveMediaDir string
 	Catalogs     []string
 	Client       *http.Client
+	// Architecture is the one a catalog entry has to publish an extension
+	// image for to be worth offering. The installer runs on the machine it
+	// installs, so it is the architecture of this binary.
+	Architecture string
 }
 
 // NewSystemEnv returns the production Env.
@@ -38,6 +43,7 @@ func NewSystemEnv() *SystemEnv {
 		LiveMediaDir: liveMediaDir,
 		Catalogs:     sdkExtensions.Config{}.CatalogURLs(),
 		Client:       &http.Client{Timeout: catalogTimeout},
+		Architecture: runtime.GOARCH,
 	}
 }
 
@@ -46,7 +52,7 @@ func (e *SystemEnv) Disks() ([]disks.Disk, error) { return disks.Scan() }
 func (e *SystemEnv) Extensions(ctx context.Context) ([]Choice, error) {
 	ctx, cancel := context.WithTimeout(ctx, catalogTimeout)
 	defer cancel()
-	found, err := discoverExtensions(ctx, e.Client, e.LiveMediaDir, e.Catalogs)
+	found, err := discoverExtensions(ctx, e.Client, e.LiveMediaDir, e.Catalogs, e.Architecture)
 	out := make([]Choice, 0, len(found))
 	for _, c := range found {
 		out = append(out, c.toChoice())
