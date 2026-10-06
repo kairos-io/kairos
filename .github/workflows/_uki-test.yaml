@@ -219,6 +219,13 @@ jobs:
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-uki.iso.zip
 
+      - name: Download test keys
+        if: inputs.test == 'install-upgrade'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-uki.test-keys
+          path: test-keys
+
       - name: Set up Docker Buildx
         if: inputs.test == 'install-upgrade'
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
@@ -246,7 +253,7 @@ jobs:
           docker run --rm --network=host \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD/build":/result \
-            -v "$PWD/tests/assets/keys":/keys \
+            -v "$PWD/test-keys":/keys \
             quay.io/kairos/auroraboot:v0.27.1 --debug build-uki \
               --output-dir /result --output-type container \
               --public-keys /keys \
@@ -264,6 +271,10 @@ jobs:
           EOF
           docker push "$temp_image"
           echo "$temp_image" > build/upgrade_image_name
+
+      - name: Remove test keys
+        if: always() && inputs.test == 'install-upgrade'
+        run: rm -rf test-keys
 
       - name: Find OVMF firmware
         id: find_ovmf

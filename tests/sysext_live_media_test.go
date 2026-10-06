@@ -12,12 +12,12 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-// The extension the ISO ships. tests/assets/sysext-grub is mounted as the
-// auroraboot --overlay-iso directory by _build-iso.yaml on non-trusted-boot
-// cells, so the image in it lands at the ISO root and therefore under
-// /run/initramfs/live while the installer runs. Its work.sysext.raw is
-// verity-only (unsigned) so systemd-sysext can activate it on a boot with
-// no test signing key enrolled.
+// The extension the ISO ships. The generated test extension directory is
+// mounted as the auroraboot --overlay-iso directory by the CI workflows on
+// non-trusted-boot cells, so the image in it lands at the ISO root and
+// therefore under /run/initramfs/live while the installer runs. Its
+// work.sysext.raw is verity-only (unsigned) so systemd-sysext can activate
+// it on a boot with no test signing key enrolled.
 const liveMediaExtension = "work.sysext.raw"
 
 // The hierarchy list the kairos drop-in installs, spelled out so that
