@@ -179,7 +179,7 @@ jobs:
 
   # Hadron core plus the new UKI+FIPS cell. amd64-standard (unpinned
   # k3s), amd64-core-fips, the no-fips UKI cells, and
-  # amd64-core-ubuntu-20.04 all exist in master.yaml/pr.yaml to feed
+  # amd64-core-ubuntu-20.04 all exist in master.yaml/pr-full.yaml to feed
   # qemu tests and are omitted from the release matrix -- v4.2.0
   # released none of them. amd64-core-fips-uki is shipped because
   # hadron v0.5.3 is the first tag to publish hadron-fips-trusted, so
