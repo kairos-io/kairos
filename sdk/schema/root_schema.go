@@ -139,6 +139,22 @@ func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 	if err != nil {
 		return kc, err
 	}
+
+	// A document with a header and no keys parses to nil, which marshals to
+	// JSON null, which the generated schema rejects: its root is
+	// "type": "object". An emptied configuration is a configuration, and YAML
+	// gives no way to spell an empty mapping other than writing {} into the
+	// file, so read nothing as the empty mapping. The rest of the tree
+	// already does: collector.Scan hands the agent a mapping for an empty
+	// /oem, and the installer accepts "#cloud-config\n" as a config to
+	// install with.
+	//
+	// Only nil is rewritten. A body that is a sequence or a scalar is still
+	// not a Kairos configuration and still fails the root type check.
+	if kc.parsed == nil {
+		kc.parsed = map[string]interface{}{}
+	}
+
 	return kc, nil
 }
 
