@@ -82,8 +82,13 @@ type GrubOptionsSchema struct {
 // SelinuxOptions controls SELinux on the installed system (RHEL and SUSE
 // families). When enabled, the system boots with selinux=1
 // and the kairos-selinux-relabel unit runs on every non-recovery boot.
+//
+// Trusted Boot is supported as well, with one difference: the UKI cmdline is
+// signed when the image is built, so AuroraBoot reads these options from the
+// cloud-config passed to "auroraboot build-uki" rather than from the one the
+// node boots with.
 type SelinuxOptions struct {
-	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). GRUB-only: not supported under UKI"`
+	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). On Trusted Boot the cmdline is signed at build time, so this is read from the cloud-config given to 'auroraboot build-uki', not from the one the node boots with"`
 	Mode    string `json:"mode,omitempty" enum:"[\"enforcing\",\"permissive\"]" description:"SELinux mode: enforcing or permissive (default permissive). Enforcing is applied after the post-boot relabel, not from early boot"`
 }
 
