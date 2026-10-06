@@ -133,13 +133,12 @@ func selectBootEntryGrub(cfg *sdkConfig.Config, entry string) error {
 // getSystemdBootMajorVersion returns the MajorImageVersion of the systemd-boot EFI binary
 // on the given EFI mount point. Returns 0 when the binary cannot be read (e.g. on
 // non-EFI systems), and says why, because 0 is also what a GRUB system returns and the
-// two are worth telling apart in a boot log. Declared as a variable so it can be
-// overridden in tests.
+// two are worth telling apart in a boot log.
 //
 // The architecture comes from the config, which defaults to the host platform, so this
 // reads the same source as the rest of the agent rather than the architecture the binary
 // happens to be compiled for.
-var getSystemdBootMajorVersion = func(cfg *sdkConfig.Config, efiMountPoint string) uint16 {
+func getSystemdBootMajorVersion(cfg *sdkConfig.Config, efiMountPoint string) uint16 {
 	sdboot := cnst.GetSystemdBootFallBackEfi(cfg.Arch)
 	path := filepath.Join(efiMountPoint, "EFI/BOOT", sdboot)
 	ver, err := utils.GetMajorImageVersion(cfg.Fs, path)
