@@ -35,11 +35,15 @@ var _ = Describe("test-artifacts", func() {
 		Expect(err).To(MatchError(ContainSubstring("--arch must be amd64 or arm64")))
 	})
 
+	It("rejects stray arguments", func() {
+		Expect(run(ctx, []string{"sysext", "--out", GinkgoT().TempDir(), "--name", "work", "extra", "--arch", "arm64"})).To(MatchError(ContainSubstring("unexpected argument \"extra\"")))
+	})
+
 	It("converts relative paths to absolute", func() {
 		wd, err := os.Getwd()
 		Expect(err).NotTo(HaveOccurred())
-		var relPath string = "relative/path"
-		var emptyPath string = ""
+		var relPath = "relative/path"
+		var emptyPath = ""
 		var absPath string
 
 		err = absPaths(&relPath, &emptyPath, &absPath)

@@ -70,11 +70,15 @@ func run(ctx context.Context, args []string) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return fmt.Errorf("%w\n%s", err, usage)
 	}
+	if fs.NArg() > 0 {
+		return fmt.Errorf("unexpected argument %q\n%s", fs.Arg(0), usage)
+	}
 	if *out == "" {
 		return fmt.Errorf("--out is required\n%s", usage)
 	}
 
-	// Convert paths to absolute
+	// Convert paths to absolute; they are bind-mounted into containers,
+	// which require absolute paths.
 	if err := absPaths(out, key, cert); err != nil {
 		return err
 	}
