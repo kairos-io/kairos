@@ -2,12 +2,13 @@ package signatures
 
 import (
 	"bytes"
-	"fmt"
+	"crypto/sha256"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/foxboron/go-uefi/efi/attributes"
+	"github.com/kairos-io/kairos/v4/pkg/testartifacts"
 	sdkTypes "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	fsUtils "github.com/kairos-io/kairos/v4/sdk/utils/fs"
@@ -21,24 +22,21 @@ func TestSuite(t *testing.T) {
 	RunSpecs(t, "Signatures Test Suite")
 }
 
-// This tests require prepared files to work unless we prepare them here in the test which is a bit costly
-// 2 efi files, one signed and one unsigned
-// fbx64.efi -> unsigned
-// fbx64.signed.efi -> signed
-// 2 db files extracted from a real db, one with the proper certificate that signed the efi file one without it
-// db-wrong -> extracted db, contains signatures but they don't have the signature that signed the efi file
-// db -> extracted db, contains signatures, including the one that signed the efi file
-// 2 dbx files extracted from a real db, one that has nothing on it and one that has the efi file blacklisted
-// TODO: have just 1 efi file and generate all of this on the fly:
-// sign it when needed
-// create the db/dbx efivars on the fly with the proper signatures
-// Use efi.EfivarFs for this
+// The fixtures are generated per spec with testartifacts: one unsigned PE, the
+// same PE signed by a generated key, db variables with and without that key's
+// certificate, and dbx variables with and without the PE's hash.
 
 var _ = Describe("Uki utils", Label("uki", "utils"), func() {
 	var fs sdkTypes.KairosFS
 	var logger sdkLogger.KairosLogger
 	var memLog *bytes.Buffer
 	var cleanup func()
+	var signer, other *testartifacts.KeyPair
+	var dbVar, dbWrongVar, dbxVar, dbxWrongVar []byte
+
+	writeVar := func(name string, data []byte) {
+		Expect(fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", testartifacts.SignatureDBVarName(name)), data, os.ModePerm)).To(Succeed())
+	}
 
 	BeforeEach(func() {
 		var err error
@@ -47,14 +45,6 @@ var _ = Describe("Uki utils", Label("uki", "utils"), func() {
 		// create fs with proper setup
 		err = fsUtils.MkdirAll(fs, "/sys/firmware/efi/efivars", os.ModeDir|os.ModePerm)
 		Expect(err).ToNot(HaveOccurred())
-		file, err := os.ReadFile("tests/fbx64.efi")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile("/efitest.efi", file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-		file, err = os.ReadFile("tests/fbx64.signed.efi")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile("/efitest.signed.efi", file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
 		memLog = &bytes.Buffer{}
 		logger = sdkLogger.NewBufferLogger(memLog)
 		// Override the Efivars location to point to our fake ones
@@ -62,6 +52,29 @@ var _ = Describe("Uki utils", Label("uki", "utils"), func() {
 		fakeEfivars, err := fs.RawPath("/sys/firmware/efi/efivars")
 		Expect(err).ToNot(HaveOccurred())
 		attributes.Efivars = fakeEfivars
+
+		signer, err = testartifacts.NewKeyPair("signatures test signer")
+		Expect(err).ToNot(HaveOccurred())
+		other, err = testartifacts.NewKeyPair("signatures test unrelated")
+		Expect(err).ToNot(HaveOccurred())
+
+		unsigned := testartifacts.MinimalPE(testartifacts.PEOptions{})
+		signed, err := testartifacts.SignPE(unsigned, signer)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(fs.WriteFile("/efitest.efi", unsigned, os.ModePerm)).To(Succeed())
+		Expect(fs.WriteFile("/efitest.signed.efi", signed, os.ModePerm)).To(Succeed())
+
+		dbVar, err = testartifacts.CertDBVar(signer.Cert, other.Cert)
+		Expect(err).ToNot(HaveOccurred())
+		dbWrongVar, err = testartifacts.CertDBVar(other.Cert)
+		Expect(err).ToNot(HaveOccurred())
+		hash, err := testartifacts.PEHash(unsigned)
+		Expect(err).ToNot(HaveOccurred())
+		dbxVar, err = testartifacts.HashDBVar(hash)
+		Expect(err).ToNot(HaveOccurred())
+		unrelated := sha256.Sum256([]byte("unrelated"))
+		dbxWrongVar, err = testartifacts.HashDBVar(unrelated[:])
+		Expect(err).ToNot(HaveOccurred())
 	})
 	AfterEach(func() {
 		cleanup()
@@ -91,64 +104,36 @@ var _ = Describe("Uki utils", Label("uki", "utils"), func() {
 	})
 
 	It("Fails if the file to check has no signatures", func() {
-		dbFile := fmt.Sprintf("db-%s", attributes.EFI_IMAGE_SECURITY_DATABASE_GUID.Format())
-		file, err := os.ReadFile("tests/db")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", dbFile), file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-		err = CheckArtifactSignatureIsValid(fs, "/efitest.efi", logger)
+		writeVar("db", dbVar)
+		err := CheckArtifactSignatureIsValid(fs, "/efitest.efi", logger)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("no signatures in the file"))
 	})
 
 	It("fails when signature doesn't match the db", func() {
-		dbFile := fmt.Sprintf("db-%s", attributes.EFI_IMAGE_SECURITY_DATABASE_GUID.Format())
-		file, err := os.ReadFile("tests/db-wrong")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", dbFile), file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-		err = CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)
+		writeVar("db", dbWrongVar)
+		err := CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("could not find a signature in EFIVars DB that matches the artifact"))
 	})
 
 	It("matches the DB", func() {
-		dbFile := fmt.Sprintf("db-%s", attributes.EFI_IMAGE_SECURITY_DATABASE_GUID.Format())
-		file, err := os.ReadFile("tests/db")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", dbFile), file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-		err = CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)
+		writeVar("db", dbVar)
+		err := CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("doesn't fail when it matches the DB and not DBX", func() {
-		dbFile := fmt.Sprintf("db-%s", attributes.EFI_IMAGE_SECURITY_DATABASE_GUID.Format())
-		dbxFile := fmt.Sprintf("dbx-%s", attributes.EFI_IMAGE_SECURITY_DATABASE_GUID.Format())
-		file, err := os.ReadFile("tests/db")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", dbFile), file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-		file, err = os.ReadFile("tests/dbx-wrong")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", dbxFile), file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-		err = CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)
+		writeVar("db", dbVar)
+		writeVar("dbx", dbxWrongVar)
+		err := CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Fails if signature is in DBX, even if its also on DB", func() {
-		dbFile := fmt.Sprintf("db-%s", attributes.EFI_IMAGE_SECURITY_DATABASE_GUID.Format())
-		dbxFile := fmt.Sprintf("dbx-%s", attributes.EFI_IMAGE_SECURITY_DATABASE_GUID.Format())
-		file, err := os.ReadFile("tests/db")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", dbFile), file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-		file, err = os.ReadFile("tests/dbx")
-		Expect(err).ToNot(HaveOccurred())
-		err = fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", dbxFile), file, os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-		err = CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)
+		writeVar("db", dbVar)
+		writeVar("dbx", dbxVar)
+		err := CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("hash appears on DBX"))
 	})
