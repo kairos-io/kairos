@@ -100,6 +100,58 @@ func ParseExtension(value string) (Extension, error) {
 	return extension, nil
 }
 
+// CmdlineKey is the kernel cmdline keyword that declares extensions for boots
+// that have no cloud config to carry `install.extensions`.
+//
+// Netboot is the case it exists for: a netbooted node has no
+// `/run/initramfs/live` to sweep, and the cloud config AuroraBoot serves is a
+// static file written before the server knows its own reachable address, so
+// there is no build-time URL for `install.extensions` to name. The kernel
+// cmdline is the one channel that works in both netboot modes, because
+// pixiecore mints a served URL per boot while expanding the cmdline template,
+// which is already how `config_url` is delivered. See kairos-io/kairos#5040.
+const CmdlineKey = "kairos.extensions"
+
+// ParseCmdline reads every extension declared on the kernel command line and
+// returns them in the order they appear.
+//
+// The value is a comma separated list, and one token may be repeated:
+//
+//	kairos.extensions=https://10.0.0.1/tools.sysext.raw
+//	kairos.extensions=oci://ghcr.io/example/a.sysext.raw,oci://ghcr.io/example/b.sysext.raw
+//	kairos.extensions=fwupd@2.1.7
+//
+// Each entry goes through ParseExtension, so a catalog name, a `name@version`
+// and a URI all mean here what they mean in a cloud config. A comma cannot
+// appear in any of those forms, which is what makes it safe as the separator:
+// an OCI reference separates its digest with `@`, and a URL that needed a
+// comma would need percent-encoding to survive the kernel command line
+// anyway.
+//
+// An empty value (`kairos.extensions=`) and a bare `kairos.extensions` both
+// declare nothing, and are not an error: dropping the value is how an operator
+// turns the keyword off in a template that always emits it.
+func ParseCmdline(cmdline string) (Extensions, error) {
+	var parsed Extensions
+	for _, token := range strings.Fields(cmdline) {
+		key, value, found := strings.Cut(token, "=")
+		if !found || key != CmdlineKey {
+			continue
+		}
+		for _, entry := range strings.Split(value, ",") {
+			if strings.TrimSpace(entry) == "" {
+				continue
+			}
+			extension, err := ParseExtension(entry)
+			if err != nil {
+				return nil, fmt.Errorf("%s=%s: %w", CmdlineKey, value, err)
+			}
+			parsed = append(parsed, extension)
+		}
+	}
+	return parsed, nil
+}
+
 // IsReference reports whether the extension names an image directly, by URI or
 // by path, rather than a name to resolve against the catalogs.
 func (e Extension) IsReference() bool {
