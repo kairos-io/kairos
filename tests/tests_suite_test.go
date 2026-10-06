@@ -212,14 +212,21 @@ func expectDefaultService(vm VM) {
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("kairos-agent"))
 		} else {
-			// This is also run in the upgrade latest, so we need to check for both kairos-installer and kairos in case the service name changed
+			// This is also run in the upgrade latest, so we need to check for both kairos-installer and kairos in case the service name changed.
+			// kairos-interactive is the third name: on an interactive live
+			// cmdline the bundled cloud-config disables kairos-installer and
+			// enables kairos-interactive instead, so which of the two is the
+			// live entry point follows the GRUB entry the media defaults to.
+			// The assertion is that the live media brought up an install
+			// entry point, not which of the two it picked.
 			Eventually(func() string {
 
-				out, _ := vm.Sudo("systemctl status kairos-installer || systemctl status kairos")
+				out, _ := vm.Sudo("systemctl status kairos-installer || systemctl status kairos-interactive || systemctl status kairos")
 				return out
 			}, 3*time.Minute, 2*time.Second).Should(
 				Or(
 					ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled;"),
+					ContainSubstring("loaded (/etc/systemd/system/kairos-interactive.service; enabled;"),
 					ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"),
 				))
 		}
@@ -228,10 +235,19 @@ func expectDefaultService(vm VM) {
 
 func expectStartedInstallation(vm VM) {
 	By("checking that installation has started", func() {
+		// Either live entry point installs an install.auto config
+		// unattended: interactive-install calls AutoInstall before it draws
+		// anything, and runs the install in the same process. So the process
+		// name is the one the unit started, and "interactive-install" does
+		// not contain "kairos-agent install".
 		Eventually(func() string {
 			out, _ := vm.Sudo("ps aux || ps")
 			return out
-		}, 30*time.Minute, 1*time.Second).Should(ContainSubstring("/usr/bin/kairos-agent install"))
+		}, 30*time.Minute, 1*time.Second).Should(
+			Or(
+				ContainSubstring("/usr/bin/kairos-agent install"),
+				ContainSubstring("/usr/bin/kairos-agent interactive-install"),
+			))
 	})
 }
 
