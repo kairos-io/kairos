@@ -1,0 +1,6 @@
+---
+# Waivers for CIS Distribution Independent Linux v2.0.0 Level 1 controls
+# (dev-sec/cis-dil-benchmark) that cannot apply to a Kairos Hadron system or
+# are covered by another test. Each entry says why. Everything not listed
+# here must pass; a real hardening gap is fixed in kairos-init, not waived.
+{}
