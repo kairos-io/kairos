@@ -1,6 +1,7 @@
 package mounts
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/kairos-io/kairos/v4/sdk/machine"
@@ -20,18 +21,59 @@ import (
 //
 // A partition that is already mounted read only is remounted read write where
 // it is, because a second mount of the same device inherits the read only
-// flag from the first.
+// flag from the first. That is a change to the running system that outlives
+// the write, so every caller has to pair this with FinishWrite.
+//
+// A call that returns an error has left the mount table as it found it.
 func PrepareWrite(partition state.PartitionState, mountpath string) error {
-	if partition.Mounted && partition.IsReadOnly {
-		if err := machine.Remount("rw", partition.MountPoint); err != nil {
-			return err
-		}
-		if mountpath == partition.MountPoint {
-			return nil
-		}
+	if !remountsInPlace(partition) {
+		return Mount(partition, mountpath)
 	}
 
-	return Mount(partition, mountpath)
+	if err := machine.Remount("rw", partition.MountPoint); err != nil {
+		return err
+	}
+	if mountpath == partition.MountPoint {
+		return nil
+	}
+	if err := Mount(partition, mountpath); err != nil {
+		// Give the partition back the flag it was found with, rather than
+		// leaving it writable with nothing mounted where the caller asked.
+		return errors.Join(err, machine.Remount("ro", partition.MountPoint))
+	}
+	return nil
+}
+
+// FinishWrite undoes PrepareWrite. It unmounts the path PrepareWrite mounted,
+// and puts a partition that was found read only back to read only.
+//
+// Without the second step a single write through sdk/system leaves the
+// partition writable for the rest of the boot: the state partition holds the
+// active and passive images and immucore mounts it read only on purpose
+// (kairos-io/kairos#5245).
+//
+// It takes the same two arguments as PrepareWrite, because what has to be
+// undone is decided by the partition's state at the time of the call, not by
+// what is mounted now.
+func FinishWrite(partition state.PartitionState, mountpath string) error {
+	var errs []error
+
+	// PrepareWrite only mounts when it did not already have the partition
+	// where the caller wants it.
+	if !remountsInPlace(partition) || mountpath != partition.MountPoint {
+		errs = append(errs, machine.Umount(mountpath))
+	}
+	if remountsInPlace(partition) {
+		errs = append(errs, machine.Remount("ro", partition.MountPoint))
+	}
+
+	return errors.Join(errs...)
+}
+
+// remountsInPlace reports whether PrepareWrite has to take the read only flag
+// off the partition where it is already mounted.
+func remountsInPlace(partition state.PartitionState) bool {
+	return partition.Mounted && partition.IsReadOnly
 }
 
 // Mount mounts the partition carrying partition's filesystem label at

@@ -104,6 +104,86 @@ var _ = Describe("mounting a partition by its filesystem label", func() {
 
 			Expect(mounts.PrepareWrite(part, "/oem")).ToNot(Succeed())
 		})
+
+		// A call that fails has to leave the mount table as it found it.
+		// Taking the read only flag off and then failing to mount is the one
+		// path that can end with a writable partition nobody asked for and
+		// nobody is going to undo, because the caller's FinishWrite is only
+		// reached once PrepareWrite has returned nil.
+		It("puts the read only flag back when the mount that follows fails", func() {
+			stub("blkid", "echo /dev/kairos-sdk-mounts-test-wrong")
+			part := state.PartitionState{
+				FilesystemLabel: testLabel,
+				Mounted:         true,
+				IsReadOnly:      true,
+				MountPoint:      "/oem",
+			}
+
+			Expect(mounts.PrepareWrite(part, "/tmp/oem")).ToNot(Succeed())
+			Expect(ran()).To(Equal([]string{
+				"mount -o rw,remount /oem",
+				"mount -o ro,remount /oem",
+			}))
+		})
+	})
+
+	Describe("FinishWrite", func() {
+		// The bug. PrepareWrite remounts the partition read write where it
+		// already is, and the callers used to undo only the second mount, so
+		// a single cloud-config write left the state partition writable for
+		// the rest of the boot (kairos-io/kairos#5245).
+		It("puts a read only partition back to read only", func() {
+			part := state.PartitionState{
+				FilesystemLabel: testLabel,
+				Mounted:         true,
+				IsReadOnly:      true,
+				MountPoint:      "/oem",
+			}
+
+			Expect(mounts.FinishWrite(part, "/tmp/oem")).To(Succeed())
+			Expect(ran()).To(Equal([]string{
+				"umount /tmp/oem",
+				"mount -o ro,remount /oem",
+			}))
+		})
+
+		It("only unmounts when PrepareWrite had nothing to remount", func() {
+			part := state.PartitionState{FilesystemLabel: testLabel}
+
+			Expect(mounts.FinishWrite(part, "/tmp/oem")).To(Succeed())
+			Expect(ran()).To(Equal([]string{"umount /tmp/oem"}))
+		})
+
+		// PrepareWrite mounts nothing when the partition is already read
+		// only where the caller wants it, so there is nothing to unmount and
+		// unmounting would take the partition away from the running system.
+		It("does not unmount the partition it only remounted", func() {
+			part := state.PartitionState{
+				FilesystemLabel: testLabel,
+				Mounted:         true,
+				IsReadOnly:      true,
+				MountPoint:      "/oem",
+			}
+
+			Expect(mounts.FinishWrite(part, "/oem")).To(Succeed())
+			Expect(ran()).To(Equal([]string{"mount -o ro,remount /oem"}))
+		})
+
+		It("still restores the flag when the unmount fails, and reports both", func() {
+			stub("umount", "exit 32")
+			part := state.PartitionState{
+				FilesystemLabel: testLabel,
+				Mounted:         true,
+				IsReadOnly:      true,
+				MountPoint:      "/oem",
+			}
+
+			Expect(mounts.FinishWrite(part, "/tmp/oem")).ToNot(Succeed())
+			Expect(ran()).To(Equal([]string{
+				"umount /tmp/oem",
+				"mount -o ro,remount /oem",
+			}))
+		})
 	})
 
 	Describe("Umount", func() {
