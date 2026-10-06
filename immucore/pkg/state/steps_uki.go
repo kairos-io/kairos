@@ -106,14 +106,14 @@ func ukiBaseMounts() []ukiBaseMount {
 			"/dev/shm",
 			"tmpfs",
 			"tmpfs",
-			syscall.MS_NOSUID | syscall.MS_NODEV,
+			syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC,
 			"",
 		},
 		{
 			"/tmp",
 			"tmpfs",
 			"tmpfs",
-			syscall.MS_NOSUID | syscall.MS_NODEV,
+			syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC,
 			"",
 		},
 		{

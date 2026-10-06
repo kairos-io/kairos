@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"syscall"
 )
 
 func DefaultRWPaths() []string {
@@ -113,6 +114,29 @@ var bindMountModes = map[string]os.FileMode{
 func BindMountMode(mountpoint string) (os.FileMode, bool) {
 	mode, ok := bindMountModes[path.Join("/", mountpoint)]
 	return mode, ok
+}
+
+// bindMountOptions holds extra mount options a bind mount gets on top of
+// "bind". Nothing on /home needs device nodes, so it is mounted nodev (CIS
+// 1.1.14).
+var bindMountOptions = map[string][]string{
+	"/home": {"nodev"},
+}
+
+// TmpMountOptions are the options /tmp is mounted with on the GRUB boot path:
+// a world-writable tmpfs gets no device nodes, setuid or executables (CIS
+// 1.1.3, 1.1.4 and 1.1.5).
+var TmpMountOptions = []string{"rw", "nosuid", "nodev", "noexec"}
+
+// DevShmRemountFlags remounts the /dev/shm tmpfs the initramfs systemd set up,
+// adding noexec to the nosuid and nodev it already has (CIS 1.1.17). The mount
+// is carried into the booted system on switch-root, flags included.
+const DevShmRemountFlags = syscall.MS_REMOUNT | syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC
+
+// BindMountOptions returns the extra mount options for a bind mountpoint. A
+// leading slash is optional, as for BindMountMode.
+func BindMountOptions(mountpoint string) []string {
+	return bindMountOptions[path.Join("/", mountpoint)]
 }
 
 var ErrAlreadyMounted = errors.New("already mounted")
