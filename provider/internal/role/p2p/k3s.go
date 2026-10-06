@@ -86,11 +86,8 @@ func (k *K3sNode) GenArgs() ([]string, error) {
 
 func (k *K3sNode) AppendArgs(other []string) []string {
 	c := k.ProviderConfig()
-	if c.K3s.ReplaceArgs {
-		return c.K3s.Args
-	}
 
-	return append(other, c.K3s.Args...)
+	return appendUserArgs(other, c.K3s.Args, c.K3s.ReplaceArgs)
 }
 
 func (k *K3sNode) Service() (machine.Service, error) {
@@ -206,11 +203,7 @@ func (k *K3sNode) WorkerArgs() ([]string, error) {
 			fmt.Sprintf("--node-ip %s", ip))
 	}
 
-	if k3sConfig.ReplaceArgs {
-		args = k3sConfig.Args
-	} else {
-		args = append(args, k3sConfig.Args...)
-	}
+	args = appendUserArgs(args, k3sConfig.Args, k3sConfig.ReplaceArgs)
 
 	return args, nil
 }
