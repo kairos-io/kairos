@@ -471,6 +471,15 @@ cis-dil-benchmark-5.2.23:
     (tests/ssh_hardening_test.go). The auth-mode settings are opt-in through
     install.ssh_hardening, so the default install leaves them permissive.
 
+cis-dil-benchmark-5.3.1:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: >-
+    Hadron does not ship pam_pwquality.so and its system-auth does not load
+    it, so the pwquality.conf kairos-init writes has no effect there and the
+    profile's package gate skips the control. Needs libpwquality in hadron;
+    kairos-init cannot wire a module that is not on disk.
+
 cis-dil-benchmark-5.4.1.1:
   expiration_date: "2099-01-01"
   run: false

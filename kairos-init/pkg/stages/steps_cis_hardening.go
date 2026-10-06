@@ -59,8 +59,9 @@ var cisAccountFiles = []cisAccountFile{
 // SELinux enforcing on RHEL is left for a follow-up ticket. pam_faillock and
 // pam_pwquality are wired into the PAM stack with each distro's own tool
 // (pam-auth-update on Debian/Ubuntu, authselect on the RHEL family,
-// pam-config for pwquality on SUSE); Hadron's system-auth loads both
-// itself. SUSE gets no faillock (pam-config has no module for it) and
+// pam-config for pwquality on SUSE); Hadron's system-auth loads faillock
+// itself, but Hadron ships no pam_pwquality.so, so pwquality.conf has no
+// effect there. SUSE gets no faillock (pam-config has no module for it) and
 // Alpine images do not authenticate through PAM.
 func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Stage {
 	if config.ContainsSkipStep(values.CISHardeningStep) {

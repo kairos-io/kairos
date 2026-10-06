@@ -142,9 +142,6 @@ var cisGuestChecks = map[string]string{
 	"cis-dil-benchmark-2.3.5":  notInstalled("ldapsearch", "ldapadd"),
 	// 3.5.3: a firewall tool is there for whoever sets a policy.
 	"cis-dil-benchmark-3.5.3": "command -v iptables >/dev/null || command -v nft >/dev/null",
-	// 5.3.1 never runs on Hadron (it is gated on a package check), so check
-	// the pwquality policy kairos-init ships and that PAM loads it.
-	"cis-dil-benchmark-5.3.1": "grep -Eq '^[[:space:]]*minlen[[:space:]]*=[[:space:]]*(1[4-9]|[2-9][0-9])' /etc/security/pwquality.conf && grep -q pam_pwquality.so /etc/pam.d/system-auth",
 }
 
 func notEnabled(units ...string) string {
@@ -157,7 +154,8 @@ func notInstalled(bins ...string) string {
 
 // unsupportedControls returns the ids of controls with at least one result
 // skipped because an InSpec resource does not support the target OS, plus
-// 5.3.1, whose only_if gate makes it vanish with no results at all.
+// 5.3.1, whose only_if gate makes it vanish with no results at all. It is
+// waived today; once it is not, it needs a guest check here.
 func unsupportedControls(reportPath string) []string {
 	raw, err := os.ReadFile(reportPath)
 	ExpectWithOffset(1, err).ToNot(HaveOccurred())

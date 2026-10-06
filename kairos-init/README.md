@@ -72,7 +72,9 @@ What the `cisHardening` step sets:
   files under `/var/log` lose group write and every bit for other (4.2.3).
 - cron and at paths are tightened on bases that ship them (5.1).
 - `pwquality.conf` and `faillock.conf`, wired into PAM per distro (5.4.1,
-  5.4.2); on Hadron, `pam_unix` also remembers the last 5 passwords (5.3.3).
+  5.4.2). Hadron ships no `pam_pwquality.so`, so the password quality policy
+  does nothing there yet. On Hadron, `pam_unix` remembers the last 5
+  passwords (5.3.3).
 - `/etc/login.defs` aging and `UMASK` are only ever tightened, and the shell
   startup files get a matching `umask` (5.4.4).
 - `su` is limited to the `wheel` group (5.6). Root and `sudo` are not affected.
