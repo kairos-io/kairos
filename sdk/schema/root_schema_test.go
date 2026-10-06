@@ -44,6 +44,31 @@ users: []`
 			})
 		})
 
+		Context("When no top-level `users` key is present", func() {
+			It("accepts install.nousers", func() {
+				Expect(Validate("#cloud-config\ninstall:\n  device: /dev/sda\n  nousers: true\n")).To(Succeed())
+			})
+
+			It("accepts users defined in a yip stage, as the installers write them", func() {
+				Expect(Validate(`#cloud-config
+install:
+  device: /dev/sda
+stages:
+  network:
+    - users:
+        kairos:
+          name: kairos
+          passwd: x
+          groups:
+            - admin
+`)).To(Succeed())
+			})
+
+			It("still rejects an explicit empty users list", func() {
+				Expect(Validate("#cloud-config\nusers: []\n")).To(MatchError(ContainSubstring("minimum 1 items required")))
+			})
+		})
+
 		Context("without a valid header", func() {
 			BeforeEach(func() {
 				yaml = `---

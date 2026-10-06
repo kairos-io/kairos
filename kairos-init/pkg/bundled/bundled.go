@@ -471,9 +471,12 @@ install() {
 // RemainAfterExit keeps a second `systemctl start` a no-op rather than a
 // replay of the animation.
 //
-// The conditions are the boots that own tty1 themselves and must not have a
-// logo drawn over them: the live ISO (the interactive installer runs there)
-// and an automatic state reset.
+// The conditions are the boots that own tty1 themselves, or that a human is
+// watching for output, and so must not have a logo drawn over them: the live
+// ISO (the interactive installer runs there), an automatic state reset, and
+// recovery. `/run/cos/recovery_mode` is the sentinel immucore writes for the
+// recovery entry, and the same test the bundled cloud-configs use to keep
+// themselves out of a recovery boot.
 const SplashService = `[Unit]
 Description=Kairos boot splash
 Before=getty.target
@@ -481,6 +484,7 @@ ConditionKernelCommandLine=splash
 ConditionPathExists=/usr/bin/kairos-splash
 ConditionPathExists=!/run/cos/live_mode
 ConditionPathExists=!/run/cos/autoreset_mode
+ConditionPathExists=!/run/cos/recovery_mode
 
 [Service]
 Type=oneshot

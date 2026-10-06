@@ -28,6 +28,21 @@ func section(unit, name string) string {
 	return rest
 }
 
+// menuentry returns the body of one grub menuentry block, selected by its
+// --id, so an assertion about what the recovery entry boots cannot be
+// satisfied by a line belonging to the entry above it.
+func menuentry(cfg, id string) string {
+	start := strings.Index(cfg, "--id "+id+" {")
+	if start < 0 {
+		return ""
+	}
+	rest := cfg[start:]
+	if end := strings.Index(rest, "\n}"); end >= 0 {
+		return rest[:end]
+	}
+	return rest
+}
+
 var _ = Describe("SplashServiceDracut", func() {
 	unitSection := func() string { return section(bundled.SplashServiceDracut, "Unit") }
 
@@ -124,6 +139,16 @@ var _ = Describe("SplashService", func() {
 		Expect(u).To(ContainSubstring("ConditionPathExists=!/run/cos/live_mode"))
 		Expect(u).To(ContainSubstring("ConditionPathExists=!/run/cos/autoreset_mode"))
 		Expect(u).To(ContainSubstring("ConditionKernelCommandLine=splash"))
+	})
+
+	// Recovery is the boot a human takes to read what went wrong, so it is the
+	// one boot that must never have its console covered. The carve-out cannot
+	// be left to the command line: `splash` lives in BootArgsCfg's baseCmd,
+	// which is the part every menuentry shares, so the recovery entry asks for
+	// an animation just as the active entry does.
+	It("stays off a recovery boot", func() {
+		Expect(section(unit(), "Unit")).
+			To(ContainSubstring("ConditionPathExists=!/run/cos/recovery_mode"))
 	})
 
 	It("is installable into multi-user.target", func() {
@@ -364,5 +389,23 @@ var _ = Describe("BootArgsCfg", func() {
 	// feature is dead code.
 	It("asks for the splash on the shared part of the command line", func() {
 		Expect(bundled.BootArgsCfg).To(MatchRegexp(`set baseCmd="[^"]*\bsplash\b`))
+	})
+
+	// This is why SplashService needs a recovery_mode carve-out rather than a
+	// command line that simply leaves the token out. `splash` sits in baseCmd,
+	// documented as shared between all entries, and every menuentry sources
+	// bootargs.cfg and boots the one $kernelcmd it builds. So the recovery and
+	// state reset entries ask for an animation in exactly the same words the
+	// active entry uses, and no per-entry cmdline distinguishes them.
+	It("gives every menuentry the same splash token, recovery included", func() {
+		Expect(bundled.BootArgsCfg).To(MatchRegexp(`set baseCmd="[^"]*\bsplash\b`))
+
+		for _, id := range []string{"cos", "fallback", "recovery", "statereset"} {
+			entry := menuentry(bundled.GrubCfg, id)
+			Expect(entry).ToNot(BeEmpty(), "no menuentry --id %s", id)
+			Expect(entry).To(ContainSubstring("source (loop0)/etc/cos/bootargs.cfg"), id)
+			Expect(entry).To(ContainSubstring("$kernel $kernelcmd"), id)
+			Expect(entry).ToNot(ContainSubstring("kairos.splash=0"), id)
+		}
 	})
 })
