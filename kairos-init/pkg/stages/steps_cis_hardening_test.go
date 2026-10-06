@@ -1131,8 +1131,10 @@ var _ = Describe("GetCISHardeningStage gaps found by the CIS DIL benchmark run",
 			Expect(strings.Count(got, "umask ")).To(Equal(1), got)
 			Expect(got).To(MatchRegexp(`(?m)^umask ` + want + `$`))
 		},
-		Entry("keeps Hadron's stricter 077", "077", "077"),
-		Entry("raises a lax 022 to 027", "022", "027"),
+		// 027 everywhere: copying Hadron's 077 into the shell files would make
+		// everything root creates under sudo -i root-only.
+		Entry("Hadron's login.defs 077", "077", "027"),
+		Entry("a lax 022", "022", "027"),
 	)
 
 	DescribeTable("restricts su to the wheel group (CIS 5.6)",

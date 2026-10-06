@@ -339,18 +339,18 @@ func getCISBenchmarkGapStages() []schema.Stage {
 			},
 		},
 		{
-			// CIS 5.4.4 reads the shell startup files, not login.defs. Use
-			// the login.defs UMASK when it already meets the 027 floor
-			// (Hadron ships 077), else 027.
+			// CIS 5.4.4 reads the shell startup files, not login.defs. 027
+			// is the floor; Hadron's login.defs 077 is not copied here,
+			// since it would make everything root creates under sudo -i
+			// root-only. A file that already sets a compliant umask is
+			// left alone.
 			Name: "Set the CIS default umask for shells",
 			Commands: []string{
-				"u=$(awk '/^[[:space:]]*UMASK[[:space:]]/{print $2; exit}' /etc/login.defs 2>/dev/null); " +
-					"case \"$u\" in [0-7][2367]7) ;; *) u=027 ;; esac; " +
-					"for f in /etc/profile /etc/bash.bashrc /etc/bashrc; do " +
+				"for f in /etc/profile /etc/bash.bashrc /etc/bashrc; do " +
 					"[ -f \"$f\" ] || continue; " +
 					"grep -qE '^[[:space:]]*umask[[:space:]]+[0-7][2367]7[[:space:]]*$' \"$f\" && continue; " +
 					"[ -n \"$(tail -c1 \"$f\")\" ] && printf '\\n' >> \"$f\"; " +
-					"printf 'umask %s\\n' \"$u\" >> \"$f\"; " +
+					"printf 'umask 027\\n' >> \"$f\"; " +
 					"done",
 			},
 		},
