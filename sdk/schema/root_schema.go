@@ -97,7 +97,7 @@ func (kc *KConfig) validate() {
 		return
 	}
 
-	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
+	sch, err := jsonschema.CompileString(InProcessSchemaID, string(generatedSchemaJSON))
 	if err != nil {
 		kc.ValidationError = err
 		return
