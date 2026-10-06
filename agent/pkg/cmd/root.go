@@ -253,6 +253,40 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 		},
 	},
 	{
+		Name:  "upgrade-finalize",
+		Usage: "internal: run the post-deploy finalize step of an upgrade",
+		Description: `
+This is a hidden subcommand invoked by the host kairos-agent during a
+non-UKI upgrade after DeployImage. The host chroots into the deployed
+target rootfs, bind-mounts its own state / recovery / OEM / persistent
+/ EFI partitions under /host, and execs this command inside the chroot
+so the target image's own kairos-agent runs the format-writing steps of
+the upgrade (label state images, extra dirs, SELinux relabel, GRUB
+default entry rebrand, ESP refresh, after-upgrade-chroot hook). Doing
+so lets a format change (e.g. a new loader/entries key, a new GRUB
+menu, a new boot-assessment counter) reach installed nodes without
+requiring every previously released host agent to already understand
+that format.
+
+Not part of the public CLI; call sites and the wire contract may
+change between releases.
+`,
+		Hidden: true,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "context-file",
+				Usage:    "Path (inside the target chroot) to the JSON-serialized FinalizeContext the host wrote",
+				Required: true,
+			},
+		},
+		Before: func(c *cli.Context) error {
+			return checkRoot()
+		},
+		Action: func(c *cli.Context) error {
+			return agent.UpgradeFinalize(c.String("context-file"))
+		},
+	},
+	{
 		Name:      "notify",
 		Usage:     "notify <event> <config dir>...",
 		UsageText: "emits the given event with a generic event payload",
