@@ -280,13 +280,14 @@ jobs:
       custom_artifact_format: ${{ inputs.custom_artifact_format }}
       trusted_boot: ${{ inputs.trusted_boot }}
       # Trusted boot test builds sign with a key set generated for this run,
-      # and the test system extensions are built for this run too (signed
-      # with that key set on trusted boot builds). Release builds never
+      # and the test system extensions are built for this run too, only for
+      # cells that build an ISO (signed with that key set on trusted boot
+      # builds). Release builds never
       # enable trusted boot (internal/ciguard/release_test.go) and never
       # get the CI-only extensions, because test_sysext_overlay is pinned
       # off in release.yaml.
       generate_test_keys: ${{ inputs.trusted_boot && !inputs.release }}
-      generate_test_sysext: ${{ inputs.test_sysext_overlay }}
+      generate_test_sysext: ${{ inputs.test_sysext_overlay && inputs.iso }}
       single_efi_cmdline: ${{ inputs.single_efi_cmdline }}
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
