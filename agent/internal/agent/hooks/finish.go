@@ -41,7 +41,7 @@ func (k Finish) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 		err = ExtensionsPostInstall{}.Run(c, spec)
 		if err != nil {
 			c.Logger.Logger.Warn().Err(err).Msg("could not install the declared extensions")
-			if c.FailOnBundleErrors {
+			if c.FailOnBundleErrors || IsInvalidDeclaration(err) {
 				return err
 			}
 		}

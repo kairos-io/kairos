@@ -79,9 +79,13 @@ func (p *prerequisitesPage) Help() string {
 	return "↑/↓: move • ←/→ or space: change • enter: continue"
 }
 
+// Skipped reports that there were no checks, so the page moved on.
+func (p *prerequisitesPage) Skipped() bool { return p.loaded && len(p.checks) == 0 }
+
 // Init gathers the checks from providers synchronously (go-pluggable runs
-// plugins inline), mirroring the customization page. With no checks it emits a
-// navigation message to skip straight to disk selection.
+// plugins inline), the way the wizard asks them for their prompts. With no
+// checks it emits a navigation message to skip straight to the install mode
+// page.
 func (p *prerequisitesPage) Init() tea.Cmd {
 	if !p.loaded {
 		p.mgr = checks.NewManager(*mainModel.log)
@@ -96,7 +100,7 @@ func (p *prerequisitesPage) Init() tea.Cmd {
 	}
 
 	if len(p.checks) == 0 {
-		return func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+		return func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 	}
 	return p.syncFocus()
 }
@@ -152,7 +156,7 @@ func (p *prerequisitesPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	case "enter":
 		// After an optional-action failure, enter means "continue anyway".
 		if p.failure == failOptional {
-			return p, func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+			return p, func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 		}
 		return p.proceed()
 	}
@@ -289,9 +293,9 @@ func (p *prerequisitesPage) clearFailure() {
 	p.results = nil
 }
 
-// advance returns the command that moves on to disk selection.
+// advance returns the command that moves on to the install mode page.
 func (p *prerequisitesPage) advance() tea.Cmd {
-	return func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+	return func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 }
 
 // proceed validates blockers, applies the user's decisions and advances to
