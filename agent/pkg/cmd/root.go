@@ -253,6 +253,40 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 		},
 	},
 	{
+		Name:  "upgrade-finalize",
+		Usage: "internal: run the post-deploy finalize step of an upgrade",
+		Description: `
+This is a hidden subcommand invoked by the host kairos-agent during a
+non-UKI upgrade after DeployImage. The host chroots into the deployed
+target rootfs, bind-mounts its own state / recovery / OEM / persistent
+/ EFI partitions under /host, and execs this command inside the chroot
+so the target image's own kairos-agent runs the format-writing steps of
+the upgrade (label state images, extra dirs, SELinux relabel, GRUB
+default entry rebrand, ESP refresh, after-upgrade-chroot hook). Doing
+so lets a format change (e.g. a new loader/entries key, a new GRUB
+menu, a new boot-assessment counter) reach installed nodes without
+requiring every previously released host agent to already understand
+that format.
+
+Not part of the public CLI; call sites and the wire contract may
+change between releases.
+`,
+		Hidden: true,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "context-file",
+				Usage:    "Path (inside the target chroot) to the JSON-serialized FinalizeContext the host wrote",
+				Required: true,
+			},
+		},
+		Before: func(c *cli.Context) error {
+			return checkRoot()
+		},
+		Action: func(c *cli.Context) error {
+			return agent.UpgradeFinalize(c.String("context-file"))
+		},
+	},
+	{
 		Name:      "notify",
 		Usage:     "notify <event> <config dir>...",
 		UsageText: "emits the given event with a generic event payload",
@@ -1169,6 +1203,51 @@ The command automatically:
 						return fmt.Errorf("failed to scan config: %w", err)
 					}
 					return kcrypt.UnlockAllEncryptedPartitions(cfg.Logger)
+				},
+			},
+			{
+				Name:      "encrypt",
+				Usage:     "Encrypt plaintext partitions in place, by filesystem label",
+				ArgsUsage: "LABEL [LABEL...]",
+				Description: `Encrypt the given partitions in place, using the configured method
+(local TPM, or the kcrypt challenger server when one is configured).
+
+WARNING: Encrypting a partition DESTROYS ALL DATA on it!
+
+This is the manual counterpart of boot time encryption
+(kcrypt.encrypt_on_boot): the same operation, run from the command line,
+typically from recovery. It is defensive by default:
+
+- A partition that is already a LUKS container is skipped, so the command
+  is safe to re-run.
+- Partitions the running system depends on (OEM, state, recovery, EFI)
+  are refused. Encrypt those at install time instead.
+- A mounted partition is refused; unmount it first.
+- A label that cannot be found, or whose filesystem cannot be determined,
+  is an error rather than a guess.
+- The result is verified before success is reported.
+
+The command prompts for confirmation unless --i-know-what-i-am-doing is
+given. The partitions are left locked; they unlock on the next boot, or
+with 'kairos-agent kcrypt unlock-all'.`,
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "i-know-what-i-am-doing",
+						Usage: "Skip confirmation prompt (DANGEROUS: encrypting destroys all data on the partitions)",
+					},
+				},
+				Before: func(c *cli.Context) error {
+					return checkRoot()
+				},
+				Action: func(c *cli.Context) error {
+					if c.NArg() == 0 {
+						return fmt.Errorf("no partition labels given; usage: kairos-agent kcrypt encrypt LABEL [LABEL...]")
+					}
+					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+					if err != nil {
+						return fmt.Errorf("failed to scan config: %w", err)
+					}
+					return action.KcryptEncrypt(cfg, c.Args().Slice(), c.Bool("i-know-what-i-am-doing"))
 				},
 			},
 		},
