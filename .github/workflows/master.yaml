@@ -175,10 +175,9 @@ jobs:
       registry_domain: 'ghcr.io'
       registry_namespace: 'kairos-io/kairos'
       single_efi_cmdline: 'testentry: nothing'
-      # Opt in to the CI-only sysext overlay. _build-iso.yaml picks
-      # tests/assets/sysext-uki for UKI cells and tests/assets/sysext-grub
-      # for the rest. Release cells do not set this and therefore ship no
-      # test extensions.
+      # Opt in to the CI-only sysext overlay. The extensions are generated
+      # per build: signed on UKI cells, verity-only on the rest. Release
+      # cells do not set this and therefore ship no test extensions.
       test_sysext_overlay: true
       release: false
     secrets: inherit
