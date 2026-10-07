@@ -74,6 +74,18 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 		return err
 	}
 
+	diskClosed := false
+	closeDisk := func() {
+		if diskClosed {
+			return
+		}
+		diskClosed = true
+		if err := disk.Close(); err != nil {
+			e.config.Logger.Errorf("Close disk: %s", err)
+		}
+	}
+	defer closeDisk()
+
 	e.config.Logger.Infof("Partitioning device...")
 	parts := i.GetPartitions()
 	err = disk.NewPartitionTable(i.GetPartTable(), parts.PartitionsByInstallOrder(i.GetExtraPartitions()))
@@ -83,20 +95,20 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 	}
 
 	// Try to make the kernel re-read the partition table a couple of times
-	for i := 0; i < 5; i++ {
+	const rereadAttempts = 5
+	for attempt := 0; attempt < rereadAttempts; attempt++ {
 		err = disk.ReReadPartitionTable()
 		if err == nil {
 			break
 		}
-		e.config.Logger.Debugf("Reread table attempt %d failed: %s", i+1, err)
-		if i < 5-1 {
-			e.config.Logger.Debugf("Waiting %d seconds before next attempt", 5)
+		e.config.Logger.Debugf("Reread table attempt %d failed: %s", attempt+1, err)
+		if attempt < rereadAttempts-1 {
+			// Back off a bit more on every attempt before retrying
+			wait := time.Duration(attempt+1) * time.Second
+			e.config.Logger.Debugf("Waiting %s before next attempt", wait)
+			time.Sleep(wait)
 		}
-		// Wait a bit before retrying
-		time.Sleep(time.Duration(i) * time.Second)
-
 	}
-	err = disk.ReReadPartitionTable()
 	if err != nil {
 		e.config.Logger.Errorf("Reread table: %s", err)
 		return err
@@ -107,10 +119,7 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 		e.config.Logger.Errorf("table: %s", err)
 		return err
 	}
-	err = disk.Close()
-	if err != nil {
-		e.config.Logger.Errorf("Close disk: %s", err)
-	}
+	closeDisk()
 	// Sync changes
 	syscall.Sync()
 	// Trigger udevadm to refresh devices
