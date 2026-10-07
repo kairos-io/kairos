@@ -462,11 +462,19 @@ install() {
 // between switch-root, where the initramfs unit is killed, and the login
 // prompt.
 //
-// A oneshot ordered Before=getty.target means getty waits for it, so the
-// animation is never half-overwritten by a login prompt appearing on top of
-// it. That also means it adds its own runtime to the boot, which is why it is
-// the one part of the splash with a --duration: SplashDuration of animation,
-// bounded again by TimeoutStartSec in case the console misbehaves.
+// A oneshot ordered before getty means getty waits for it, so the animation is
+// never half-overwritten by a login prompt appearing on top of it. That also
+// means it adds its own runtime to the boot, which is why it is the one part of
+// the splash with a --duration: SplashDuration of animation, bounded again by
+// TimeoutStartSec in case the console misbehaves.
+//
+// Before=getty.target alone does not do that. systemd's own getty@.service
+// carries Before=getty.target too, so the two units are siblings of that target
+// with no order between them: getty@tty1.service starts while the splash is
+// still animating and the login prompt lands on top of it. The unit the splash
+// shares a console with is getty@tty1.service, so that is the one to order
+// against. getty.target stays, because it is what keeps the whole getty set
+// after the splash on a system that puts a getty somewhere else as well.
 //
 // RemainAfterExit keeps a second `systemctl start` a no-op rather than a
 // replay of the animation.
@@ -480,6 +488,7 @@ install() {
 const SplashService = `[Unit]
 Description=Kairos boot splash
 Before=getty.target
+Before=getty@tty1.service
 ConditionKernelCommandLine=splash
 ConditionPathExists=/usr/bin/kairos-splash
 ConditionPathExists=!/run/cos/live_mode
