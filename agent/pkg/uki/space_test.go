@@ -2,21 +2,42 @@ package uki
 
 import (
 	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
+	"golang.org/x/sys/unix"
 )
 
-// sparseMargin is how far past the free space tooBigFor goes. It has to clear
+// sparseMargin is how far past the capacity tooBigFor goes. It has to clear
 // the small fixture files that a check counts as room it will get back (the
 // passive set an upgrade rotation frees), and 1MiB is far past those.
 const sparseMargin int64 = 1 << 20
+
+// capacityOf returns the total size of the filesystem that holds path,
+// including the blocks already in use.
+func capacityOf(fs sdkFs.KairosFS, path string) (int64, error) {
+	realPath, err := fs.RawPath(path)
+	if err != nil {
+		return 0, fmt.Errorf("resolving %s: %w", path, err)
+	}
+
+	var stat unix.Statfs_t
+	if err := unix.Statfs(realPath, &stat); err != nil {
+		return 0, fmt.Errorf("reading the size of %s: %w", path, err)
+	}
+
+	return int64(stat.Blocks) * int64(stat.Bsize), nil
+}
 
 // tooBigFor returns a file size that cannot fit on the filesystem behind path,
 // so a check that has to make a copy of a file this size is guaranteed to come
@@ -27,13 +48,21 @@ const sparseMargin int64 = 1 << 20
 // per-file limit: ext4 caps a single file at 16TiB and returns EFBIG, so
 // 512TiB truncates fine on a tmpfs /tmp and fails on an ext4 one.
 //
+// It measures the whole filesystem rather than the free space on it. The tests
+// share /tmp with every other package that `go test ./...` runs beside them,
+// and a package that deletes its scratch files hands those blocks back, so the
+// free space a check reads can be tens of MiB above the free space measured
+// here moments earlier. Free space can grow, but it can never grow past the
+// capacity, so a file larger than the whole filesystem stays too big whatever
+// the neighbours do.
+//
 // The file stays sparse at this size, so it costs no blocks and does not move
 // the free space the checks read.
 func tooBigFor(fs vfs.FS, path string) int64 {
-	free, err := freeSpaceOn(fs, path)
+	capacity, err := capacityOf(fs, path)
 	ExpectWithOffset(1, err).ToNot(HaveOccurred())
 
-	return free + sparseMargin
+	return capacity + sparseMargin
 }
 
 var _ = Describe("EFI partition space checks", func() {
@@ -155,6 +184,27 @@ var _ = Describe("EFI partition space checks", func() {
 		It("has nothing to free on a machine with no passive set yet", func() {
 			write("EFI/kairos/norole.efi", tooBigFor(fs, "/efi"))
 			write("EFI/kairos/active.efi", tooBigFor(fs, "/efi"))
+
+			Expect(checkSpaceForUpgradeRotation(fs, "/efi", logger)).To(HaveOccurred())
+		})
+
+		It("still refuses when a neighbour hands free space back mid-test", func() {
+			// The test filesystem lives in the /tmp that every other package
+			// `go test ./...` runs shares, so one of them deleting its scratch
+			// files grows the free space this check reads. Hold some blocks,
+			// size the active set, then release them, which is that race made
+			// to happen on purpose.
+			ballast := filepath.Join(os.TempDir(), "uki-space-ballast")
+			Expect(os.WriteFile(ballast, make([]byte, 32<<20), 0600)).To(Succeed())
+			defer os.Remove(ballast)
+			unix.Sync()
+
+			write("EFI/kairos/norole.efi", 1)
+			write("EFI/kairos/active.efi", tooBigFor(fs, "/efi"))
+			write("EFI/kairos/passive.efi", 1)
+
+			Expect(os.Remove(ballast)).To(Succeed())
+			unix.Sync()
 
 			Expect(checkSpaceForUpgradeRotation(fs, "/efi", logger)).To(HaveOccurred())
 		})
