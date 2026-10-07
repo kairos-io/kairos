@@ -1072,6 +1072,12 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install AuroraBoot runtime library
+        # cmd/test-artifacts runs the AuroraBoot release binary for genkey,
+        # which links libpcsclite.
+        if: inputs.generate_test_keys
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite1
+
       - name: Generate test keys and system extensions
         id: test-artifacts
         if: inputs.generate_test_keys || inputs.generate_test_sysext
