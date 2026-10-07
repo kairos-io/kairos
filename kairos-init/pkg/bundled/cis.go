@@ -210,10 +210,12 @@ const CISPwquality = `# Managed by kairos-init.
 # difok   = minimum number of characters that must differ from the old
 #           password
 #
-# Wiring pam_pwquality into the PAM password stack is distro-specific
-# (authselect on RHEL, pam-auth-update on Debian/Ubuntu, hand-edited on
-# Alpine) and left to the base image; RHEL 9 and Ubuntu 22.04+ enable
-# the module by default once the pwquality package is present.
+# kairos-init wires pam_pwquality into the password stack with the
+# distro's own tool: pam-auth-update on Debian/Ubuntu (libpam-pwquality
+# profile), authselect on the RHEL family (the local/minimal profiles
+# load it), pam-config on SUSE releases whose pam-config knows the
+# module. Hadron's system-auth loads it directly. Alpine images do not
+# authenticate through PAM, so this file is inert there.
 minlen = 14
 dcredit = -1
 ucredit = -1
@@ -223,17 +225,13 @@ difok = 4
 `
 
 // CISFaillockPath is the pam_faillock config file, read at PAM stack time.
-// Whether shipping the file also enforces lockout depends on the base:
-// Hadron's /etc/pam.d/system-auth already wires pam_faillock (preauth,
-// authfail, authsucc), so the CIS parameters take effect on Hadron as
-// soon as this file lands. RHEL 9's default authselect profile also
-// loads pam_faillock. On Ubuntu, Debian and Alpine bases the module
-// is not in the auth stack out of the box; the file has no effect
-// there until pam_faillock is wired in through the distro's standard
-// mechanism (pam-auth-update on Debian, authselect on RHEL, hand-edited
-// common-auth on Alpine). That wiring is distro-specific and a wrong
-// edit locks every account out, so it is left for a follow-up ticket
-// with proper per-distro boot testing.
+// Hadron's /etc/pam.d/system-auth wires pam_faillock (preauth, authfail,
+// authsucc) itself. On every other base the CIS hardening stage wires the
+// module with the distro's own tool: pam-auth-update profiles on
+// Debian/Ubuntu, `authselect ... with-faillock` on the RHEL family (stock
+// RHEL-family images do not load pam_faillock). SUSE's pam-config has no
+// faillock module and Alpine images do not authenticate through PAM, so
+// the file stays inert on those two.
 const CISFaillockPath = "/etc/security/faillock.conf"
 
 // CISFaillock covers CIS Distribution Independent Linux v2.0.0 L1 section
@@ -246,14 +244,10 @@ const CISFaillock = `# Managed by kairos-init.
 # CIS Distribution Independent Linux v2.0.0 L1, section 5.4.2 (lockout on
 # failed authentication). Read by pam_faillock.so.
 #
-# Whether this file changes runtime behavior depends on the base:
-# Hadron's system-auth already wires pam_faillock, and RHEL 9's default
-# authselect profile also loads it, so the CIS parameters take effect on
-# those bases as soon as this file lands. On Ubuntu, Debian and Alpine
-# bases pam_faillock is not in the auth stack out of the box, so the
-# file is inert there until the module is wired in. That wiring is
-# distro-specific and a wrong edit locks every account out, so it is
-# left for a follow-up ticket with proper per-distro boot testing.
+# kairos-init wires pam_faillock into the auth stack on Hadron,
+# Debian/Ubuntu (pam-auth-update) and the RHEL family (authselect
+# with-faillock). On SUSE (pam-config has no faillock module) and Alpine
+# (no PAM in the login path) this file is inert.
 #
 # deny           = failed attempts before the account is locked
 # unlock_time    = seconds the lock lasts (0 would mean forever)
@@ -267,6 +261,120 @@ unlock_time = 900
 fail_interval = 900
 even_deny_root
 `
+
+// CISFaillockResetCloudConfigPath holds a boot.after stage that clears the
+// faillock tally once the boot stage has provisioned users.
+//
+// On first boot sshd is listening well before the `users:` cloud-config
+// stage sets the passwords: on a Rocky install the `Enable QEMU tools` boot
+// step alone holds the boot stage for ~90s. Any password login in that
+// window fails against an account that exists but has no usable password
+// yet, pam_faillock counts it, and five of those lock the account for
+// unlock_time (900s) even after the real password lands. A client that
+// keeps retrying (an operator, provisioning tooling, the e2e harness) keeps
+// re-locking it. Those failures say nothing about the configured password,
+// so the tally is dropped once provisioning is done. Removing the files
+// under the tally directory is a no-op on bases where pam_faillock is not
+// wired.
+const CISFaillockResetCloudConfigPath = "/system/oem/34_cis_faillock_reset.yaml"
+
+// CISFaillockResetCloudConfig is the content written to
+// CISFaillockResetCloudConfigPath.
+const CISFaillockResetCloudConfig = `#cloud-config
+# Managed by kairos-init. See CISFaillockResetCloudConfigPath in
+# kairos-init/pkg/bundled/cis.go for why this runs at boot.after.
+name: "CIS faillock tally reset"
+stages:
+  boot.after:
+    - name: "Drop faillock tally collected before users were provisioned"
+      if: '[ -d /run/faillock ]'
+      commands:
+        - find /run/faillock -mindepth 1 -maxdepth 1 -type f -delete
+`
+
+// CISPamConfigFaillockPath and CISPamConfigFaillockNotifyPath are the
+// pam-auth-update profiles that wire pam_faillock into the Debian/Ubuntu
+// common-auth and common-account stacks (CIS L1 5.4.2). Neither distro
+// ships a faillock profile, only the module (libpam-modules, PAM >= 1.4),
+// so kairos-init ships the pair the CIS Ubuntu benchmark describes and
+// lets pam-auth-update compute the jump offsets. The profiles are only
+// written when pam_faillock.so is present: pam-auth-update enables
+// Default: yes profiles, and a stack line naming a missing module fails
+// every authentication.
+const CISPamConfigFaillockPath = "/usr/share/pam-configs/kairos-faillock"
+
+// CISPamConfigFaillock records a failure after pam_unix rejects the
+// password. Priority 0 places it after pam_unix (256) in common-auth.
+const CISPamConfigFaillock = `Name: Kairos pam_faillock lockout on failure (CIS L1 5.4.2)
+Default: yes
+Priority: 0
+Auth-Type: Primary
+Auth:
+	[default=die]	pam_faillock.so authfail
+`
+
+// CISPamConfigFaillockNotifyPath is the second half of the faillock pair.
+const CISPamConfigFaillockNotifyPath = "/usr/share/pam-configs/kairos-faillock-notify"
+
+// CISPamConfigFaillockNotify refuses a locked account before pam_unix runs
+// (preauth, priority 1024 sorts it first) and clears the failure count in
+// the account phase once a login succeeds.
+const CISPamConfigFaillockNotify = `Name: Kairos pam_faillock preauth and reset on success (CIS L1 5.4.2)
+Default: yes
+Priority: 1024
+Auth-Type: Primary
+Auth:
+	requisite	pam_faillock.so preauth
+Account-Type: Primary
+Account:
+	required	pam_faillock.so
+`
+
+// CISAuthselectFaillock wires pam_faillock (and keeps pam_pwquality) on the
+// RHEL family with authselect. Stock RHEL-family images do not load
+// pam_faillock. When authselect already manages the stack (Fedora ships
+// the `local` profile selected) the feature is enabled on the current
+// profile. When it does not (Rocky/Alma/RHEL containers ship plain
+// /etc/pam.d files) the local-users profile is selected: `local` on
+// releases that have it, `minimal` on EL9 where it has not been renamed
+// yet. Both load pam_pwquality in the password stack.
+const CISAuthselectFaillock = `if authselect current >/dev/null 2>&1; then
+  authselect enable-feature with-faillock
+else
+  profile=minimal
+  authselect list | grep -q '^- local' && profile=local
+  authselect select "$profile" with-faillock --force
+fi`
+
+// CISRHELFaillockFallback wires pam_faillock into system-auth and
+// password-auth on a RHEL-family image that has no authselect binary.
+// Only plain files are touched (an authselect-managed stack is a symlink
+// into /etc/authselect and is left to CISAuthselectFaillock), only files
+// that do not already load pam_faillock, and only when both anchor lines
+// exist, so a stack of unexpected shape is left as is. The lines land in
+// the same positions authselect's with-faillock feature puts them.
+const CISRHELFaillockFallback = `for f in /etc/pam.d/system-auth /etc/pam.d/password-auth; do
+  [ -f "$f" ] && [ ! -L "$f" ] || continue
+  grep -q pam_faillock.so "$f" && continue
+  grep -Eq '^auth[[:space:]]+[^[:space:]]+[[:space:]]+pam_unix.so' "$f" || continue
+  grep -Eq '^account[[:space:]]+required[[:space:]]+pam_unix.so' "$f" || continue
+  awk '
+    !a && /^auth[[:space:]]+[^[:space:]]+[[:space:]]+pam_unix.so/ {
+      print "auth        required      pam_faillock.so preauth silent"; print
+      print "auth        required      pam_faillock.so authfail"; a=1; next }
+    !c && /^account[[:space:]]+required[[:space:]]+pam_unix.so/ {
+      print "account     required      pam_faillock.so"; print; c=1; next }
+    { print }
+  ' "$f" > "$f.kairos" && cat "$f.kairos" > "$f" && rm -f "$f.kairos"
+done`
+
+// CISSUSEPwquality wires pam_pwquality on SUSE with pam-config, replacing
+// pam_cracklib (the SUSE default, which ignores pwquality.conf). Only
+// pam-config builds that know the module (Tumbleweed; not Leap 15.6) are
+// touched. pam-config has no faillock module, so faillock is not wired on
+// SUSE.
+const CISSUSEPwquality = `pam-config -a --pwquality
+pam-config -q --cracklib >/dev/null 2>&1 && pam-config -d --cracklib || true`
 
 // CISLoginDefsDirection tells the stage code how to compare the base
 // image's shipped value against the CIS floor: which direction "stricter"
