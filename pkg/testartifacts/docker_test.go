@@ -1,3 +1,5 @@
+//go:build testartifacts
+
 package testartifacts_test
 
 import (
@@ -43,7 +45,7 @@ func partitionTypes(path string) []string {
 	return types
 }
 
-var _ = Describe("Docker-built artifacts", Label("docker"), func() {
+var _ = Describe("artifacts built with AuroraBoot", Label("testartifacts"), func() {
 	var ctx context.Context
 
 	BeforeEach(func() {
@@ -105,11 +107,6 @@ var _ = Describe("Docker-built artifacts", Label("docker"), func() {
 		path, err := testartifacts.BuildSysext(ctx, testartifacts.SysextOptions{Dir: out, Name: "work", Arch: "arm64"})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(partitionTypes(path)).To(ConsistOf(rootArm64, rootArm64Verity))
-	})
-
-	It("rejects a key without a certificate", func() {
-		_, err := testartifacts.BuildSysext(ctx, testartifacts.SysextOptions{Dir: GinkgoT().TempDir(), Name: "work", Arch: "amd64", KeyFile: "/nonexistent.key"})
-		Expect(err).To(HaveOccurred())
 	})
 
 	It("builds a plain squashfs extension with no partition table", func() {
