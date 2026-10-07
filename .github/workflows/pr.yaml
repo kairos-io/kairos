@@ -140,7 +140,9 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
 
   # Per-PR ISO size signal against the last green master run. It is an
-  # informational report and never gates the PR.
+  # informational report and never gates the PR. This run builds no UKI
+  # ISO, so the UKI size gate lives in pr-full.yaml; the script's own
+  # test still runs here, on every PR.
   size-diff:
     name: iso-size-diff
     needs: build-iso
@@ -151,6 +153,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Install xorriso and mtools
+        # The test builds small UKI ISOs and reads them back.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorriso mtools
+      - name: Test the size diff script
+        run: scripts/iso-size-diff_test.sh
       - name: Download PR ISOs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:

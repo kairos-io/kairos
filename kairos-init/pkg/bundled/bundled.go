@@ -358,6 +358,24 @@ omit_dracutmodules+=" plymouth "`
 //
 // It is wired into initrd.target.wants, never initrd.target.requires; see the
 // module-setup script for why that distinction is load-bearing.
+//
+// Recovery and the automatic state reset get no animation, the same as in
+// SplashService. That unit tests the /run/cos sentinels, but this one cannot:
+// immucore writes them from inside the initramfs, after this unit has already
+// started. So the negated ConditionKernelCommandLine= lines below test the
+// command line words that immucore's boot-state detection (sdk/state,
+// getNonUKIBootState) reads to pick recovery_mode and autoreset_mode:
+//
+//   - root=LABEL=COS_SYSTEM and root=live:LABEL=COS_RECOVERY are the two
+//     roots BootArgsCfg gives the recovery image (a .img file or a squashfs).
+//     immucore matches COS_SYSTEM and COS_RECOVERY as substrings, systemd
+//     matches whole words, so these are the exact words GRUB writes.
+//   - kairos.reset is the statereset entry. It also boots the recovery image,
+//     so the root= lines already cover it, but immucore reads kairos.reset
+//     ahead of every other marker, so this unit tests it too.
+//
+// Trusted boot is not affected: a UKI has no dracut-built initramfs, so this
+// unit is never installed there.
 const SplashServiceDracut = `[Unit]
 Description=Kairos boot splash (initramfs)
 DefaultDependencies=no
@@ -366,6 +384,9 @@ Before=initrd.target
 Conflicts=initrd-switch-root.target
 Conflicts=emergency.target
 ConditionKernelCommandLine=splash
+ConditionKernelCommandLine=!root=LABEL=COS_SYSTEM
+ConditionKernelCommandLine=!root=live:LABEL=COS_RECOVERY
+ConditionKernelCommandLine=!kairos.reset
 ConditionPathExists=/usr/bin/kairos-splash
 
 [Service]
