@@ -46,25 +46,53 @@ services, etc.). Nothing is written to `/etc/kairos` and no binary copy,
 
 ## CIS L1 Hardening
 
-kairos-init applies a subset of the CIS Distribution Independent Linux
-v2.0.0 L1 controls to every image it builds. This is not full L1 coverage —
-SELinux enforcing mode, sysctl hardening, auditd, the PAM/login.defs controls
-and the local `/etc/issue` banner are not touched:
+kairos-init applies the CIS Distribution Independent Linux v2.0.0 L1 controls
+that fit an immutable image to every image it builds. `tests/cis_test.go` runs
+the [cis-dil-benchmark](https://github.com/dev-sec/cis-dil-benchmark) profile
+against an installed Hadron system in CI; the controls that do not apply, or
+were left out on purpose, are listed with the reason in
+`tests/assets/cis-dil-waivers.yaml`.
+
+What the `cisHardening` step sets:
 
 - `/etc/modprobe.d/cis-blocklist.conf` gets an `install <mod> /bin/false` line
-  for cramfs, freevxfs, jffs2, hfs, hfsplus and udf (sections 1.1.1.1-1.1.1.6).
-  `modprobe` of those filesystems fails, so volumes that need them no longer
-  mount.
+  for cramfs, freevxfs, jffs2, hfs, hfsplus and udf (1.1.1.x). `modprobe` of
+  those filesystems fails, so volumes that need them no longer mount.
 - `/etc/issue.net` is replaced with a generic pre-authentication warning that
-  names no distribution, release or kernel (section 1.7). Wiring sshd to print
-  it (`Banner /etc/issue.net`) is not done here — set that yourself if you want
-  the banner on ssh logins.
-- `/etc/passwd`, `/etc/group`, `/etc/shadow`, `/etc/gshadow` and their `-`
-  backups have their modes tightened (section 6.1). Only the shadow files and
-  the backups lose read access; `/etc/passwd` and `/etc/group` stay
-  world-readable, and ownership is left as the base image shipped it.
+  names no distribution, release or kernel (1.7). Wiring sshd to print it
+  (`Banner /etc/issue.net`) is not done here.
+- No core dumps: `* hard core 0` in `/etc/security/limits.d/50-kairos-cis.conf`
+  and `fs.suid_dumpable = 0` (1.5.1).
+- Network sysctls in `/etc/sysctl.d/99-kairos-cis.conf`: ASLR, loose
+  `rp_filter`, SYN cookies, no source routes, no (secure) redirects, no IPv6
+  router advertisements (section 3).
+- auditd enabled with the baseline rules in `/etc/audit/rules.d/50-kairos.rules`
+  (4.1).
+- journald compresses and keeps its journal on disk (4.2.2.2, 4.2.2.3), and
+  files under `/var/log` lose group write and every bit for other (4.2.3).
+- cron and at paths are tightened on bases that ship them (5.1).
+- `pwquality.conf` and `faillock.conf`, wired into PAM per distro (5.4.1,
+  5.4.2). Hadron ships no `pam_pwquality.so`, so the password quality policy
+  does nothing there yet. On Hadron, `pam_unix` remembers the last 5
+  passwords (5.3.3).
+- `/etc/login.defs` aging and `UMASK` are only ever tightened, and the shell
+  startup files get a matching `umask` (5.4.4).
+- `su` is limited to the `wheel` group (5.6). Root and `sudo` are not affected.
+- `/etc/gshadow` and the `-` backups are created if missing, and the account
+  databases get their modes tightened (6.1). The dbus launch helper gets its
+  `messagebus` group when the base ships it ungrouped (6.1.12).
+- `/system/oem/35_cis_boot.yaml` runs at every boot: it creates
+  `/usr/local/sbin` (6.2.6, `/usr/local` is the persistent partition) and
+  closes home directories to other users (6.2.8).
 
-Pass `--skip-step cisHardening` to turn the whole set off.
+immucore mounts `/tmp` nodev,nosuid,noexec, remounts `/dev/shm` noexec and
+mounts the `/home` bind nodev (1.1.3-1.1.5, 1.1.14, 1.1.17).
+
+Not covered: SELinux enforcing, firewall policy, password aging on users
+provisioned from cloud-config, a GRUB password, and blocking usb-storage.
+
+Pass `--skip-step cisHardening` to turn off the kairos-init part. The immucore
+mount options always apply.
 
 ## NVIDIA / Jetson
 
