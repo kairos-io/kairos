@@ -27,6 +27,26 @@ on:
         type: string
         required: true
 
+      kairos_init_artifact:
+        description: |
+          Name of a workflow artifact holding kairos-init as an OCI layout
+          tarball (_build-image-kairos-init.yaml's oci_artifact). When
+          set, `kairos_init_image` is not pulled: it becomes the build
+          context name the layout is bound to, so any name works, e.g.
+          `kairos-init-local`. The PR pipeline uses this because it has
+          no registry to pull from.
+        type: string
+        default: ''
+
+      security_scans:
+        description: |
+          Run the trivy and grype scans and upload their SARIF reports.
+          The PR pipeline turns this off: a pull_request run from a fork
+          gets a read-only token, so the SARIF upload cannot succeed, and
+          master already scans every image that lands.
+        type: boolean
+        default: true
+
       arch:
         description: 'linux/<arch>: amd64, arm64, or riscv64'
         type: string
@@ -116,6 +136,25 @@ on:
           for the resulting image to be end-to-end FIPS-capable; passing
           this flag alone against a non-FIPS base produces a partial-FIPS
           image and defeats the point.
+        type: boolean
+        default: false
+
+      test_sysext_overlay:
+        description: |
+          Bake the CI-only sysext test extensions onto the ISO as
+          auroraboot's --overlay-iso tree. Explicit opt-in: default
+          false so a release caller cannot accidentally leak the test
+          extensions into a shipped ISO. When true, the caller ships
+          `tests/assets/sysext-uki` on trusted_boot cells and
+          `tests/assets/sysext-grub` on the rest -- the two directories
+          exist because the UKI cell enrolls the test certificate
+          (tests/assets/keys/db.auth, the EFI signed variable derived
+          from db.pem) into the Secure Boot db, so the kernel accepts a
+          verity root-hash signed with the corresponding db.key; a
+          plain GRUB cell enrolls nothing and cannot. One extension is
+          verity+signed, the other is verity-only.
+          The extensions are what tests/sysext_live_media_test.go and
+          tests/uki_test.go's boot-assessment spec assert on.
         type: boolean
         default: false
 
@@ -224,6 +263,8 @@ jobs:
       build_args: |
         KAIROS_INIT_IMAGE=${{ inputs.kairos_init_image }}
         ${{ inputs.fips && 'FIPS=fips' || '' }}
+      oci_context_artifact: ${{ inputs.kairos_init_artifact }}
+      oci_context_name: ${{ inputs.kairos_init_artifact != '' && inputs.kairos_init_image || '' }}
       base_image: ${{ inputs.base_image }}
       arch: ${{ inputs.arch }}
       model: ${{ inputs.model }}
@@ -248,21 +289,30 @@ jobs:
       # tests/assets/keys/db.auth, not at /db.auth. Pass the path
       # unconditionally; factory-action ignores it on non-UKI cells.
       keys_dir: 'tests/assets/keys'
-      # sysext_dir bakes work.sysext.raw + hello-broke.sysext.raw into
-      # the UKI ISO. Without it the boot-assessment test's sysext
-      # assertions ("/run/extensions should contain work.sysext.raw",
-      # uki_test.go:296-303) fail because there is no sysext to load.
-      # Same shape as keys_dir; ignored on non-UKI cells.
-      sysext_dir: '$PWD/tests/assets/sysext'
+      # sysext_dir bakes the CI-only test extensions onto the ISO as
+      # auroraboot's --overlay-iso tree. Gated on `test_sysext_overlay`
+      # so a release caller cannot leak them; on release cells the
+      # default is empty and factory-action omits --overlay-iso
+      # entirely. When opted in, the directory is picked from
+      # trusted_boot: a UKI boot enrolls the test certificate
+      # (tests/assets/keys/db.auth, derived from db.pem) into the
+      # Secure Boot db and can activate a verity root-hash signed with
+      # the corresponding db.key, while a plain GRUB boot enrolls
+      # nothing and cannot, and a signed image the kernel refuses is
+      # an all-or-nothing failure in systemd-sysext's merge_subprocess.
+      # The two asset directories track that split: sysext-uki ships a
+      # verity+signed work.sysext.raw and sysext-grub a verity-only
+      # one, both with the same hello.sh payload.
+      sysext_dir: ${{ inputs.test_sysext_overlay && (inputs.trusted_boot && '$PWD/tests/assets/sysext-uki' || '$PWD/tests/assets/sysext-grub') || '' }}
       single_efi_cmdline: ${{ inputs.single_efi_cmdline }}
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
       kubernetes_version: ${{ inputs.kubernetes_version }}
       raw: ${{ inputs.raw }}
-      grype: ${{ inputs.grype }}
-      grype_sarif: ${{ inputs.grype }}
-      trivy: true
-      trivy_sarif: true
+      grype: ${{ inputs.security_scans && inputs.grype }}
+      grype_sarif: ${{ inputs.security_scans && inputs.grype }}
+      trivy: ${{ inputs.security_scans }}
+      trivy_sarif: ${{ inputs.security_scans }}
       sbom: ${{ inputs.sbom }}
       security_scan_mode: 'report-only'
       grype_sarif_fail_build: false

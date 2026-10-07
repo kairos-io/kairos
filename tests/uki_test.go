@@ -299,6 +299,22 @@ func genericTests(vm VM) {
 
 		Expect(out).To(ContainSubstring("foo"))
 	})
+	By("checking /dev/shm is mounted nosuid and nodev", func() {
+		// The UKI initramfs mounts /dev/shm itself, and UkiPivotToSysroot
+		// moves it into the new root with MS_MOVE, which keeps the flags,
+		// so whatever immucore set is what the booted system runs with.
+		// A world-writable tmpfs that honours setuid bits and device nodes
+		// is the one entry of that table where that matters.
+		//
+		// Read the one /proc/mounts line rather than the whole mount
+		// output, so the assertion cannot be satisfied by some other
+		// filesystem that does carry the flags.
+		out, err := vm.Sudo(`grep " /dev/shm " /proc/mounts`)
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring(" /dev/shm tmpfs "), out)
+		Expect(out).To(ContainSubstring("nosuid"), out)
+		Expect(out).To(ContainSubstring("nodev"), out)
+	})
 	By("checking bpf mount", func() {
 		out, err := vm.Sudo("mount")
 		Expect(err).ToNot(HaveOccurred())
@@ -344,24 +360,26 @@ func genericTests(vm VM) {
 		}
 
 		// when calling the status we need to set the hierarchy env variable so it can find them
-		env := "SYSTEMD_SYSEXT_HIERARCHIES=\"/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin\""
-		out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", env))
+		out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", sysextHierarchiesEnv))
 		Expect(err).ToNot(HaveOccurred(), out)
 		// marshall output to struct
 		var sysexts sysextStatus
 		err = json.Unmarshal([]byte(out), &sysexts)
 		Expect(err).ToNot(HaveOccurred())
 		// check if sysexts are loaded
+		var merged bool
 		for _, sysext := range sysexts {
-			if sysext.Hierarchy == "/usr/local/bin" {
+			if sysext.Hierarchy == mergedExtensionHierarchy {
 				Expect(sysext.Extensions).To(ContainElement("work"))
+				merged = true
 			}
 		}
+		Expect(merged).To(BeTrue(), "no %s hierarchy in %s", mergedExtensionHierarchy, out)
 	})
 	By("Checking that we can run a command from a sysext", func() {
-		out, err := vm.Sudo("hello.sh")
+		out, err := vm.Sudo(mergedExtensionCommand)
 		Expect(err).ToNot(HaveOccurred(), out)
-		Expect(out).To(ContainSubstring("Hello world"))
+		Expect(out).To(ContainSubstring(mergedExtensionOutput))
 	})
 
 }

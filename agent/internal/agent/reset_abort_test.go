@@ -1,0 +1,53 @@
+package agent
+
+import (
+	"errors"
+	"io"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+var _ = Describe("operatorAbortedReset", func() {
+	answer := func(string) (string, error) { return "", nil }
+	eof := func(string) (string, error) { return "", io.EOF }
+	readErr := func(string) (string, error) { return "", errors.New("input/output error") }
+
+	Context("when stdin is a terminal", func() {
+		It("treats a real answer as an abort", func() {
+			Expect(operatorAbortedReset(answer, true)).To(BeTrue())
+		})
+
+		It("treats EOF from Ctrl-D as an abort", func() {
+			Expect(operatorAbortedReset(eof, true)).To(BeTrue())
+		})
+	})
+
+	Context("when stdin is not a terminal", func() {
+		It("treats a real answer as an abort", func() {
+			Expect(operatorAbortedReset(answer, false)).To(BeTrue())
+		})
+
+		It("does not treat EOF on stdin as an operator abort", func() {
+			Expect(operatorAbortedReset(eof, false)).To(BeFalse())
+		})
+
+		It("does not treat other read errors as an operator abort", func() {
+			Expect(operatorAbortedReset(readErr, false)).To(BeFalse())
+		})
+	})
+})
+
+var _ = Describe("abortedResetExitCode", func() {
+	It("returns 0 when the shell exits cleanly", func() {
+		Expect(abortedResetExitCode(func() error { return nil })).To(Equal(0))
+	})
+
+	It("returns 1 without panicking when the shell fails", func() {
+		var code int
+		Expect(func() {
+			code = abortedResetExitCode(func() error { return errors.New("exit status 127") })
+		}).NotTo(Panic())
+		Expect(code).To(Equal(1))
+	})
+})

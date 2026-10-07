@@ -12,9 +12,15 @@ import (
 )
 
 // assets are the real extension images the test suite ships and the CI job
-// bakes onto the live media. Reading them rather than a synthetic image is the
-// point: work.sysext.raw is what reddened test-core/bundles.
-const assets = "../../../tests/assets/sysext"
+// bakes onto a UKI live media. Reading them rather than a synthetic image is
+// the point: work.sysext.raw is what reddened test-core/bundles.
+const assets = "../../../tests/assets/sysext-uki"
+
+// grubAssets are the images baked onto a plain GRUB live media. The split is
+// the whole subject of this file: that work.sysext.raw is verity only, with no
+// signature partition, because nothing enrolls the test signing key on a boot
+// without Secure Boot.
+const grubAssets = "../../../tests/assets/sysext-grub"
 
 // writeGPT builds a disk image whose partition table holds the given type
 // GUIDs, so the arch and sector-size cases can be covered without carrying six
@@ -66,6 +72,14 @@ var _ = Describe("detecting a verity signature partition", func() {
 		// hello-broke.sysext.raw was built without verity or signing, and has
 		// no partition table at all.
 		Expect(carriesVeritySignature(filepath.Join(assets, "hello-broke.sysext.raw"))).To(BeFalse())
+	})
+
+	It("finds none in the verity-only extension the GRUB media ships", func() {
+		// The GRUB asset has the same payload and the same verity hash
+		// partition as the UKI one, and no root-verity-sig partition. It is
+		// the case the synthetic writeGPT images below stand in for, read off
+		// the image a GRUB cell really boots.
+		Expect(carriesVeritySignature(filepath.Join(grubAssets, "work.sysext.raw"))).To(BeFalse())
 	})
 
 	DescribeTable("recognises the signature partition of every architecture Kairos builds",
@@ -132,6 +146,13 @@ var _ = Describe("skipping an extension this boot cannot verify", func() {
 
 	It("keeps an unsigned extension on a GRUB boot", func() {
 		Expect(hasUnverifiableSignature(false, filepath.Join(assets, "hello-broke.sysext.raw"))).To(BeFalse())
+	})
+
+	// Why tests/assets/sysext-grub exists at all: the GRUB live media has to
+	// carry an extension this check keeps, or the sweep it covers has nothing
+	// left to merge.
+	It("keeps the verity-only extension the GRUB media ships", func() {
+		Expect(hasUnverifiableSignature(false, filepath.Join(grubAssets, "work.sysext.raw"))).To(BeFalse())
 	})
 
 	It("keeps an image it cannot read, rather than disabling a working node", func() {
