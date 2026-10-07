@@ -35,8 +35,7 @@ var _ = Describe("the token the image can put in front of the web UI", func() {
 		var srv *httptest.Server
 
 		BeforeEach(func() {
-			srv = httptest.NewServer(newServer(Options{}))
-			DeferCleanup(srv.Close)
+			srv = newTestServer(Options{})
 		})
 
 		for _, r := range routes {
@@ -51,8 +50,7 @@ var _ = Describe("the token the image can put in front of the web UI", func() {
 		var srv *httptest.Server
 
 		BeforeEach(func() {
-			srv = httptest.NewServer(newServer(Options{WebUI: branding.WebUI{Token: token}}))
-			DeferCleanup(srv.Close)
+			srv = newTestServer(Options{WebUI: branding.WebUI{Token: token}})
 		})
 
 		for _, r := range routes {

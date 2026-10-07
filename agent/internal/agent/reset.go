@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 
 	"github.com/mudler/go-pluggable"
+	"golang.org/x/term"
 )
 
 func Reset(reboot, unattended, resetOem bool, dir ...string) error {
@@ -98,6 +100,25 @@ func resetUki(reboot, unattended, resetOem bool, dir ...string) error {
 	return hook.Run(*cfg, resetSpec, hook.FinishReset...)
 }
 
+// operatorAbortedReset blocks on the prompt and reports whether the operator
+// asked to abort the reset. On a terminal any return from the prompt is an
+// abort, including EOF from Ctrl-D. Without a terminal a read error (stdin at
+// EOF, /dev/null, a closed pipe) lets the reset go on.
+func operatorAbortedReset(prompt func(string) (string, error), stdinIsTerminal bool) bool {
+	_, err := prompt("")
+	return err == nil || stdinIsTerminal
+}
+
+// abortedResetExitCode runs the shell handed to the operator after an aborted
+// reset and returns the exit code for the agent once that shell is gone.
+func abortedResetExitCode(shell func() error) int {
+	if err := shell(); err != nil {
+		fmt.Printf("shell exited with error: %s\n", err)
+		return 1
+	}
+	return 0
+}
+
 // sharedReset is the common reset code for both uki and non-uki
 // sets the config, runs the event handler, publish the envent and gets the config
 func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig.Config, err error) {
@@ -118,7 +139,9 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 		lock := sync.Mutex{}
 		go func() {
 			// Wait for user input and go back to shell
-			utils.Prompt("") //nolint:errcheck
+			if !operatorAbortedReset(utils.Prompt, term.IsTerminal(int(os.Stdin.Fd()))) {
+				return
+			}
 			// give tty1 back
 			svc, err := machine.Getty(1)
 			if err == nil {
@@ -127,7 +150,7 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 
 			lock.Lock()
 			fmt.Println("Reset aborted")
-			panic(utils.Shell().Run())
+			os.Exit(abortedResetExitCode(utils.Shell().Run))
 		}()
 
 		if !agentConfig.Fast {

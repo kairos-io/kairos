@@ -30,6 +30,7 @@ type RootSchema struct {
 	// agent/pkg/config). An explicit empty list is still rejected.
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
+	KubeVIP                   KubeVIPSchema            `json:"kubevip,omitempty"`
 	Debug                     bool                     `json:"debug,omitempty" mapstructure:"debug"`
 	Strict                    bool                     `json:"strict,omitempty" mapstructure:"strict"`
 	CloudInitPaths            []string                 `json:"cloud-init-paths,omitempty" mapstructure:"cloud-init-paths"`
@@ -99,7 +100,7 @@ func (kc *KConfig) validate() {
 		return
 	}
 
-	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
+	sch, err := jsonschema.CompileString(InProcessSchemaID, string(generatedSchemaJSON))
 	if err != nil {
 		kc.ValidationError = err
 		return
