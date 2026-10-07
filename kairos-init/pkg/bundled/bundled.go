@@ -358,6 +358,24 @@ omit_dracutmodules+=" plymouth "`
 //
 // It is wired into initrd.target.wants, never initrd.target.requires; see the
 // module-setup script for why that distinction is load-bearing.
+//
+// Recovery and the automatic state reset get no animation, the same as in
+// SplashService. That unit tests the /run/cos sentinels, but this one cannot:
+// immucore writes them from inside the initramfs, after this unit has already
+// started. So the negated ConditionKernelCommandLine= lines below test the
+// command line words that immucore's boot-state detection (sdk/state,
+// getNonUKIBootState) reads to pick recovery_mode and autoreset_mode:
+//
+//   - root=LABEL=COS_SYSTEM and root=live:LABEL=COS_RECOVERY are the two
+//     roots BootArgsCfg gives the recovery image (a .img file or a squashfs).
+//     immucore matches COS_SYSTEM and COS_RECOVERY as substrings, systemd
+//     matches whole words, so these are the exact words GRUB writes.
+//   - kairos.reset is the statereset entry. It also boots the recovery image,
+//     so the root= lines already cover it, but immucore reads kairos.reset
+//     ahead of every other marker, so this unit tests it too.
+//
+// Trusted boot is not affected: a UKI has no dracut-built initramfs, so this
+// unit is never installed there.
 const SplashServiceDracut = `[Unit]
 Description=Kairos boot splash (initramfs)
 DefaultDependencies=no
@@ -366,6 +384,9 @@ Before=initrd.target
 Conflicts=initrd-switch-root.target
 Conflicts=emergency.target
 ConditionKernelCommandLine=splash
+ConditionKernelCommandLine=!root=LABEL=COS_SYSTEM
+ConditionKernelCommandLine=!root=live:LABEL=COS_RECOVERY
+ConditionKernelCommandLine=!kairos.reset
 ConditionPathExists=/usr/bin/kairos-splash
 
 [Service]
@@ -462,25 +483,38 @@ install() {
 // between switch-root, where the initramfs unit is killed, and the login
 // prompt.
 //
-// A oneshot ordered Before=getty.target means getty waits for it, so the
-// animation is never half-overwritten by a login prompt appearing on top of
-// it. That also means it adds its own runtime to the boot, which is why it is
-// the one part of the splash with a --duration: SplashDuration of animation,
-// bounded again by TimeoutStartSec in case the console misbehaves.
+// A oneshot ordered before getty means getty waits for it, so the animation is
+// never half-overwritten by a login prompt appearing on top of it. That also
+// means it adds its own runtime to the boot, which is why it is the one part of
+// the splash with a --duration: SplashDuration of animation, bounded again by
+// TimeoutStartSec in case the console misbehaves.
+//
+// Before=getty.target alone does not do that. systemd's own getty@.service
+// carries Before=getty.target too, so the two units are siblings of that target
+// with no order between them: getty@tty1.service starts while the splash is
+// still animating and the login prompt lands on top of it. The unit the splash
+// shares a console with is getty@tty1.service, so that is the one to order
+// against. getty.target stays, because it is what keeps the whole getty set
+// after the splash on a system that puts a getty somewhere else as well.
 //
 // RemainAfterExit keeps a second `systemctl start` a no-op rather than a
 // replay of the animation.
 //
-// The conditions are the boots that own tty1 themselves and must not have a
-// logo drawn over them: the live ISO (the interactive installer runs there)
-// and an automatic state reset.
+// The conditions are the boots that own tty1 themselves, or that a human is
+// watching for output, and so must not have a logo drawn over them: the live
+// ISO (the interactive installer runs there), an automatic state reset, and
+// recovery. `/run/cos/recovery_mode` is the sentinel immucore writes for the
+// recovery entry, and the same test the bundled cloud-configs use to keep
+// themselves out of a recovery boot.
 const SplashService = `[Unit]
 Description=Kairos boot splash
 Before=getty.target
+Before=getty@tty1.service
 ConditionKernelCommandLine=splash
 ConditionPathExists=/usr/bin/kairos-splash
 ConditionPathExists=!/run/cos/live_mode
 ConditionPathExists=!/run/cos/autoreset_mode
+ConditionPathExists=!/run/cos/recovery_mode
 
 [Service]
 Type=oneshot

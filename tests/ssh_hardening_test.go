@@ -254,7 +254,7 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 			// so the artifact bundle carries both a human-readable
 			// listing and the machine-readable report.
 			_ = os.WriteFile(filepath.Join(reportDir, "ssh-baseline.cli.log"), out, 0o644)
-			summarizeFailedControls(reportPath)
+			summarizeFailedControls("ssh-baseline", reportPath)
 		}
 		Expect(err).ToNot(HaveOccurred(),
 			"ssh-baseline profile reported failures; failed controls are printed above; %s and %s are attached as artifacts",
@@ -328,11 +328,11 @@ func dumpGuestState(vm VM, keyPath string) {
 	}
 }
 
-// summarizeFailedControls parses the cinc-auditor JSON report and
+// summarizeFailedControls parses a cinc-auditor JSON report and
 // prints every failed control's id, title and each failing example's
 // message to GinkgoWriter, so the failure summary in the CI log holds
 // enough context to diagnose without downloading the artifact.
-func summarizeFailedControls(reportPath string) {
+func summarizeFailedControls(label, reportPath string) {
 	raw, err := os.ReadFile(reportPath)
 	if err != nil {
 		GinkgoWriter.Printf("summarizeFailedControls: cannot read %s: %v\n", reportPath, err)
@@ -358,7 +358,7 @@ func summarizeFailedControls(reportPath string) {
 		GinkgoWriter.Printf("summarizeFailedControls: cannot parse %s: %v\n", reportPath, err)
 		return
 	}
-	GinkgoWriter.Printf("\n=== ssh-baseline failed controls ===\n")
+	GinkgoWriter.Printf("\n=== %s failed controls ===\n", label)
 	var failed int
 	for _, p := range report.Profiles {
 		for _, ctl := range p.Controls {
