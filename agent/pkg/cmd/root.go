@@ -584,7 +584,7 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 			// whose datasource says "install me".
 			if skipAutoInstall(c) {
 				log.Infof("--%s was given, so install.auto is ignored and the installer runs", skipAutoInstallFlag)
-			} else if installed, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
+			} else if installed, _, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
 				// --shell asks for a shell instead of the installer TUI. No
 				// installer was launched here, so say so rather than dropping
 				// the flag without a word.
@@ -670,14 +670,15 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 
 			// An unattended config installs and returns; only when there is a
 			// decision left for a human does the provider flow run.
-			installed, cc, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
+			installed, cc, scanErr, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
 			if installed || err != nil {
 				return err
 			}
 
 			// cc is the config AutoInstall already scanned; handing it over
 			// keeps a remote config_url from being fetched twice per boot.
-			return agent.Install(cc, source, insecure, constants.GetUserConfigDirs()...)
+			// scanErr goes along so Install can show it on the screen it draws.
+			return agent.Install(cc, scanErr, source, insecure, constants.GetUserConfigDirs()...)
 		},
 	},
 	{

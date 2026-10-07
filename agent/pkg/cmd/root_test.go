@@ -249,9 +249,9 @@ func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
 	t.Cleanup(func() { autoInstallFn = original })
 
 	called := false
-	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error) {
+	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error, error) {
 		called = true
-		return false, nil, nil
+		return false, nil, nil, nil
 	}
 
 	err := command.Action(commandContext(t, command, "", "--"+skipAutoInstallFlag))
