@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kairos-io/kairos/v4/internal/splash"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	. "github.com/onsi/ginkgo/v2"
@@ -178,6 +179,62 @@ var _ = Describe("SplashService", func() {
 		Expect(section(unit(), "Unit")).
 			To(ContainSubstring("ConditionPathExists=" + bundled.SplashBinaryPath + "\n"))
 		Expect(unit()).ToNot(ContainSubstring("/usr/bin/kairos "))
+	})
+
+	// This is the last thing drawn on tty1 before the login prompt, and
+	// agetty is started with --noclear by systemd's own getty@.service, so
+	// nothing after the splash takes the animation off the screen. The
+	// initramfs half is followed by the animation continuing, so a clear
+	// there would only be a black frame in the middle of it.
+	It("hands getty a console with the animation taken off it", func() {
+		Expect(section(unit(), "Service")).To(ContainSubstring("--clear-on-exit"))
+		Expect(bundled.SplashServiceDracut).ToNot(ContainSubstring("--clear-on-exit"))
+	})
+})
+
+// execStartArgs returns the arguments an ExecStart= line passes to the splash
+// binary, so a test can feed a unit's own command line to the real parser
+// instead of to a copy of it.
+func execStartArgs(unit string) []string {
+	for _, line := range strings.Split(section(unit, "Service"), "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "ExecStart="+bundled.SplashBinaryPath)
+		if !ok {
+			continue
+		}
+		return strings.Fields(rest)
+	}
+	return nil
+}
+
+// The units pass flags to the splash as literal text, and nothing but a test
+// connects a name written in a unit to a name the binary parses. Rename one
+// without the other and the unit exits 2 on every boot: no animation, and
+// nothing on the console to say why.
+//
+// The kill switch is on, so Main returns right after parsing and never opens
+// a console, which makes this a test of the flag set and of nothing else.
+var _ = Describe("the flags the splash units pass", func() {
+	It("are flags the splash binary accepts", func() {
+		off := filepath.Join(GinkgoT().TempDir(), "cmdline")
+		Expect(os.WriteFile(off, []byte("kairos.splash=0\n"), 0o600)).To(Succeed())
+
+		// os.Args is restored through a defer rather than after the call,
+		// so a failure inside Main does not leave the rest of the suite
+		// running with this spec's command line.
+		run := func(args []string) int {
+			saved := os.Args
+			defer func() { os.Args = saved }()
+			os.Args = append([]string{"kairos-splash", "--cmdline=" + off}, args...)
+			return splash.Main()
+		}
+
+		for name, u := range map[string]string{
+			"SplashService":       fmt.Sprintf(bundled.SplashService, bundled.SplashDuration),
+			"SplashServiceDracut": bundled.SplashServiceDracut,
+		} {
+			args := execStartArgs(u)
+			Expect(run(args)).To(Equal(0), "%s passes %v", name, args)
+		}
 	})
 })
 
