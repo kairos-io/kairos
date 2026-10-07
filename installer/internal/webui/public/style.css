@@ -1,0 +1,386 @@
+/* The web installer's look, shared by index.html, progress.html and
+   message.html. It follows AuroraBoot's web UI: the colour tokens are the
+   values of AuroraBoot's ui/src/index.css, and the components follow its
+   button, card, input, badge, sidebar and wizard shell. There is no build
+   step and nothing is fetched: the live ISO may have no network, so the font
+   is Noto Sans only where the machine already has it. */
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #EE5007;
+  --primary-hover: #FF7442;
+  --primary-foreground: #FFFFFF;
+  --primary-soft: #FFF0E8;
+  --navy: #03153A;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #03153A;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #F1F5F9;
+  --accent-foreground: #0F172A;
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #FF7442;
+  --radius: 0.625rem;
+  --success: #1A9A52;
+  --success-foreground: #12733C;
+  --warning: #C98A04;
+  --warning-foreground: #8F6200;
+  --danger: #D6372C;
+  --danger-foreground: #A8261D;
+  --info: #2F6FE0;
+  --info-foreground: #1F53B5;
+  --neutral: #8A94A8;
+  --neutral-foreground: #56607A;
+  --sidebar-bg: var(--navy);
+  --sidebar-fg: #e2e8f0;
+  --sidebar-accent: #EE5007;
+  --sidebar-muted: rgba(255, 255, 255, 0.1);
+  --font-sans: "Noto Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+:root.dark {
+  --background: #1a1e25;
+  --foreground: #f1f5f9;
+  --card: #232830;
+  --card-foreground: #f1f5f9;
+  --popover: #232830;
+  --popover-foreground: #f1f5f9;
+  --primary: #FF7442;
+  --primary-hover: #FF8A5C;
+  --primary-foreground: #0F172A;
+  --primary-soft: #2A1A14;
+  --navy: #111419;
+  --secondary: #2d3341;
+  --secondary-foreground: #f1f5f9;
+  --muted: #2d3341;
+  --muted-foreground: #94a3b8;
+  --accent: #2D3341;
+  --accent-foreground: #F1F5F9;
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: #334155;
+  --input: #334155;
+  --ring: #EE5007;
+  --success: #3CC97A;
+  --success-foreground: #5FDC95;
+  --warning: #EAB308;
+  --warning-foreground: #F4C93F;
+  --danger: #FF5F55;
+  --danger-foreground: #FF8A82;
+  --info: #5D93FF;
+  --info-foreground: #8AB0FF;
+  --neutral: #6F7A91;
+  --neutral-foreground: #A3ADC2;
+  --sidebar-bg: var(--navy);
+  --sidebar-fg: #e2e8f0;
+  --sidebar-accent: #FF7442;
+  --sidebar-muted: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+}
+
+/* No script, or a script that has not run yet: follow the system. theme.js
+   puts .light on <html> when light was chosen, which turns this off. The
+   declarations are the .dark set above, and a Go spec keeps them equal. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+  --background: #1a1e25;
+  --foreground: #f1f5f9;
+  --card: #232830;
+  --card-foreground: #f1f5f9;
+  --popover: #232830;
+  --popover-foreground: #f1f5f9;
+  --primary: #FF7442;
+  --primary-hover: #FF8A5C;
+  --primary-foreground: #0F172A;
+  --primary-soft: #2A1A14;
+  --navy: #111419;
+  --secondary: #2d3341;
+  --secondary-foreground: #f1f5f9;
+  --muted: #2d3341;
+  --muted-foreground: #94a3b8;
+  --accent: #2D3341;
+  --accent-foreground: #F1F5F9;
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: #334155;
+  --input: #334155;
+  --ring: #EE5007;
+  --success: #3CC97A;
+  --success-foreground: #5FDC95;
+  --warning: #EAB308;
+  --warning-foreground: #F4C93F;
+  --danger: #FF5F55;
+  --danger-foreground: #FF8A82;
+  --info: #5D93FF;
+  --info-foreground: #8AB0FF;
+  --neutral: #6F7A91;
+  --neutral-foreground: #A3ADC2;
+  --sidebar-bg: var(--navy);
+  --sidebar-fg: #e2e8f0;
+  --sidebar-accent: #FF7442;
+  --sidebar-muted: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+  }
+}
+
+/* The terminal panel is navy in both themes, as AuroraBoot's .terminal-output. */
+:root {
+  --terminal-fg: #e2e8f0;
+  --terminal-error: #FF8A82;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+/* Base */
+*, *::before, *::after { box-sizing: border-box; border-color: var(--border); }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+h1, h2, h3, p, dl, dd, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--primary); text-decoration: none; text-underline-offset: 4px; }
+a:hover { text-decoration: underline; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.icon { width: 16px; height: 16px; flex-shrink: 0; pointer-events: none; }
+
+/* Buttons: AuroraBoot's ui/button.tsx variants and sizes. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 32px; padding: 6px 12px; white-space: nowrap;
+  border: 1px solid transparent; border-radius: var(--radius-md);
+  background: var(--primary); color: var(--primary-foreground); box-shadow: var(--shadow-sm);
+  font-size: 14px; font-weight: 500; line-height: 1; text-decoration: none; cursor: pointer;
+  transition: background-color .15s, color .15s, opacity .15s;
+}
+.btn:hover { background: var(--primary-hover); text-decoration: none; }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--ring); }
+.btn:disabled { opacity: .5; pointer-events: none; }
+.btn.outline { border-color: var(--input); background: var(--background); color: var(--foreground); }
+.btn.outline:hover { background: var(--accent); color: var(--accent-foreground); }
+.btn.secondary { background: var(--secondary); color: var(--secondary-foreground); box-shadow: none; }
+.btn.secondary:hover { background: color-mix(in srgb, var(--secondary) 80%, transparent); }
+.btn.ghost { background: transparent; color: var(--foreground); box-shadow: none; }
+.btn.ghost:hover { background: var(--accent); color: var(--accent-foreground); }
+.btn.destructive { background: var(--danger); color: #ffffff; }
+.btn.destructive:hover { background: color-mix(in srgb, var(--danger) 90%, transparent); }
+.btn.destructive-outline { border-color: var(--input); background: var(--background); color: var(--danger-foreground); }
+.btn.destructive-outline:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.btn.sm { height: 28px; padding: 0 12px; font-size: 12px; }
+.btn.lg { height: 40px; padding: 0 24px; }
+.btn.icon-btn { width: 32px; padding: 0; }
+.btn.icon-sm { width: 28px; height: 28px; padding: 0; }
+/* On the navy sidebar and top bar, as Layout.tsx styles its ghost buttons. */
+.btn.on-navy { background: transparent; color: var(--sidebar-fg); opacity: .7; box-shadow: none; }
+.btn.on-navy:hover { background: var(--sidebar-muted); color: var(--sidebar-fg); opacity: 1; }
+
+/* Card, input and badge: ui/card.tsx, ui/input.tsx, ui/badge.tsx. */
+.card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow); padding: 24px; }
+.card-actions { margin-top: 20px; }
+.card-title { font-size: 16px; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
+input[type=text], input[type=password], select, textarea {
+  display: flex; width: 100%; height: 36px; padding: 4px 12px;
+  border: 1px solid var(--input); border-radius: var(--radius-md);
+  background: transparent; color: var(--foreground); box-shadow: var(--shadow-sm);
+  font-size: 14px; transition: box-shadow .15s, border-color .15s;
+}
+input::placeholder, textarea::placeholder { color: var(--muted-foreground); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--ring); border-color: var(--ring); }
+input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; opacity: .5; }
+input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 16px; height: 16px; margin: 0; }
+.badge { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 2px 10px; font-size: 12px; font-weight: 600; line-height: 16px; white-space: nowrap; }
+/* StatusBadge tones: the tone at 15% behind its -foreground ink. */
+.tone-success { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success-foreground); border-color: color-mix(in srgb, var(--success) 25%, transparent); }
+.tone-warning { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning-foreground); border-color: color-mix(in srgb, var(--warning) 25%, transparent); }
+.tone-danger { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger-foreground); border-color: color-mix(in srgb, var(--danger) 25%, transparent); }
+.tone-info { background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info-foreground); border-color: color-mix(in srgb, var(--info) 25%, transparent); }
+.tone-neutral { background: color-mix(in srgb, var(--neutral) 15%, transparent); color: var(--neutral-foreground); border-color: color-mix(in srgb, var(--neutral) 25%, transparent); }
+
+/* Page header: PageHeader.tsx. */
+.page-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+.page-header > div { min-width: 0; }
+.page-header .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.page-header h1 { font-size: 30px; line-height: 36px; font-weight: 700; letter-spacing: -0.025em; overflow-wrap: anywhere; text-wrap: balance; }
+.page-header .help, .page-header .description { color: var(--muted-foreground); margin-top: 4px; font-size: 16px; max-width: 70ch; }
+.eyebrow { font-size: 14px; color: var(--muted-foreground); margin-bottom: 8px; }
+
+/* Brand: the Kairos mark and the product name, as Layout.tsx shows them. */
+.brand { display: flex; align-items: center; gap: 10px; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 16px; }
+.brand:hover { text-decoration: none; }
+.brand img { display: block; height: 28px; width: auto; }
+
+/* Theme switch: ThemeToggle.tsx. theme.js fills the placeholders. */
+.theme-toggle { display: flex; width: 100%; gap: 4px; padding: 4px; border-radius: var(--radius-md); background: var(--sidebar-muted); }
+.theme-toggle button { display: inline-flex; flex: 1; align-items: center; justify-content: center; height: 28px; min-width: 32px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--sidebar-fg); opacity: .7; cursor: pointer; transition: background-color .15s, opacity .15s; }
+.theme-toggle button:hover { opacity: 1; }
+.theme-toggle button[aria-pressed=true] { background: var(--sidebar-accent); color: #ffffff; opacity: 1; }
+.theme-toggle button:focus-visible, .theme-cycle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.theme-cycle { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--sidebar-fg); opacity: .7; cursor: pointer; }
+.theme-cycle:hover { opacity: 1; background: var(--sidebar-muted); }
+[data-theme-toggle]:empty { display: none; }
+
+/* Navy top bar: progress and message pages at every width, the wizard below 768px. */
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 8px 16px; background: var(--sidebar-bg); color: var(--sidebar-fg); }
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.topbar .theme-toggle { width: auto; }
+.topbar .theme-toggle button { flex: none; width: 36px; }
+
+/* The wizard: a navy step sidebar (Layout.tsx) and the form (WizardShell.tsx). */
+.shell { display: flex; min-height: 100vh; }
+.shell > .topbar { display: none; }
+.sidebar { position: sticky; top: 0; display: flex; flex-direction: column; flex-shrink: 0; width: 240px; height: 100vh; background: var(--sidebar-bg); color: var(--sidebar-fg); }
+.sidebar-head { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 12px 16px; }
+.sidebar-head img { height: 44px; width: auto; }
+.sidebar-head .product { font-weight: 700; font-size: 16px; color: #ffffff; line-height: 1.25; }
+.sidebar-head .close { position: absolute; right: 8px; top: 8px; display: none; }
+.divider { margin: 0 16px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.rail { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 4px; }
+.rail-label { display: block; padding: 4px 12px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: color-mix(in srgb, var(--sidebar-fg) 40%, transparent); }
+.rail button { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--sidebar-fg); opacity: .8; text-align: left; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color .15s, opacity .15s; }
+.rail button:hover { opacity: 1; background: var(--sidebar-muted); }
+.rail button[aria-current=step] { background: var(--sidebar-accent); color: #ffffff; opacity: 1; }
+.rail button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.rail .marker { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rail .marker.done { background: rgba(255, 255, 255, 0.12); border-color: transparent; }
+.rail button[aria-current=step] .marker { background: #ffffff; border-color: #ffffff; color: var(--sidebar-accent); }
+.rail .step-title { min-width: 0; overflow-wrap: anywhere; line-height: 20px; padding-top: 2px; }
+.sidebar-foot { padding: 12px 12px 20px; display: grid; gap: 8px; }
+.backdrop { position: fixed; inset: 0; z-index: 40; background: rgb(0 0 0 / 0.6); }
+
+.content { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 32px 32px 0; }
+.main { display: grid; align-content: start; gap: 24px; width: 100%; max-width: 1080px; flex: 1; }
+.form-card { display: grid; gap: 20px; }
+.field { display: grid; gap: 6px; max-width: 640px; }
+.field > label, .field > .flabel { font-weight: 500; font-size: 14px; }
+.fhelp { font-size: 13px; color: var(--muted-foreground); }
+.field .err { color: var(--danger-foreground); font-size: 13px; }
+.choices { display: grid; gap: 8px; }
+.choice { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); cursor: pointer; transition: background-color .15s, border-color .15s; }
+.choice:hover { background: var(--accent); }
+.choice.sel { border-color: var(--primary); background: var(--primary-soft); }
+.choice:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
+.choice .cl { font-weight: 500; font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
+.choice .cd { font-size: 12px; color: var(--muted-foreground); }
+.choice input { pointer-events: none; }
+.pill { display: inline-flex; align-items: center; border: 1px solid color-mix(in srgb, var(--neutral) 25%, transparent); border-radius: var(--radius-md); padding: 2px 10px; font-size: 12px; font-weight: 600; white-space: nowrap; background: color-mix(in srgb, var(--neutral) 15%, transparent); color: var(--neutral-foreground); }
+.pill:empty { display: none; }
+.pill.live { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success-foreground); border-color: color-mix(in srgb, var(--success) 25%, transparent); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 4px 2px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--secondary); color: var(--secondary-foreground); font-family: var(--font-mono); font-size: 12px; }
+.chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip button { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted-foreground); cursor: pointer; }
+.chip button:hover { background: var(--accent); color: var(--accent-foreground); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > input { flex: 1 1 240px; min-width: 0; }
+.checkbox-group { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 14px; cursor: pointer; }
+
+/* Status banners, in the StatusBadge tones, with a StatusDot. */
+.banner { display: flex; gap: 10px; align-items: baseline; padding: 10px 14px; border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning-foreground); font-size: 13px; overflow-wrap: anywhere; }
+.banner::before { content: ""; flex-shrink: 0; width: 8px; height: 8px; border-radius: 999px; background: var(--warning); transform: translateY(-1px); }
+.banner.ok { border-color: color-mix(in srgb, var(--success) 25%, transparent); background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success-foreground); }
+.banner.ok::before { background: var(--success); }
+.banner[role=alert] { border-color: color-mix(in srgb, var(--danger) 25%, transparent); background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger-foreground); }
+.banner[role=alert]::before { background: var(--danger); }
+
+/* The sticky step footer: WizardShell.tsx's footer. */
+.actions { position: sticky; bottom: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--background) 95%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+
+/* Review: the editor and a summary aside, like BuildSummary.tsx. */
+.review { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
+.editor { display: grid; gap: 12px; min-width: 0; }
+.editor-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.editor textarea { display: block; height: auto; min-height: 420px; padding: 14px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; resize: vertical; tab-size: 2; background: var(--muted); box-shadow: none; }
+.editor textarea[readonly] { cursor: default; }
+.side { display: grid; gap: 16px; position: sticky; top: 16px; }
+.sumlist { display: grid; gap: 10px; }
+.sumlist div { display: grid; gap: 2px; min-width: 0; }
+.sumlist dt { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-foreground); }
+.sumlist dd { font-family: var(--font-mono); font-size: 13px; overflow-wrap: anywhere; }
+.confirm { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--foreground); font-size: 13px; cursor: pointer; }
+.confirm input { margin-top: 2px; }
+.side .btn { width: 100%; }
+.edited { display: inline-flex; align-items: center; border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); border-radius: var(--radius-md); padding: 2px 10px; font-size: 12px; font-weight: 600; background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning-foreground); }
+.inline-warn { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning-foreground); font-size: 13px; }
+
+.footer { padding: 24px 16px; text-align: center; color: var(--muted-foreground); font-size: 13px; }
+.footer a { margin: 0 8px; }
+.alert { padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--warning) 12%, transparent); color: var(--warning-foreground); overflow-wrap: anywhere; }
+.alert-danger { border-color: color-mix(in srgb, var(--danger) 25%, transparent); background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger-foreground); }
+.alert-success { border-color: color-mix(in srgb, var(--success) 25%, transparent); background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success-foreground); }
+.alert-info { border-color: color-mix(in srgb, var(--info) 25%, transparent); background: color-mix(in srgb, var(--info) 12%, transparent); color: var(--info-foreground); }
+
+/* The progress and message pages. */
+.page { display: flex; flex-direction: column; min-height: 100vh; }
+.container { width: 100%; max-width: 1080px; margin: 0 auto; padding: 32px; display: grid; gap: 24px; flex: 1; align-content: start; }
+.container.narrow { max-width: 760px; }
+.controls { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.status { display: inline-flex; align-items: center; gap: 6px; border: 1px solid; border-radius: var(--radius-md); padding: 2px 10px; font-size: 12px; font-weight: 600; line-height: 16px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: currentColor; }
+.status.connecting { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning-foreground); border-color: color-mix(in srgb, var(--warning) 25%, transparent); }
+.status.connected { background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info-foreground); border-color: color-mix(in srgb, var(--info) 25%, transparent); }
+.status.completed { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success-foreground); border-color: color-mix(in srgb, var(--success) 25%, transparent); }
+.status.disconnected { background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger-foreground); border-color: color-mix(in srgb, var(--danger) 25%, transparent); }
+.steps { display: grid; gap: 4px; }
+.steps li { display: flex; align-items: center; gap: 10px; padding: 6px 4px; color: var(--muted-foreground); font-size: 14px; }
+.steps li .marker { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border: 1px solid var(--border); border-radius: 999px; background: var(--background); font-size: 12px; font-weight: 600; }
+.steps li:not(.active):not(.done):not(.failed) .marker { font-size: 0; }
+.steps li.active { color: var(--foreground); font-weight: 500; }
+.steps li.active .marker { border-color: var(--primary); background: var(--primary); color: var(--primary-foreground); font-size: 10px; }
+.steps li.done { color: var(--foreground); }
+.steps li.done .marker { border-color: color-mix(in srgb, var(--success) 30%, transparent); background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success-foreground); }
+.steps li.failed { color: var(--danger-foreground); font-weight: 500; }
+.steps li.failed .marker { border-color: color-mix(in srgb, var(--danger) 30%, transparent); background: color-mix(in srgb, var(--danger) 15%, transparent); color: var(--danger-foreground); }
+#download-btn { display: none; }
+.output-box { max-height: 70vh; overflow-y: auto; padding: 16px; border-radius: var(--radius-xl); background: var(--navy); color: var(--terminal-fg); font-family: var(--font-mono); font-size: 13px; line-height: 1.5; box-shadow: var(--shadow); }
+.output-box pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+.output-box .error { color: var(--terminal-error); }
+
+/* Below 1024px the review aside goes under the editor (WizardShell.tsx). */
+@media (max-width: 1023px) {
+  .content { padding: 24px 24px 0; }
+  .review { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; }
+}
+
+/* Below 768px the step sidebar becomes a drawer behind a navy top bar,
+   as AuroraBoot's sidebar does. */
+@media (max-width: 767px) {
+  .shell { display: block; }
+  .shell > .topbar { display: flex; position: sticky; top: 0; z-index: 30; }
+  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 50; width: 288px; max-width: 85vw; height: 100%; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3); transform: translateX(-100%); visibility: hidden; transition: transform .2s ease-out, visibility 0s linear .2s; }
+  .shell.drawer-open .sidebar { transform: none; visibility: visible; transition: transform .2s ease-out; }
+  .sidebar-head { flex-direction: row; justify-content: flex-start; padding: 16px 16px 12px; }
+  .sidebar-head img { height: 28px; }
+  .sidebar-head .close { display: inline-flex; }
+  .content { padding: 16px 16px 0; }
+  .container { padding: 16px; }
+  .page-header h1 { font-size: 24px; line-height: 32px; }
+  .card { padding: 16px; }
+  .editor textarea { min-height: 300px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; }
+}

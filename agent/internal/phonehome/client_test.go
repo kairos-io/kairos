@@ -276,6 +276,34 @@ var _ = Describe("PhoneHome Client", func() {
 			Expect(len(ms.heartbeats)).To(BeNumerically(">=", 2))
 		})
 
+		// AuroraBoot draws live gauges from the metrics block, so every heartbeat
+		// carries a fresh sample, and CPU usage appears once there is a previous
+		// /proc/stat reading to diff against.
+		It("should send a metrics block on every heartbeat", func() {
+			client := newTestClient("test-token")
+			Expect(client.Register(context.Background())).To(Succeed())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			go func() {
+				defer GinkgoRecover()
+				<-ms.wsConnected
+				time.Sleep(350 * time.Millisecond)
+				cancel()
+			}()
+			client.Connect(ctx)
+
+			ms.mu.Lock()
+			defer ms.mu.Unlock()
+			Expect(len(ms.heartbeats)).To(BeNumerically(">=", 2))
+			for _, hb := range ms.heartbeats {
+				Expect(hb.Metrics).ToNot(BeNil())
+				Expect(hb.Metrics.SampledAt.IsZero()).To(BeFalse())
+				Expect(hb.Metrics.Memory).ToNot(BeNil())
+			}
+			Expect(ms.heartbeats[0].Metrics.CPU).To(BeNil())
+			Expect(ms.heartbeats[len(ms.heartbeats)-1].Metrics.CPU).ToNot(BeNil())
+		})
+
 		// kairos-io/kairos#4196: registration can beat cloud-init to the hostname,
 		// so the heartbeat has to report the current one on every tick rather than
 		// one captured at startup. Two ticks, two different names, both reported.

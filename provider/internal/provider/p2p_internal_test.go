@@ -1,11 +1,15 @@
 package provider
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 func listenerOptionsForTest(apiAddress string, userEnv map[string]string) map[string]string {
@@ -50,13 +54,28 @@ var _ = Describe("Resolving the API address the daemon actually listens on", fun
 		Expect(os.WriteFile(envFile, []byte(contents), 0600)).To(Succeed())
 	}
 
+	// A node has the daemon's socket on disk; an operator's machine does not.
+	// The specs say which one they are rather than inheriting whichever the
+	// machine running them happens to be.
+	onANode := func() string {
+		socket := filepath.Join(GinkgoT().TempDir(), "edgevpn-kairos.sock")
+		Expect(os.WriteFile(socket, nil, 0600)).To(Succeed())
+		return socket
+	}
+
+	offANode := func() string {
+		return filepath.Join(GinkgoT().TempDir(), "absent.sock")
+	}
+
+	resolve := resolveAPIAddress
+
 	// SetupVPN and SetupAPI write APILISTEN into this file for the daemon.
 	// Reading it back is what keeps the command line client pointed at the
 	// same place, instead of both sides keeping their own default and
 	// happening to agree.
 	It("reads a unix socket listener back unchanged", func() {
 		writeEnv("APILISTEN=\"unix:///run/edgevpn-kairos.sock\"\n")
-		Expect(ResolveAPIAddress(envFile)).To(Equal("unix:///run/edgevpn-kairos.sock"))
+		Expect(resolve(envFile, offANode())).To(Equal("unix:///run/edgevpn-kairos.sock"))
 	})
 
 	// normalizeAPIAddress strips the scheme before writing APILISTEN, but the
@@ -64,21 +83,46 @@ var _ = Describe("Resolving the API address the daemon actually listens on", fun
 	// host:port would produce "127.0.0.1:8080/api/..." and fail to parse.
 	It("puts the scheme back on a TCP listener", func() {
 		writeEnv("APILISTEN=\"127.0.0.1:8080\"\n")
-		Expect(ResolveAPIAddress(envFile)).To(Equal("http://127.0.0.1:8080"))
+		Expect(resolve(envFile, offANode())).To(Equal("http://127.0.0.1:8080"))
 	})
 
-	It("falls back to the default when the file does not exist", func() {
-		Expect(ResolveAPIAddress("/nonexistent/edgevpn-kairos.env")).To(Equal(DefaultEdgeVPNAPIAddress))
+	It("falls back to the local socket when the file does not exist but the socket does", func() {
+		Expect(resolve("/nonexistent/edgevpn-kairos.env", onANode())).To(Equal(DefaultEdgeVPNAPIAddress))
 	})
 
-	It("falls back to the default when the file has no APILISTEN", func() {
+	It("falls back to the local socket when the file has no APILISTEN", func() {
 		writeEnv("EDGEVPNTOKEN=\"sometoken\"\n")
-		Expect(ResolveAPIAddress(envFile)).To(Equal(DefaultEdgeVPNAPIAddress))
+		Expect(resolve(envFile, onANode())).To(Equal(DefaultEdgeVPNAPIAddress))
 	})
 
-	It("falls back to the default when APILISTEN is empty", func() {
+	It("falls back to the local socket when APILISTEN is empty", func() {
 		writeEnv("APILISTEN=\"\"\n")
-		Expect(ResolveAPIAddress(envFile)).To(Equal(DefaultEdgeVPNAPIAddress))
+		Expect(resolve(envFile, onANode())).To(Equal(DefaultEdgeVPNAPIAddress))
+	})
+
+	// The operator's machine: "bridge" builds the tunnel and serves the only
+	// API within reach, so role and get-kubeconfig have to dial that one. A
+	// socket default here is an address the machine will never have.
+	It("uses the bridge's API off a node, where there is no daemon", func() {
+		Expect(resolve("/nonexistent/edgevpn-kairos.env", offANode())).
+			To(Equal("http://" + DefaultBridgeAPIListen))
+	})
+
+	It("uses the bridge's API off a node even when an env file is present but silent", func() {
+		writeEnv("EDGEVPNTOKEN=\"sometoken\"\n")
+		Expect(resolve(envFile, offANode())).To(Equal("http://" + DefaultBridgeAPIListen))
+	})
+
+	// A daemon that was moved onto a port still wins off a node: an explicit
+	// APILISTEN is an answer, and the bridge fallback is only for having none.
+	It("still follows an explicit APILISTEN off a node", func() {
+		writeEnv("APILISTEN=\"127.0.0.1:9090\"\n")
+		Expect(resolve(envFile, offANode())).To(Equal("http://127.0.0.1:9090"))
+	})
+
+	It("reads the socket path out of the default address", func() {
+		Expect(socketPathFor(DefaultEdgeVPNAPIAddress)).To(Equal("/run/edgevpn-kairos.sock"))
+		Expect(socketPathFor("http://127.0.0.1:8080")).To(BeEmpty())
 	})
 })
 
@@ -122,5 +166,44 @@ var _ = Describe("Writing the daemon's env file", func() {
 	It("writes something ResolveAPIAddress can read back", func() {
 		Expect(writeEdgeVPNEnv(rootDir, map[string]string{"APILISTEN": "127.0.0.1:8080"})).To(Succeed())
 		Expect(ResolveAPIAddress(filepath.Join(rootDir, EdgeVPNEnvFile))).To(Equal("http://127.0.0.1:8080"))
+	})
+})
+
+// In plugin mode go-pluggable hands the agent one stream: the JSON response on
+// stdout. So the best-effort notice from the local DNS apply has to leave the
+// process by some other route, or the agent's Unmarshal sees the notice first
+// and aborts bootstrap. Asserting on a buffer-backed logger pins that route:
+// pterm, which was the original bug here, writes to the os.Stdout it captured
+// at package init and would leave this buffer empty.
+var _ = Describe("Applying the local DNS config", func() {
+	var out *bytes.Buffer
+	var logger loggerpkg.KairosLogger
+
+	BeforeEach(func() {
+		out = &bytes.Buffer{}
+		logger = loggerpkg.NewBufferLogger(out)
+
+		original := executeLocalDNSConfig
+		DeferCleanup(func() { executeLocalDNSConfig = original })
+	})
+
+	It("reports a failure through the logger", func() {
+		executeLocalDNSConfig = func() error {
+			return errors.New("open /etc/systemd/resolved.conf: is a directory")
+		}
+
+		applyLocalDNS(logger)
+
+		Expect(out.String()).To(ContainSubstring("it will apply on the next boot"))
+		Expect(out.String()).To(ContainSubstring("is a directory"),
+			"the notice has to name the failure, not just that there was one")
+	})
+
+	It("says nothing when the config applies", func() {
+		executeLocalDNSConfig = func() error { return nil }
+
+		applyLocalDNS(logger)
+
+		Expect(out.String()).To(BeEmpty())
 	})
 })

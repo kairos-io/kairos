@@ -1,6 +1,8 @@
 package schema_test
 
 import (
+	"encoding/json"
+
 	. "github.com/kairos-io/kairos/v4/sdk/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -125,6 +127,69 @@ no-format: true`
 		})
 	})
 
+	Context("with oem_files", func() {
+		Context("a well formed entry", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+device: auto
+oem_files:
+  - name: foo
+    content: |
+      #cloud-config
+      users:
+        - name: kairos`
+			})
+
+			It("succeedes", func() {
+				Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+			})
+		})
+
+		Context("an entry without a name", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+device: auto
+oem_files:
+  - content: "#cloud-config"`
+			})
+
+			It("errors", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(ContainSubstring("name"))
+			})
+		})
+
+		Context("an entry without content", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+device: auto
+oem_files:
+  - name: foo`
+			})
+
+			It("errors", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(ContainSubstring("content"))
+			})
+		})
+
+		Context("an entry whose name contains a slash", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+device: auto
+oem_files:
+  - name: sub/foo
+    content: "#cloud-config"`
+			})
+
+			It("errors", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).
+					To(ContainSubstring("does not match pattern '^[^/]+$'"))
+			})
+		})
+	})
+
 	Context("with all possible options", func() {
 		BeforeEach(func() {
 			yaml = `#cloud-config
@@ -199,6 +264,46 @@ selinux:
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
 			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "enforcing", "permissive"`))
+		})
+	})
+})
+
+var _ = Describe("Install Schema descriptions", func() {
+	// The description is what `kairos-agent validate` and the configuration
+	// reference page show, so it is the only place a user learns whether a key
+	// applies to their boot path. AuroraBoot reads install.selinux on the UKI
+	// path too, from the cloud-config given to `auroraboot build-uki`.
+	Describe("install.selinux.enabled", func() {
+		var description string
+
+		BeforeEach(func() {
+			generated, err := GenerateSchema(InstallSchema{}, "")
+			Expect(err).ToNot(HaveOccurred())
+
+			var document struct {
+				Definitions struct {
+					Selinux struct {
+						Properties struct {
+							Enabled struct {
+								Description string `json:"description"`
+							} `json:"enabled"`
+						} `json:"properties"`
+					} `json:"SchemaSelinuxOptions"`
+				} `json:"definitions"`
+			}
+			Expect(json.Unmarshal([]byte(generated), &document)).To(Succeed())
+
+			description = document.Definitions.Selinux.Properties.Enabled.Description
+			Expect(description).ToNot(BeEmpty())
+		})
+
+		It("does not say the key is unsupported on Trusted Boot", func() {
+			Expect(description).ToNot(MatchRegexp(`(?i)GRUB-only|not supported under UKI`))
+		})
+
+		It("says where the value is read from on Trusted Boot", func() {
+			Expect(description).To(ContainSubstring("Trusted Boot"))
+			Expect(description).To(ContainSubstring("build-uki"))
 		})
 	})
 })

@@ -62,6 +62,10 @@ type Client struct {
 	mu   sync.Mutex
 	conn *websocket.Conn
 
+	// cpu keeps the previous /proc/stat reading across heartbeats, because CPU
+	// usage only exists as a delta between two samples.
+	cpu cpuTracker
+
 	// stopCancel cancels the derived context the Run loop uses; nil until Run
 	// starts. Stop() captures the current value under mu.
 	stopCancel context.CancelFunc
@@ -182,18 +186,27 @@ func (c *Client) Register(ctx context.Context) error {
 // Connect establishes a WebSocket connection to the server and handles messages.
 // It blocks until the connection is closed or the context is cancelled.
 func (c *Client) Connect(ctx context.Context) error {
+	_, err := c.connect(ctx)
+	return err
+}
+
+// connect is Connect, and additionally reports whether the WebSocket was
+// established before the session ended. Run needs that to tell a server it
+// could not reach from a session the server ended, which are the same error
+// to everyone else.
+func (c *Client) connect(ctx context.Context) (bool, error) {
 	if c.credentials == nil {
-		return fmt.Errorf("not registered")
+		return false, fmt.Errorf("not registered")
 	}
 
 	wsURL, err := c.buildWSURL()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
 	if err != nil {
-		return fmt.Errorf("websocket dial: %w", err)
+		return false, fmt.Errorf("websocket dial: %w", err)
 	}
 
 	c.mu.Lock()
@@ -241,12 +254,12 @@ func (c *Client) Connect(ctx context.Context) error {
 			cancel()
 			wg.Wait()
 			if ctx.Err() != nil {
-				return nil // clean shutdown
+				return true, nil // clean shutdown
 			}
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				return nil
+				return true, nil
 			}
-			return fmt.Errorf("websocket read: %w", err)
+			return true, fmt.Errorf("websocket read: %w", err)
 		}
 
 		var msg WSMessage
@@ -304,10 +317,25 @@ func (c *Client) Run(ctx context.Context) error {
 
 	backoff := c.cfg.ReconnectBackoff
 	for {
-		err := c.Connect(ctx)
+		start := time.Now()
+		established, err := c.connect(ctx)
 		if ctx.Err() != nil {
 			return nil // context cancelled, clean shutdown
 		}
+
+		// A session that came up and stayed up for at least one heartbeat
+		// interval says the server is reachable, so the next attempt starts
+		// from the base delay again. Only an attempt that never got a working
+		// session keeps doubling it. Without the reset the delay only ever
+		// grows, and a node that lives through one outage then waits
+		// MaxReconnectBackoff for every later reconnect, for the life of the
+		// process, including the reconnects after a server restart that the
+		// server closed cleanly and that cost it nothing.
+		worked := established && time.Since(start) >= c.cfg.HeartbeatInterval
+		if worked {
+			backoff = c.cfg.ReconnectBackoff
+		}
+
 		if err != nil {
 			c.logger.Warnf("disconnected: %v, reconnecting in %s", err, backoff)
 		}
@@ -316,6 +344,10 @@ func (c *Client) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(backoff):
+		}
+
+		if worked {
+			continue
 		}
 
 		// Exponential backoff
@@ -357,6 +389,7 @@ func (c *Client) sendHeartbeat(conn *websocket.Conn) error {
 		Addresses:    gatherAddresses(),
 		BootState:    detectBootState(c.logger.Logger),
 		Hostname:     gatherHostname(),
+		Metrics:      c.cpu.gather(),
 	}
 	data, _ := json.Marshal(hb)
 	msg := WSMessage{Type: "heartbeat", Data: data}
