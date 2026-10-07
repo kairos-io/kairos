@@ -64,7 +64,7 @@
       "customType": "regex",
       "managerFilePatterns": [
         "/.github/workflows/.*.ya?ml/",
-        "/pkg/testartifacts/.*\\.go$/"
+        "/internal/testartifacts/.*\\.go$/"
       ],
       "matchStrings": [
         "quay.io/kairos/auroraboot:(?<currentValue>[a-zA-Z0-9_.-]+)",

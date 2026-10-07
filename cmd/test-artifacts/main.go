@@ -1,6 +1,6 @@
 // Command test-artifacts generates the keys and system extension images
 // that CI and the end-to-end tests need, so none of them has to be
-// committed. It is a thin wrapper over pkg/testartifacts.
+// committed. It is a thin wrapper over internal/testartifacts.
 package main
 
 import (
@@ -13,7 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/v4/pkg/testartifacts"
+	"github.com/kairos-io/kairos/v4/internal/testartifacts"
 )
 
 const usage = `usage:

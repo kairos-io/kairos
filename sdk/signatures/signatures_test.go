@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/foxboron/go-uefi/efi/attributes"
-	"github.com/kairos-io/kairos/v4/pkg/testartifacts"
+	"github.com/kairos-io/kairos/v4/internal/testartifacts"
 	sdkTypes "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	fsUtils "github.com/kairos-io/kairos/v4/sdk/utils/fs"

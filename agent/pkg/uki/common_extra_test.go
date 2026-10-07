@@ -23,7 +23,7 @@ import (
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
-	"github.com/kairos-io/kairos/v4/pkg/testartifacts"
+	"github.com/kairos-io/kairos/v4/internal/testartifacts"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkutils "github.com/kairos-io/kairos/v4/sdk/utils"
 
