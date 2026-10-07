@@ -263,7 +263,32 @@ jobs:
           sudo mv luet /usr/bin/luet
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
-          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
+          # luet 0.33.0 does not survive a failed pull. A truncated blob from
+          # quay leaves the artifact nil and it dereferences it:
+          #
+          #   WARNING failed downloading image quay.io/kairos/packages:kubectl-container-1.31.0-1: unexpected EOF
+          #   panic: runtime error: invalid memory address or nil pointer dereference
+          #   artifact.(*PackageArtifact).Verify(0x0, ...)
+          #
+          # That took master red on b3cd9981 (run 37599588356), and the same
+          # crash reads as a repository content problem when it is the index
+          # blob that comes back empty rather than a package.
+          #
+          # mudler/luet#404 fixes this upstream but is not merged, and this
+          # step pins the 0.33.0 binary released in 2022, so merging it would
+          # not reach this runner either. Retry here until the pin moves.
+          # The repository index and the partial artifact are both cached, so
+          # the cache has to go or the next attempt reads the same bytes back.
+          for attempt in 1 2 3; do
+            if LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d; then
+              exit 0
+            fi
+            echo "luet install failed on attempt ${attempt}, dropping the luet cache"
+            sudo rm -rf /var/cache/luet
+            sleep "$((attempt * 10))"
+          done
+          echo "luet install did not succeed in 3 attempts"
+          exit 1
       - name: Install cinc-auditor and openssh-client for the DevSec ssh-baseline profile
         # cinc-auditor is a FOSS drop-in for chef/inspec (InSpec >= 5 is no
         # longer under an OSS licence). It runs the profile from
