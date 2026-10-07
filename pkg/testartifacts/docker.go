@@ -11,11 +11,6 @@ import (
 	"syscall"
 )
 
-// DockerAvailable reports whether a Docker daemon answers.
-func DockerAvailable() bool {
-	return exec.Command("docker", "info").Run() == nil
-}
-
 // docker runs the docker CLI and returns its combined output in the error
 // when it fails, so a test failure shows what the container printed.
 func docker(ctx context.Context, args ...string) error {

@@ -32,22 +32,17 @@ const AuroraBootImage = "quay.io/kairos/auroraboot:" + AuroraBootVersion
 // binary to use as is, skipping the download.
 const binaryEnv = "KAIROS_TEST_AURORABOOT_BINARY"
 
-var (
+const (
 	// auroraBootReleaseURL is the base URL release assets are fetched from, as
 	// <base>/<version>/<asset>.
 	auroraBootReleaseURL = "https://github.com/kairos-io/AuroraBoot/releases/download"
-	// auroraBootCacheDir returns the directory downloaded binaries are cached in.
-	auroraBootCacheDir = defaultCacheDir
 	// auroraBootHTTPTimeout bounds each release download, so a stalled
 	// connection fails instead of hanging the caller.
 	auroraBootHTTPTimeout = 5 * time.Minute
-
-	// auroraBootArch selects the release binary to fetch. Tests pin it so the
-	// download path runs the same way on hosts without a release binary.
-	auroraBootArch = runtime.GOARCH
 )
 
-func defaultCacheDir() (string, error) {
+// cacheDir returns the directory downloaded binaries are cached in.
+func cacheDir() (string, error) {
 	base, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
@@ -122,11 +117,11 @@ func AuroraBootBinary(ctx context.Context) (string, error) {
 	if path := os.Getenv(binaryEnv); path != "" {
 		return path, nil
 	}
-	arch := auroraBootArch
+	arch := runtime.GOARCH
 	if arch != "amd64" && arch != "arm64" {
 		return "", fmt.Errorf("no AuroraBoot release binary for architecture %s", arch)
 	}
-	cache, err := auroraBootCacheDir()
+	cache, err := cacheDir()
 	if err != nil {
 		return "", err
 	}
