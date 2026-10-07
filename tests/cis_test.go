@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -90,28 +92,39 @@ users:
 		if err != nil {
 			summarizeFailedControls("cis-dil", reportPath)
 		}
+
+		// InSpec has no package or service support for Hadron, so the
+		// controls in cisGuestChecks come back skipped, which exit 101 would
+		// count as a pass. Each one is checked on the guest instead.
+		guest := map[string]error{}
+		By("checking the controls InSpec cannot evaluate on Hadron", func() {
+			for id, check := range cisGuestChecks {
+				out, gerr := vm.Sudo(check)
+				if gerr != nil {
+					gerr = fmt.Errorf("%s: %w\n%s", check, gerr, out)
+				}
+				guest[id] = gerr
+			}
+		})
+
+		unchecked := []string{}
+		for _, id := range unsupportedControls(reportPath) {
+			if _, ok := cisGuestChecks[id]; !ok {
+				unchecked = append(unchecked, id)
+			}
+		}
+
+		// Written before any assertion so a failing run gets a summary too.
+		writeCISStepSummary(reportPath, guest, unchecked)
+
 		Expect(err).ToNot(HaveOccurred(),
 			"CIS DIL L1 reported failures; failed controls are printed above; %s and %s are attached as artifacts",
 			reportPath, cliLog)
-
-		By("checking the controls InSpec cannot evaluate on Hadron", func() {
-			// InSpec has no package or service support for Hadron, so these
-			// controls come back skipped, which exit 101 would count as a
-			// pass. Each one has to be checked on the guest instead.
-			unchecked := []string{}
-			for _, id := range unsupportedControls(reportPath) {
-				if _, ok := cisGuestChecks[id]; !ok {
-					unchecked = append(unchecked, id)
-				}
-			}
-			Expect(unchecked).To(BeEmpty(),
-				"controls skipped as unsupported on this OS with no guest check in cisGuestChecks and no waiver")
-
-			for id, check := range cisGuestChecks {
-				out, err := vm.Sudo(check)
-				Expect(err).ToNot(HaveOccurred(), "%s guest check failed: %s\n%s", id, check, out)
-			}
-		})
+		Expect(unchecked).To(BeEmpty(),
+			"controls skipped as unsupported on this OS with no guest check in cisGuestChecks and no waiver")
+		for id, gerr := range guest {
+			Expect(gerr).ToNot(HaveOccurred(), "%s guest check failed", id)
+		}
 	})
 })
 
@@ -187,4 +200,169 @@ func unsupportedControls(reportPath string) []string {
 		}
 	}
 	return ids
+}
+
+// writeCISStepSummary appends the CIS run to the GitHub Actions job summary
+// when $GITHUB_STEP_SUMMARY is set, and does nothing otherwise. A report it
+// cannot read is noted in the summary instead of failing the test here; the
+// assertions after it report the real failure.
+func writeCISStepSummary(reportPath string, guest map[string]error, unchecked []string) {
+	summaryPath := os.Getenv("GITHUB_STEP_SUMMARY")
+	if summaryPath == "" {
+		return
+	}
+	f, err := os.OpenFile(summaryPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		GinkgoWriter.Printf("writeCISStepSummary: %v\n", err)
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(cisSummaryMarkdown(reportPath, guest, unchecked))
+}
+
+type cisControl struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	WaiverData struct {
+		Justification      string `json:"justification"`
+		SkippedDueToWaiver bool   `json:"skipped_due_to_waiver"`
+	} `json:"waiver_data"`
+	Results []struct {
+		Status      string `json:"status"`
+		CodeDesc    string `json:"code_desc"`
+		SkipMessage string `json:"skip_message"`
+	} `json:"results"`
+}
+
+// cisSummaryMarkdown renders the job summary: totals, failed controls, the
+// guest checks, and the waivers with their reasons.
+func cisSummaryMarkdown(reportPath string, guest map[string]error, unchecked []string) string {
+	var b strings.Builder
+	b.WriteString("## CIS Distribution Independent Linux v2.0.0, Level 1\n\n")
+
+	raw, err := os.ReadFile(reportPath)
+	var report struct {
+		Profiles []struct {
+			Name     string       `json:"name"`
+			Version  string       `json:"version"`
+			Controls []cisControl `json:"controls"`
+		} `json:"profiles"`
+	}
+	if err == nil {
+		err = json.Unmarshal(raw, &report)
+	}
+	if err != nil || len(report.Profiles) == 0 {
+		fmt.Fprintf(&b, ":x: No usable cinc-auditor report at `%s` (%v). See the job log.\n\n", reportPath, err)
+		return b.String()
+	}
+
+	var failed, waived []cisControl
+	var passed, skipped int
+	for _, c := range report.Profiles[0].Controls {
+		if _, ok := cisGuestChecks[c.ID]; ok {
+			continue // counted with the guest checks below
+		}
+		statuses := map[string]bool{}
+		for _, r := range c.Results {
+			statuses[r.Status] = true
+		}
+		switch {
+		case c.WaiverData.SkippedDueToWaiver:
+			waived = append(waived, c)
+		case statuses["failed"]:
+			failed = append(failed, c)
+		case statuses["passed"]:
+			passed++
+		default:
+			skipped++ // Level 2 only, or nothing on this system to check
+		}
+	}
+	guestFailed := 0
+	for _, gerr := range guest {
+		if gerr != nil {
+			guestFailed++
+		}
+	}
+
+	if len(failed) == 0 && guestFailed == 0 && len(unchecked) == 0 {
+		b.WriteString(":white_check_mark: All Level 1 controls pass or are waived.\n\n")
+	} else {
+		b.WriteString(":x: Some Level 1 controls fail.\n\n")
+	}
+	p := report.Profiles[0]
+	fmt.Fprintf(&b, "Profile `%s` %s against an installed Hadron system.\n\n", p.Name, p.Version)
+	b.WriteString("| Passed | Failed | Checked on the guest | Waived | Skipped (Level 2 or not applicable) |\n")
+	b.WriteString("|---|---|---|---|---|\n")
+	fmt.Fprintf(&b, "| %d | %d | %d/%d | %d | %d |\n\n", passed, len(failed), len(guest)-guestFailed, len(guest), len(waived), skipped)
+
+	if len(failed) > 0 {
+		b.WriteString("### Failed controls\n\n| Control | Title | First failing check |\n|---|---|---|\n")
+		for _, c := range failed {
+			first := ""
+			for _, r := range c.Results {
+				if r.Status == "failed" {
+					first = r.CodeDesc
+					break
+				}
+			}
+			fmt.Fprintf(&b, "| %s | %s | %s |\n", cisShortID(c.ID), mdCell(c.Title), mdCell(first))
+		}
+		b.WriteString("\n")
+	}
+
+	if len(unchecked) > 0 {
+		b.WriteString("### Skipped as unsupported, with no guest check\n\n")
+		for _, id := range unchecked {
+			fmt.Fprintf(&b, "- %s\n", cisShortID(id))
+		}
+		b.WriteString("\n")
+	}
+
+	ids := make([]string, 0, len(guest))
+	for id := range guest {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return cisIDLess(ids[i], ids[j]) })
+	b.WriteString("<details><summary>Checked on the guest (InSpec cannot evaluate these on Hadron)</summary>\n\n| Control | Result |\n|---|---|\n")
+	for _, id := range ids {
+		result := ":white_check_mark:"
+		if guest[id] != nil {
+			result = ":x: " + mdCell(guest[id].Error())
+		}
+		fmt.Fprintf(&b, "| %s | %s |\n", cisShortID(id), result)
+	}
+	b.WriteString("\n</details>\n\n")
+
+	// The report carries no title for a control skipped by a waiver.
+	fmt.Fprintf(&b, "<details><summary>Waived (%d)</summary>\n\n| Control | Why |\n|---|---|\n", len(waived))
+	for _, c := range waived {
+		fmt.Fprintf(&b, "| %s | %s |\n", cisShortID(c.ID), mdCell(c.WaiverData.Justification))
+	}
+	b.WriteString("\n</details>\n\n")
+	return b.String()
+}
+
+// cisIDLess orders control ids by their numeric sections, so 2.2.3 comes
+// before 2.2.10.
+func cisIDLess(a, b string) bool {
+	as := strings.Split(cisShortID(a), ".")
+	bs := strings.Split(cisShortID(b), ".")
+	for i := 0; i < len(as) && i < len(bs); i++ {
+		x, _ := strconv.Atoi(as[i])
+		y, _ := strconv.Atoi(bs[i])
+		if x != y {
+			return x < y
+		}
+	}
+	return len(as) < len(bs)
+}
+
+func cisShortID(id string) string {
+	return strings.TrimPrefix(id, "cis-dil-benchmark-")
+}
+
+// mdCell keeps a value on one table row.
+func mdCell(s string) string {
+	s = strings.ReplaceAll(strings.TrimSpace(s), "\n", " ")
+	return strings.ReplaceAll(s, "|", "\\|")
 }
