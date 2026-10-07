@@ -5,12 +5,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/twpayne/go-vfs/v4/vfst"
 )
 
 // section returns the body of one ini section of a unit file, so an assertion
@@ -418,5 +421,119 @@ var _ = Describe("BootArgsCfg", func() {
 			Expect(entry).To(ContainSubstring("$kernel $kernelcmd"), id)
 			Expect(entry).ToNot(ContainSubstring("kairos.splash=0"), id)
 		}
+	})
+})
+
+// kernelCmdlineAllows evaluates every ConditionKernelCommandLine= of a unit
+// section against a command line the way systemd does: a value with a "="
+// must equal a whole word, a value without one matches the bare word or any
+// word that assigns it, and a leading "!" negates. The conditions are ANDed.
+func kernelCmdlineAllows(unitSection, cmdline string) bool {
+	words := strings.Fields(cmdline)
+	for _, line := range strings.Split(unitSection, "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "ConditionKernelCommandLine=")
+		if !ok {
+			continue
+		}
+		// A triggering condition ("|") is ORed rather than ANDed. None of the
+		// units use one, and this evaluator would get it wrong.
+		Expect(value).ToNot(HavePrefix("|"), line)
+		value, negate := strings.CutPrefix(value, "!")
+		found := false
+		for _, w := range words {
+			if strings.Contains(value, "=") {
+				found = found || w == value
+			} else {
+				found = found || w == value || strings.HasPrefix(w, value+"=")
+			}
+		}
+		if found == negate {
+			return false
+		}
+	}
+	return true
+}
+
+// grubCmdline builds the kernel command line a GrubCfg menuentry boots, out
+// of the same pieces GRUB uses: the entry's own label and image, BootArgsCfg's
+// baseCmd and the baseRootCmd for that image, and whatever the entry appends
+// after the extra_*_cmdline variables. squashfs picks the recovery image
+// shipped as a squashfs (root=live:...) over the .img file.
+func grubCmdline(id string, squashfs bool) string {
+	entry := menuentry(bundled.GrubCfg, id)
+	Expect(entry).ToNot(BeEmpty(), "no menuentry --id %s", id)
+
+	vars := map[string]string{
+		"label": regexp.MustCompile(`set label=(\S+)`).FindStringSubmatch(entry)[1],
+	}
+	imgs := regexp.MustCompile(`set img=(\S+)`).FindAllStringSubmatch(entry, -1)
+	Expect(imgs).ToNot(BeEmpty(), id)
+	vars["img"] = imgs[len(imgs)-1][1]
+	rootCmd := regexp.MustCompile(`set baseRootCmd="(root=LABEL[^"]*)"`)
+	if squashfs {
+		Expect(entry).To(ContainSubstring("set recoverylabel="), id)
+		vars["img"] = imgs[0][1]
+		vars["recoverylabel"] = regexp.MustCompile(`set recoverylabel=(\S+)`).FindStringSubmatch(entry)[1]
+		rootCmd = regexp.MustCompile(`set baseRootCmd="(root=live:[^"]*)"`)
+	}
+
+	base := regexp.MustCompile(`set baseCmd="([^"]*)"`).FindStringSubmatch(bundled.BootArgsCfg)
+	Expect(base).ToNot(BeNil())
+	root := rootCmd.FindStringSubmatch(bundled.BootArgsCfg)
+	Expect(root).ToNot(BeNil())
+	tail := regexp.MustCompile(`\$kernelcmd \$\{extra_cmdline\} \$\{extra_\w+_cmdline\}(.*)`).
+		FindStringSubmatch(entry)
+	Expect(tail).ToNot(BeNil(), id)
+
+	cmdline := base[1] + " " + root[1] + tail[1]
+	for k, v := range vars {
+		cmdline = strings.ReplaceAll(cmdline, "$"+k, v)
+	}
+	Expect(cmdline).ToNot(ContainSubstring("$"), id)
+	return cmdline
+}
+
+// immucore decides what kind of boot this is from the command line and
+// writes /run/cos/recovery_mode or autoreset_mode, which is what keeps the
+// booted-system unit off those boots. The initramfs unit starts before that
+// file exists, so it has to reach the same answer from the command line on
+// its own. These specs boot every GRUB entry through both and require them to
+// agree: the splash runs exactly on the boots immucore calls active or
+// passive.
+var _ = Describe("SplashServiceDracut on each boot entry", func() {
+	unitSection := func() string { return section(bundled.SplashServiceDracut, "Unit") }
+
+	bootState := func(cmdline string) state.Boot {
+		fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/proc/cmdline": cmdline})
+		Expect(err).ToNot(HaveOccurred())
+		defer cleanup()
+		b, err := state.DetectBootWithVFS(fs)
+		Expect(err).ToNot(HaveOccurred())
+		return b
+	}
+
+	DescribeTable("animates only where immucore will not write recovery_mode or autoreset_mode",
+		func(id string, squashfs bool, extra string, want state.Boot) {
+			cmdline := grubCmdline(id, squashfs) + extra
+			Expect(bootState(cmdline)).To(Equal(want), cmdline)
+			Expect(kernelCmdlineAllows(unitSection(), cmdline)).To(
+				Equal(want == state.Active || want == state.Passive), cmdline)
+		},
+		Entry("active", "cos", false, "", state.Active),
+		Entry("fallback", "fallback", false, "", state.Passive),
+		Entry("recovery from recovery.img", "recovery", false, "", state.Recovery),
+		Entry("recovery from recovery.squashfs", "recovery", true, "", state.Recovery),
+		Entry("state reset from recovery.img", "statereset", false, "", state.AutoReset),
+		Entry("state reset from recovery.squashfs", "statereset", true, "", state.AutoReset),
+		// No shipped entry adds kairos.reset to an active root, but immucore
+		// reads it ahead of every other marker, so a custom grubmenu entry that
+		// does must not get an animation either.
+		Entry("an active root with kairos.reset", "cos", false, " kairos.reset", state.AutoReset),
+	)
+
+	It("still needs the splash word on an active boot", func() {
+		cmdline := strings.Replace(grubCmdline("cos", false), " splash ", " ", 1)
+		Expect(cmdline).ToNot(MatchRegexp(`\bsplash\b`))
+		Expect(kernelCmdlineAllows(unitSection(), cmdline)).To(BeFalse())
 	})
 })
