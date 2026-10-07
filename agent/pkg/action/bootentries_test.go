@@ -834,7 +834,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 
 					err := SelectBootEntry(config, "kairos")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(memLog.String()).To(ContainSubstring("also writing to STATE partition's grubenv"))
+					Expect(memLog.String()).To(ContainSubstring("writing to STATE partition's grubenv"))
 					Expect(memLog.String()).To(ContainSubstring("Successfully set next_entry in STATE grubenv"))
 					variables, err := utils.ReadPersistentVariables(filepath.Join(cnst.StateDir, cnst.GrubEnv), config)
 					Expect(err).ToNot(HaveOccurred())
@@ -843,7 +843,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 					_, err = fs.Stat("/oem/grubenv")
 					Expect(err).To(HaveOccurred())
 				})
-				It("warns when the STATE grubenv cannot be written", func() {
+				It("fails when the STATE grubenv cannot be written", func() {
 					// Recreate the ghw mock with a COS_STATE partition so the device can be found
 					ghwTest.Clean()
 					ghwTest = ghwMock.GhwMock{}
@@ -861,14 +861,45 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 					// No StateDir in the fs, so writing the grubenv fails
 
 					err := SelectBootEntry(config, "kairos")
-					Expect(err).ToNot(HaveOccurred())
-					Expect(memLog.String()).To(ContainSubstring("Could not set default boot entry in STATE grubenv"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("STATE grubenv"))
+					// The caller must not be told the entry was set
+					Expect(memLog.String()).ToNot(ContainSubstring("Default boot entry set to kairos"))
 				})
-				It("does nothing when the STATE device cannot be found", func() {
+				It("puts the STATE partition back read only when the grubenv write fails", func() {
+					ghwTest.Clean()
+					ghwTest = ghwMock.GhwMock{}
+					ghwTest.AddDisk(sdkPartitions.Disk{
+						Name: "device",
+						Partitions: []*sdkPartitions.Partition{
+							{
+								Name:            "device2",
+								FilesystemLabel: "COS_STATE",
+								FS:              "ext4",
+							},
+						},
+					})
+					ghwTest.CreateDevices()
+					// No StateDir in the fs, so writing the grubenv fails
+
+					Expect(SelectBootEntry(config, "kairos")).ToNot(Succeed())
+
+					mounts, err := mounter.List()
+					Expect(err).ToNot(HaveOccurred())
+					var opts []string
+					for _, m := range mounts {
+						if m.Path == cnst.StateDir {
+							opts = m.Opts
+						}
+					}
+					Expect(opts).To(ContainElement("ro"))
+				})
+				It("fails when the STATE device cannot be found", func() {
 					// Default ghw mock has no COS_STATE partition
 					err := SelectBootEntry(config, "kairos")
-					Expect(err).ToNot(HaveOccurred())
-					Expect(memLog.String()).To(ContainSubstring("Could not get STATE device by label"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("STATE"))
+					Expect(memLog.String()).ToNot(ContainSubstring("Default boot entry set to kairos"))
 				})
 				It("warns when the STATE partition cannot be remounted RW", func() {
 					// Recreate the ghw mock with a COS_STATE partition so the device can be found
