@@ -64,8 +64,16 @@ func Main() int {
 
 	isTTY := term.IsTerminal(int(out.Fd()))
 	rows, cols := 24, 80
+	var size func() (int, int)
 	if isTTY {
-		if c, r, err := term.GetSize(int(out.Fd())); err == nil && r > 0 && c > 0 {
+		size = func() (int, int) {
+			c, r, err := term.GetSize(int(out.Fd()))
+			if err != nil {
+				return 0, 0
+			}
+			return r, c
+		}
+		if r, c := size(); r > 0 && c > 0 {
 			rows, cols = r, c
 		}
 	}
@@ -74,6 +82,7 @@ func Main() int {
 		Out:       out,
 		Rows:      rows,
 		Cols:      cols,
+		Size:      size,
 		IsTTY:     isTTY,
 		Branding:  branding,
 		Version:   ReadOSVersion(*osRelease),
