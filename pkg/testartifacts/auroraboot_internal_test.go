@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -54,7 +53,12 @@ var _ = Describe("AuroraBootBinary", func() {
 	)
 
 	BeforeEach(func() {
-		asset = fmt.Sprintf("auroraboot_%s_linux_%s.tar.gz", AuroraBootVersion[1:], runtime.GOARCH)
+		// Pin a release architecture so these specs run the same way on any
+		// host, including one AuroraBoot publishes no binary for.
+		origArch := auroraBootArch
+		DeferCleanup(func() { auroraBootArch = origArch })
+		auroraBootArch = "amd64"
+		asset = fmt.Sprintf("auroraboot_%s_linux_%s.tar.gz", AuroraBootVersion[1:], auroraBootArch)
 		tarball = fakeTarball()
 		requests.Store(0)
 		sum := sha256.Sum256(tarball)
@@ -115,6 +119,24 @@ var _ = Describe("AuroraBootBinary", func() {
 		sums = func() string { return fmt.Sprintf("%064d  other.tar.gz\n", 1) }
 		_, err := AuroraBootBinary(GinkgoT().Context())
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("refuses an architecture without a release binary", func() {
+		auroraBootArch = "riscv64"
+		_, err := AuroraBootBinary(GinkgoT().Context())
+		Expect(err).To(MatchError(ContainSubstring("riscv64")))
+		Expect(requests.Load()).To(BeZero())
+	})
+
+	It("uses KAIROS_TEST_AURORABOOT_BINARY on an architecture without a release binary", func() {
+		auroraBootArch = "riscv64"
+		bin := filepath.Join(GinkgoT().TempDir(), "auroraboot")
+		Expect(os.WriteFile(bin, []byte(fakeBinary), 0o755)).To(Succeed())
+		GinkgoT().Setenv("KAIROS_TEST_AURORABOOT_BINARY", bin)
+		path, err := AuroraBootBinary(GinkgoT().Context())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(path).To(Equal(bin))
+		Expect(requests.Load()).To(BeZero())
 	})
 
 	It("uses KAIROS_TEST_AURORABOOT_BINARY as is", func() {
