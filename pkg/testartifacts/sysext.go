@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 )
 
-// The extensions built here carry /usr/local/bin/hello.sh, which prints
-// "Hello world". The end-to-end suite asserts on that output inside the VM.
+// The extensions built here carry /usr/bin/hello.sh, which prints "Hello
+// world". /usr/bin is a hierarchy Kairos merges (/usr/local is not, it is the
+// persistent partition), so a merged extension puts the script on the host's
+// PATH, and the end-to-end suite runs it inside the VM.
 const helloScript = "#!/bin/sh\necho \"Hello world\"\n"
 
 // SysextOptions describes a system extension image to build.
@@ -53,7 +55,7 @@ func BuildSysext(ctx context.Context, opts SysextOptions) (string, error) {
 	if err := os.WriteFile(filepath.Join(src, "hello.sh"), []byte(helloScript), 0o755); err != nil {
 		return "", err
 	}
-	dockerfile := "FROM scratch\nCOPY hello.sh /usr/local/bin/hello.sh\n"
+	dockerfile := "FROM scratch\nCOPY hello.sh /usr/bin/hello.sh\n"
 	if err := os.WriteFile(filepath.Join(src, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
 		return "", err
 	}
@@ -106,10 +108,10 @@ func BuildPlainSquashfsSysext(ctx context.Context, dir, name string) (string, er
 		return "", err
 	}
 	defer os.RemoveAll(src)
-	if err := os.MkdirAll(filepath.Join(src, "usr/local/bin"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(src, "usr/bin"), 0o755); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(filepath.Join(src, "usr/local/bin/hello.sh"), []byte(helloScript), 0o755); err != nil {
+	if err := os.WriteFile(filepath.Join(src, "usr/bin/hello.sh"), []byte(helloScript), 0o755); err != nil {
 		return "", err
 	}
 	releaseDir := filepath.Join(src, "usr/lib/extension-release.d")
