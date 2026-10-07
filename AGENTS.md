@@ -177,9 +177,9 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
   that did not run costs nothing, `Collect` drops an empty journal. This applies
   to units written by the bundled cloud-configs, by a provider, and by the agent
   itself at runtime.
-- `make test` needs no Docker. `make test-artifacts` runs the specs in
-  `pkg/testartifacts` and `cmd/test-artifacts` that download the AuroraBoot
-  release binary or run its image, and needs network access, Docker,
-  `openssl` and `libpcsclite`. Set `KAIROS_TEST_AURORABOOT_BINARY` to a local
-  `auroraboot` binary to skip the download, for offline hosts or architectures
-  without a release binary.
+- Test fixtures are generated, not committed. `pkg/testartifacts` builds
+  them, and `cmd/test-artifacts` is its command line for CI. Generating keys
+  downloads the AuroraBoot release binary and needs `openssl` and
+  `libpcsclite`; building system extensions also needs Docker. Set
+  `KAIROS_TEST_AURORABOOT_BINARY` to a local `auroraboot` binary to skip the
+  download, for offline hosts or architectures without a release binary.

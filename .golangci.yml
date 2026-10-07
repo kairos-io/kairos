@@ -1,8 +1,6 @@
 version: "2"
 run:
   timeout: 10m
-  build-tags:
-    - testartifacts
   tests: false
 linters:
   enable:

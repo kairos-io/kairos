@@ -25,13 +25,6 @@ LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(VE
 test: kairos-init-embed-stubs test-actions
 	$(GO) test ./...
 
-# Specs that download the AuroraBoot release binary or run the AuroraBoot
-# image with Docker. They need network access, Docker, openssl and
-# libpcsclite, so `make test` leaves them out.
-.PHONY: test-artifacts
-test-artifacts:
-	$(GO) test -tags testartifacts ./pkg/testartifacts/... ./cmd/test-artifacts/...
-
 # Nested go modules under .github/actions/ have their own go.mod, so the
 # root `go test ./...` above never descends into them -- discovered when
 # the ghcr-cleanup action landed with tests nothing was running. Iterate
