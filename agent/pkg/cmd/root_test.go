@@ -249,9 +249,9 @@ func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
 	t.Cleanup(func() { autoInstallFn = original })
 
 	called := false
-	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error) {
+	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error, error) {
 		called = true
-		return false, nil, nil
+		return false, nil, nil, nil
 	}
 
 	err := command.Action(commandContext(t, command, "", "--"+skipAutoInstallFlag))
@@ -376,4 +376,36 @@ func TestKcryptNVIndexFlagLeavesRoomForTheConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+// `upgrade --dry-run` must be registered as a bool flag that defaults to off,
+// so a plain `upgrade` keeps running the real upgrade.
+func TestUpgradeRegistersDryRunFlag(t *testing.T) {
+	var upgradeCmd *cli.Command
+	for _, c := range cmds {
+		if c.Name == "upgrade" {
+			upgradeCmd = c
+			break
+		}
+	}
+	if upgradeCmd == nil {
+		t.Fatal("no upgrade command registered")
+	}
+
+	for _, f := range upgradeCmd.Flags {
+		for _, name := range f.Names() {
+			if name != "dry-run" {
+				continue
+			}
+			bf, ok := f.(*cli.BoolFlag)
+			if !ok {
+				t.Fatalf("dry-run is a %T, want *cli.BoolFlag", f)
+			}
+			if bf.Value {
+				t.Fatal("dry-run defaults to true, a plain upgrade would not upgrade")
+			}
+			return
+		}
+	}
+	t.Fatal("upgrade does not register a --dry-run flag")
 }
