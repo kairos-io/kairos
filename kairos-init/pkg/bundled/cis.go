@@ -75,8 +75,13 @@ net.ipv4.conf.all.accept_source_route = 0
 net.ipv4.conf.all.accept_redirects = 0
 net.ipv4.conf.all.send_redirects = 0
 
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+
 net.ipv6.conf.all.accept_ra = 0
 net.ipv6.conf.all.accept_redirects = 0
+
+fs.suid_dumpable = 0
 `
 
 const CISAuditRulesPath = "/etc/audit/rules.d/50-kairos.rules"
@@ -453,3 +458,52 @@ var CISCronPaths = []CISCronPath{
 	{Path: "/etc/at.allow", Mode: "0640"},
 	{Path: "/etc/at.deny", Mode: "0640"},
 }
+
+// CISCoreDumpLimitsPath holds the hard core limit CIS 1.5.1 asks for. The
+// other half of the control, fs.suid_dumpable = 0, is in CISSysctl.
+const CISCoreDumpLimitsPath = "/etc/security/limits.d/50-kairos-cis.conf"
+
+// CISCoreDumpLimits is the content written to CISCoreDumpLimitsPath.
+const CISCoreDumpLimits = `# Managed by kairos-init. CIS 1.5.1: no core dumps.
+* hard core 0
+`
+
+// CISJournaldConfPath is the journald config CIS 4.2.2.2 and 4.2.2.3 read.
+// The benchmark parses this file only, not journald.conf.d drop-ins, so the
+// keys go into the [Journal] section here.
+const CISJournaldConfPath = "/etc/systemd/journald.conf"
+
+// CISJournaldSettings are the journald keys CIS 4.2.2 pins: compress large
+// journal files, and keep them on disk. On Kairos /var/log is a persistent
+// bind, so persistent storage survives reboots.
+var CISJournaldSettings = [][2]string{
+	{"Compress", "yes"},
+	{"Storage", "persistent"},
+}
+
+// CISBootCloudConfigPath holds the CIS fixes that cannot be baked into the
+// image because what they fix only exists once the system has booted. It
+// runs on every boot, after users are provisioned, and only ever creates a
+// missing directory or removes permission bits.
+//
+//   - 6.2.6: root's PATH names /usr/local/sbin, and /usr/local is where
+//     COS_PERSISTENT is mounted, so the image's copy is hidden.
+//   - 6.2.8: users come from cloud-config and yip creates their home 0755.
+const CISBootCloudConfigPath = "/system/oem/35_cis_boot.yaml"
+
+// CISBootCloudConfig is the content written to CISBootCloudConfigPath.
+const CISBootCloudConfig = `#cloud-config
+# Managed by kairos-init. See CISBootCloudConfigPath in
+# kairos-init/pkg/bundled/cis.go for why this runs at boot.after.
+name: "CIS boot-time hardening"
+stages:
+  boot.after:
+    - name: "Create /usr/local/sbin"
+      if: '[ ! -e /usr/local/sbin ]'
+      commands:
+        - mkdir -p -m 0755 /usr/local/sbin
+    - name: "Close home directories to other users"
+      if: '[ -d /home ]'
+      commands:
+        - find /home -mindepth 1 -maxdepth 1 -type d -exec chmod g-w,o-rwx {} +
+`
