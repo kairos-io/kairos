@@ -27,7 +27,7 @@ import (
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
-	"github.com/kairos-io/kairos/v4/pkg/testartifacts"
+	"github.com/kairos-io/kairos/v4/internal/testartifacts"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
