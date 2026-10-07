@@ -193,6 +193,22 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 					s.BindMounts = append(s.BindMounts, internalUtils.CleanupSlice(strings.Split(specificEnv["PERSISTENT_STATE_PATHS"], " "))...)
 				}
 
+				// The audit trail has to be on the persistent partition on
+				// every install, not only on the ones whose cloud-config
+				// happens to name it, so the path is always on the list. An
+				// installation that also lists it is deduplicated below.
+				//
+				// Being an ordinary entry of the list mounts it in the
+				// initramfs, before switch_root, so it is in place before any
+				// service in the booted system starts. What the dedicated step
+				// this replaced added on top is gone: there is no
+				// Requires=/After= on a mount unit any more, so a bind that
+				// fails appends no fstab entry and the booted system has no
+				// mount at all. auditd then writes to the ephemeral directory
+				// with nothing but immucore's bind error in the boot log to say
+				// so.
+				s.BindMounts = append(s.BindMounts, cnst.AuditLogPath)
+
 				// Remove any duplicates
 				s.BindMounts = internalUtils.UniqueSlice(internalUtils.CleanupSlice(s.BindMounts))
 
@@ -568,15 +584,152 @@ func bootStateToExtensionSubDir(b state.Boot) (string, bool) {
 	}
 }
 
+// sysextImagePolicy returns the systemd-dissect image policy that matches the
+// systemd-sysext drop-in this boot runs under. kairos-init writes two of them
+// (kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml): the UKI one demands a
+// signed verity hash, the other one demands verity. Validating against a
+// policy the drop-in does not use enables images systemd-sysext then refuses,
+// and a refresh that refuses one image merges none of them.
+func sysextImagePolicy(isUKI bool) string {
+	if isUKI {
+		return cnst.SysextSignedPolicy
+	}
+	return cnst.SysextVerityPolicy
+}
+
+// extensionPolicyChecker returns a check that reports whether an image
+// satisfies the policy this boot's systemd-sysext drop-in enforces, or nil to
+// mean "enable them all without checking".
+//
+// Image policies and systemd-dissect --validate both arrived in systemd 254,
+// and kairos ships flavors older than that, so a tool that cannot evaluate a
+// policy has to be told apart from an image that fails one. On a GRUB boot the
+// answer is to enable the images unvalidated, which is what that boot did
+// before there was any check: reading a missing tool as a failed image would
+// disable every extension on a working node. On a UKI boot it is the opposite,
+// and nothing is enabled, because Trusted Boot must not load an extension it
+// cannot prove is signed.
+func extensionPolicyChecker(isUKI bool) func(path string) bool {
+	if !canValidateExtensionPolicy() {
+		return unvalidatedExtensionCheck(isUKI)
+	}
+
+	return activatableExtensionCheck(isUKI, satisfiesImagePolicy)
+}
+
+// activatableExtensionCheck reports whether an extension is one this boot can
+// actually set up.
+//
+// Satisfying the image policy is necessary but not sufficient. The policy is
+// an overlap test, so an image that is verity and signed satisfies the verity
+// policy a GRUB boot enforces, and then fails to activate for want of a
+// certificate. Both questions have to be asked, because systemd-sysext
+// refreshes all or nothing and one image it cannot set up stops every other
+// extension from merging. kairos-io/kairos#5004.
+func activatableExtensionCheck(isUKI bool, satisfiesPolicy func(isUKI bool, path string) bool) func(path string) bool {
+	return func(path string) bool {
+		if !satisfiesPolicy(isUKI, path) {
+			return false
+		}
+		if hasUnverifiableSignature(isUKI, path) {
+			internalUtils.KLog.Logger.Warn().Str("src", path).
+				Msg("Extension carries a verity signature this boot has no certificate to check, skipping")
+			return false
+		}
+		return true
+	}
+}
+
+// satisfiesImagePolicy asks systemd-dissect whether the image satisfies the
+// policy this boot's systemd-sysext drop-in enforces.
+func satisfiesImagePolicy(isUKI bool, path string) bool {
+	policy := sysextImagePolicy(isUKI)
+	out, err := internalUtils.CommandWithPath(fmt.Sprintf("systemd-dissect --validate %s %s", policy, path))
+	if err != nil {
+		internalUtils.KLog.Logger.Debug().Err(err).Str("src", path).Str("output", out).Str("policy", policy).Msg("Validating extension")
+		return false
+	}
+	return true
+}
+
+// unvalidatedExtensionCheck is the check to fall back to when the image policy
+// cannot be evaluated on this system. A nil result enables every image, a
+// reject-everything result enables none.
+func unvalidatedExtensionCheck(isUKI bool) func(path string) bool {
+	if isUKI {
+		internalUtils.KLog.Logger.Warn().Msg("Cannot validate extensions and this is a trusted boot, enabling none of them")
+		return func(string) bool { return false }
+	}
+	internalUtils.KLog.Logger.Warn().Msg("Cannot validate extensions, enabling them unvalidated")
+	return nil
+}
+
+// canValidateExtensionPolicy reports whether systemd-dissect on this image can
+// evaluate an image policy at all.
+func canValidateExtensionPolicy() bool {
+	output, err := internalUtils.CommandWithPath("systemd-dissect --help")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(output, "--validate")
+}
+
+// enableExtensionsFrom links every extension image in sourceDir into destDir.
+//
+// sourceDir is a path inside the sysroot: it is read through s.path, but the
+// symlink target is left unprefixed because /run is moved into the final
+// sysroot after initramfs. A missing sourceDir is not an error.
+//
+// passes reports whether an image satisfies the policy this boot's
+// systemd-sysext drop-in enforces. An image it rejects is skipped rather than
+// linked, because systemd-sysext refreshes all or nothing and one image it
+// refuses stops every other extension from merging. A nil passes means the
+// images cannot be validated on this system, so they are all linked.
+func enableExtensionsFrom(s *State, sourceDir, destDir, extType string, passes func(path string) bool) error {
+	entries, err := os.ReadDir(s.path(sourceDir))
+	if err != nil {
+		// We don't care if the dir does not exist
+		return nil
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".raw" {
+			continue
+		}
+
+		src := filepath.Join(sourceDir, entry.Name())
+		if passes != nil && !passes(s.path(src)) {
+			internalUtils.KLog.Logger.Warn().Str("src", s.path(src)).Msgf("%s does not pass validation", extType)
+			continue
+		}
+
+		// Check if it already exists with the same name
+		// This is because as we have the common dir, there could be a point in which the common dir and the
+		// specific boot state dir have the same file, and we dont want to fail at this point, just warn and continue
+		dst := filepath.Join(destDir, entry.Name())
+		if _, err := os.Stat(dst); !os.IsNotExist(err) {
+			internalUtils.KLog.Logger.Warn().Str("file", dst).Msgf("Skipping %s as its already enabled", extType)
+			continue
+		}
+
+		if err := os.Symlink(src, dst); err != nil {
+			internalUtils.KLog.Logger.Err(err).Msg("Creating symlink")
+			return err
+		}
+		internalUtils.KLog.Logger.Debug().Str("what", entry.Name()).Msgf("Enabled %s", extType)
+	}
+
+	return nil
+}
+
 // validateAndEnableSysConfExtensions is the common logic for validating and enabling both sys and conf extensions,
-// as they work in a similar way, just different source and destination dirs and different validation for sys extensions.
+// as they work in a similar way, just different source and destination dirs.
 func validateAndEnableSysConfExtensions(s *State, extType string) error {
 	// At this point the extensions dir should be available
 	r, err := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
 	if err != nil {
 		return err
 	}
-	var dir string
 	var sourceDir string
 	var destDir string
 
@@ -598,78 +751,15 @@ func validateAndEnableSysConfExtensions(s *State, extType string) error {
 		internalUtils.KLog.Logger.Debug().Str("state", string(r.BootState)).Msg("Not copying sysextensions as we are not in a state that we know off")
 		return nil
 	}
-	dir = filepath.Join(sourceDir, subDir)
-	// move to use dir with the full path from here so its simpler
-	entries, err := os.ReadDir(s.path(dir))
-	// We don't care if the dir does not exist
-	if err != nil && !os.IsNotExist(err) {
-		return nil
-	}
 
-	for _, entry := range entries {
-		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".raw" {
-			// If the file is a raw file, lets softlink it
-			if internalUtils.IsUKI() {
-				// Verify the signature
-				output, err := internalUtils.CommandWithPath(fmt.Sprintf("systemd-dissect --validate %s %s", cnst.SysextDefaultPolicy, s.path(filepath.Join(dir, entry.Name()))))
-				if err != nil {
-					// If the file didn't pass the validation, we don't copy it
-					internalUtils.KLog.Logger.Warn().Str("src", s.path(filepath.Join(dir, entry.Name()))).Msgf("%s does not pass validation", extType)
-					internalUtils.KLog.Logger.Debug().Err(err).Str("src", s.path(filepath.Join(dir, entry.Name()))).Str("output", output).Msgf("Validating %s", extType)
-					continue
-				}
-			}
-			// Check if it already exists with the same name
-			// This is because as we have the common dir, there could be a point in which the common dir and the
-			// specific boot state dir have the same file, and we dont want to fail at this point, just warn and continue
-			if _, err := os.Stat(filepath.Join(destDir, entry.Name())); !os.IsNotExist(err) {
-				// If it exists, we can just skip it
-				internalUtils.KLog.Logger.Warn().Str("file", filepath.Join(destDir, entry.Name())).Msgf("Skipping %s as its already enabled", extType)
-				continue
-			}
-			// it has to link to the final dir after initramfs, so we avoid setting s.path here for the target
-			err = os.Symlink(filepath.Join(dir, entry.Name()), filepath.Join(destDir, entry.Name()))
-			if err != nil {
-				internalUtils.KLog.Logger.Err(err).Msg("Creating symlink")
-				return err
-			}
-			internalUtils.KLog.Logger.Debug().Str("what", entry.Name()).Msgf("Enabled %s", extType)
-		}
+	passes := extensionPolicyChecker(internalUtils.IsUKI())
+
+	if err := enableExtensionsFrom(s, filepath.Join(sourceDir, subDir), destDir, extType, passes); err != nil {
+		return err
 	}
 
 	// Common dir is always there for all states no matter what
-	commonEntries, _ := os.ReadDir(s.path(filepath.Join(sourceDir, "common")))
-	for _, entry := range commonEntries {
-		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".raw" {
-			// If the file is a raw file, lets softlink it
-			if internalUtils.IsUKI() {
-				// Verify the signature
-				output, err := internalUtils.CommandWithPath(fmt.Sprintf("systemd-dissect --validate %s %s", cnst.SysextDefaultPolicy, s.path(filepath.Join(sourceDir, "common", entry.Name()))))
-				if err != nil {
-					// If the file didn't pass the validation, we don't copy it
-					internalUtils.KLog.Logger.Warn().Str("src", s.path(filepath.Join(sourceDir, "common", entry.Name()))).Msgf("%s does not pass validation", extType)
-					internalUtils.KLog.Logger.Debug().Err(err).Str("src", s.path(filepath.Join(sourceDir, "common", entry.Name()))).Str("output", output).Msgf("Validating %s", extType)
-					continue
-				}
-			}
-			// Check if it already exists with the same name
-			// This is because as we have the common dir, there could be a point in which the common dir and the
-			// specific boot state dir have the same file, and we dont want to fail at this point, just warn and continue
-			if _, err := os.Stat(filepath.Join(destDir, entry.Name())); !os.IsNotExist(err) {
-				// If it exists, we can just skip it
-				internalUtils.KLog.Logger.Warn().Str("file", filepath.Join(destDir, entry.Name())).Msgf("Skipping %s as its already enabled", extType)
-				continue
-			}
-			// it has to link to the final dir after initramfs, so we avoid setting s.path here for the target
-			err = os.Symlink(filepath.Join(sourceDir, "common", entry.Name()), filepath.Join(destDir, entry.Name()))
-			if err != nil {
-				internalUtils.KLog.Logger.Err(err).Msg("Creating symlink")
-				return err
-			}
-			internalUtils.KLog.Logger.Debug().Str("what", entry.Name()).Msgf("Enabled %s", extType)
-		}
-	}
-	return nil
+	return enableExtensionsFrom(s, filepath.Join(sourceDir, "common"), destDir, extType, passes)
 }
 
 // WriteFstabDagStep will add writing the final fstab file with all the mounts

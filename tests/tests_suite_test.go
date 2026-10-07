@@ -181,6 +181,25 @@ func startVM() (context.Context, VM) {
 	return ctx, vm
 }
 
+// startVMNoTPM is startVM for a machine without a TPM device. Used by the
+// encryption-on-boot negative spec, which asserts the fail closed halt when
+// the configuration demands encryption on a machine that cannot do it.
+func startVMNoTPM() (context.Context, VM) {
+	stateDir, err := os.MkdirTemp("", "")
+	Expect(err).ToNot(HaveOccurred())
+	GinkgoLogr.Info("Starting VM without TPM", "stateDir", stateDir)
+
+	m, err := machine.New(defaultVMOptsNoTPM(stateDir)...)
+	Expect(err).ToNot(HaveOccurred())
+
+	vm := NewVM(m, stateDir)
+
+	ctx, err := vm.Start(context.Background())
+	Expect(err).ToNot(HaveOccurred())
+
+	return ctx, vm
+}
+
 func isFlavor(vm VM, flavor string) bool {
 	out, err := vm.Sudo(fmt.Sprintf("cat /etc/os-release | grep ID=%s", flavor))
 	return err == nil && out != ""
@@ -193,14 +212,21 @@ func expectDefaultService(vm VM) {
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("kairos-agent"))
 		} else {
-			// This is also run in the upgrade latest, so we need to check for both kairos-installer and kairos in case the service name changed
+			// This is also run in the upgrade latest, so we need to check for both kairos-installer and kairos in case the service name changed.
+			// kairos-interactive is the third name: on an interactive live
+			// cmdline the bundled cloud-config disables kairos-installer and
+			// enables kairos-interactive instead, so which of the two is the
+			// live entry point follows the GRUB entry the media defaults to.
+			// The assertion is that the live media brought up an install
+			// entry point, not which of the two it picked.
 			Eventually(func() string {
 
-				out, _ := vm.Sudo("systemctl status kairos-installer || systemctl status kairos")
+				out, _ := vm.Sudo("systemctl status kairos-installer || systemctl status kairos-interactive || systemctl status kairos")
 				return out
 			}, 3*time.Minute, 2*time.Second).Should(
 				Or(
 					ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled;"),
+					ContainSubstring("loaded (/etc/systemd/system/kairos-interactive.service; enabled;"),
 					ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"),
 				))
 		}
@@ -209,17 +235,26 @@ func expectDefaultService(vm VM) {
 
 func expectStartedInstallation(vm VM) {
 	By("checking that installation has started", func() {
+		// Either live entry point installs an install.auto config
+		// unattended: interactive-install calls AutoInstall before it draws
+		// anything, and runs the install in the same process. So the process
+		// name is the one the unit started, and "interactive-install" does
+		// not contain "kairos-agent install".
 		Eventually(func() string {
 			out, _ := vm.Sudo("ps aux || ps")
 			return out
-		}, 30*time.Minute, 1*time.Second).Should(ContainSubstring("/usr/bin/kairos-agent install"))
+		}, 30*time.Minute, 1*time.Second).Should(
+			Or(
+				ContainSubstring("/usr/bin/kairos-agent install"),
+				ContainSubstring("/usr/bin/kairos-agent interactive-install"),
+			))
 	})
 }
 
 func expectRebootedToActive(vm VM) {
 	By("checking that vm has rebooted to 'active'", func() {
 		Eventually(func() string {
-			out, _ := vm.Sudo("kairos-agent state boot")
+			out, _ := vm.Sudo("kairos-agent state get boot")
 			return out
 		}, 40*time.Minute, 10*time.Second).Should(
 			Or(
@@ -299,10 +334,18 @@ func generateToken() string {
 	return node.GenerateNewConnectionData(l).Base64()
 }
 
+// registerTimeout bounds the pairing wait in register. nodepair.Send blocks
+// until its context ends, so with context.Background() a node that never joins
+// the pairing network keeps the spec running until the ginkgo suite timeout
+// fires. That is the worst way for this to fail: the suite timeout ends the
+// whole run, so every remaining spec is skipped and the leg reports no signal
+// at all. A green pairing costs 191s, so ten minutes leaves 3x headroom.
+const registerTimeout = 10 * time.Minute
+
 // register registers a node with a qrfile
 func register(loglevel, qrfile, configFile, device string, reboot bool) error {
 	b, _ := os.ReadFile(configFile)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
 	defer cancel()
 
 	if qrfile != "" {
@@ -339,6 +382,12 @@ func register(loglevel, qrfile, configFile, device string, reboot bool) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	// nodepair.Send returns nil when the context ends, so an expired deadline
+	// looks exactly like a delivered payload unless the context is examined.
+	if ctx.Err() != nil {
+		return fmt.Errorf("the node did not pair within %s: %w", registerTimeout, ctx.Err())
 	}
 
 	GinkgoLogr.Info("Registration payload successfully sent")
@@ -402,7 +451,23 @@ func defaultVMOpts(stateDir string) []types.MachineOption {
 	return opts
 }
 
+// defaultVMOptsNoTPM is defaultVMOpts without the swtpm emulator and without
+// the TPM device on the qemu command line. The encryption-on-boot negative
+// spec needs a machine that genuinely has no TPM, so the boot time encryption
+// step can only halt.
+func defaultVMOptsNoTPM(stateDir string) []types.MachineOption {
+	opts := vmOptsNoDrives(stateDir, false)
+	driveSize := getEnvOrDefault("DRIVE_SIZE", "25000")
+	opts = append(opts, types.WithDriveSize(driveSize))
+
+	return opts
+}
+
 func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
+	return vmOptsNoDrives(stateDir, true)
+}
+
+func vmOptsNoDrives(stateDir string, withTPM bool) []types.MachineOption {
 	var err error
 
 	if os.Getenv("ISO") == "" {
@@ -414,8 +479,10 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	vmName := uuid.New().String()
 
-	// Always setup a tpm emulator
-	emulateTPM(stateDir)
+	// Setup a tpm emulator unless the spec asked for a TPM-less machine
+	if withTPM {
+		emulateTPM(stateDir)
+	}
 
 	sshPort, err = getFreePort()
 	Expect(err).ToNot(HaveOccurred())
@@ -476,11 +543,14 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				"-serial", "chardev:char0",
 				"-mon", "chardev=char0",
 			)
-			// Always set a tpm device in the vm
-			m.Args = append(m.Args,
-				"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
-				"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
-			)
+			// Set a tpm device in the vm unless the spec asked for a
+			// TPM-less machine
+			if withTPM {
+				m.Args = append(m.Args,
+					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
+					"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
+				)
+			}
 
 			// Set boot order to disk -> cdrom
 			m.Args = append(m.Args,

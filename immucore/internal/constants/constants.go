@@ -2,6 +2,10 @@ package constants
 
 import (
 	"errors"
+	"os"
+	"path"
+	"syscall"
+	"time"
 )
 
 func DefaultRWPaths() []string {
@@ -88,6 +92,54 @@ func GenericKernelDrivers() []string {
 	}
 }
 
+// bindMountModes holds the mode the mountpoint of a bind mount has to be
+// created with when nothing on the machine has created it yet.
+//
+// A bind mount exposes the inode of the directory that backs it, so the mode
+// visible at the mountpoint once it is mounted is the one that directory
+// carries, and that one is taken from the mountpoint at the moment the pair is
+// first created. Where the image ships the mountpoint, its mode is the answer
+// and this is not consulted. Where the image ships nothing, the mode is the
+// default of whoever creates the directory first, and the machine then keeps
+// it for as long as it lives, so a path whose consumer refuses a laxer mode
+// has to say which mode it needs here.
+var bindMountModes = map[string]os.FileMode{
+	// auditd refuses a trail directory that anyone other than root can read,
+	// and no image ships /var/log/audit yet.
+	AuditLogPath: 0o700,
+}
+
+// BindMountMode returns the mode a bind mountpoint has to be created with, and
+// whether the path asks for a particular one at all. A leading slash is
+// optional, the bind mount code strips it off the paths it handles.
+func BindMountMode(mountpoint string) (os.FileMode, bool) {
+	mode, ok := bindMountModes[path.Join("/", mountpoint)]
+	return mode, ok
+}
+
+// bindMountOptions holds extra mount options a bind mount gets on top of
+// "bind". Nothing on /home needs device nodes, so it is mounted nodev (CIS
+// 1.1.14).
+var bindMountOptions = map[string][]string{
+	"/home": {"nodev"},
+}
+
+// TmpMountOptions are the options /tmp is mounted with on the GRUB boot path:
+// a world-writable tmpfs gets no device nodes, setuid or executables (CIS
+// 1.1.3, 1.1.4 and 1.1.5).
+var TmpMountOptions = []string{"rw", "nosuid", "nodev", "noexec"}
+
+// DevShmRemountFlags remounts the /dev/shm tmpfs the initramfs systemd set up,
+// adding noexec to the nosuid and nodev it already has (CIS 1.1.17). The mount
+// is carried into the booted system on switch-root, flags included.
+const DevShmRemountFlags = syscall.MS_REMOUNT | syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC
+
+// BindMountOptions returns the extra mount options for a bind mountpoint. A
+// leading slash is optional, as for BindMountMode.
+func BindMountOptions(mountpoint string) []string {
+	return bindMountOptions[path.Join("/", mountpoint)]
+}
+
 var ErrAlreadyMounted = errors.New("already mounted")
 
 // ErrMountTargetMissing is returned when a mount target directory does not exist
@@ -130,6 +182,13 @@ const (
 	// the persistent /etc/systemd bind and that now shadow a packaged unit out
 	// of the unit load path. See internalUtils.QuarantineStaleUnitSymlinks.
 	OpQuarantineStaleUnits = "quarantine-stale-units"
+
+	// UkiNetworkTimeout bounds how long the UKI initrd waits for an interface
+	// to get an address before giving up and letting the unlock step run and
+	// report the real failure. A DHCP exchange on a healthy link takes a
+	// couple of seconds; this leaves room for a slow switch without adding a
+	// visible stall to a boot whose network is simply absent.
+	UkiNetworkTimeout = 30 * time.Second
 	// InRAMSentinelName is the extra sentinel file written under /run/cos/ when
 	// the kairos.ram workflow is active. It is additive: WriteSentinelDagStep
 	// still writes the BootState-driven sentinel (which is active_mode for
@@ -137,6 +196,12 @@ const (
 	// cloud-init gates keep firing. Tooling that specifically needs to know the
 	// rootfs is on a tmpfs can stat this file.
 	InRAMSentinelName = "in_ram_mode"
+
+	// OpEncryptPending runs on the normal boot DAG, gated behind
+	// kcrypt.encrypt_on_boot, and encrypts partitions that the configuration
+	// marks for encryption but that are still plaintext on disk, before
+	// anything mounts them. See kairos-io/kairos#4556.
+	OpEncryptPending = "encrypt-pending"
 
 	// OpEnsurePartitions runs early in the in-RAM DAG and either confirms that
 	// COS_OEM + COS_PERSISTENT already exist on disk, or auto-creates the
@@ -177,8 +242,23 @@ const (
 	DestSysExtDir                   = "/run/extensions"
 	DestConfExtDir                  = "/run/confexts"
 	VerityCertDir                   = "/run/verity.d/"
-	SysextDefaultPolicy             = "--image-policy=\"root=signed+absent:usr=signed+absent\""
-	EfiDir                          = "/efi"
+	// SysextSignedPolicy is the image policy the UKI systemd-sysext drop-in
+	// enforces. Trusted Boot only accepts an extension whose verity hash is
+	// signed by a key in the machine db.
+	SysextSignedPolicy = "--image-policy=\"root=signed+absent:usr=signed+absent\""
+	// SysextVerityPolicy is the image policy the non-UKI systemd-sysext drop-in
+	// enforces, written by kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml
+	// when /run/cos/uki_boot_mode is absent. Validating against anything else
+	// on a GRUB boot enables images systemd-sysext then refuses, and a refresh
+	// that refuses one image merges none of them.
+	SysextVerityPolicy = "--image-policy=\"root=verity+absent:usr=verity+absent\""
+	EfiDir             = "/efi"
+
+	// AuditLogPath is the kernel audit log directory. auditd keeps the audit
+	// trail here, so it has to be backed by the persistent partition rather
+	// than by the ephemeral /var overlay. It is one of the persistent bind
+	// mounts, see LoadEnvLayoutDagStep.
+	AuditLogPath = "/var/log/audit"
 
 	// CmdlineBreak requests dracut-style breakpoints. Its values are step
 	// names, i.e. the Op* constants above (rd.immucore.break=mount-root), and

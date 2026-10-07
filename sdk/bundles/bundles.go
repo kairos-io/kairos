@@ -232,7 +232,7 @@ type OCIImageRunner struct {
 }
 
 func (e OCIImageRunner) Install(config *BundleConfig) error {
-	tempDir, err := os.MkdirTemp("", "containerrunner")
+	tempDir, err := utils.MkdirExecTemp("containerrunner")
 	if err != nil {
 		return err
 	}

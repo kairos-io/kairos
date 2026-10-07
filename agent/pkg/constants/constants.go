@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
+
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 const (
@@ -86,6 +88,27 @@ const (
 	BootEntryRecovery            = "recovery"
 	BootEntryActive              = "cos"
 
+	// AuditLogStatePath is where immucore keeps the backing directory of the
+	// /var/log/audit bind, relative to the root of the persistent partition.
+	// A reset formats that partition, so the audit trail has to be carried
+	// over it by hand.
+	//
+	// The .state part is the default value of PERSISTENT_STATE_TARGET, which
+	// immucore reads out of the booted system's cos-layout.env. A reset runs
+	// from recovery and never mounts the partition that file lives on, so an
+	// installation that overrides the target puts its audit trail somewhere
+	// this path does not reach. That is why StashAuditLog logs the path it
+	// looked at when it finds nothing: "no trail" and "wrong path" read the
+	// same from here otherwise.
+	AuditLogStatePath = ".state/var-log-audit.bind"
+	// AuditLogPath is the path the directory above is bound onto, used for
+	// logging.
+	AuditLogPath = "/var/log/audit"
+	// AuditLogDirPerm is the mode the restored directory gets, which is the
+	// mode the bind then exposes at AuditLogPath. auditd keeps its trail
+	// readable by root only.
+	AuditLogDirPerm = 0o700
+
 	// SELinux targeted policy paths.
 	SELinuxTargetedPath        = "/etc/selinux/targeted"
 	SELinuxTargetedContextFile = SELinuxTargetedPath + "/contexts/files/file_contexts"
@@ -111,6 +134,34 @@ const (
 	UkiEfiDir     = "/efi"
 	UkiMaxEntries = 3
 
+	// Upgrade-finalize handoff constants. See the block comment on
+	// UpgradeAction.handoffFinalizeToTarget for the shape of the handoff.
+
+	// TargetKairosAgentPath is the path of the kairos-agent binary inside
+	// the deployed target rootfs. The host uses it as the exec target for
+	// the upgrade-finalize handoff after chrooting into the target.
+	TargetKairosAgentPath = "/usr/bin/kairos-agent"
+
+	// KairosReleaseFile is where KAIROS_* env-style keys (including
+	// KAIROS_VERSION) live on a Kairos-built rootfs. Read from the running
+	// system's path to get the current version, or from
+	// <target-rootfs>/etc/kairos-release (or a copy extracted from a UKI
+	// .initrd) to get the target's version for the downgrade gate.
+	KairosReleaseFile = "/etc/kairos-release"
+
+	// UpgradeFinalizeContextPath is the path inside the target rootfs at
+	// which the host writes the JSON-serialized FinalizeContext for the
+	// target agent's upgrade-finalize subcommand to read back. The file is
+	// written on the mounted transition image and does not persist past
+	// the transition-to-active rename.
+	UpgradeFinalizeContextPath = "/tmp/kairos-upgrade-finalize.json"
+
+	// HandoffHostPrefix is where the host filesystem is bind-mounted inside
+	// the target chroot for the upgrade-finalize handoff. Mirrors the /host
+	// convention system-upgrade-controller uses under Kubernetes so the
+	// target agent's --host-dir plumbing works the same in both settings.
+	HandoffHostPrefix = "/host"
+
 	// Boot labeling.
 	PassiveBootSuffix    = " (fallback)"
 	RecoveryBootSuffix   = " recovery"
@@ -130,9 +181,12 @@ const (
 	UpgradeRecoveryNoSourceError   = "could not find a proper source for the recovery upgrade.\nThis can be configured in the cloud config files under the 'upgrade.recovery-system.uri' key or via cmdline using the '--source' flag"
 	MultipleEntriesAssessmentError = "multiple boot entries found for %s"
 	NoBootAssessmentWarning        = "No boot assessment found in current boot entry config file"
-
-	DefaultWebUIListenAddress = ":8080"
 )
+
+// Deprecated: use sdkConstants.DefaultWebUIListenAddress. This package is
+// importable outside the repo, so the constant stays as an alias rather than
+// breaking an out-of-tree build. Remove it at a major version.
+const DefaultWebUIListenAddress = sdkConstants.DefaultWebUIListenAddress
 
 func UkiDefaultMenuEntries() []string {
 	return []string{"cos", "fallback", "recovery", "statereset"}

@@ -3,6 +3,8 @@ package utils
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -132,5 +134,55 @@ var _ = Describe("DiskFSType", func() {
 		installFakeBlkid(fake)
 
 		Expect(DiskFSType(device)).To(Equal("xfs"))
+	})
+})
+
+var _ = Describe("CreateBindStateDir", func() {
+	var root string
+
+	BeforeEach(func() {
+		root = GinkgoT().TempDir()
+	})
+
+	It("gives a new state directory the mode of the path it backs", func() {
+		mountpoint := filepath.Join(root, "audit")
+		stateDir := filepath.Join(root, "var-log-audit.bind")
+		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
+		Expect(os.Chmod(mountpoint, 0o700)).To(Succeed())
+
+		Expect(CreateBindStateDir(mountpoint, stateDir)).To(Succeed())
+
+		info, err := os.Stat(stateDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
+	})
+
+	It("creates the parents of the state directory", func() {
+		mountpoint := filepath.Join(root, "audit")
+		stateDir := filepath.Join(root, "usr/local/.state", "var-log-audit.bind")
+		Expect(os.MkdirAll(mountpoint, 0o750)).To(Succeed())
+
+		Expect(CreateBindStateDir(mountpoint, stateDir)).To(Succeed())
+		Expect(stateDir).To(BeADirectory())
+	})
+
+	It("does not touch a state directory that is already there", func() {
+		mountpoint := filepath.Join(root, "audit")
+		stateDir := filepath.Join(root, "var-log-audit.bind")
+		Expect(os.MkdirAll(mountpoint, 0o777)).To(Succeed())
+		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
+		Expect(os.Chmod(mountpoint, 0o777)).To(Succeed())
+		Expect(os.Chmod(stateDir, 0o700)).To(Succeed())
+
+		Expect(CreateBindStateDir(mountpoint, stateDir)).To(Succeed())
+
+		info, err := os.Stat(stateDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
+	})
+
+	It("fails when there is no path to take the mode from", func() {
+		err := CreateBindStateDir(filepath.Join(root, "missing"), filepath.Join(root, "var-log-audit.bind"))
+		Expect(err).To(HaveOccurred())
 	})
 })

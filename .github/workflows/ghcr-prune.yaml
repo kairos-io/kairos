@@ -1,0 +1,107 @@
+name: ghcr prune
+
+# Age-based sweep of GHCR container packages. Replaces the per-run /
+# per-PR-close cleanup jobs that used to sit inside pr.yaml, master.
+# yaml, _uki-test.yaml, and pr-close-cleanup.yaml -- one place to
+# read, inspect, and manually trigger, matching quay.io's per-image
+# expires-after model but implemented as an outside pruner because
+# GHCR has no server-side TTL.
+#
+# For each package in PACKAGES below, the ghcr-cleanup binary lists
+# every version. Tagged versions are kept when their tag list overlaps
+# PROTECTED_TAGS or the version is younger than the per-package
+# retention; everything else in that class is deleted. Untagged
+# versions are kept when they are still referenced by a kept-tagged
+# manifest list (multi-arch children of protected/young parents) OR
+# they are younger than the retention; other aged untagged versions
+# are pruned as orphans.
+#
+# The multi-arch referencing pass talks to the OCI distribution API
+# (ghcr.io/v2/...) using an anonymous token exchange -- kairos-io
+# packages are public, so credentials are not required for the read.
+#
+# Retention values follow what quay's expires-after labels said when
+# these images still shipped to quay, softened for the current Kairos
+# PR load:
+#   * OS flavors + kairos-init + kcrypt-challenger: 10d (was 2w on
+#     quay; slightly tighter is fine since the pruner runs daily and
+#     idle PRs longer than 10 days can just re-push to regenerate).
+#   * kairos-uki upgrade image + bundles-test: 6h (per the --label
+#     quay.expires-after="6h" flags that pushed to those repos).
+# Tweak in-place -- the array below is the whole config.
+#
+# Trigger cadence: daily at 03:00 UTC. Also on manual dispatch, with
+# a dry-run switch for inspecting what would go before letting it go.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be deleted without issuing DELETE.'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ghcr-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: prune
+    runs-on: ubuntu-latest
+    env:
+      # PACKAGES: one "<ref-prefix>  <retention>" pair per line.
+      # Retention accepts h/d/w (14d and 2w both mean 336h).
+      # Add a new flavor here when the build-iso matrix grows one.
+      # A missing package is a warning, not a failure -- if a flavor
+      # ships a first image after this list is updated, the prune
+      # run right after picks it up.
+      PACKAGES: |
+        ghcr.io/kairos-io/kairos/hadron               10d
+        ghcr.io/kairos-io/kairos/hadron-fips          10d
+        ghcr.io/kairos-io/kairos/hadron-trusted       10d
+        ghcr.io/kairos-io/kairos/ubuntu               10d
+        ghcr.io/kairos-io/kairos/rockylinux           10d
+        ghcr.io/kairos-io/kairos/opensuse             10d
+        ghcr.io/kairos-io/kairos/kairos-init          10d
+        ghcr.io/kairos-io/kairos/kcrypt-challenger    10d
+        ghcr.io/kairos-io/kairos/bundles-test         6h
+        ghcr.io/kairos-io/kairos/kairos-uki           6h
+      # PROTECTED_TAGS: one shell glob per line (path.Match semantics
+      # -- *, ?, [range]). Any version whose tag list matches any
+      # pattern is kept regardless of age. `master-scratch` is here
+      # even though it looks temporary: after promote-images the
+      # scratch tag can share a package version with :master
+      # (deterministic manifest digest), and deleting either would
+      # take :master with it.
+      PROTECTED_TAGS: |
+        master
+        latest
+        master-scratch
+        v[0-9]*
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: .github/actions/ghcr-cleanup/go.mod
+          cache: false
+      - name: Prune GHCR
+        working-directory: .github/actions/ghcr-cleanup
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run == true && 'true' || 'false' }}
+          # Fail the job on any real DELETE error so incomplete
+          # cleanup is visible in the run status. Rate-limit responses
+          # stop the run cleanly with a warning (not a failure) so a
+          # first-run catch-up that exhausts the workflow token's
+          # ~1000 REST req/hour budget just leaves the tail to the
+          # next daily fire; that path also does not trip
+          # FAIL_ON_ERROR. Missing packages stay as warnings too.
+          FAIL_ON_ERROR: 'true'
+        run: go run . prune

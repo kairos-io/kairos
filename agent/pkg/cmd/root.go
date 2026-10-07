@@ -16,29 +16,28 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/internal/agent"
 	"github.com/kairos-io/kairos/v4/agent/internal/bus"
 	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
-	"github.com/kairos-io/kairos/v4/agent/internal/webui"
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	installer "github.com/kairos-io/kairos/v4/agent/pkg/extensions"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
-	"github.com/kairos-io/kairos/v4/sdk/extensions"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkUtils "github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
 	"github.com/mudler/go-pluggable"
 	"github.com/sanity-io/litter"
 	"github.com/spf13/viper"
-	"github.com/twpayne/go-vfs/v5"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
 )
@@ -80,8 +79,6 @@ var allowInsecureRegistriesFlag = cli.BoolFlag{
 	Usage: "Pull the image from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate. Can also be set in the cloud config via `install.allow-insecure-registries` or `upgrade.allow-insecure-registries`.",
 }
 
-const defaultExtensionCatalogURL = "https://kairos-io.github.io/hadron-layers/releases.json"
-
 var kcryptNVIndexFlag = cli.StringFlag{
 	Name:  "nv-index",
 	Value: kcrypt.DefaultLocalPassphraseNVIndex,
@@ -112,6 +109,7 @@ var cmds = []*cli.Command{
 			&cli.BoolFlag{Name: constants.BootRecovery, Usage: "Upgrade recovery"},
 			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
 			&allowInsecureRegistriesFlag,
+			&cli.BoolFlag{Name: "dry-run", Usage: "Resolve the upgrade and print a summary of what would be done, without changing the system"},
 		},
 		Description: `
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
@@ -122,6 +120,8 @@ as a value for the --source flag.
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
 To pull from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate, pass the --allow-insecure-registries flag (or set "upgrade.allow-insecure-registries: true" in the cloud config).
+
+To check what an upgrade would do before running it, pass the --dry-run flag. It resolves the source (including the cloud config), the image size and where the transition image would be written, checks that the image manifest can be fetched from the registry, prints a summary and exits without changing the system.
 
 To retrieve all the available versions, use "kairos upgrade list-releases". Use the --registry flag to specify a custom registry to retrieve the versions from, otherwise it will default to quay.io/kairos.
 
@@ -251,8 +251,42 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			}
 
 			return agent.Upgrade(source, c.Bool("strict-validation"), constants.GetUserConfigDirs(),
-				upgradeEntry, c.Bool("allow-insecure-registries"), c.StringSlice("exclude-path")...,
+				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.StringSlice("exclude-path")...,
 			)
+		},
+	},
+	{
+		Name:  "upgrade-finalize",
+		Usage: "internal: run the post-deploy finalize step of an upgrade",
+		Description: `
+This is a hidden subcommand invoked by the host kairos-agent during a
+non-UKI upgrade after DeployImage. The host chroots into the deployed
+target rootfs, bind-mounts its own state / recovery / OEM / persistent
+/ EFI partitions under /host, and execs this command inside the chroot
+so the target image's own kairos-agent runs the format-writing steps of
+the upgrade (label state images, extra dirs, SELinux relabel, GRUB
+default entry rebrand, ESP refresh, after-upgrade-chroot hook). Doing
+so lets a format change (e.g. a new loader/entries key, a new GRUB
+menu, a new boot-assessment counter) reach installed nodes without
+requiring every previously released host agent to already understand
+that format.
+
+Not part of the public CLI; call sites and the wire contract may
+change between releases.
+`,
+		Hidden: true,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "context-file",
+				Usage:    "Path (inside the target chroot) to the JSON-serialized FinalizeContext the host wrote",
+				Required: true,
+			},
+		},
+		Before: func(c *cli.Context) error {
+			return checkRoot()
+		},
+		Action: func(c *cli.Context) error {
+			return agent.UpgradeFinalize(c.String("context-file"))
 		},
 	},
 	{
@@ -384,15 +418,6 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 		},
 	},
 	{
-		Name:        "webui",
-		Usage:       "Starts the webui",
-		Description: "Starts the webui installer",
-		Aliases:     []string{"w"},
-		Action: func(c *cli.Context) error {
-			return webui.Start(context.Background())
-		},
-	},
-	{
 		Name:        "config",
 		Usage:       "Shows the machine configuration",
 		Description: "Show the runtime configuration of the machine. It will scan the machine for all the configuration and will return the config file processed and found.",
@@ -448,6 +473,13 @@ enabled: true`,
 		Description: "Print machine state information, e.g. `state get uuid` returns the machine uuid",
 		Aliases:     []string{},
 		Action: func(c *cli.Context) error {
+			// `state` takes no arguments of its own. Without this an unknown
+			// subcommand falls through to here, prints the state and exits 0,
+			// so a caller cannot tell a typo from the command it meant to run.
+			if c.Args().Present() {
+				return fmt.Errorf("unknown subcommand %q for \"state\"", c.Args().First())
+			}
+
 			runtime, err := state.NewRuntime()
 			if err != nil {
 				return err
@@ -457,16 +489,6 @@ enabled: true`,
 			return err
 		},
 		Subcommands: []*cli.Command{
-			{
-				Name:        "apply",
-				Usage:       "Applies a machine state",
-				Description: "Applies machine configuration in runtimes",
-				Aliases:     []string{"a"},
-				Action: func(c *cli.Context) error {
-					// TODO
-					return nil
-				},
-			},
 			{
 				Name:        "get",
 				Usage:       "get specific ",
@@ -531,6 +553,11 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 			&cli.BoolFlag{
 				Name: "shell",
 			},
+			&cli.BoolFlag{
+				Name:    skipAutoInstallFlag,
+				Usage:   "Open the installer even when the config sets install.auto, instead of installing unattended. Also settable on the boot cmdline as " + skipAutoInstallCmdline + ", which is how to reach it from a booted ISO.",
+				EnvVars: []string{"KAIROS_SKIP_AUTO_INSTALL"},
+			},
 			&sourceFlag,
 		},
 		Usage: "Starts interactive installation",
@@ -548,7 +575,27 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 				log.SetLevel("debug")
 			}
 
-			return agent.InteractiveInstall(c.Bool("shell"), c.String("source"), log)
+			source := c.String("source")
+
+			// install.auto wins over the UX: an unattended config leaves
+			// nothing to ask, so no installer is launched. Same call, same
+			// answer, as the install-mode entry. Unless the operator asked to
+			// skip it, which is the one way to get the installer on a node
+			// whose datasource says "install me".
+			if skipAutoInstall(c) {
+				log.Infof("--%s was given, so install.auto is ignored and the installer runs", skipAutoInstallFlag)
+			} else if installed, _, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
+				// --shell asks for a shell instead of the installer TUI. No
+				// installer was launched here, so say so rather than dropping
+				// the flag without a word.
+				if err == nil && c.Bool("shell") {
+					log.Warnf("--shell was ignored: install.auto installed this node unattended, so no installer was launched")
+				}
+
+				return err
+			}
+
+			return agent.InteractiveInstall(c.Bool("shell"), source, log)
 		},
 	},
 	{
@@ -619,8 +666,19 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 		},
 		Action: func(c *cli.Context) error {
 			source := c.String("source")
+			insecure := c.Bool("allow-insecure-registries")
 
-			return agent.Install(source, c.Bool("allow-insecure-registries"), constants.GetUserConfigDirs()...)
+			// An unattended config installs and returns; only when there is a
+			// decision left for a human does the provider flow run.
+			installed, cc, scanErr, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
+			if installed || err != nil {
+				return err
+			}
+
+			// cc is the config AutoInstall already scanned; handing it over
+			// keeps a remote config_url from being fetched twice per boot.
+			// scanErr goes along so Install can show it on the screen it draws.
+			return agent.Install(cc, scanErr, source, insecure, constants.GetUserConfigDirs()...)
 		},
 	},
 	{
@@ -673,6 +731,8 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 		Description: `
 Starts kairos reset mode, it will nuke completely the node data and restart fresh.
 Attention ! this will delete any persistent data on the node. It is equivalent to re-init the node right after the installation.
+
+Note: the audit trail in /var/log/audit is copied off the persistent partition into a staging directory under /run and put back after the format. It is skipped, with a warning, unless the trail fits in half the free space of /run.
 
 In reset mode a the node will automatically reset
 
@@ -1149,6 +1209,51 @@ The command automatically:
 					return kcrypt.UnlockAllEncryptedPartitions(cfg.Logger)
 				},
 			},
+			{
+				Name:      "encrypt",
+				Usage:     "Encrypt plaintext partitions in place, by filesystem label",
+				ArgsUsage: "LABEL [LABEL...]",
+				Description: `Encrypt the given partitions in place, using the configured method
+(local TPM, or the kcrypt challenger server when one is configured).
+
+WARNING: Encrypting a partition DESTROYS ALL DATA on it!
+
+This is the manual counterpart of boot time encryption
+(kcrypt.encrypt_on_boot): the same operation, run from the command line,
+typically from recovery. It is defensive by default:
+
+- A partition that is already a LUKS container is skipped, so the command
+  is safe to re-run.
+- Partitions the running system depends on (OEM, state, recovery, EFI)
+  are refused. Encrypt those at install time instead.
+- A mounted partition is refused; unmount it first.
+- A label that cannot be found, or whose filesystem cannot be determined,
+  is an error rather than a guess.
+- The result is verified before success is reported.
+
+The command prompts for confirmation unless --i-know-what-i-am-doing is
+given. The partitions are left locked; they unlock on the next boot, or
+with 'kairos-agent kcrypt unlock-all'.`,
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "i-know-what-i-am-doing",
+						Usage: "Skip confirmation prompt (DANGEROUS: encrypting destroys all data on the partitions)",
+					},
+				},
+				Before: func(c *cli.Context) error {
+					return checkRoot()
+				},
+				Action: func(c *cli.Context) error {
+					if c.NArg() == 0 {
+						return fmt.Errorf("no partition labels given; usage: kairos-agent kcrypt encrypt LABEL [LABEL...]")
+					}
+					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+					if err != nil {
+						return fmt.Errorf("failed to scan config: %w", err)
+					}
+					return action.KcryptEncrypt(cfg, c.Args().Slice(), c.Bool("i-know-what-i-am-doing"))
+				},
+			},
 		},
 	},
 	{
@@ -1482,19 +1587,18 @@ func sysextConfextCommands() []*cli.Command {
 		{
 			Name:        "install",
 			Usage:       "Install a system extension",
-			UsageText:   "install [--catalog URL] [--version VERSION] URI|NAME",
+			UsageText:   "install [--catalog URL]... [--version VERSION] URI|NAME",
 			Description: "Install a system extension from a URI or catalog",
 			Flags: []cli.Flag{
-				&cli.StringFlag{Name: "catalog", Usage: "Extension catalog URL"},
-				&cli.StringFlag{Name: "version", Usage: "Extension version from the catalog"},
+				&cli.StringSliceFlag{Name: "catalog", Usage: "Extension catalog URL, repeatable. Searched in order, the first catalog publishing the name wins. Defaults to `extensions.catalogs` from the cloud config."},
+				&cli.StringFlag{Name: "version", Usage: "Extension version from the catalog. An exact version, or a semver constraint such as \">= 2.1, < 3\""},
 			},
 			Action: func(c *cli.Context) error {
 				if c.Args().Len() != 1 {
 					return fmt.Errorf("extension URI or name required")
 				}
 				extType := c.Context.Value(extTypeCtxKey).(string)
-				catalogURL := extensionCatalogURL(c, extType)
-				if c.String("catalog") != "" && extType == "confext" {
+				if len(c.StringSlice("catalog")) > 0 && extType == "confext" {
 					return fmt.Errorf("--catalog is only supported for sysext")
 				}
 				if c.String("version") != "" && extType != "sysext" {
@@ -1505,7 +1609,7 @@ func sysextConfextCommands() []*cli.Command {
 				if err != nil {
 					return err
 				}
-				if err := installCatalogOrURIExtension(cfg, catalogURL, requested, c.String("version"), extType); err != nil {
+				if err := installCatalogOrURIExtension(cfg, extensionCatalogURLs(c, cfg, extType), requested, c.String("version"), extType); err != nil {
 					cfg.Logger.Logger.Error().Err(err).Msg("failed installing system extension")
 					return err
 				}
@@ -1545,23 +1649,28 @@ func sysextConfextCommands() []*cli.Command {
 	}
 }
 
-func extensionCatalogURL(c *cli.Context, extType string) string {
-	if catalogURL := c.String("catalog"); catalogURL != "" {
-		return catalogURL
+// extensionCatalogURLs picks the catalogs to search: the repeated --catalog
+// flags when given, otherwise `extensions.catalogs` from the cloud config,
+// which itself falls back to the built-in default. Confexts have no catalog.
+func extensionCatalogURLs(c *cli.Context, cfg *sdkConfig.Config, extType string) []string {
+	if catalogs := c.StringSlice("catalog"); len(catalogs) > 0 {
+		return catalogs
 	}
-	if extType == "sysext" {
-		return defaultExtensionCatalogURL
+	if extType != "sysext" {
+		return nil
 	}
-	return ""
+	return cfg.Extensions.CatalogURLs()
 }
 
-func installCatalogOrURIExtension(cfg *sdkConfig.Config, catalogURL, requested, version, extType string) error {
+func installCatalogOrURIExtension(cfg *sdkConfig.Config, catalogURLs []string, requested, version, extType string) error {
 	var catalogErr error
-	if catalogURL != "" {
-		_, err := installCatalogExtension(cfg, catalogURL, requested, version)
+	if len(catalogURLs) > 0 {
+		err := installCatalogExtension(cfg, catalogURLs, requested, version)
 		if err == nil {
 			return nil
 		}
+		// An explicit version can only mean a catalog lookup, so do not go on
+		// to read the name as a URI and report a confusing parse error.
 		if version != "" {
 			return err
 		}
@@ -1576,22 +1685,16 @@ func installCatalogOrURIExtension(cfg *sdkConfig.Config, catalogURL, requested, 
 	return action.InstallExtension(cfg, requested, extType)
 }
 
-func installCatalogExtension(cfg *sdkConfig.Config, catalogURL, name, version string) (extensions.Resolved, error) {
-	tempDir := os.TempDir()
-	if err := vfs.MkdirAll(cfg.Fs, tempDir, 0755); err != nil {
-		return extensions.Resolved{}, err
-	}
-	tempPath := filepath.Join(tempDir, fmt.Sprintf("kairos-extension-catalog-%d.json", time.Now().UnixNano()))
-	defer func() { _ = cfg.Fs.Remove(tempPath) }()
-	if err := cfg.Client.GetURL(cfg.Logger, catalogURL, tempPath); err != nil {
-		return extensions.Resolved{}, err
-	}
-	reader, err := cfg.Fs.Open(tempPath)
+func installCatalogExtension(cfg *sdkConfig.Config, catalogURLs []string, name, version string) error {
+	catalogs, err := installer.FetchCatalogs(cfg, catalogURLs)
 	if err != nil {
-		return extensions.Resolved{}, err
+		return err
 	}
-	defer reader.Close()
-	return action.InstallCatalogExtension(cfg, reader, name, version, cfg.Platform.GolangArch)
+	uri, err := installer.ResolveURI(cfg, catalogs, extensiontypes.Extension{Name: name, Version: version})
+	if err != nil {
+		return err
+	}
+	return action.InstallExtension(cfg, uri, "sysext")
 }
 
 func beforeSysextConfext(c *cli.Context) error {
@@ -1680,6 +1783,54 @@ func checkRoot() error {
 	}
 
 	return nil
+}
+
+// autoInstallFn is a seam so a spec can assert whether interactive-install
+// consulted install.auto, without running a real installation.
+var autoInstallFn = agent.AutoInstall
+
+const (
+	// skipAutoInstallFlag opts interactive-install out of the install.auto
+	// check, so the installer runs even on a node whose datasource asks for an
+	// unattended install. Off by default: unattended still wins.
+	skipAutoInstallFlag = "skip-auto-install"
+
+	// skipAutoInstallCmdline is the boot-cmdline spelling of that flag. The
+	// kairos-interactive unit's ExecStart is fixed, so an operator who booted
+	// an ISO to look around cannot pass the flag itself; editing the GRUB
+	// entry is what they can do.
+	skipAutoInstallCmdline = "kairos.skip-auto-install"
+)
+
+// cmdlineEnables reports whether a kernel command line turns flag on, either
+// bare or as flag=true / flag=1. Whole fields are compared so a longer token
+// that merely starts with flag does not enable it.
+func cmdlineEnables(cmdline, flag string) bool {
+	for _, field := range strings.Fields(cmdline) {
+		switch field {
+		case flag, flag + "=true", flag + "=1":
+			return true
+		}
+	}
+
+	return false
+}
+
+// skipAutoInstall reports whether the operator asked interactive-install to
+// ignore install.auto. Three ways in, none of them the default: the flag, the
+// KAIROS_SKIP_AUTO_INSTALL env var (both handled by the flag itself), and the
+// boot cmdline.
+func skipAutoInstall(c *cli.Context) bool {
+	if c.Bool(skipAutoInstallFlag) {
+		return true
+	}
+
+	cmdline, err := os.ReadFile("/proc/cmdline")
+	if err != nil {
+		return false
+	}
+
+	return cmdlineEnables(string(cmdline), skipAutoInstallCmdline)
 }
 
 func validateSource(source string) error {

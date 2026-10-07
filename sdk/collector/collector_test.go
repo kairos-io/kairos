@@ -299,6 +299,97 @@ info:
 			})
 		})
 
+		Context("when the config_url cannot be used", func() {
+			var warnings *bytes.Buffer
+
+			BeforeEach(func() {
+				warnings = &bytes.Buffer{}
+				DeferCleanup(SetWarnOutForTest(warnings))
+			})
+
+			It("warns and keeps booting when every fetch attempt fails", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml",
+					"name":       "Mario",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring(server.URL + "/config.yaml"))
+			})
+
+			It("warns when the remote config has no valid header", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = w.Write([]byte("just_a_key: not_a_cloud_config\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/config.yaml"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("has no valid header"))
+			})
+
+			It("keeps the query string out of the warning so tokens are not leaked", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml?token=supersecret",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).To(ContainSubstring("<redacted>"))
+			})
+
+			It("keeps the query string out of the wrapped transport error too", func() {
+				// A transport failure, unlike a bad status code, is a *url.Error that
+				// stringifies the whole URL. Closing the server first gives a
+				// connection refused on a port nothing is listening on.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				unreachable := server.URL
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": unreachable + "/config.yaml?token=supersecret&machine=abc123",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).ToNot(ContainSubstring("abc123"))
+			})
+
+			It("masks a basic auth password carried in the config_url userinfo", func() {
+				// net/http lifts URL.User into an Authorization header, so
+				// user:pass@host in config_url is a working setup and the password
+				// must not reach the console.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				host := strings.TrimPrefix(server.URL, "http://")
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": "http://user:hunter2@" + host + "/config.yaml",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				// Pin what the warning does say, so this does not pass vacuously
+				// if the URL stops being named at all.
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring("http://user:xxxxx@" + host + "/config.yaml"))
+				Expect(warnings.String()).ToNot(ContainSubstring("hunter2"))
+			})
+		})
+
 		Context("when config_url contains template markers", func() {
 			It("renders {{ .Values.* }} before the HTTP fetch", func() {
 				DeferCleanup(SetBuildContextForTest(func() (map[string]interface{}, error) {
@@ -626,6 +717,98 @@ info:
 					"slice":  []interface{}{},
 					"map":    map[string]interface{}{},
 				}))
+			})
+		})
+
+		Context("nil map on one side (e.g. an empty config file)", func() {
+			var a ConfigValues // nil, as produced by yaml.Unmarshal on an empty document
+			b := ConfigValues{"key": "value"}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"key": "value"}))
+			})
+		})
+
+		Context("both sources set the same key to null", func() {
+			// Both sides recurse into DeepMerge(nil, nil) for "outer". The old
+			// guard (`a == nil && b != nil`) skipped the early return here,
+			// falling through to reflect.TypeOf(nil).Kind(), which panics on
+			// a nil Type.
+			a := ConfigValues{"outer": nil}
+			b := ConfigValues{"outer": nil}
+
+			It("merges without panicking, keeping the key null", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"outer": nil}))
+			})
+		})
+
+		Context("nested value decoded as plain map[string]interface{} on both sides", func() {
+			// yaml.Unmarshal recreates ConfigValues at every nesting level, but
+			// parseReaders' json.Unmarshal fallback -- and any other caller that
+			// hands DeepMerge a value straight out of encoding/json -- only ever
+			// produces plain map[string]interface{}. A merge of two such nested
+			// maps used to panic with a failed type assertion to ConfigValues.
+			a := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner": 1,
+				},
+			}
+			b := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner2": 2,
+				},
+			}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{
+					"outer": ConfigValues{
+						"inner":  1,
+						"inner2": 2,
+					},
+				}))
+			})
+		})
+
+		Context("nested map with a non-string key (e.g. `1: a` under a yaml key)", func() {
+			// yaml.Unmarshal decodes this to map[interface{}]interface{}.
+			// asConfigValues used to stringify every key with fmt.Sprint,
+			// which would silently collide the integer key 1 with a string
+			// key "1" from another source instead of erroring.
+			a := ConfigValues{
+				"outer": map[interface{}]interface{}{
+					1: "a",
+				},
+			}
+			b := ConfigValues{
+				"outer": map[interface{}]interface{}{
+					2: "b",
+				},
+			}
+
+			It("errors instead of silently coercing the key to a string", func() {
+				_, err := DeepMerge(a, b)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("non-string map keys"))
+			})
+		})
+
+		Context("slices whose items are themselves slices", func() {
+			// mergeSlices compared items with ==, which panics at runtime on
+			// uncomparable dynamic types. A yaml document like "a:\n- - 1\n"
+			// decodes the item into []interface{}, which is uncomparable.
+			a := []interface{}{[]interface{}{1}}
+			b := []interface{}{[]interface{}{2}}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal([]interface{}{[]interface{}{1}, []interface{}{2}}))
 			})
 		})
 	})

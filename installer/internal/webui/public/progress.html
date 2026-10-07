@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Installation progress</title>
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <div class="page">
+  <header class="topbar">
+    <a class="brand" href="index.html"><img src="/kairos-logo.svg" alt="Kairos"><span>Web Installer</span></a>
+    <div class="topbar-actions"><div data-theme-toggle></div></div>
+  </header>
+
+  <main class="container">
+    <header class="page-header">
+      <div>
+        <div class="title-row">
+          <h1>Installation progress</h1>
+          <div id="status" class="status connecting">Connecting...</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="card">
+      <ul class="steps" id="steps"></ul>
+    </section>
+
+    <div class="controls">
+      <label class="checkbox-group" for="autoscroll-switch">
+        <input type="checkbox" id="autoscroll-switch" checked>
+        Autoscroll
+      </label>
+      <button id="download-btn" class="btn outline" onclick="downloadLogs()">Download Logs</button>
+    </div>
+
+    <div class="output-box" id="output">
+      <pre id="output-content"></pre>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/kairos-io/kairos" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="https://kairos.io/docs" target="_blank" rel="noopener noreferrer">Documentation</a>
+    </p>
+    <p>Copyright &copy; Kairos authors 2022-2026</p>
+  </footer>
+  </div>
+
+  <script>
+    // The installer streams sdk/agentrun progress messages as JSON, one per
+    // websocket frame: {"type":"step"|"log"|"error"|"done", ...}. "step"
+    // carries the agent's own step id, which is what drives the checklist
+    // below; the terminal transcript is only the log box.
+    const STEPS = [
+      ['partition',      'Partitioning disk'],
+      ['before-install', 'Running before-install'],
+      ['active',         'Installing active system'],
+      ['bootloader',     'Configuring bootloader'],
+      ['recovery',       'Creating recovery image'],
+      ['passive',        'Creating passive image'],
+      ['after-install',  'Running after-install'],
+      ['done',           'Installation complete!'],
+    ];
+
+    const outputContent = document.getElementById('output-content');
+    const outputBox = document.getElementById('output');
+    const autoscrollSwitch = document.getElementById('autoscroll-switch');
+    const statusDiv = document.getElementById('status');
+    const stepsList = document.getElementById('steps');
+    let autoscroll = true;
+
+    const stepRows = new Map();
+    STEPS.forEach(function([id, label]) {
+      const li = document.createElement('li');
+      const marker = document.createElement('span');
+      marker.className = 'marker';
+      marker.textContent = '○';
+      const text = document.createElement('span');
+      text.textContent = label;
+      li.appendChild(marker);
+      li.appendChild(text);
+      stepsList.appendChild(li);
+      stepRows.set(id, li);
+    });
+
+    function updateStatus(status, message) {
+      statusDiv.className = 'status ' + status;
+      statusDiv.textContent = message;
+    }
+
+    // markStep marks a step as reached. Steps the agent skips (partitioning
+    // on a no-format install, for instance) are simply absent from the
+    // stream, so everything before the one that arrived is done too.
+    function markStep(id) {
+      // A step this page does not know about leaves the list alone.
+      // Marking every row done because the id did not match would
+      // report an install as further along than it is.
+      if (!stepRows.has(id)) { return; }
+      let seen = false;
+      for (const [stepId, label] of STEPS) {
+        const li = stepRows.get(stepId);
+        if (seen) { break; }
+        if (stepId === id) {
+          seen = true;
+          li.className = stepId === 'done' ? 'done' : 'active';
+          li.firstChild.textContent = stepId === 'done' ? '✓' : '▶';
+        } else {
+          li.className = 'done';
+          li.firstChild.textContent = '✓';
+        }
+      }
+    }
+
+    function markCurrentStepFailed() {
+      for (const [stepId] of STEPS) {
+        const li = stepRows.get(stepId);
+        if (li.className === 'active') {
+          li.className = 'failed';
+          li.firstChild.textContent = '✗';
+          return;
+        }
+      }
+    }
+
+    // appendOutput writes text, never markup. The agent's output is not
+    // trusted to be HTML and is not rendered as any.
+    function appendOutput(text, className) {
+      const div = document.createElement('div');
+      if (className) { div.className = className; }
+      div.textContent = text;
+      outputContent.appendChild(div);
+      if (autoscroll) {
+        outputBox.scrollTop = outputBox.scrollHeight;
+      }
+    }
+
+    function downloadLogs() {
+      let logText = '';
+      outputContent.querySelectorAll('div').forEach(function(div) {
+        const text = div.textContent || '';
+        if (text.trim()) {
+          logText += text + '\n';
+        }
+      });
+
+      if (!logText.trim()) {
+        alert('No logs available to download');
+        return;
+      }
+
+      const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'installation.log';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    autoscrollSwitch.addEventListener('change', function() {
+      autoscroll = this.checked;
+      if (autoscroll) {
+        outputBox.scrollTop = outputBox.scrollHeight;
+      }
+    });
+
+    const loc = window.location;
+    let uri = 'ws:';
+    if (loc.protocol === 'https:') {
+      uri = 'wss:';
+    }
+    uri += '//' + loc.host + '/ws';
+
+    const ws = new WebSocket(uri);
+    let finished = false;
+
+    ws.onopen = function() {
+      updateStatus('connected', 'Connected - Installation in progress...');
+      appendOutput('Connected to installation process...');
+    };
+
+    ws.onmessage = function(evt) {
+      let msg;
+      try {
+        msg = JSON.parse(evt.data);
+      } catch (e) {
+        appendOutput(evt.data);
+        return;
+      }
+
+      switch (msg.type) {
+        case 'step':
+          markStep(msg.step);
+          break;
+        case 'log':
+          appendOutput(msg.message);
+          break;
+        case 'error':
+          markCurrentStepFailed();
+          appendOutput('[ERROR] ' + msg.message, 'error');
+          break;
+        case 'done':
+          finished = true;
+          if (msg.ok) {
+            updateStatus('completed', 'Installation completed!');
+          } else {
+            updateStatus('disconnected', 'Installation failed');
+          }
+          showDownloadButton();
+          break;
+      }
+    };
+
+    ws.onerror = function() {
+      updateStatus('disconnected', 'Connection error');
+      appendOutput('[ERROR] WebSocket connection error', 'error');
+      showDownloadButton();
+    };
+
+    ws.onclose = function() {
+      if (!finished) {
+        updateStatus('disconnected', 'Connection closed');
+        appendOutput('[INFO] Connection closed. Installation may have completed.');
+      }
+      showDownloadButton();
+    };
+
+    function showDownloadButton() {
+      const downloadBtn = document.getElementById('download-btn');
+      if (downloadBtn && outputContent.querySelectorAll('div').length > 0) {
+        downloadBtn.style.display = 'inline-flex';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kairos Web Installer</title>
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <div class="shell" id="shell">
+    <header class="topbar" id="topbar">
+      <a class="brand" href="/"><img src="/kairos-logo.svg" alt="Kairos"><span>Web Installer</span></a>
+      <div class="topbar-actions">
+        <div data-theme-toggle="compact"></div>
+        <button type="button" class="btn icon-btn on-navy" id="menu" aria-label="Show the steps" aria-controls="sidebar" aria-expanded="false">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+        </button>
+      </div>
+    </header>
+    <div class="backdrop" id="backdrop" hidden></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <img src="/kairos-logo.svg" alt="Kairos">
+        <span class="product">Web Installer</span>
+        <button type="button" class="btn icon-sm on-navy close" id="menu-close" aria-label="Hide the steps">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="divider"></div>
+      <nav class="rail" id="rail" aria-label="Installation steps"></nav>
+      <div class="divider"></div>
+      <div class="sidebar-foot"><div data-theme-toggle></div></div>
+    </aside>
+    <div class="content" id="content">
+      <main class="main" id="main" aria-live="polite">
+        <p>Loading the installer steps...</p>
+      </main>
+      <noscript><div class="alert alert-danger">The installer needs JavaScript.</div></noscript>
+      <footer class="footer">
+        <p>Kairos documentation: kairos.io/docs. Copyright Kairos authors 2022-2026</p>
+      </footer>
+    </div>
+  </div>
+  <script src="/wizard.js"></script>
+</body>
+</html>
