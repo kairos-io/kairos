@@ -164,4 +164,4 @@ func (p *summaryPage) Help() string {
 	return "enter: install • v: view the configuration • e: edit the configuration"
 }
 
-func (p *summaryPage) ID() string { return "summary" }
+func (p *summaryPage) ID() string { return summaryPageID }

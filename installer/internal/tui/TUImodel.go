@@ -110,13 +110,42 @@ type skipper interface {
 	Skipped() bool
 }
 
+// summaryDetourStart reports the stack entry goBack starts its search from.
+// That is the top of the stack everywhere except on the summary page, where
+// it is the install options page.
+//
+// The summary is a review screen rather than a step, so the page an operator
+// wants behind it is the one where the branch to it was taken. Choosing
+// Customize Further leaves the customization menu on the stack, plus one more
+// entry for every step entered from it and one for every return to the menu,
+// so walking back to the install options a page at a time costs a press per
+// visit. Reaching the summary through Start Install stacks only the options
+// page, and there one press already worked. Everywhere else esc keeps its
+// one-page-at-a-time meaning, because stepping back to correct a single
+// answer is worth one press too.
+//
+// A summary reached without passing the install options page, which is what
+// the quick install mode does, goes back one page like any other.
+func summaryDetourStart(stack []string) int {
+	top := len(stack) - 1
+	if mainModel.currentPageID != summaryPageID {
+		return top
+	}
+	for i := top; i >= 0; i-- {
+		if stack[i] == installOptionsPageID {
+			return i
+		}
+	}
+	return top
+}
+
 // goBack pops the navigation stack to the last page that is not skipped and
 // Inits that page, so it shows current data: the disk step re-scans (#4260)
 // and a step page reloads the saved answers. It reports false when there is
 // nowhere to go back to.
 func goBack() (tea.Cmd, bool) {
 	stack := mainModel.navigationStack
-	for i := len(stack) - 1; i >= 0; i-- {
+	for i := summaryDetourStart(stack); i >= 0; i-- {
 		for _, p := range mainModel.pages {
 			if p.ID() != stack[i] {
 				continue
