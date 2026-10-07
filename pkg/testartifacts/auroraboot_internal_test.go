@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync/atomic"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -124,5 +125,27 @@ var _ = Describe("AuroraBootBinary", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(path).To(Equal(bin))
 		Expect(requests.Load()).To(BeZero())
+	})
+
+	It("gives up on a server that never answers", func() {
+		release := make(chan struct{})
+		stalled := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			select {
+			case <-release:
+			case <-r.Context().Done():
+			}
+		}))
+		DeferCleanup(stalled.Close)
+		DeferCleanup(func() { close(release) })
+
+		origTimeout := auroraBootHTTPTimeout
+		DeferCleanup(func() { auroraBootHTTPTimeout = origTimeout })
+		auroraBootHTTPTimeout = 100 * time.Millisecond
+		auroraBootReleaseURL = stalled.URL
+
+		start := time.Now()
+		_, err := AuroraBootBinary(GinkgoT().Context())
+		Expect(err).To(HaveOccurred())
+		Expect(time.Since(start)).To(BeNumerically("<", 5*time.Second))
 	})
 })
