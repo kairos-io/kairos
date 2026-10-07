@@ -208,7 +208,8 @@ func extensionEnabledAnywhere(extType, name string) bool {
 
 // installBundledExtension downloads the extension, overwriting any earlier copy,
 // and enables it at the given scope unless it is already enabled somewhere.
-// scope is "active" for upgrade and "recovery" for upgrade-recovery. --now is
+// scope is "recovery" when the upgrade targets the recovery image and "active"
+// otherwise, which is what isRecoveryUpgrade decides. --now is
 // left out on purpose: the OS upgrade is about to reboot, and the new active
 // boot picks the extension up then.
 func installBundledExtension(ctx context.Context, e BundledExtension, scope string) error {

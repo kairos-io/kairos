@@ -1,33 +1,31 @@
 name: PR
 
-# The PR pipeline. Every downstream job (image push, ISO build,
-# qemu tests) lives under this workflow.
+# The default PR pipeline: a small smoke run that needs no secrets and
+# no approval.
 #
-# Trigger: pull_request_target. GitHub does not pass secrets to a
-# pull_request workflow triggered from a fork, so an outside
-# contributor's build would fail at registry login and every
-# downstream job would skip. pull_request_target passes them, which
-# is why every job below `needs: authorize` and every reusable is
-# passed an explicit `ref: refs/pull/<N>/head`. Same pattern the
-# old image-pr.yaml used before we retired it (issue #4307).
+# The full matrix (every ISO cell, arm64, the flavor matrix, every qemu
+# suite) runs on each push to master in master.yaml. On a pull request
+# it runs only when a maintainer adds the `ci/full` label, see
+# pr-full.yaml. Most pull requests here are opened by agents and get QA
+# on a real boot before they merge, so a full matrix on every push was
+# mostly cost: it held each fork PR in a deployment approval queue, and
+# every approved push started about 60 jobs. See issue #4296.
 #
-# CodeQL flags this trigger as "Checkout of untrusted code in a
-# privileged context" (codeql rules 441212, 441213, 441214). The
-# mitigation is the `authorize` job below -- fork PRs land in the
-# fork-pr-builds environment and wait for a maintainer to review
-# the diff before any secret-bearing job runs. Do NOT drop the
-# authorize job or those findings become real.
+# Trigger: plain pull_request. GitHub gives a run from a fork a
+# read-only GITHUB_TOKEN and no repository secrets, so this workflow
+# never pushes anything, and the fork's code runs with no more access
+# than any public CI gives a drive-by contributor. That is why there is
+# no `authorize` gate here and no `caller-vetted-ref` on the calls
+# below: every checkout is the event's own merge ref.
 #
-# Every reusable call below sets `caller-vetted-ref: true`. That
-# is what unlocks actions/checkout's `allow-unsafe-pr-checkout`
-# opt-in inside each reusable. It is honest to assert here because
-# `needs: authorize` puts every fork PR through the fork-pr-builds
-# environment approval before its ref is fetched. Removing the
-# `authorize` gate without also removing these assertions turns
-# the codeql-flagged "pwn request" attack surface real.
+# What it proves: unit tests and lint pass, the binaries and the
+# kairos-init image build, and one amd64 Hadron core ISO built from this
+# PR's kairos-init installs and boots (qemu `install` and `acceptance`).
+# kairos-init reaches the ISO build as an OCI layout artifact instead of
+# a registry image, because there is no registry this run can push to.
 
 on:
-  pull_request_target:
+  pull_request:
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
@@ -36,75 +34,39 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  # Least-privilege baseline. A job that calls a reusable workflow
-  # needing more declares its own job-level `permissions:` matching
-  # exactly what that callee needs -- see _build-iso.yaml for the
-  # reusable-workflow rationale (callers must cover callee).
   contents: read
 
 concurrency:
-  group: ci-pr-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  # Not `ci-pr-...`: that was the old pull_request_target pipeline's
+  # group, and sharing it lets a run of one workflow cancel the other.
+  group: ci-pr-smoke-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 
 jobs:
-  # Fork-PR review gate. Nothing else starts until this job does.
-  # A PR from a fork lands in the `fork-pr-builds` environment and
-  # waits for a maintainer; a same-repo PR lands in `internal` and
-  # goes straight through, so maintainer / renovate branches keep
-  # running unattended.
-  #
-  # `fork-pr-builds` was set up on 2026-08-13 with the maintainers
-  # team as required reviewers. `internal` intentionally carries no
-  # protection rules; it exists only because the environment name
-  # has to resolve on both paths. Do NOT rename either to something
-  # that does not exist -- GitHub creates a referenced environment
-  # implicitly with no protection rules, so a typo fails open.
-  authorize:
-    name: authorize
-    environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr-builds' || 'internal' }}
-    runs-on: ubuntu-latest
-    permissions: {}
-    steps:
-      - run: 'true'
-
   unit-tests:
-    needs: authorize
     uses: ./.github/workflows/_unit-tests.yaml
-    with:
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
 
   lint:
-    needs: authorize
     uses: ./.github/workflows/_lint.yaml
-    with:
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
 
-  # The kairos-init pipe (multi-call kairos -> kairos-init -> image ->
-  # iso -> qemu). This is the critical path for the qemu suites below.
   build-kairos:
-    needs: authorize
     uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: ci
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
 
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
       matrix_scope: ci
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
 
-  # unit-tests + lint gate any image push (visible outside the run).
-  # The kairos-init image is what build-iso consumes.
+  build-kcrypt-challenger:
+    uses: ./.github/workflows/_build-kcrypt-challenger.yaml
+    with:
+      matrix_scope: ci
+
+  # Builds the multi-arch kairos-init image and uploads it as an OCI
+  # layout instead of pushing it. The tag is only a local name.
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kairos-init.yaml
@@ -112,84 +74,22 @@ jobs:
       contents: read
       packages: write
     with:
-      image_registry: ghcr.io/kairos-io/kairos
-      image_tag: pr-${{ github.event.pull_request.number }}
-      push: true
-      registry_login: ghcr
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
+      image_registry: local
+      image_tag: pr
+      push: false
+      oci_artifact: kairos-init-oci
 
-  # The kcrypt-challenger pipe runs in parallel to the kairos pipe.
-  # Nothing on the build-iso / tests path depends on it -- the
-  # encryption tests today pin a published kcrypt-challenger tag, not
-  # the just-built one -- so it only gates promote / upload-release.
-  build-kcrypt-challenger:
-    needs: authorize
-    uses: ./.github/workflows/_build-kcrypt-challenger.yaml
-    with:
-      matrix_scope: ci
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  build-image-kcrypt-challenger:
-    needs: [build-kcrypt-challenger, unit-tests, lint]
-    uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
-    permissions:
-      contents: read
-      packages: write
-    with:
-      image_registry: ghcr.io/kairos-io/kairos
-      image_tag: pr-${{ github.event.pull_request.number }}
-      push: true
-      registry_login: ghcr
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  # ISO matrix is split into two jobs so test-* start as soon
-  # as the amd64 cells they consume are ready, without waiting for
-  # the slow arm64/nvidia builds that no test consumes.
-  #
-  # build-iso: amd64 core, amd64 standard, amd64 standard-uki,
-  # amd64 core-uki -- everything the qemu suites boot.
-  # build-iso-arm: arm64 core + rpi3 + rpi4 + both nvidia jetson
-  # cells -- build-only smoke coverage (no qemu on arm64 in CI).
-  #
-  # Nothing downstream in PR waits on build-iso-arm; a failure there
-  # still fails the whole PR, but qemu proceeds in parallel.
-
+  # One ISO cell. registry_domain is empty, so the factory builds and
+  # loads the OS image into the runner's docker and never logs in or
+  # pushes. `kairos-init-local` is the build context name the
+  # kairos-init OCI layout is bound to; nothing is pulled by that name.
   build-iso:
     needs: build-image-kairos-init
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
-          # FIPS core cell. hadron-fips is a distinct base image from
-          # hadron (FIPS-hardened kernel + userspace); passing fips:true
-          # additionally flips the FIPS=fips build_arg in images/Dockerfile
-          # so kairos-init installs the FIPS variant of the multi-call
-          # kairos binary. Both switches are required for an
-          # end-to-end FIPS image; either alone is a footgun.
-          - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
-          # UKI cells feed test-uki. hadron-trusted is a distinct
-          # base image from hadron (extra tpm/measured-boot bits); the
-          # -uki suffix on the artifact/tag comes from the $UKI token
-          # in _build-iso.yaml's custom formats.
-          - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
-          - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
-          # Ubuntu 20.04: non-Hadron initramfs builder coverage for
-          # the multi-call kairos symlinks. Feeds test-core-ubuntu-20.
-          - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          # Rocky 9
-          - {name: 'amd64-core-rocky-9', arch: 'amd64', base_image: 'rockylinux/rockylinux:9', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          # openSUSE leap
-          - {name: 'amd64-core-leap', arch: 'amd64', base_image: 'opensuse/leap:16.0', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-    name: build-iso / ${{ matrix.name }}
+    name: build-iso / amd64-core
     uses: ./.github/workflows/_build-iso.yaml
+    # _build-iso.yaml declares these, and a caller has to cover what its
+    # callee declares. On a fork PR GitHub still hands out a read-only
+    # token, whatever is written here.
     permissions:
       contents: write
       packages: write
@@ -197,104 +97,20 @@ jobs:
       security-events: write
       actions: read
     with:
-      name: ${{ matrix.name }}
-      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
-      arch: ${{ matrix.arch }}
-      base_image: ${{ matrix.base_image }}
-      model: ${{ matrix.model }}
-      iso: ${{ matrix.iso }}
-      trusted_boot: ${{ matrix.trusted_boot }}
-      kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      fips: ${{ matrix.fips }}
-      # All cells here are hadron/ghcr; nvidia + ubuntu-based ones
-      # live in build-iso-arm below and override the registry there.
-      registry_domain: 'ghcr.io'
-      registry_namespace: 'kairos-io/kairos'
-      # UKI-only: bake an extra `testentry` EFI entry so the
-      # install-upgrade qemu test has something to upgrade.
-      # Factory-action ignores it on non-UKI cells.
-      single_efi_cmdline: 'testentry: nothing'
+      name: amd64-core
+      kairos_init_image: kairos-init-local
+      kairos_init_artifact: kairos-init-oci
+      arch: amd64
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
+      model: generic
+      iso: true
+      trusted_boot: false
+      kubernetes_distro: ''
+      registry_domain: ''
+      sbom: false
+      security_scans: false
+      test_sysext_overlay: true
       release: false
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  build-iso-arm:
-    needs: build-image-kairos-init
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          # rpi cells: raw disk image, no ISO. Still on hadron base.
-          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
-          # only builds on that. Model-derived knobs (grype/sbom/
-          # cleanup) turn off scans and enable disk cleanup; see
-          # _build-iso.yaml's caller expression. Push destination
-          # switches to quay.io/kairos/ci-temp-images because the
-          # ghcr.io/kairos-io/kairos/ubuntu package does not exist yet
-          # and needs the same seed dance hadron got; ci-temp-images
-          # is already public and existing.
-          - name: 'arm64-nvidia-agx-orin'
-            arch: 'arm64'
-            base_image: 'ubuntu:22.04'
-            model: 'nvidia-jetson-agx-orin'
-            iso: false
-            trusted_boot: false
-            kubernetes_distro: ''
-            registry_domain: 'quay.io'
-            registry_namespace: 'kairos'
-            registry_repository: 'ci-temp-images'
-          - name: 'arm64-nvidia-orin-nx'
-            arch: 'arm64'
-            base_image: 'ubuntu:22.04'
-            model: 'nvidia-jetson-orin-nx'
-            iso: false
-            trusted_boot: false
-            kubernetes_distro: ''
-            registry_domain: 'quay.io'
-            registry_namespace: 'kairos'
-            registry_repository: 'ci-temp-images'
-    name: build-iso-arm / ${{ matrix.name }}
-    uses: ./.github/workflows/_build-iso.yaml
-    permissions:
-      contents: write
-      packages: write
-      id-token: write
-      security-events: write
-      actions: read
-    with:
-      name: ${{ matrix.name }}
-      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
-      arch: ${{ matrix.arch }}
-      base_image: ${{ matrix.base_image }}
-      model: ${{ matrix.model }}
-      iso: ${{ matrix.iso }}
-      trusted_boot: ${{ matrix.trusted_boot }}
-      kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
-      registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
-      registry_repository: ${{ matrix.registry_repository || '' }}
-      raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
-      grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
-      sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
-      cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
-      release: false
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  # QEMU test suites. Matrix at THIS level (caller side) calling
-  # reusable-qemu-test.yaml directly, because matrix + uses on a
-  # leaf reusable is a supported pattern; matrix + uses on an
-  # intermediate reusable that itself calls another reusable is
-  # the shape that broke earlier (see _build-iso.yaml).
-  #
-  # Each test cell downloads the ISO artifact factory-action
-  # produced during build-iso and boots it under qemu. Test labels
-  # match the ginkgo labels in tests/.
 
   test-core:
     needs: build-iso
@@ -302,261 +118,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {test: 'custom-partitioning'}
-          - {test: 'acceptance'}
           - {test: 'install'}
-          - {test: 'install-target'}
-          - {test: 'insecure-registry'}
-          - {test: 'partition-validation'}
-          - {test: 'reset'}
-          - {test: 'upgrade-with-cli'}
-          - {test: 'bundles'}
-          - {test: 'ssh-hardening'}
-          - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
+          - {test: 'acceptance'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
-    # The 'bundles' matrix entry above needs packages: write -- it logs in
-    # to ghcr.io and pushes a bundles-test image (reusable-qemu-test.yaml's
-    # "Login to GitHub Container Registry" step, gated on that one test).
-    # A matrix job shares one permissions block across every entry, so the
-    # whole job needs it even though the other ten entries don't use it.
+    # reusable-qemu-test.yaml declares packages: write for its bundles
+    # cell, so the caller has to cover it. Neither cell here uses it.
     permissions:
       contents: read
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      bundle_image_tag: pr-${{ github.event.pull_request.number }}
-      release-matcher: ${{ matrix.release-matcher || '' }}
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
 
-  # FIPS smoke coverage. install + acceptance is the cheapest signal
-  # that the FIPS variant of the multi-call kairos binary boots and
-  # cloud-config installs land the way the default variant does; a
-  # deeper matrix here would double a slow build for no extra signal.
-  # Consumes pr-amd64-core-fips's ISO artifact (base_image = hadron-fips,
-  # variant computed as core because kubernetes_distro is empty).
-  test-core-fips:
-    needs: build-iso
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {test: 'install'}
-          - {test: 'acceptance'}
-    name: test-core-fips / ${{ matrix.test }}
-    uses: ./.github/workflows/reusable-qemu-test.yaml
-    # reusable-qemu-test.yaml's own permissions block requests packages:
-    # write unconditionally (its bundles-test push step needs it), so
-    # every caller must grant it too, regardless of which test value it
-    # passes -- same reason test-core has it below.
-    permissions:
-      contents: read
-      packages: write
-    with:
-      test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1'
-      variant: 'core'
-      arch: 'amd64'
-      model: 'generic'
-      secureboot: false
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  # Same smoke shape as test-core-fips.
-  test-core-ubuntu-20:
-    needs: build-iso
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {test: 'install'}
-          - {test: 'acceptance'}
-    name: test-core-ubuntu-20 / ${{ matrix.test }}
-    uses: ./.github/workflows/reusable-qemu-test.yaml
-    # See test-core-fips above.
-    permissions:
-      contents: read
-      packages: write
-    with:
-      test: ${{ matrix.test }}
-      base_image: 'ubuntu:20.04'
-      variant: 'core'
-      arch: 'amd64'
-      model: 'generic'
-      secureboot: false
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  test-core-rocky-9:
-    needs: build-iso
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {test: 'selinux'}
-    name: test-core-rocky-9 / ${{ matrix.test }}
-    uses: ./.github/workflows/reusable-qemu-test.yaml
-    # See test-core-fips above.
-    permissions:
-      contents: read
-      packages: write
-    with:
-      test: ${{ matrix.test }}
-      base_image: 'rockylinux/rockylinux:9'
-      variant: 'core'
-      arch: 'amd64'
-      model: 'generic'
-      secureboot: false
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  test-core-leap:
-    needs: build-iso
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {test: 'selinux'}
-    name: test-core-leap / ${{ matrix.test }}
-    uses: ./.github/workflows/reusable-qemu-test.yaml
-    # See test-core-fips above.
-    permissions:
-      contents: read
-      packages: write
-    with:
-      test: ${{ matrix.test }}
-      base_image: 'opensuse/leap:16.0'
-      variant: 'core'
-      arch: 'amd64'
-      model: 'generic'
-      secureboot: false
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  test-standard:
-    needs: build-iso
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {test: 'provider-qrcode-install'}
-          - {test: 'provider-upgrade-k8s'}
-          - {test: 'provider-decentralized-k8s'}
-          - {test: 'provider-k3s-disabled'}
-          - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
-    name: test-standard / ${{ matrix.test }}
-    uses: ./.github/workflows/reusable-qemu-test.yaml
-    # See test-core-fips above.
-    permissions:
-      contents: read
-      packages: write
-    with:
-      test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
-      variant: 'standard'
-      arch: 'amd64'
-      model: 'generic'
-      secureboot: false
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      release-matcher: ${{ matrix.release-matcher || '' }}
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  # encryption-* tests spin up a k3s cluster with a kcrypt-challenger
-  # Deployment, and that deployment now runs the image this PR just
-  # built. Split out from test-standard so only these cells gate
-  # on build-image-kcrypt-challenger.
-  test-standard-encryption:
-    needs: [build-iso, build-image-kcrypt-challenger]
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {test: 'encryption-local'}
-          - {test: 'encryption-remote-auto'}
-          - {test: 'encryption-remote-static'}
-          - {test: 'encryption-remote-https-pinned'}
-          - {test: 'encryption-remote-https-bad-cert'}
-          - {test: 'encryption-remote-complete-workflow'}
-          - {test: 'encryption-remote-ek-only'}
-          - {test: 'encryption-remote-selective-pcr'}
-          - {test: 'encryption-remote-ek-reenroll'}
-          - {test: 'encryption-remote-mixed-modes'}
-          - {test: 'encryption-kcrypt-cli'}
-    name: test-standard-encryption / ${{ matrix.test }}
-    uses: ./.github/workflows/reusable-qemu-test.yaml
-    # See test-core-fips above.
-    permissions:
-      contents: read
-      packages: write
-    with:
-      test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
-      variant: 'standard'
-      arch: 'amd64'
-      model: 'generic'
-      secureboot: false
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-${{ github.event.pull_request.number }}
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  # UKI qemu tests. `generic` needs the standard (k3s) UKI ISO plus a
-  # dynamically-built upgrade image; `boot-assessment` runs against
-  # the core UKI ISO and only checks boot slots. Both live in
-  # _uki-test.yaml since their shape diverges from the regular
-  # reusable-qemu-test.yaml.
-  test-uki:
-    needs: build-iso
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {test: 'install-upgrade', variant: 'standard'}
-          - {test: 'boot-assessment', variant: 'core'}
-    name: test-uki / ${{ matrix.test }}
-    uses: ./.github/workflows/_uki-test.yaml
-    permissions:
-      contents: read
-      packages: read
-    with:
-      test: ${{ matrix.test }}
-      variant: ${{ matrix.variant }}
-      base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
-      arch: 'amd64'
-      model: 'generic'
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
-      caller-vetted-ref: true
-    secrets: inherit
-
-  # Per-PR ISO size signal. Downloads the amd64/generic ISOs this PR
-  # just built, grabs the same set from the last green master run as a
-  # baseline, and writes a size delta table to the job summary. It is an
-  # informational report, so it never gates the PR: a missing or expired
-  # baseline just degrades to a PR-only listing.
-  #
-  # This only lives in pr.yaml. The durable "sizes over time" history
-  # (the hadron size-history.sh pattern ported to ISOs) is tracked
-  # separately in #3816 and will land as its own follow-up.
+  # Per-PR ISO size signal against the last green master run. It is an
+  # informational report and never gates the PR. This run builds no UKI
+  # ISO, so the UKI size gate lives in pr-full.yaml; the script's own
+  # test still runs here, on every PR.
   size-diff:
     name: iso-size-diff
     needs: build-iso
@@ -565,23 +148,15 @@ jobs:
       contents: read
       actions: read
     steps:
-      # pull_request_target checks out the base branch by default, which
-      # would not have this PR's script yet. build-iso already sits
-      # behind the authorize gate, so pulling the PR ref here is the same
-      # vetted-ref deal the rest of the workflow makes.
-      #
-      # actions/checkout refuses a fork ref under pull_request_target
-      # unless the caller opts in, so this is the inline equivalent of
-      # the `caller-vetted-ref: true` every reusable above passes. It
-      # rests on the same `needs: authorize` chain: size-diff needs
-      # build-iso, which needs build-image-kairos-init, which needs
-      # authorize. Without it the job fails at checkout on every fork
-      # PR and never reaches the comparison.
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: refs/pull/${{ github.event.pull_request.number }}/head
-          allow-unsafe-pr-checkout: true
+      - name: Install xorriso and mtools
+        # The test builds small UKI ISOs and reads them back.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorriso mtools
+      - name: Test the size diff script
+        run: scripts/iso-size-diff_test.sh
       - name: Download PR ISOs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:

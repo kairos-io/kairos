@@ -161,6 +161,10 @@ type HeartbeatData struct {
 	// has applied a templated hostname, and because a node can be renamed later
 	// in its life (kairos-io/kairos#4196).
 	Hostname string `json:"hostname,omitempty"`
+	// Metrics is a fresh live-usage sample (CPU, memory, disks, load, uptime,
+	// temperature). AuroraBoot keeps recent samples per node for its gauges; a
+	// server that does not know the field ignores it.
+	Metrics *NodeMetrics `json:"metrics,omitempty"`
 }
 
 // CommandData is received from the management server.

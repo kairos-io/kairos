@@ -1,11 +1,13 @@
 package schema_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 
 	. "github.com/kairos-io/kairos/v4/sdk/schema"
+	"github.com/santhosh-tekuri/jsonschema/v5"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,10 +15,52 @@ import (
 
 var _ = Describe("Validate", func() {
 	Context("JSONSchema", func() {
-		It("returns a schema with a url to the given version", func() {
-			out, err := JSONSchema("0.0.0")
+		var out string
+		var doc map[string]interface{}
+
+		BeforeEach(func() {
+			var err error
+			out, err = JSONSchema("0.0.0")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(strings.Contains(out, `$schema": "https://kairos.io/0.0.0/cloud-config.json"`)).To(BeTrue())
+			Expect(json.Unmarshal([]byte(out), &doc)).To(Succeed())
+		})
+
+		It("names the document after the given version", func() {
+			Expect(doc).To(HaveKeyWithValue("$id", "https://kairos.io/0.0.0/cloud-config.json"))
+		})
+
+		It("declares the dialect it is written in, not its own address", func() {
+			// $schema is the dialect the document is written in. Pointing it at
+			// the document's own address makes a validator fetch that address as
+			// a meta-schema, and https://kairos.io/<version>/cloud-config.json
+			// has not been published since v2.0.1.
+			Expect(doc).To(HaveKeyWithValue("$schema", MetaSchemaDraft07))
+		})
+
+		It("declares the dialect the reflector actually emits", func() {
+			// The reflector writes "definitions", which is draft-07. If it ever
+			// starts writing "$defs" the declared dialect has to move with it.
+			Expect(doc).To(HaveKey("definitions"))
+			Expect(doc).ToNot(HaveKey("$defs"))
+		})
+
+		It("is usable by a validator that reads the dialect it declares", func() {
+			// The point of the two keys above: a consumer can compile the
+			// printed document and get the same verdicts the agent gives.
+			// This fails if the declared dialect cannot resolve the $ref
+			// targets the reflector emitted.
+			compiler := jsonschema.NewCompiler()
+			Expect(compiler.AddResource("cloud-config.json", strings.NewReader(out))).To(Succeed())
+			sch, err := compiler.Compile("cloud-config.json")
+			Expect(err).ToNot(HaveOccurred())
+
+			var valid interface{}
+			Expect(json.Unmarshal([]byte(`{"users":[{"name":"kairos"}]}`), &valid)).To(Succeed())
+			Expect(sch.Validate(valid)).To(Succeed())
+
+			var invalid interface{}
+			Expect(json.Unmarshal([]byte(`{"users":[{"name":7}]}`), &invalid)).To(Succeed())
+			Expect(sch.Validate(invalid)).To(MatchError(ContainSubstring("expected string, but got number")))
 		})
 	})
 

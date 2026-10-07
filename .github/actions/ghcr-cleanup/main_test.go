@@ -156,9 +156,23 @@ func (f *fakeGHCR) handler() http.HandlerFunc {
 				http.Error(w, "too many requests", http.StatusTooManyRequests)
 				return
 			}
+			// Read the live list rather than the snapshot taken before
+			// the lock, so earlier deletes in the same run count.
+			cur := f.versions[key]
+			// Mirror the endpoint's refusal to remove a package's last
+			// tagged version. Verified against api.github.com: the
+			// response is a 400 carrying exactly this message, and the
+			// check counts tagged versions only.
+			if leavesNoTaggedVersion(cur, id) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"message":"You cannot delete the last tagged version of a package. ` +
+					`You must delete the package instead.","status":"400"}`))
+				return
+			}
 			f.deletesSoFar++
-			kept := vs[:0]
-			for _, v := range vs {
+			kept := cur[:0]
+			for _, v := range cur {
 				if v.ID != id {
 					kept = append(kept, v)
 				}
@@ -169,6 +183,25 @@ func (f *fakeGHCR) handler() http.HandlerFunc {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
+}
+
+// leavesNoTaggedVersion reports whether deleting id would leave the
+// package with no tagged version at all, which is what GHCR rejects.
+// An untagged version always deletes, even when it is the only version
+// left, so versions without tags are not counted on either side.
+func leavesNoTaggedVersion(vs []pkgVersion, id int) bool {
+	targetIsTagged, remainingTagged := false, 0
+	for _, v := range vs {
+		if len(v.Metadata.Container.Tags) == 0 {
+			continue
+		}
+		if v.ID == id {
+			targetIsTagged = true
+			continue
+		}
+		remainingTagged++
+	}
+	return targetIsTagged && remainingTagged == 0
 }
 
 // hasPrefixIn / hasSubstringIn are match helpers for asserting on the
@@ -306,8 +339,13 @@ var _ = Describe("deleteRefs", func() {
 
 	Context("with a user-owned package", func() {
 		BeforeEach(func() {
+			// :latest is here so :pr-42 is not the package's last
+			// tagged version. Without it the API refuses the DELETE
+			// and this spec would be asserting on an impossible call
+			// instead of on the scope fallback it is about.
 			fake.seedUser("alice", "mypkg", []pkgVersion{
 				{ID: 999, Metadata: pkgMeta{Container: containerMeta{Tags: []string{"pr-42"}}}},
+				{ID: 1000, Metadata: pkgMeta{Container: containerMeta{Tags: []string{"latest"}}}},
 			})
 		})
 
@@ -335,8 +373,11 @@ var _ = Describe("deleteRefs", func() {
 
 	Context("when a DELETE call fails", func() {
 		BeforeEach(func() {
+			// :master keeps the target off the last-tagged-version
+			// path, so the 403 below is what fails the DELETE.
 			fake.seedOrg("kairos-io", "kairos%2Fkairos-uki", []pkgVersion{
 				{ID: 111, Metadata: pkgMeta{Container: containerMeta{Tags: []string{"sometag-abc123"}}}},
+				{ID: 112, Metadata: pkgMeta{Container: containerMeta{Tags: []string{"master"}}}},
 			})
 			fake.failDelete(111)
 		})
@@ -379,6 +420,9 @@ var _ = Describe("deleteRefs", func() {
 			fake.seedOrg("kairos-io", "kairos%2Fkairos-uki", []pkgVersion{
 				{ID: 111, Metadata: pkgMeta{Container: containerMeta{Tags: []string{"same"}}}},
 				{ID: 222, Metadata: pkgMeta{Container: containerMeta{Tags: []string{"same", "extra"}}}},
+				// Keeps :same from being every tagged version in the
+				// package, which the API would not let us clear.
+				{ID: 333, Metadata: pkgMeta{Container: containerMeta{Tags: []string{"other"}}}},
 			})
 		})
 
@@ -386,6 +430,29 @@ var _ = Describe("deleteRefs", func() {
 			rpt, err := deleteRefs(ctx, c, []string{"ghcr.io/kairos-io/kairos/kairos-uki:same"})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(rpt.Deleted).To(Equal(2))
+		})
+	})
+
+	Context("when the ref names the package's last tagged version", func() {
+		BeforeEach(func() {
+			fake.seedOrg("kairos-io", "kairos%2Fbundles-test", []pkgVersion{
+				{ID: 444, Metadata: pkgMeta{Container: containerMeta{Tags: []string{"pr-4569"}}}},
+				// Untagged, so it does not keep :pr-4569 company as
+				// far as the API's rule is concerned.
+				{ID: 555, Metadata: pkgMeta{Container: containerMeta{Tags: nil}}},
+			})
+		})
+
+		It("reports it as retained rather than sending a DELETE that cannot pass", func() {
+			rpt, err := deleteRefs(ctx, c, []string{"ghcr.io/kairos-io/kairos/bundles-test:pr-4569"})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rpt.Deleted).To(Equal(0))
+			Expect(rpt.Failed).To(Equal(0))
+			Expect(rpt.Retained).To(Equal(1))
+			// Not "no matching version": the version was found.
+			Expect(rpt.NotFound).To(Equal(0))
+			Expect(fake.recordedCalls()).ToNot(Satisfy(hasPrefixIn(
+				"DELETE /orgs/kairos-io/packages/container/kairos%2Fbundles-test/versions/444?")))
 		})
 	})
 
@@ -435,6 +502,38 @@ var _ = Describe("deleteRefs", func() {
 			Expect(rpt.Deleted).To(Equal(2))
 			Expect(fake.recordedCalls()).To(Satisfy(hasSubstringIn("page=2")))
 		})
+	})
+})
+
+var _ = Describe("apiMessage", func() {
+	It("quotes the explanation GitHub puts in the body", func() {
+		// The wording the packages API actually returns on a 400.
+		body := []byte(`{"message":"You cannot delete the last tagged version of a package. ` +
+			`You must delete the package instead.","documentation_url":"https://docs.github.com/rest","status":"400"}`)
+		Expect(apiMessage(body)).To(Equal(
+			": You cannot delete the last tagged version of a package. You must delete the package instead."))
+	})
+
+	It("adds nothing when the body is empty, not JSON, or carries no message", func() {
+		for _, body := range []string{"", "<html>502 Bad Gateway</html>", `{}`, `{"message":"   "}`} {
+			Expect(apiMessage([]byte(body))).To(BeEmpty(), "body %q", body)
+		}
+	})
+})
+
+var _ = Describe("client.deleteVersion", func() {
+	It("puts the API's explanation in the error, not just the status line", func() {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"You cannot delete the last tagged version of a package."}`))
+		}))
+		defer srv.Close()
+		c := &client{apiBase: srv.URL, token: "test-token", http: srv.Client()}
+		err := c.deleteVersion(context.Background(), srv.URL+"/versions/1")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("400 Bad Request"))
+		Expect(err.Error()).To(ContainSubstring("You cannot delete the last tagged version of a package."))
 	})
 })
 
@@ -615,14 +714,23 @@ var _ = Describe("pruneAged", func() {
 		BeforeEach(func() {
 			// hadron: 14d retention. kairos-uki: 6h retention.
 			// Same 8-hour age -> hadron keeps, uki deletes.
+			//
+			// Each package also carries a fresh :master so the aged
+			// version is not the last tagged one. Otherwise the API
+			// refuses its DELETE and the spec would measure the
+			// last-tagged-version hold-back rather than retention.
 			ageBoth := now.Add(-8 * time.Hour)
 			fake.seedOrg("kairos-io", "kairos%2Fhadron", []pkgVersion{
 				{ID: 10, Name: "sha256:h", CreatedAt: ageBoth,
 					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"hadron-v0.5.1-core-amd64-generic-v0.0.0-sha"}}}},
+				{ID: 11, Name: "sha256:hm", CreatedAt: now,
+					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"master"}}}},
 			})
 			fake.seedOrg("kairos-io", "kairos%2Fkairos-uki", []pkgVersion{
 				{ID: 20, Name: "sha256:u", CreatedAt: ageBoth,
 					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"upgrade-abcd"}}}},
+				{ID: 21, Name: "sha256:um", CreatedAt: now,
+					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"master"}}}},
 			})
 		})
 
@@ -792,6 +900,90 @@ var _ = Describe("pruneAged", func() {
 			for _, id := range []int{2, 3, 4, 6, 7} {
 				Expect(calls).ToNot(Satisfy(hasPrefixIn(
 					fmt.Sprintf("DELETE /orgs/kairos-io/packages/container/kairos%%2Fkairos-init/versions/%d?", id))))
+			}
+		})
+	})
+
+	// GHCR answers 400 "You cannot delete the last tagged version of a
+	// package" when a DELETE would leave the package with no tagged
+	// version. kairos-uki and bundles-test reach that state on their
+	// own: no tag of theirs is protected and their retention is 6h, so
+	// every tagged version eventually ages out together.
+	Context("when every tagged version of a package has aged out", func() {
+		BeforeEach(func() {
+			fake.seedOrg("kairos-io", "kairos%2Fkairos-uki", []pkgVersion{
+				{ID: 20, Name: "sha256:u20", CreatedAt: now.Add(-30 * time.Hour),
+					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"kairos.tar-oldest"}}}},
+				{ID: 21, Name: "sha256:u21", CreatedAt: now.Add(-20 * time.Hour),
+					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"kairos.tar-middle"}}}},
+				// Newest of the aged-out tagged versions.
+				{ID: 22, Name: "sha256:u22", CreatedAt: now.Add(-10 * time.Hour),
+					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"kairos.tar-newest"}}}},
+				// Untagged and aged: deletable even though the package
+				// ends the run with a single tagged version.
+				{ID: 23, Name: "sha256:u23", CreatedAt: now.Add(-40 * time.Hour),
+					Metadata: pkgMeta{Container: containerMeta{Tags: nil}}},
+			})
+		})
+
+		ukiSpec := []packageSpec{{
+			Ref:       "ghcr.io/kairos-io/kairos/kairos-uki",
+			Owner:     "kairos-io",
+			EncPkg:    "kairos%2Fkairos-uki",
+			Retention: 6 * time.Hour,
+		}}
+
+		It("holds the newest one back instead of failing the run on it", func() {
+			rpt, err := pruneAged(ctx, c, newFakeManifestFetcher(), ukiSpec, nil, now, false)
+			Expect(err).ToNot(HaveOccurred())
+			// Two aged tagged versions plus the aged untagged one.
+			Expect(rpt.Deleted).To(Equal(3))
+			Expect(rpt.Failed).To(Equal(0))
+			Expect(rpt.Retained).To(Equal(1))
+			for _, id := range []int{20, 21, 23} {
+				Expect(fake.recordedCalls()).To(Satisfy(hasPrefixIn(
+					fmt.Sprintf("DELETE /orgs/kairos-io/packages/container/kairos%%2Fkairos-uki/versions/%d?", id))))
+			}
+			// The one DELETE the API can never accept is never sent.
+			Expect(fake.recordedCalls()).ToNot(Satisfy(hasPrefixIn(
+				"DELETE /orgs/kairos-io/packages/container/kairos%2Fkairos-uki/versions/22?")))
+		})
+
+		It("keeps the newest one, not an arbitrary one", func() {
+			_, err := pruneAged(ctx, c, newFakeManifestFetcher(), ukiSpec, nil, now, false)
+			Expect(err).ToNot(HaveOccurred())
+			fake.mu.Lock()
+			left := fake.versions[fake.key("orgs", "kairos-io", "kairos%2Fkairos-uki")]
+			fake.mu.Unlock()
+			Expect(left).To(HaveLen(1))
+			Expect(left[0].ID).To(Equal(22))
+		})
+
+		It("holds nothing back once a protected tag is in the list", func() {
+			// :master is aged out too, but protected, so it is the
+			// tagged version that survives and all three others go.
+			fake.seedOrg("kairos-io", "kairos%2Fkairos-uki", []pkgVersion{
+				{ID: 30, Name: "sha256:u30", CreatedAt: now.Add(-30 * time.Hour),
+					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"kairos.tar-a"}}}},
+				{ID: 31, Name: "sha256:u31", CreatedAt: now.Add(-20 * time.Hour),
+					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"kairos.tar-b"}}}},
+				{ID: 32, Name: "sha256:u32", CreatedAt: now.Add(-40 * time.Hour),
+					Metadata: pkgMeta{Container: containerMeta{Tags: []string{"master"}}}},
+			})
+			rpt, err := pruneAged(ctx, c, newFakeManifestFetcher(), ukiSpec, []string{"master"}, now, false)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rpt.Deleted).To(Equal(2))
+			Expect(rpt.Failed).To(Equal(0))
+			Expect(rpt.Retained).To(Equal(0))
+		})
+
+		It("counts the hold-back in dry-run too, so a dry run predicts the real one", func() {
+			rpt, err := pruneAged(ctx, c, newFakeManifestFetcher(), ukiSpec, nil, now, true)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rpt.Deleted).To(Equal(3))
+			Expect(rpt.Retained).To(Equal(1))
+			for _, call := range fake.recordedCalls() {
+				Expect(call).ToNot(HavePrefix("DELETE "))
 			}
 		})
 	})

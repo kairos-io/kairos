@@ -3,6 +3,7 @@ package action
 import (
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
@@ -34,7 +35,7 @@ var _ = Describe("RenderTemplate action test", func() {
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(data).To(HaveKeyWithValue("configTest", "TESTVALUE"))
-		Expect(data["stateTest"]).To(Equal("amd64"))
+		Expect(data["stateTest"]).To(Equal(goruntime.GOARCH))
 	})
 
 	It("fails when the template file does not exist", func() {
