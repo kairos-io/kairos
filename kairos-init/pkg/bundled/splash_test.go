@@ -130,6 +130,17 @@ var _ = Describe("SplashService", func() {
 		Expect(svc).To(ContainSubstring("TimeoutStartSec="))
 	})
 
+	// getty@.service ships Before=getty.target itself, so ordering the splash
+	// before the target only makes the two siblings of it: nothing keeps
+	// getty@tty1.service from starting while the splash still animates, and
+	// the login prompt is then drawn over it. The unit has to be ordered
+	// before the getty instance that owns the console it writes to.
+	It("is ordered before the getty on the console it writes to", func() {
+		u := section(unit(), "Unit")
+		Expect(section(unit(), "Service")).To(ContainSubstring("TTYPath=/dev/tty1"))
+		Expect(u).To(ContainSubstring("Before=getty@tty1.service"))
+	})
+
 	It("is a no-op when started a second time", func() {
 		Expect(section(unit(), "Service")).To(ContainSubstring("RemainAfterExit=yes"))
 	})
