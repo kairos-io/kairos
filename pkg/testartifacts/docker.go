@@ -12,9 +12,13 @@ import (
 	"syscall"
 )
 
+// AuroraBootVersion is the AuroraBoot release the helpers use, both as a
+// release binary and as a container image. Renovate updates it together with
+// the workflow pins.
+const AuroraBootVersion = "v0.28.0"
+
 // AuroraBootImage is the AuroraBoot container image the Docker helpers run.
-// Renovate updates it together with the workflow pins.
-const AuroraBootImage = "quay.io/kairos/auroraboot:v0.27.1"
+const AuroraBootImage = "quay.io/kairos/auroraboot:" + AuroraBootVersion
 
 // DockerAvailable reports whether a Docker daemon answers.
 func DockerAvailable() bool {
@@ -67,8 +71,9 @@ func socketArgs() ([]string, error) {
 
 // GenerateKeySet writes a throwaway Secure Boot key set (PK, KEK and db as
 // .key, .pem, .der, .esl and .auth) and the TPM PCR policy signing key
-// tpm2-pcr-private.pem into dir, using AuroraBoot genkey. The certificates
-// expire after 30 days.
+// tpm2-pcr-private.pem into dir, using AuroraBoot genkey from the release
+// binary. It needs openssl and libpcsclite on the host, not Docker. The
+// certificates expire after 30 days.
 func GenerateKeySet(ctx context.Context, dir string) error {
 	dir, err := filepath.Abs(dir)
 	if err != nil {
@@ -77,7 +82,13 @@ func GenerateKeySet(ctx context.Context, dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	args := append([]string{"run", "--rm"}, userArgs()...)
-	args = append(args, "-v", dir+":/keys", AuroraBootImage, "genkey", "-e", "30", "-o", "/keys", "kairos-test")
-	return docker(ctx, args...)
+	bin, err := AuroraBootBinary(ctx)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, bin, "genkey", "-e", "30", "-o", dir, "kairos-test")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("auroraboot genkey: %w\n%s", err, out)
+	}
+	return nil
 }

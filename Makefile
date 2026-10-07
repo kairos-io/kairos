@@ -21,23 +21,21 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # for the version or every binary will report "dev".
 LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(VERSION)
 
-# The tests need a Docker daemon: they build keys and system extension images
-# with the AuroraBoot image. test-images pulls it first, so the download is
-# visible and is not counted against go test timeouts.
 .PHONY: test
-test: test-images kairos-init-embed-stubs test-actions
+test: kairos-init-embed-stubs test-actions
 	$(GO) test ./...
+
+# Specs that download the AuroraBoot release binary or run the AuroraBoot
+# image with Docker. They need network access, Docker, openssl and
+# libpcsclite, so `make test` leaves them out.
+.PHONY: test-artifacts
+test-artifacts:
+	$(GO) test -tags testartifacts ./pkg/testartifacts/... ./cmd/test-artifacts/...
 
 # Nested go modules under .github/actions/ have their own go.mod, so the
 # root `go test ./...` above never descends into them -- discovered when
 # the ghcr-cleanup action landed with tests nothing was running. Iterate
 # explicitly; add any future action module here.
-.PHONY: test-images
-test-images:
-	@image=$$(sed -n 's/^const AuroraBootImage = "\(.*\)"$$/\1/p' pkg/testartifacts/docker.go); \
-	if [ -z "$$image" ]; then echo "cannot read AuroraBootImage from pkg/testartifacts/docker.go" >&2; exit 1; fi; \
-	docker pull "$$image"
-
 .PHONY: test-actions
 test-actions:
 	@for m in .github/actions/ghcr-cleanup; do \

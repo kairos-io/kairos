@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/v4/pkg/testartifacts"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -52,15 +51,5 @@ var _ = Describe("test-artifacts", func() {
 		Expect(relPath).To(Equal(filepath.Join(wd, "relative/path")))
 		Expect(emptyPath).To(Equal(""))
 		Expect(absPath).To(Equal(""))
-	})
-
-	It("generates a key set", Label("docker"), func() {
-		if !testartifacts.DockerAvailable() {
-			Fail("this spec runs AuroraBoot with Docker, and no Docker daemon is reachable")
-		}
-		out := GinkgoT().TempDir()
-		Expect(run(ctx, []string{"keys", "--out", out})).To(Succeed())
-		Expect(filepath.Join(out, "db.key")).To(BeARegularFile())
-		Expect(filepath.Join(out, "tpm2-pcr-private.pem")).To(BeARegularFile())
 	})
 })
