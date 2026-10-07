@@ -21,7 +21,7 @@ var readOutsideConfig = map[string]string{
 	"k3s":        "provider-kairos, provider/internal/provider/config K3s, as the k3s server block",
 	"k3s-agent":  "provider-kairos, provider/internal/provider/config K3s, as the k3s agent block",
 	"kcrypt":     "sdk/kcrypt through the collector scan (ScanKcryptConfig, ScanEncryptOnBootPolicy), read by immucore and the kcrypt hooks",
-	"kubevip":    "provider-kairos, provider/internal/provider/config KubeVIP",
+	"kubevip":    "provider-kairos, provider/internal/role/p2p",
 	"p2p":        "provider-kairos, provider/internal/role",
 	"stages":     "yip, through the cloud-init runner",
 	"users":      "the yip users plugin, run from the initramfs stage",

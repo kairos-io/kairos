@@ -80,6 +80,30 @@ on:
           Use docker secrets (BuildKit `--secret`) or dedicated CI
           secret-injection mechanisms for anything sensitive.
 
+      oci_context_artifact:
+        type: string
+        required: false
+        default: ''
+        description: |
+          Name of a workflow artifact that holds an OCI layout tarball
+          (as written by `docker buildx build --output type=oci`). When
+          set, the tarball is downloaded and passed to the image build
+          as the named build context `oci_context_name`, so a `FROM` of
+          that name resolves to it instead of to a registry.
+
+          This is how the PR pipeline feeds its freshly built kairos-init
+          image into the OS image build without pushing it anywhere: a
+          plain pull_request run has no registry credentials.
+
+      oci_context_name:
+        type: string
+        required: false
+        default: ''
+        description: |
+          Build context name the `oci_context_artifact` layout is bound
+          to. Must match the image reference the Dockerfile uses in its
+          `FROM`, e.g. the value the caller passes as KAIROS_INIT_IMAGE.
+
       # Kairos version for fallback Dockerfile
       kairos_version:
         type: string
@@ -320,6 +344,10 @@ on:
         type: boolean
         default: false
         description: "Remove preinstalled packages to free disk space on the runner"
+
+# Every job declares the permissions it needs, so nothing is granted by
+# default.
+permissions: {}
 
 jobs:
   build:
@@ -731,6 +759,25 @@ jobs:
           username: ${{ secrets.registry_username }}
           password: ${{ secrets.registry_password }}
 
+      - name: Download OCI build context
+        if: inputs.oci_context_artifact != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: ${{ inputs.oci_context_artifact }}
+          path: ${{ runner.temp }}/oci-context
+
+      - name: Unpack OCI build context
+        if: inputs.oci_context_artifact != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${{ inputs.oci_context_name }}" ]]; then
+            echo "::error::oci_context_artifact needs oci_context_name"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/oci-context/layout"
+          tar -xf "$RUNNER_TEMP"/oci-context/*.tar -C "$RUNNER_TEMP/oci-context/layout"
+
       - name: Build Kairos image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
         with:
@@ -740,6 +787,7 @@ jobs:
           no-cache: ${{ inputs.no_cache }}
           push: false
           load: true
+          build-contexts: ${{ inputs.oci_context_artifact != '' && format('{0}=oci-layout://{1}/oci-context/layout', inputs.oci_context_name, runner.temp) || '' }}
           tags: ${{ steps.setup.outputs.image_tag }}
           labels: ${{ inputs.image_labels }}
           build-args: |
@@ -984,6 +1032,7 @@ jobs:
           push: true
           sbom: ${{ inputs.sbom }}
           tags: ${{ steps.setup.outputs.image_tag }}
+          build-contexts: ${{ inputs.oci_context_artifact != '' && format('{0}=oci-layout://{1}/oci-context/layout', inputs.oci_context_name, runner.temp) || '' }}
           labels: ${{ inputs.image_labels }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
@@ -1016,14 +1065,19 @@ jobs:
                 KEYS_DIR_INPUT="$PWD/$KEYS_DIR_INPUT"
               fi
               DOCKER_CMD="$DOCKER_CMD -v \"$KEYS_DIR_INPUT\":/keys"
+            fi
 
-              if [[ -n "${{ inputs.sysext_dir }}" ]]; then
-                SYSEXT_DIR_INPUT="${{ inputs.sysext_dir }}"
-                if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
-                  SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
-                fi
-                DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
+            # build-iso takes --overlay-iso just like build-uki, so the
+            # extensions ship on the GRUB ISO too. The agent sweeps the live
+            # media for *.sysext.raw on both install flows, so keeping this
+            # mount inside the trusted_boot branch left the GRUB half of that
+            # sweep with nothing to find and no test.
+            if [[ -n "${{ inputs.sysext_dir }}" ]]; then
+              SYSEXT_DIR_INPUT="${{ inputs.sysext_dir }}"
+              if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
+                SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
               fi
+              DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
             fi
 
             # Optional cloud-config (file path or URL)
@@ -1069,10 +1123,10 @@ jobs:
               if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
                 DOCKER_CMD="$DOCKER_CMD --single-efi-cmdline=\"${{ inputs.single_efi_cmdline }}\""
               fi
+            fi
 
-              if [[ -n "${{ inputs.sysext_dir }}" ]]; then
-                DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
-              fi
+            if [[ -n "${{ inputs.sysext_dir }}" ]]; then
+              DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
             fi
 
             # Append cloud-config flag if provided
