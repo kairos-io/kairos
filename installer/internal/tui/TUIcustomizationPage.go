@@ -35,7 +35,7 @@ func (p *customizationPage) load() {
 		p.ids = append(p.ids, s.ID)
 	}
 	p.options = append(p.options, "Finish Customization and start Installation")
-	p.ids = append(p.ids, "summary")
+	p.ids = append(p.ids, summaryPageID)
 	if p.cursor >= len(p.options) {
 		p.cursor = 0
 	}
