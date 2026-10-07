@@ -6,7 +6,9 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -43,6 +45,59 @@ func partitionTypes(path string) []string {
 		types = append(types, strings.ToLower(string(p.Type)))
 	}
 	return types
+}
+
+// extractRootPartition copies the root partition of a sysext DDI into its
+// own file and unpacks its erofs filesystem with the fsck.erofs that ships in
+// the AuroraBoot image, returning the directory it was unpacked into.
+func extractRootPartition(ctx context.Context, path string) string {
+	d, err := diskfs.Open(path, diskfs.WithOpenMode(diskfs.ReadOnly))
+	Expect(err).ToNot(HaveOccurred())
+	defer d.Close()
+	pt, err := d.GetPartitionTable()
+	Expect(err).ToNot(HaveOccurred())
+	table, ok := pt.(*gpt.Table)
+	Expect(ok).To(BeTrue(), "expected a GPT partition table")
+
+	var root *gpt.Partition
+	for _, p := range table.Partitions {
+		if t := strings.ToLower(string(p.Type)); t == rootX86 || t == rootArm64 {
+			root = p
+		}
+	}
+	Expect(root).ToNot(BeNil(), "no root partition in %s", path)
+
+	data, err := os.ReadFile(path)
+	Expect(err).ToNot(HaveOccurred())
+	sector := uint64(table.LogicalSectorSize)
+	if sector == 0 {
+		sector = 512
+	}
+	start := root.Start * sector
+	end := (root.End + 1) * sector
+	dir := GinkgoT().TempDir()
+	Expect(os.WriteFile(filepath.Join(dir, "root.erofs"), data[start:end], 0o644)).To(Succeed())
+
+	out := filepath.Join(dir, "tree")
+	runInAuroraBoot(ctx, dir, "fsck.erofs", "--extract=/work/tree", "/work/root.erofs")
+	return out
+}
+
+// runInAuroraBoot runs one of the tools the AuroraBoot image ships, as the
+// calling user, with dir mounted at /work.
+func runInAuroraBoot(ctx context.Context, dir string, tool string, args ...string) {
+	cmdArgs := []string{"run", "--rm", "--user", fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()),
+		"-v", dir + ":/work", "--entrypoint", tool, testartifacts.AuroraBootImage}
+	out, err := exec.CommandContext(ctx, "docker", append(cmdArgs, args...)...).CombinedOutput()
+	Expect(err).ToNot(HaveOccurred(), string(out))
+}
+
+// expectHelloPayload checks that tree carries the test payload where the
+// end-to-end suite looks for it: /usr/bin/hello.sh, printing "Hello world".
+func expectHelloPayload(tree string) {
+	content, err := os.ReadFile(filepath.Join(tree, "usr", "bin", "hello.sh"))
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+	ExpectWithOffset(1, string(content)).To(ContainSubstring(`echo "Hello world"`))
 }
 
 var _ = Describe("key sets generated with the AuroraBoot binary", func() {
@@ -121,5 +176,20 @@ var _ = Describe("artifacts built with AuroraBoot", func() {
 		data, err := os.ReadFile(path)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(data[:4])).To(Equal("hsqs"))
+	})
+
+	It("puts the payload of a verity extension at /usr/bin/hello.sh", func() {
+		out := GinkgoT().TempDir()
+		path, err := testartifacts.BuildSysext(ctx, testartifacts.SysextOptions{Dir: out, Name: "work", Arch: "amd64"})
+		Expect(err).ToNot(HaveOccurred())
+		expectHelloPayload(extractRootPartition(ctx, path))
+	})
+
+	It("puts the payload of a plain squashfs extension at /usr/bin/hello.sh", func() {
+		out := GinkgoT().TempDir()
+		_, err := testartifacts.BuildPlainSquashfsSysext(ctx, out, "hello-broke")
+		Expect(err).ToNot(HaveOccurred())
+		runInAuroraBoot(ctx, out, "unsquashfs", "-d", "/work/tree", "/work/hello-broke.sysext.raw")
+		expectHelloPayload(filepath.Join(out, "tree"))
 	})
 })

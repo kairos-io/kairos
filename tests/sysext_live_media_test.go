@@ -30,10 +30,7 @@ const sysextHierarchiesEnv = `SYSTEMD_SYSEXT_HIERARCHIES="/usr/bin:/usr/share:/u
 // merged hierarchy, so a successful merge puts the script on the host's PATH.
 // Running it is the strongest proof the overlay went up: it needs the image to
 // be accepted by the boot's image policy, merged, and visible to a fresh
-// process. The payload used to live at /usr/local/bin/hello.sh, which stopped
-// being a merged hierarchy when /usr/local came off the list; the images were
-// regenerated rather than the assertion weakened. See each asset's README for
-// the rebuild recipe.
+// process. pkg/testartifacts builds both images with that payload.
 const (
 	mergedExtensionHierarchy = "/usr/bin"
 	mergedExtensionCommand   = "hello.sh"
