@@ -109,6 +109,7 @@ var cmds = []*cli.Command{
 			&cli.BoolFlag{Name: constants.BootRecovery, Usage: "Upgrade recovery"},
 			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
 			&allowInsecureRegistriesFlag,
+			&cli.BoolFlag{Name: "dry-run", Usage: "Resolve the upgrade and print a summary of what would be done, without changing the system"},
 		},
 		Description: `
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
@@ -119,6 +120,8 @@ as a value for the --source flag.
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
 To pull from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate, pass the --allow-insecure-registries flag (or set "upgrade.allow-insecure-registries: true" in the cloud config).
+
+To check what an upgrade would do before running it, pass the --dry-run flag. It resolves the source (including the cloud config), the image size and where the transition image would be written, checks that the image manifest can be fetched from the registry, prints a summary and exits without changing the system.
 
 To retrieve all the available versions, use "kairos upgrade list-releases". Use the --registry flag to specify a custom registry to retrieve the versions from, otherwise it will default to quay.io/kairos.
 
@@ -248,8 +251,42 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			}
 
 			return agent.Upgrade(source, c.Bool("strict-validation"), constants.GetUserConfigDirs(),
-				upgradeEntry, c.Bool("allow-insecure-registries"), c.StringSlice("exclude-path")...,
+				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.StringSlice("exclude-path")...,
 			)
+		},
+	},
+	{
+		Name:  "upgrade-finalize",
+		Usage: "internal: run the post-deploy finalize step of an upgrade",
+		Description: `
+This is a hidden subcommand invoked by the host kairos-agent during a
+non-UKI upgrade after DeployImage. The host chroots into the deployed
+target rootfs, bind-mounts its own state / recovery / OEM / persistent
+/ EFI partitions under /host, and execs this command inside the chroot
+so the target image's own kairos-agent runs the format-writing steps of
+the upgrade (label state images, extra dirs, SELinux relabel, GRUB
+default entry rebrand, ESP refresh, after-upgrade-chroot hook). Doing
+so lets a format change (e.g. a new loader/entries key, a new GRUB
+menu, a new boot-assessment counter) reach installed nodes without
+requiring every previously released host agent to already understand
+that format.
+
+Not part of the public CLI; call sites and the wire contract may
+change between releases.
+`,
+		Hidden: true,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "context-file",
+				Usage:    "Path (inside the target chroot) to the JSON-serialized FinalizeContext the host wrote",
+				Required: true,
+			},
+		},
+		Before: func(c *cli.Context) error {
+			return checkRoot()
+		},
+		Action: func(c *cli.Context) error {
+			return agent.UpgradeFinalize(c.String("context-file"))
 		},
 	},
 	{
@@ -378,29 +415,6 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 		Action: func(c *cli.Context) error {
 			fmt.Print(machine.UUID())
 			return nil
-		},
-	},
-	{
-		Name:        "webui",
-		Usage:       "Starts the webui (deprecated)",
-		Description: "DEPRECATED: starts the webui installer by delegating to the image's installer with its terminal UI suppressed. The web UI is served by the installer itself; run the installer with --no-tui instead. This subcommand is kept for the kairos-webui service and will be removed with it.",
-		Aliases:     []string{"w"},
-		Flags:       []cli.Flag{&sourceFlag},
-		// Reject a bad --source here, like the three install commands do,
-		// rather than in the browser's progress stream once the spawned
-		// manual-install hits its own check. validateSource passes on the
-		// empty string, so the kairos-webui service is unaffected.
-		Before: func(c *cli.Context) error {
-			return validateSource(c.String("source"))
-		},
-		Action: func(c *cli.Context) error {
-			log := sdkLogger.NewKairosLogger("agent", "info", true)
-			if viper.GetBool("debug") {
-				log.SetLevel("debug")
-			}
-
-			// The deprecated subcommand is what has to keep calling it.
-			return agent.WebUI(c.String("source"), log) //nolint:staticcheck
 		},
 	},
 	{
@@ -570,7 +584,7 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 			// whose datasource says "install me".
 			if skipAutoInstall(c) {
 				log.Infof("--%s was given, so install.auto is ignored and the installer runs", skipAutoInstallFlag)
-			} else if installed, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
+			} else if installed, _, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
 				// --shell asks for a shell instead of the installer TUI. No
 				// installer was launched here, so say so rather than dropping
 				// the flag without a word.
@@ -656,14 +670,15 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 
 			// An unattended config installs and returns; only when there is a
 			// decision left for a human does the provider flow run.
-			installed, cc, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
+			installed, cc, scanErr, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
 			if installed || err != nil {
 				return err
 			}
 
 			// cc is the config AutoInstall already scanned; handing it over
 			// keeps a remote config_url from being fetched twice per boot.
-			return agent.Install(cc, source, insecure, constants.GetUserConfigDirs()...)
+			// scanErr goes along so Install can show it on the screen it draws.
+			return agent.Install(cc, scanErr, source, insecure, constants.GetUserConfigDirs()...)
 		},
 	},
 	{
@@ -1183,6 +1198,51 @@ The command automatically:
 						return fmt.Errorf("failed to scan config: %w", err)
 					}
 					return kcrypt.UnlockAllEncryptedPartitions(cfg.Logger)
+				},
+			},
+			{
+				Name:      "encrypt",
+				Usage:     "Encrypt plaintext partitions in place, by filesystem label",
+				ArgsUsage: "LABEL [LABEL...]",
+				Description: `Encrypt the given partitions in place, using the configured method
+(local TPM, or the kcrypt challenger server when one is configured).
+
+WARNING: Encrypting a partition DESTROYS ALL DATA on it!
+
+This is the manual counterpart of boot time encryption
+(kcrypt.encrypt_on_boot): the same operation, run from the command line,
+typically from recovery. It is defensive by default:
+
+- A partition that is already a LUKS container is skipped, so the command
+  is safe to re-run.
+- Partitions the running system depends on (OEM, state, recovery, EFI)
+  are refused. Encrypt those at install time instead.
+- A mounted partition is refused; unmount it first.
+- A label that cannot be found, or whose filesystem cannot be determined,
+  is an error rather than a guess.
+- The result is verified before success is reported.
+
+The command prompts for confirmation unless --i-know-what-i-am-doing is
+given. The partitions are left locked; they unlock on the next boot, or
+with 'kairos-agent kcrypt unlock-all'.`,
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "i-know-what-i-am-doing",
+						Usage: "Skip confirmation prompt (DANGEROUS: encrypting destroys all data on the partitions)",
+					},
+				},
+				Before: func(c *cli.Context) error {
+					return checkRoot()
+				},
+				Action: func(c *cli.Context) error {
+					if c.NArg() == 0 {
+						return fmt.Errorf("no partition labels given; usage: kairos-agent kcrypt encrypt LABEL [LABEL...]")
+					}
+					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+					if err != nil {
+						return fmt.Errorf("failed to scan config: %w", err)
+					}
+					return action.KcryptEncrypt(cfg, c.Args().Slice(), c.Bool("i-know-what-i-am-doing"))
 				},
 			},
 		},

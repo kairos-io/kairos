@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,24 @@ const (
 	dracutModSystemdNetworkd = "systemd-networkd"
 	dracutModSystemdResolved = "systemd-resolved"
 	serviceSSHD              = "sshd"
+)
+
+// osDracutFamilies is the yip OnlyIfOs value for "every distribution whose
+// initramfs is built by dracut", which is every supported one except Alpine.
+// The stages that write dracut config, dracut modules or units into the
+// initramfs all gate on it, so they share the constant rather than five
+// copies of a regex that has to be edited in lockstep when a distribution is
+// added.
+const osDracutFamilies = `Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\sHat.*|Rocky.*|AlmaLinux.*|Oracle\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*`
+
+// Paths, relative to the root of the image being built, that tell which
+// network daemons the initramfs can use.
+const (
+	networkManagerBinary  = "usr/sbin/NetworkManager"
+	systemdNetworkdBinary = "usr/lib/systemd/systemd-networkd"
+	systemdResolvedBinary = "usr/lib/systemd/systemd-resolved"
+	resolvectlBinary      = "usr/bin/resolvectl"
+	dracutModulesDir      = "usr/lib/dracut/modules.d"
 )
 
 // GetInitrdStage Returns the initrd stage
@@ -455,6 +474,31 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 				},
 			},
 		},
+		// The booted-system half of `kairos splash`: it covers switch-root to
+		// login prompt, where the initramfs unit has already been killed.
+		// Enabled unconditionally because the unit's own conditions decide
+		// whether it draws, and every one of them is evaluated per boot:
+		// removing `splash` from the command line, or adding kairos.splash=0
+		// at the boot menu, is enough to turn it off on a machine that is
+		// already installed.
+		{
+			Name:                 "Install the boot splash service",
+			OnlyIfServiceManager: serviceManagerSystemd,
+			Files: []schema.File{
+				{
+					Path:        bundled.SplashServicePath,
+					Owner:       0,
+					Group:       0,
+					Permissions: 0644,
+					Content:     fmt.Sprintf(bundled.SplashService, bundled.SplashDuration),
+				},
+			},
+			Systemctl: schema.Systemctl{
+				Enable: []string{
+					"kairos-splash",
+				},
+			},
+		},
 		{
 			Name:                 "Enable timesyncd service",
 			OnlyIfServiceManager: serviceManagerSystemd,
@@ -785,6 +829,147 @@ func getLatestKernel(l logger.KairosLogger) (string, error) {
 	return kernel.GetLatest(config.DefaultConfig.Model, l)
 }
 
+// dracutNetworkModules returns the dracut network modules for the given system
+// and whether the sysext module can be used. Availability of the userspace
+// daemons is checked under root, which is "/" outside of tests.
+func dracutNetworkModules(root string, sis values.System, l logger.KairosLogger) (string, bool, error) {
+	// Add proper network and systemd-sysext if needed
+	// We default to systemd-networkd+network-legacy and sysext enabled
+	// If its ubuntu <= 22.04 we need to disable sysext
+	// If its ubuntu <= 20.04 we need to use the plain network module
+	// network-legacy is needed for ipxe as it comes up very fast which makes the livenet stuff work properly
+	// otherwise systemd-networkd does not trigger the dracut hooks to let it know that its up and running
+	// https://github.com/dracutdevs/dracut/issues/1822
+	networkModule := "systemd-networkd network-legacy"
+	sysextModule := true
+
+	if sis.Distro == values.Ubuntu {
+		ver, err := semver.NewVersion(sis.Version)
+		if err != nil {
+			l.Logger.Error().Msgf("Failed to parse the version %s: %s", sis.Version, err)
+			return "", false, err
+		}
+		constraint, _ := semver.NewConstraint("<=22.04")
+		// If its <= 22.04 we need to use the plain network module and disable sysext
+		if constraint.Check(ver) {
+			l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Disabling sysext")
+			sysextModule = false
+			constraint, _ = semver.NewConstraint("<=20.04")
+			// If its <= 20.04 we need to use the plain network module
+			if constraint.Check(ver) {
+				l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Using the plain network module")
+				networkModule = "network"
+			}
+		}
+		constraint, _ = semver.NewConstraint(">=26.04")
+		if constraint.Check(ver) {
+			// For 26.04+, network-legacy is merged into systemd-networkd and removed
+			networkModule = dracutModSystemdNetworkd
+		}
+	}
+
+	if sis.Family == values.RedHatFamily {
+		// Check sysext first
+		ver, err := semver.NewVersion(sis.Version)
+		if err != nil {
+			l.Logger.Error().Msgf("Failed to parse the version %s: %s", sis.Version, err)
+			return "", false, err
+		}
+		constraint, _ := semver.NewConstraint("<9.0")
+		// If its < 9.0 we need to disable sysext
+		if constraint.Check(ver) {
+			l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Disabling sysext")
+			sysextModule = false
+		}
+
+		// Now network
+		// we default to NetworkManager
+		// if systemd-network is available we use it instead
+		// depending on the version we might add network-legacy
+		// Every branch below reassigns networkModule unconditionally,
+		// so we do not need to clear it first.
+		// Do we have NetworkManager? Then add it and skip the rest of checks
+		if _, err := os.Stat(filepath.Join(root, networkManagerBinary)); err == nil {
+			networkModule = "network-manager"
+		} else {
+			// Nothing seems to ship networkd modules for dracut in the RHEL+clones so only add them under Fedora
+			if sis.Distro == values.Fedora {
+				// Do we have systemd-networkd?
+				if _, err := os.Stat(filepath.Join(root, systemdNetworkdBinary)); err == nil {
+					networkModule = dracutModSystemdNetworkd
+				} else {
+					// Fallback: if neither NetworkManager nor systemd-networkd is available on Fedora,
+					// add either network or network-legacy based on the version, same as other distros.
+					// network-legacy was dropped from 10.0 onwards
+					constraint, _ = semver.NewConstraint("<10")
+					if constraint.Check(ver) {
+						networkModule = "network-legacy"
+					} else {
+						networkModule = "network"
+					}
+				}
+			} else {
+				// On other distros add either network or network-legacy
+				// network-legacy was dropped from 10.0 onwards
+				constraint, _ = semver.NewConstraint("<10")
+				if constraint.Check(ver) {
+					networkModule = "network-legacy"
+				} else {
+					networkModule = "network"
+				}
+			}
+		}
+	}
+
+	// Hadron uses the full systemd network stuff
+	if sis.Distro == values.Hadron {
+		networkModule = dracutModSystemdNetworkd
+	}
+
+	// Systemd resolved modules only make sense if networkd is used alongside.
+	// Otherwise other modules provide their own resolvers, while networkd
+	// leaves /etc/resolv.conf to resolved, so an initramfs that has networkd
+	// and no resolved cannot resolve names at all.
+	//
+	// Ubuntu 22.04 keeps "systemd-networkd network-legacy" even though it
+	// matches every other condition: jammy only ever published dracut 051
+	// (universe, with nothing newer in -updates, -backports or -security) and
+	// dracut grew the systemd-resolved module in 054, so no package on that
+	// release can put the module into the build root. Getting resolved into
+	// the 22.04 initramfs needs a newer dracut for jammy, not a change here.
+	if strings.Contains(networkModule, dracutModSystemdNetworkd) &&
+		!strings.Contains(networkModule, dracutModSystemdResolved) &&
+		resolvedModuleAvailable(root) {
+		l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Adding the systemd-resolved module")
+		networkModule += " " + dracutModSystemdResolved
+	}
+
+	return networkModule, sysextModule, nil
+}
+
+// resolvedModuleAvailable reports whether the systemd-resolved dracut module
+// can be pulled into an initramfs built from root.
+//
+// Every prerequisite the module declares has to be satisfied, because a module
+// named in add_dracutmodules whose check() fails takes the whole dracut run
+// down with it - it exits 1 and writes no initramfs at all rather than leaving
+// the module out. check() requires both resolvectl and the resolved daemon, so
+// a root carrying only one of the two is not enough. Dracut itself only grew
+// the module in 054, hence the module directory probe on top: older releases
+// ship the daemon but have nothing to ask dracut for.
+func resolvedModuleAvailable(root string) bool {
+	for _, binary := range []string{systemdResolvedBinary, resolvectlBinary} {
+		if _, err := os.Stat(filepath.Join(root, binary)); err != nil {
+			return false
+		}
+	}
+
+	// The module directory carries a priority prefix that changes between
+	// dracut releases.
+	modules, err := filepath.Glob(filepath.Join(root, dracutModulesDir, "*"+dracutModSystemdResolved))
+	return err == nil && len(modules) > 0
+}
+
 // GetKairosInitramfsFilesStage installs the kairos initramfs files
 // This stage is used to install the initramfs files that are needed for the system to boot
 func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]schema.Stage, error) {
@@ -868,108 +1053,9 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 		}...)
 	} else {
-		// Add proper network and systemd-sysext if needed
-		// We default to systemd-networkd+network-legacy and sysext enabled
-		// If its ubuntu <= 22.04 we need to disable sysext
-		// If its ubuntu <= 20.04 we need to use the plain network module
-		// network-legacy is needed for ipxe as it comes up very fast which makes the livenet stuff work properly
-		// otherwise systemd-networkd does not trigger the dracut hooks to let it know that its up and running
-		// https://github.com/dracutdevs/dracut/issues/1822
-		networkModule := "systemd-networkd network-legacy"
-		sysextModule := true
-
-		if sis.Distro == values.Ubuntu {
-			ver, err := semver.NewVersion(sis.Version)
-			if err != nil {
-				l.Logger.Error().Msgf("Failed to parse the version %s: %s", sis.Version, err)
-				return []schema.Stage{}, err
-			}
-			constraint, _ := semver.NewConstraint("<=22.04")
-			// If its <= 22.04 we need to use the plain network module and disable sysext
-			if constraint.Check(ver) {
-				l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Disabling sysext")
-				sysextModule = false
-				constraint, _ = semver.NewConstraint("<=20.04")
-				// If its <= 20.04 we need to use the plain network module
-				if constraint.Check(ver) {
-					l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Using the plain network module")
-					networkModule = "network"
-				}
-			}
-			constraint, _ = semver.NewConstraint(">=24.04")
-			// If its >= 24.04 we need to append resolved to the network module
-			if constraint.Check(ver) {
-				networkModule += " systemd-resolved"
-			}
-			constraint, _ = semver.NewConstraint(">=26.04")
-			if constraint.Check(ver) {
-				// For 26.04+, network-legacy is merged into systemd-networkd and removed
-				networkModule = "systemd-networkd systemd-resolved"
-			}
-		}
-
-		if sis.Family == values.RedHatFamily {
-			// Check sysext first
-			ver, err := semver.NewVersion(sis.Version)
-			if err != nil {
-				l.Logger.Error().Msgf("Failed to parse the version %s: %s", sis.Version, err)
-				return []schema.Stage{}, err
-			}
-			constraint, _ := semver.NewConstraint("<9.0")
-			// If its < 9.0 we need to disable sysext
-			if constraint.Check(ver) {
-				l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Disabling sysext")
-				sysextModule = false
-			}
-
-			// Now network
-			// we default to NetworkManager
-			// if systemd-network is available we use it instead
-			// depending on the version we might add network-legacy
-			// Every branch below reassigns networkModule unconditionally,
-			// so we do not need to clear it first.
-			// Do we have NetworkManager? Then add it and skip the rest of checks
-			if _, err := os.Stat("/usr/sbin/NetworkManager"); err == nil {
-				networkModule = "network-manager"
-			} else {
-				// Nothing seems to ship networkd modules for dracut in the RHEL+clones so only add them under Fedora
-				if sis.Distro == values.Fedora {
-					// Do we have systemd-networkd?
-					if _, err := os.Stat("/usr/lib/systemd/systemd-networkd"); err == nil {
-						networkModule = dracutModSystemdNetworkd
-						// Systemd resolved modules only make sense if networkd is used alongside
-						// Otherwise other modules provide their own resolvers
-						// Do we have systemd-resolved?
-						if _, err := os.Stat("/usr/lib/systemd/systemd-resolved"); err == nil {
-							networkModule += " systemd-resolved"
-						}
-					} else {
-						// Fallback: if neither NetworkManager nor systemd-networkd is available on Fedora,
-						// add either network or network-legacy based on the version, same as other distros.
-						// network-legacy was dropped from 10.0 onwards
-						constraint, _ = semver.NewConstraint("<10")
-						if constraint.Check(ver) {
-							networkModule = "network-legacy"
-						} else {
-							networkModule = "network"
-						}
-					}
-				} else {
-					// On other distros add either network or network-legacy
-					// network-legacy was dropped from 10.0 onwards
-					constraint, _ = semver.NewConstraint("<10")
-					if constraint.Check(ver) {
-						networkModule = "network-legacy"
-					} else {
-						networkModule = "network"
-					}
-				}
-			}
-		}
-
-		// Hadron uses the full systemd network stuff
-		if sis.Distro == values.Hadron {
-			networkModule = "systemd-networkd systemd-resolved"
+		networkModule, sysextModule, err := dracutNetworkModules("/", sis, l)
+		if err != nil {
+			return []schema.Stage{}, err
 		}
 
 		l.Logger.Debug().Str("networkModule", networkModule).Bool("sysextModule", sysextModule).Msg("Adding dracut modules to initramfs")
@@ -997,7 +1083,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add xhci_pci_renesas module to initramfs",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: osDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutXhciRenesasPath,
@@ -1010,7 +1096,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add sysext module to initramfs",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: osDracutFamilies,
 				If:       strconv.FormatBool(sysextModule),
 				Files: []schema.File{
 					{
@@ -1024,7 +1110,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add network module to initramfs",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: osDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutNetworkPath,
@@ -1037,7 +1123,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add immucore module to initramfs",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: osDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutConfigPath,
@@ -1066,6 +1152,46 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 						Group:       0,
 						Permissions: 0644,
 						Content:     bundled.ImmucoreServiceDracut,
+					},
+				},
+			},
+			// The splash is the initramfs half of `kairos splash`; the
+			// booted-system half is installed by GetServicesStage. Both are
+			// inert unless `splash` is on the kernel command line, which
+			// BootArgsCfg puts there for the grub entries. A trusted-boot
+			// image never reaches this function, so a UKI initrd has no
+			// splash: it is not built with dracut at all.
+			{
+				Name:     "Add splash module to initramfs",
+				OnlyIfOs: osDracutFamilies,
+				Files: []schema.File{
+					{
+						Path:        bundled.DracutSplashPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashDracutConfig,
+					},
+					{
+						Path:        bundled.DracutSplashModuleSetupPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0755,
+						Content:     bundled.SplashModuleSetupDracut,
+					},
+					{
+						Path:        bundled.DracutSplashServicePath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashServiceDracut,
+					},
+					{
+						Path:        bundled.DracutSplashImmucoreQuietPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashImmucoreQuietDracut,
 					},
 				},
 			},
