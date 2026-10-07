@@ -10,11 +10,13 @@ import (
 	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	implSpec "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkInstall "github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
@@ -171,6 +173,19 @@ var _ = Describe("Hooks", func() {
 			err = postInstall.Run(*cfg, nil)
 			Expect(err).ShouldNot(BeNil())
 		})
+		// The specs above are the negative control for this one: every other
+		// extension failure here is tolerated unless fail_on_bundles_errors
+		// is set. A declaration that does not parse is not, because the node
+		// would come up silently missing every extension the boot asked for,
+		// and no retry or later boot will fix a malformed command line.
+		It("errors on a command line declaration it cannot read, without strict set", func() {
+			Expect(fsutils.MkdirAll(fs, "/proc", os.ModeDir|os.ModePerm)).Should(BeNil())
+			Expect(fs.WriteFile("/proc/cmdline", []byte("kairos.extensions=fwupd@"), os.ModePerm)).Should(BeNil())
+			Expect(cfg.FailOnBundleErrors).To(BeFalse())
+			postInstall := hook.SysExtPostInstall{}
+			err = postInstall.Run(*cfg, nil)
+			Expect(err).To(MatchError(ContainSubstring("invalid extension declaration")))
+		})
 		It("doesn't error if it cant create the dirs", func() {
 			ROfs := vfs.NewReadOnlyFS(fs)
 			cfg.Fs = ROfs
@@ -185,6 +200,20 @@ var _ = Describe("Hooks", func() {
 			postInstall := hook.SysExtPostInstall{}
 			err = postInstall.Run(*cfg, nil)
 			Expect(err).ShouldNot(BeNil())
+		})
+
+		// An install that did not boot from removable media has no live
+		// directory, which is not something to fail on. The sweep used to
+		// hand the stat error to the walk callback, so strict mode failed the
+		// whole hook over it.
+		It("doesn't error in strict mode when there is no live media", func() {
+			cfg.FailOnBundleErrors = true
+			_, err = fs.Stat(cnst.LiveDir)
+			Expect(os.IsNotExist(err)).To(BeTrue(), "the fixture is supposed to have no live media")
+
+			postInstall := hook.SysExtPostInstall{}
+			err = postInstall.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
 		})
 
 	})
@@ -289,6 +318,161 @@ var _ = Describe("Hooks", func() {
 
 		It("names the stage first-boot", func() {
 			Expect(cnst.FirstBootHook).To(Equal("first-boot"))
+		})
+	})
+
+	// The SysExtPostInstall specs cover the UKI half of the same rule. This
+	// one covers the GRUB half, where the tolerance lives in Finish rather
+	// than in the hook, so asserting on ExtensionsPostInstall alone would
+	// say nothing about what the install actually does.
+	Context("Finish", func() {
+		BeforeEach(func() {
+			runner = v1mock.NewFakeRunner()
+			mounter = v1mock.NewErrorMounter()
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			Expect(fsutils.MkdirAll(fs, "/proc", os.ModeDir|os.ModePerm)).Should(BeNil())
+			cfg = config.NewConfig(
+				config.WithFs(fs),
+				config.WithRunner(runner),
+				config.WithLogger(logger),
+				config.WithMounter(mounter),
+			)
+			cfg.Collector = collector.Config{}
+		})
+		AfterEach(func() { cleanup() })
+
+		It("fails the install on a command line declaration it cannot read, without strict set", func() {
+			Expect(fs.WriteFile("/proc/cmdline", []byte("kairos.extensions=fwupd@"), os.ModePerm)).Should(BeNil())
+			Expect(cfg.FailOnBundleErrors).To(BeFalse())
+			Expect(hook.Finish{}.Run(*cfg, nil)).To(MatchError(ContainSubstring("invalid extension declaration")))
+		})
+
+		// The negative control: without a declaration to misread, the same
+		// run reaches the end and reports nothing. Otherwise the spec above
+		// would pass on any error Finish happened to surface.
+		It("finishes when the command line declares nothing", func() {
+			Expect(fs.WriteFile("/proc/cmdline", []byte("console=tty1 quiet"), os.ModePerm)).Should(BeNil())
+			Expect(hook.Finish{}.Run(*cfg, nil)).To(Succeed())
+		})
+	})
+
+	Context("OEMFiles", func() {
+		var installSpec *implSpec.InstallSpec
+
+		BeforeEach(func() {
+			runner = v1mock.NewFakeRunner()
+			syscallMock = &v1mock.FakeSyscall{}
+			mounter = v1mock.NewErrorMounter()
+			client = &v1mock.FakeHTTPClient{}
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+
+			cloudInit = &v1mock.FakeCloudInitRunner{}
+			cfg = config.NewConfig(
+				config.WithFs(fs),
+				config.WithRunner(runner),
+				config.WithLogger(logger),
+				config.WithMounter(mounter),
+				config.WithSyscall(syscallMock),
+				config.WithClient(client),
+				config.WithCloudInitRunner(cloudInit),
+			)
+			cfg.Collector = collector.Config{}
+			cfg.Install = &sdkInstall.Install{}
+
+			// The state the installer is in when it runs the PostInstall
+			// hooks: every partition of the spec is mounted, OEM included.
+			installSpec = &implSpec.InstallSpec{
+				Partitions: sdkPartitions.ElementalPartitions{
+					OEM: &sdkPartitions.Partition{
+						FilesystemLabel: cnst.OEMLabel,
+						Path:            "/dev/device1",
+						MountPoint:      cnst.OEMDir,
+					},
+				},
+			}
+			err = fsutils.MkdirAll(fs, cnst.OEMDir, os.ModeDir|os.ModePerm)
+			Expect(err).Should(BeNil())
+			err = mounter.Mount("/dev/device1", cnst.OEMDir, "auto", []string{})
+			Expect(err).Should(BeNil())
+		})
+		AfterEach(func() {
+			cleanup()
+		})
+
+		It("does nothing when install.oem_files is empty", func() {
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).Should(BeNil())
+		})
+
+		It("writes the configured files into the mounted OEM partition", func() {
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
+				{Name: "foo", Content: "#cloud-config\nfoo: bar\n"},
+				{Name: "bar.yaml", Content: "#cloud-config\nbar: baz\n"},
+			}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).Should(BeNil())
+
+			content, err := fs.ReadFile(filepath.Join(cnst.OEMDir, "foo.yaml"))
+			Expect(err).Should(BeNil())
+			Expect(string(content)).Should(Equal("#cloud-config\nfoo: bar\n"))
+
+			info, err := fs.Stat(filepath.Join(cnst.OEMDir, "foo.yaml"))
+			Expect(err).Should(BeNil())
+			Expect(info.Mode().Perm()).Should(Equal(os.FileMode(0400)))
+
+			content, err = fs.ReadFile(filepath.Join(cnst.OEMDir, "bar.yaml"))
+			Expect(err).Should(BeNil())
+			Expect(string(content)).Should(Equal("#cloud-config\nbar: baz\n"))
+		})
+
+		It("errors instead of writing anywhere else when OEM is not mounted", func() {
+			err = mounter.Unmount(cnst.OEMDir)
+			Expect(err).Should(BeNil())
+			err = fsutils.MkdirAll(fs, "/usr/local/cloud-config", os.ModeDir|os.ModePerm)
+			Expect(err).Should(BeNil())
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).ShouldNot(BeNil())
+
+			_, err = fs.Stat(filepath.Join(cnst.OEMDir, "foo.yaml"))
+			Expect(err).ShouldNot(BeNil())
+			_, err = fs.Stat("/usr/local/cloud-config/foo.yaml")
+			Expect(err).ShouldNot(BeNil())
+		})
+
+		It("errors when the spec has no OEM partition to write to", func() {
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, &implSpec.InstallSpec{})
+			Expect(err).ShouldNot(BeNil())
+		})
+
+		It("rejects a bad name before writing anything, leaving earlier entries unwritten", func() {
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
+				{Name: "good", Content: "hello"},
+				{Name: "../evil", Content: "hello"},
+			}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).ShouldNot(BeNil())
+
+			_, err = fs.Stat(filepath.Join(cnst.OEMDir, "good.yaml"))
+			Expect(err).ShouldNot(BeNil())
 		})
 	})
 })

@@ -83,8 +83,7 @@ stages:
       if: '[ -f /etc/hosts ]'
       only_service_manager: "systemd"
       commands:
-        - rm /etc/resolv.conf
-        - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+        - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
     # RHEL is not a special case here: Fedora, CentOS, Rocky, AlmaLinux and
     # Oracle Linux carry the same services and are handled together everywhere
     # else, including values.RHELFamilyRegex in the build steps. Only RHEL's
