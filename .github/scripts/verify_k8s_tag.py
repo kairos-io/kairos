@@ -22,8 +22,8 @@ shows up as a mismatch between what the script observed the files doing,
 not as a passing test of text duplicated into this file.
 
 Deriving the segment correctly is only half of it -- the two sides also
-have to agree on which cell is which. So the second half walks pr.yaml and
-master.yaml and, for every `reusable-qemu-test.yaml` / `_uki-test.yaml`
+have to agree on which cell is which. So the second half walks pr.yaml,
+pr-full.yaml and master.yaml and, for every `reusable-qemu-test.yaml` / `_uki-test.yaml`
 job, resolves the `kubernetes_distro` it passes against the `build-iso`
 matrix cell sharing its base_image/arch/model. Exactly one cell has to
 match, and its computed variant has to be the variant the test job claims;
@@ -40,7 +40,7 @@ introduced -- this is a standalone script, not part of any package, and it
 is not currently wired into a CI job (see `make verify-k8s-tag`, which
 mirrors how `make lint-workflows-actions`/actionlint are local-only checks
 in this repo too). Run it by hand after touching any of the three files
-above, or any caller (pr.yaml/master.yaml) that feeds them
+above, or any caller (pr.yaml/pr-full.yaml/master.yaml) that feeds them
 kubernetes_distro/kubernetes_version.
 """
 
@@ -412,7 +412,7 @@ sarif_steps = [
 if not sarif_steps:
     raise SystemExit("reusable-factory.yaml has no upload-sarif step")
 
-for caller_name in ("pr.yaml", "master.yaml"):
+for caller_name in ("pr.yaml", "pr-full.yaml", "master.yaml"):
     caller = load(f"{WF}/{caller_name}")
     print(f"\n== {caller_name}: build cells ==")
     cells = []

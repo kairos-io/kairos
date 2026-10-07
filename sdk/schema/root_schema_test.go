@@ -96,6 +96,88 @@ users:
 				Expect(config.HasHeader()).To(BeTrue())
 			})
 		})
+
+		Context("with install.oem_files nested under the root config", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+install:
+  oem_files:
+    - name: foo
+      content: "#cloud-config"`
+			})
+
+			It("is successful", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+			})
+		})
+
+		Context("with an install.oem_files entry missing its content", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+install:
+  oem_files:
+    - name: foo`
+			})
+
+			It("errors", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(ContainSubstring("content"))
+			})
+		})
+	})
+
+	Context("kubevip", func() {
+		var config *KConfig
+		var err error
+		var yaml string
+
+		JustBeforeEach(func() {
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("with a valid kubevip block", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+kubevip:
+  enable: true
+  interface: ens18
+  static_pod: true
+  version: v0.8.0
+  image: ghcr.io/kube-vip/kube-vip`
+			})
+
+			It("validates", func() {
+				Expect(config.IsValid()).To(BeTrue())
+			})
+		})
+
+		Context("with a boolean interface, the pre-fix type", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+kubevip:
+  interface: true`
+			})
+
+			It("fails, because the provider reads interface as an interface name string", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(MatchRegexp("/kubevip/interface"))
+			})
+		})
 	})
 
 	Context("ValidateSemantics", func() {
@@ -229,6 +311,27 @@ users:
 			It("declares the draft-07 dialect in $schema, not the id", func() {
 				Expect(schema).To(ContainSubstring(`"$schema": "http://json-schema.org/draft-07/schema#"`))
 				Expect(schema).ToNot(ContainSubstring(`"$schema": "http://foobar"`))
+			})
+		})
+
+		Context("for the real RootSchema's install.oem_files description", func() {
+			var rootSchema string
+
+			BeforeEach(func() {
+				var genErr error
+				rootSchema, genErr = GenerateSchema(RootSchema{}, "")
+				Expect(genErr).ToNot(HaveOccurred())
+			})
+
+			It("no longer advertises the removed /usr/local/cloud-config fallback", func() {
+				// Regression guard for the stale-description bug: the fallback
+				// was deleted from the code (oemFilesDir errors out instead),
+				// but the published schema kept telling users about it.
+				Expect(rootSchema).NotTo(ContainSubstring("/usr/local/cloud-config"))
+			})
+
+			It("still names the OEM partition as the only destination", func() {
+				Expect(rootSchema).To(ContainSubstring("OEM partition"))
 			})
 		})
 

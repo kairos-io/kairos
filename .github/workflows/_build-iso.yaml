@@ -27,6 +27,26 @@ on:
         type: string
         required: true
 
+      kairos_init_artifact:
+        description: |
+          Name of a workflow artifact holding kairos-init as an OCI layout
+          tarball (_build-image-kairos-init.yaml's oci_artifact). When
+          set, `kairos_init_image` is not pulled: it becomes the build
+          context name the layout is bound to, so any name works, e.g.
+          `kairos-init-local`. The PR pipeline uses this because it has
+          no registry to pull from.
+        type: string
+        default: ''
+
+      security_scans:
+        description: |
+          Run the trivy and grype scans and upload their SARIF reports.
+          The PR pipeline turns this off: a pull_request run from a fork
+          gets a read-only token, so the SARIF upload cannot succeed, and
+          master already scans every image that lands.
+        type: boolean
+        default: true
+
       arch:
         description: 'linux/<arch>: amd64, arm64, or riscv64'
         type: string
@@ -244,6 +264,8 @@ jobs:
       build_args: |
         KAIROS_INIT_IMAGE=${{ inputs.kairos_init_image }}
         ${{ inputs.fips && 'FIPS=fips' || '' }}
+      oci_context_artifact: ${{ inputs.kairos_init_artifact }}
+      oci_context_name: ${{ inputs.kairos_init_artifact != '' && inputs.kairos_init_image || '' }}
       base_image: ${{ inputs.base_image }}
       arch: ${{ inputs.arch }}
       model: ${{ inputs.model }}
@@ -288,10 +310,10 @@ jobs:
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
       kubernetes_version: ${{ inputs.kubernetes_version }}
       raw: ${{ inputs.raw }}
-      grype: ${{ inputs.grype }}
-      grype_sarif: ${{ inputs.grype }}
-      trivy: true
-      trivy_sarif: true
+      grype: ${{ inputs.security_scans && inputs.grype }}
+      grype_sarif: ${{ inputs.security_scans && inputs.grype }}
+      trivy: ${{ inputs.security_scans }}
+      trivy_sarif: ${{ inputs.security_scans }}
       sbom: ${{ inputs.sbom }}
       security_scan_mode: 'report-only'
       grype_sarif_fail_build: false

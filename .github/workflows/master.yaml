@@ -4,7 +4,8 @@ name: master
 # uki.yaml / lint.yaml / unit-tests.yaml (deleted together with
 # this rename).
 #
-# Trigger: push to master. Shape mirrors pr.yaml with two
+# Trigger: push to master. Shape mirrors pr-full.yaml (the opt-in
+# full matrix on a PR) with two
 # differences:
 #   - No fork-PR guard (master is trusted).
 #   - Test-before-push semantics for the "master" tag itself:
@@ -59,7 +60,7 @@ jobs:
   # (curl's images/Dockerfile and docker build --platform=linux/riscv64
   # against it; see kairos-io/hadron's Makefile KAIROS_DOCKERFILE_REF).
   # This restores that regression check on every master push, the
-  # earliest point it can be caught, without touching pr.yaml -- every
+  # earliest point it can be caught, without touching pr-full.yaml -- every
   # contributor's PR stays exactly as fast as it is today.
   #
   # Known cost, not hidden: riscv64 under QEMU is slow (observed ~2h+
@@ -80,11 +81,11 @@ jobs:
       matrix_scope: full
     secrets: inherit
 
-  # Flavor smoke matrix. Same shape as pr.yaml's build-flavors, with
+  # Flavor smoke matrix. Same shape as pr-full.yaml's build-flavors, with
   # matrix_scope: full so the riscv64 cells (ubuntu:24.04, debian:13,
   # fedorariscv:42) also run -- their kairos-init tarball only exists
   # at this scope. Runs in parallel with build-image-kairos-init /
-  # build-iso / test-* for the same reason as in pr.yaml.
+  # build-iso / test-* for the same reason as in pr-full.yaml.
   build-flavors:
     needs: build-kairos-init
     uses: ./.github/workflows/_build-flavors.yaml
@@ -130,7 +131,7 @@ jobs:
     secrets: inherit
 
   # ISO matrix split so test-* unblock as soon as the amd64
-  # cells they consume are ready. See pr.yaml for the rationale.
+  # cells they consume are ready. See pr-full.yaml for the rationale.
   # promote-images below waits on build-iso-arm too so a broken
   # arm build still keeps :master-scratch from advancing to :master.
   build-iso:
@@ -141,14 +142,14 @@ jobs:
         include:
           - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
           - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
-          # k0s build coverage, image-only (see pr.yaml for rationale).
+          # k0s build coverage, image-only (see pr-full.yaml for rationale).
           - {name: 'amd64-standard-k0s', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: false, trusted_boot: false, kubernetes_distro: 'k0s', fips: false}
-          # FIPS core cell (see pr.yaml for rationale).
+          # FIPS core cell (see pr-full.yaml for rationale).
           - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
-          # UKI cells feed test-uki (see pr.yaml for the shape).
+          # UKI cells feed test-uki (see pr-full.yaml for the shape).
           - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
           - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
-          # Ubuntu 20.04 smoke cell (see pr.yaml for rationale).
+          # Ubuntu 20.04 smoke cell (see pr-full.yaml for rationale).
           - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
           # Rocky9
           - {name: 'amd64-core-rocky-9', arch: 'amd64', base_image: 'rockylinux/rockylinux:9', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
@@ -281,7 +282,7 @@ jobs:
       release-matcher: ${{ matrix.release-matcher || '' }}
     secrets: inherit
 
-  # FIPS smoke coverage (see pr.yaml for rationale).
+  # FIPS smoke coverage (see pr-full.yaml for rationale).
   test-core-fips:
     needs: build-iso
     strategy:
@@ -309,7 +310,7 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
     secrets: inherit
 
-  # Ubuntu 20.04 smoke coverage (see pr.yaml for rationale).
+  # Ubuntu 20.04 smoke coverage (see pr-full.yaml for rationale).
   test-core-ubuntu-20:
     needs: build-iso
     strategy:
@@ -413,7 +414,7 @@ jobs:
       release-matcher: ${{ matrix.release-matcher || '' }}
     secrets: inherit
 
-  # See pr.yaml for the rationale on splitting encryption cells out.
+  # See pr-full.yaml for the rationale on splitting encryption cells out.
   test-standard-encryption:
     needs: [build-iso, build-image-kcrypt-challenger]
     strategy:

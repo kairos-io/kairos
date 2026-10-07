@@ -82,7 +82,7 @@ lint-workflows: lint-workflows-yaml lint-workflows-actions
 	@echo 'workflow lint: ok'
 
 # yamllint runs twice: strict (warnings -> errors) over the canonical
-# pipeline files (pr.yaml, master.yaml, release.yaml and every
+# pipeline files (pr.yaml, pr-full.yaml, master.yaml, release.yaml and every
 # `_*.yaml` reusable we own) so a warning that tomorrow's yamllint
 # image promotes to error cannot slip through, and non-strict over
 # the leftover independent workflows (upload-cloud-images.yaml,
@@ -90,11 +90,11 @@ lint-workflows: lint-workflows-yaml lint-workflows-actions
 # contract without dragging in unrelated cleanup.
 lint-workflows-yaml:
 	@find .github/workflows -maxdepth 1 \
-	    \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \) \
+	    \( -name 'pr.yaml' -o -name 'pr-full.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \) \
 	    -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint --strict
 	@find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) \
-	    ! -name 'pr.yaml' ! -name 'master.yaml' ! -name 'release.yaml' \
+	    ! -name 'pr.yaml' ! -name 'pr-full.yaml' ! -name 'master.yaml' ! -name 'release.yaml' \
 	    ! -name '_*.yaml' -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint
 
@@ -105,7 +105,7 @@ lint-workflows-yaml:
 lint-workflows-actions:
 	@docker run --rm -v "$$PWD":/repo -w /repo rhysd/actionlint -color \
 	    $$(find .github/workflows -maxdepth 1 \
-	        \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \))
+	        \( -name 'pr.yaml' -o -name 'pr-full.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \))
 
 # ============================================================================
 # k8s image-tag derivation regression guard (kairos-io/kairos#4579).
