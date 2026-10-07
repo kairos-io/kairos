@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("test-artifacts with the AuroraBoot binary", Label("testartifacts"), func() {
+var _ = Describe("test-artifacts with the AuroraBoot binary", func() {
 	It("generates a key set", func() {
 		out := GinkgoT().TempDir()
 		Expect(run(context.Background(), []string{"keys", "--out", out})).To(Succeed())

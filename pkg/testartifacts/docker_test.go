@@ -45,19 +45,10 @@ func partitionTypes(path string) []string {
 	return types
 }
 
-var _ = Describe("artifacts built with AuroraBoot", Label("testartifacts"), func() {
-	var ctx context.Context
-
-	BeforeEach(func() {
-		if !testartifacts.DockerAvailable() {
-			Fail("these specs build artifacts with Docker, and no Docker daemon is reachable")
-		}
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Minute)
-		DeferCleanup(cancel)
-	})
-
+var _ = Describe("key sets generated with the AuroraBoot binary", func() {
 	It("generates a Secure Boot and TPM PCR key set the caller can read", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		DeferCleanup(cancel)
 		dir := GinkgoT().TempDir()
 		Expect(testartifacts.GenerateKeySet(ctx, dir)).To(Succeed())
 
@@ -79,6 +70,19 @@ var _ = Describe("artifacts built with AuroraBoot", Label("testartifacts"), func
 		Expect(block).ToNot(BeNil())
 		_, err = x509.ParseCertificate(block.Bytes)
 		Expect(err).ToNot(HaveOccurred())
+	})
+})
+
+var _ = Describe("artifacts built with AuroraBoot", func() {
+	var ctx context.Context
+
+	BeforeEach(func() {
+		if !testartifacts.DockerAvailable() {
+			Fail("these specs build artifacts with Docker, and no Docker daemon is reachable")
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Minute)
+		DeferCleanup(cancel)
 	})
 
 	It("builds a verity and signed extension when given a key and certificate", func() {

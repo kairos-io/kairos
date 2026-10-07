@@ -13,10 +13,20 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
+
+// AuroraBootVersion is the AuroraBoot release the helpers use, both as a
+// release binary and as a container image. Renovate updates it together with
+// the workflow pins.
+const AuroraBootVersion = "v0.28.0"
+
+// AuroraBootImage is the AuroraBoot container image the Docker helpers run.
+const AuroraBootImage = "quay.io/kairos/auroraboot:" + AuroraBootVersion
 
 // binaryEnv names an environment variable holding the path of an AuroraBoot
 // binary to use as is, skipping the download.
@@ -28,6 +38,9 @@ var (
 	auroraBootReleaseURL = "https://github.com/kairos-io/AuroraBoot/releases/download"
 	// auroraBootCacheDir returns the directory downloaded binaries are cached in.
 	auroraBootCacheDir = defaultCacheDir
+	// auroraBootHTTPTimeout bounds each release download, so a stalled
+	// connection fails instead of hanging the caller.
+	auroraBootHTTPTimeout = 5 * time.Minute
 )
 
 func defaultCacheDir() (string, error) {
@@ -43,7 +56,8 @@ func httpGet(ctx context.Context, url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: auroraBootHTTPTimeout}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -95,8 +109,9 @@ func extractBinary(tarball []byte) ([]byte, error) {
 // used as is.
 //
 // The tarball's sha256 is compared with the release's checksums.txt before
-// anything is written to the cache, which guards against a truncated or
-// altered download. The binary is written to a temporary file and renamed into
+// anything is written to the cache, which catches a truncated or corrupted
+// download. It does not protect against a tampered release, since
+// checksums.txt comes from the same release as the tarball. The binary is written to a temporary file and renamed into
 // place, so concurrent callers never see a partial file.
 func AuroraBootBinary(ctx context.Context) (string, error) {
 	if path := os.Getenv(binaryEnv); path != "" {
@@ -161,4 +176,28 @@ func AuroraBootBinary(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return final, nil
+}
+
+// GenerateKeySet writes a throwaway Secure Boot key set (PK, KEK and db as
+// .key, .pem, .der, .esl and .auth) and the TPM PCR policy signing key
+// tpm2-pcr-private.pem into dir, using AuroraBoot genkey from the release
+// binary. It needs openssl and libpcsclite on the host, not Docker. The
+// certificates expire after 30 days.
+func GenerateKeySet(ctx context.Context, dir string) error {
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	bin, err := AuroraBootBinary(ctx)
+	if err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, bin, "genkey", "-e", "30", "-o", dir, "kairos-test")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("auroraboot genkey: %w\n%s", err, out)
+	}
+	return nil
 }

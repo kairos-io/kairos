@@ -180,4 +180,6 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
 - `make test` needs no Docker. `make test-artifacts` runs the specs in
   `pkg/testartifacts` and `cmd/test-artifacts` that download the AuroraBoot
   release binary or run its image, and needs network access, Docker,
-  `openssl` and `libpcsclite`.
+  `openssl` and `libpcsclite`. Set `KAIROS_TEST_AURORABOOT_BINARY` to a local
+  `auroraboot` binary to skip the download, for offline hosts or architectures
+  without a release binary.
