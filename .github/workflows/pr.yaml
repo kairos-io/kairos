@@ -120,13 +120,10 @@ jobs:
         include:
           - {test: 'install'}
           - {test: 'acceptance'}
-          # Temporary, so the CIS test runs on its own PR before merge. It
-          # stays in master.yaml's test-core either way.
-          - {test: 'cis'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     # reusable-qemu-test.yaml declares packages: write for its bundles
-    # cell, so the caller has to cover it. No cell here uses it.
+    # cell, so the caller has to cover it. Neither cell here uses it.
     permissions:
       contents: read
       packages: write
