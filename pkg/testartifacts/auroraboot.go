@@ -41,6 +41,10 @@ var (
 	// auroraBootHTTPTimeout bounds each release download, so a stalled
 	// connection fails instead of hanging the caller.
 	auroraBootHTTPTimeout = 5 * time.Minute
+
+	// auroraBootArch selects the release binary to fetch. Tests pin it so the
+	// download path runs the same way on hosts without a release binary.
+	auroraBootArch = runtime.GOARCH
 )
 
 func defaultCacheDir() (string, error) {
@@ -111,13 +115,14 @@ func extractBinary(tarball []byte) ([]byte, error) {
 // The tarball's sha256 is compared with the release's checksums.txt before
 // anything is written to the cache, which catches a truncated or corrupted
 // download. It does not protect against a tampered release, since
-// checksums.txt comes from the same release as the tarball. The binary is written to a temporary file and renamed into
-// place, so concurrent callers never see a partial file.
+// checksums.txt comes from the same release as the tarball. The binary is
+// written to a temporary file and renamed into place, so concurrent callers
+// never see a partial file.
 func AuroraBootBinary(ctx context.Context) (string, error) {
 	if path := os.Getenv(binaryEnv); path != "" {
 		return path, nil
 	}
-	arch := runtime.GOARCH
+	arch := auroraBootArch
 	if arch != "amd64" && arch != "arm64" {
 		return "", fmt.Errorf("no AuroraBoot release binary for architecture %s", arch)
 	}
