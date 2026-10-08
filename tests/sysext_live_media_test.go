@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -35,6 +36,7 @@ const (
 	mergedExtensionHierarchy = "/usr/bin"
 	mergedExtensionCommand   = "hello.sh"
 	mergedExtensionOutput    = "Hello world"
+	mergedExtensionPath      = mergedExtensionHierarchy + "/" + mergedExtensionCommand
 )
 
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
@@ -124,6 +126,23 @@ users:
 				out, err := vm.Sudo(mergedExtensionCommand)
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).To(ContainSubstring(mergedExtensionOutput))
+			})
+
+			// The merge puts the extension's own files under /usr, where CIS
+			// DIL 6.1.11 and 6.1.12 audit them. systemd-repart keeps the uid
+			// and gid of the tree it packs, so an extension built by an
+			// unprivileged process ships files owned by a user the node does
+			// not have, and the only symptom is the cis suite failing on an
+			// unrelated change.
+			By("merging files the node has a user and a group for", func() {
+				out, err := vm.Sudo("stat -c %U:%G " + mergedExtensionPath)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(Equal("root:root"))
+
+				out, err = vm.Sudo(`find /usr -xdev \( -nouser -o -nogroup \)`)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(BeEmpty(),
+					"files under /usr with no passwd or group entry")
 			})
 		})
 	})
