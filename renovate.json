@@ -96,6 +96,19 @@
       "versioningTemplate": "semver"
     },
     {
+      "description": "zizmor-action runs whichever zizmor release it is given, and a new release can bring new audits, so the version is pinned in the workflow.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/zizmor\\.yaml$/"
+      ],
+      "matchStrings": [
+        "ZIZMOR_VERSION:\\s*'(?<currentValue>[0-9.]+)'"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "zizmorcore/zizmor",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
       "description": "kairos-init/README.md's Quick example pins the image in a fenced code block, so the dockerfile manager (which only scans files literally named Dockerfile/Containerfile) never sees it.",
       "customType": "regex",
       "managerFilePatterns": [
