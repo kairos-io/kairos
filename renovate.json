@@ -82,6 +82,16 @@
       ]
     },
     {
+      "description": "A workflow that downloads a release binary by URL is scanned by no built-in manager, so the luet pin in reusable-qemu-test.yaml stayed on the 2022 release for four years and took master red when that build panicked on a failed pull. See #5123.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s+[A-Z_][A-Z0-9_]*\\s*=\\s*(?<currentValue>[0-9][^\\s\"']*)"
+      ]
+    },
+    {
       "customType": "regex",
       "managerFilePatterns": [
         "/^provider/internal/role/p2p/kubevip\\.go$/"

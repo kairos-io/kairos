@@ -253,32 +253,34 @@ jobs:
       - name: Encryption deps
         if: ${{ startsWith(inputs.test, 'encryption-') }}
         run: |
+          # renovate: datasource=github-releases depName=mudler/luet
+          LUET_VERSION=0.37.0
           # -f matters: without it curl writes the body of an HTTP error to
           # the output file and still exits 0, so a bad gateway from the
           # release host installs an error page as /usr/bin/luet and the
           # first thing to fail is an unrelated looking luet command.
           curl -fL --retry 5 --retry-all-errors --retry-delay 2 \
-            https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+            "https://github.com/mudler/luet/releases/download/${LUET_VERSION}/luet-${LUET_VERSION}-linux-amd64" -o luet
           chmod +x luet
           sudo mv luet /usr/bin/luet
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
-          # luet 0.33.0 does not survive a failed pull. A truncated blob from
-          # quay leaves the artifact nil and it dereferences it:
+          # The version above was 0.33.0, released in 2022, until this change.
+          # That build does not survive a failed pull: a truncated blob from
+          # quay leaves the artifact nil and it dereferences it.
           #
           #   WARNING failed downloading image quay.io/kairos/packages:kubectl-container-1.31.0-1: unexpected EOF
           #   panic: runtime error: invalid memory address or nil pointer dereference
           #   artifact.(*PackageArtifact).Verify(0x0, ...)
           #
-          # That took master red on b3cd9981 (run 37599588356), and the same
-          # crash reads as a repository content problem when it is the index
-          # blob that comes back empty rather than a package.
+          # That took master red on b3cd9981 (run 37599588356) and again on
+          # 3dd0f1f9 (run 37740630820). 0.37.0 returns the download error
+          # instead (mudler/luet#393), and quay.io/kairos/packages is itself
+          # published with luet 0.36.0, so 0.33.0 was the odd one out.
           #
-          # mudler/luet#404 fixes this upstream but is not merged, and this
-          # step pins the 0.33.0 binary released in 2022, so merging it would
-          # not reach this runner either. Retry here until the pin moves.
-          # The repository index and the partial artifact are both cached, so
-          # the cache has to go or the next attempt reads the same bytes back.
+          # A clean error is still a red leg, so keep retrying. The repository
+          # index and the partial artifact are both cached, so the cache has to
+          # go or the next attempt reads the same bytes back.
           for attempt in 1 2 3; do
             if LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d; then
               exit 0
