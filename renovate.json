@@ -63,10 +63,12 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/.github/workflows/.*.ya?ml/"
+        "/.github/workflows/.*.ya?ml/",
+        "/internal/testartifacts/.*\\.go$/"
       ],
       "matchStrings": [
         "quay.io/kairos/auroraboot:(?<currentValue>[a-zA-Z0-9_.-]+)",
+        "AuroraBootVersion = \\\"(?<currentValue>[a-zA-Z0-9_.-]+)\\\"",
         "auroraboot_version:\\s*[\\\"']?(?<currentValue>[a-zA-Z0-9_.-]+)[\\\"']?"
       ],
       "depNameTemplate": "quay.io/kairos/auroraboot",
@@ -92,6 +94,31 @@
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "kube-vip/kube-vip",
       "versioningTemplate": "semver"
+    },
+    {
+      "description": "zizmor-action runs whichever zizmor release it is given, and a new release can bring new audits, so the version is pinned in the workflow.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/zizmor\\.yaml$/"
+      ],
+      "matchStrings": [
+        "ZIZMOR_VERSION:\\s*'(?<currentValue>[0-9.]+)'"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "zizmorcore/zizmor",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "description": "kairos-init/README.md's Quick example pins the image in a fenced code block, so the dockerfile manager (which only scans files literally named Dockerfile/Containerfile) never sees it.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^kairos-init/README\\.md$/"
+      ],
+      "matchStrings": [
+        "quay.io/kairos/kairos-init:(?<currentValue>[a-zA-Z0-9_.-]+)"
+      ],
+      "depNameTemplate": "quay.io/kairos/kairos-init",
+      "datasourceTemplate": "docker"
     }
   ]
 }

@@ -43,15 +43,35 @@ var _ = Describe("AutoInstall", func() {
 	}
 
 	It("reports nothing to do when no config was written", func() {
-		installed, _, err := AutoInstall("", false, configDir)
+		installed, _, scanErr, err := AutoInstall("", false, configDir)
+		Expect(scanErr).ToNot(HaveOccurred())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(installed).To(BeFalse())
+	})
+
+	It("hands back the scan error of a config it could not read, without installing", func() {
+		writeConfig("#cloud-config\ninstall:\n  auto: true\n  ssh_hardening: true\n  device: /dev/nonexistent\n")
+
+		ran := false
+		original := runInstallFn
+		runInstallFn = func(*sdkConfig.Config) error {
+			ran = true
+			return nil
+		}
+		DeferCleanup(func() { runInstallFn = original })
+
+		installed, cc, scanErr, err := AutoInstall("", false, configDir)
+		Expect(scanErr).To(MatchError(ContainSubstring("ssh_hardening")))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(installed).To(BeFalse())
+		Expect(cc).ToNot(BeNil())
+		Expect(ran).To(BeFalse())
 	})
 
 	It("reports nothing to do for a config without install.auto", func() {
 		writeConfig("#cloud-config\ninstall:\n  device: /dev/nonexistent\n")
 
-		installed, _, err := AutoInstall("", false, configDir)
+		installed, _, _, err := AutoInstall("", false, configDir)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(installed).To(BeFalse())
 	})
@@ -59,7 +79,7 @@ var _ = Describe("AutoInstall", func() {
 	It("reports nothing to do when install.auto is explicitly false", func() {
 		writeConfig("#cloud-config\ninstall:\n  auto: false\n  device: /dev/nonexistent\n")
 
-		installed, _, err := AutoInstall("", false, configDir)
+		installed, _, _, err := AutoInstall("", false, configDir)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(installed).To(BeFalse())
 	})
@@ -81,7 +101,7 @@ var _ = Describe("AutoInstall", func() {
 		}
 		DeferCleanup(func() { runInstallFn = original })
 
-		installed, cc, err := AutoInstall("", false, configDir)
+		installed, cc, _, err := AutoInstall("", false, configDir)
 		Expect(installed).To(BeTrue())
 		Expect(err).To(MatchError(sentinel))
 		Expect(got).ToNot(BeNil())
@@ -93,7 +113,7 @@ var _ = Describe("AutoInstall", func() {
 	It("hands the scanned config back when there is nothing to install", func() {
 		writeConfig("#cloud-config\ninstall:\n  device: /dev/nonexistent\n")
 
-		installed, cc, err := AutoInstall("", false, configDir)
+		installed, cc, _, err := AutoInstall("", false, configDir)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(installed).To(BeFalse())
 		Expect(cc).ToNot(BeNil())
