@@ -99,22 +99,25 @@ jobs:
           path: dist/download/fips
 
       - name: Reassemble dist/linux-${{ matrix.arch }}{,-fips}/
+        env:
+          ARCH: ${{ matrix.arch }}
+          SCOPE: ${{ inputs.matrix_scope }}
         run: |
           set -euo pipefail
-          mkdir -p "dist/linux-${{ matrix.arch }}"
+          mkdir -p "dist/linux-$ARCH"
           for tarball in dist/download/default/*.tar.gz; do
             [ -f "$tarball" ] || continue
-            tar -xzf "$tarball" -C "dist/linux-${{ matrix.arch }}"
+            tar -xzf "$tarball" -C "dist/linux-$ARCH"
           done
-          if [ "${{ matrix.arch }}" != "riscv64" ] && [ "${{ inputs.matrix_scope }}" != "pr" ]; then
-            mkdir -p "dist/linux-${{ matrix.arch }}-fips"
+          if [ "$ARCH" != "riscv64" ] && [ "$SCOPE" != "pr" ]; then
+            mkdir -p "dist/linux-$ARCH-fips"
             for tarball in dist/download/fips/*.tar.gz; do
               [ -f "$tarball" ] || continue
-              tar -xzf "$tarball" -C "dist/linux-${{ matrix.arch }}-fips"
+              tar -xzf "$tarball" -C "dist/linux-$ARCH-fips"
             done
           fi
-          ls -l "dist/linux-${{ matrix.arch }}"
-          [ ! -d "dist/linux-${{ matrix.arch }}-fips" ] || ls -l "dist/linux-${{ matrix.arch }}-fips"
+          ls -l "dist/linux-$ARCH"
+          [ ! -d "dist/linux-$ARCH-fips" ] || ls -l "dist/linux-$ARCH-fips"
 
       - name: Build kairos-init
         # kairos-init compiles under the default variant flag; the
