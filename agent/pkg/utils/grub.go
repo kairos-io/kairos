@@ -421,7 +421,12 @@ func copyGrubFonts(cfg *sdkConfig.Config, rootDir, bootDir, systemgrub string) {
 			if err != nil {
 				return err
 			}
-			if d.Name() == m && strings.Contains(path, cfg.Arch) {
+			// Fonts are not arch suffixed and distros do not agree on where
+			// they live: Ubuntu and Debian ship them under /usr/share/grub,
+			// openSUSE under /usr/share/grub2. Match on the name alone and
+			// keep the first hit, so a namesake deeper in the tree cannot
+			// overwrite it.
+			if !foundFont && d.Name() == m {
 				fileWriteName := filepath.Join(fontsDir, m)
 				cfg.Logger.Debugf("Copying %s to %s", path, fileWriteName)
 				fileContent, err := cfg.Fs.ReadFile(path)

@@ -601,6 +601,27 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(string(content)).To(Equal("font"))
 		})
+		It("copies the grub fonts from a path that does not contain the arch", func() {
+			// Full efi setup with shim, grub and modules
+			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/efi/x86_64/"), constants.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte(""), constants.FilePerm)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/grub.efi"), []byte(""), constants.FilePerm)).To(Succeed())
+			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			// Debian and Ubuntu keep the fonts in an arch free directory,
+			// which is where every .pf2 of theirs lives.
+			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/grub/"), constants.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/grub/unicode.pf2"), []byte("font"), constants.FilePerm)).To(Succeed())
+
+			grub := utils.NewGrub(config)
+			err := grub.Install(target, rootDir, bootDir, constants.GrubConf, "", true, "")
+			Expect(err).ToNot(HaveOccurred())
+
+			fontPath := filepath.Join(bootDir, "grub2", "fonts", "unicode.pf2")
+			content, err := fs.ReadFile(fontPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(content)).To(Equal("font"))
+		})
 		It("fails in efi mode when a module cannot be read", func() {
 			// A module path which matches the name but is a directory
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/loopback.mod"), constants.DirPerm)).To(Succeed())
