@@ -142,8 +142,8 @@ jobs:
         id: split
         run: |
           # Split base image for tag generation
-          BASE_IMAGE=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
-          BASE_TAG=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          BASE_IMAGE=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 2 || echo 'latest')
           # Handle special cases for base images with slashes
           # Handle base images with slashes (registry paths)
           # Examples:
@@ -184,27 +184,32 @@ jobs:
           echo "Flavor: $FLAVOR"
           echo "Flavor Release: $FLAVOR_RELEASE"
           echo "Flavor Release Latest: $FLAVOR_RELEASE_LATEST"
+        env:
+          INPUTS_BASE_IMAGE: ${{ inputs.base_image }}
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
-          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
+          # zizmor flags a cache that release runs read. This one only holds
+          # the test suite's Go modules, and nothing built here ships.
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}  # zizmor: ignore[cache-poisoning]
       - name: Set up Docker Buildx for public runners
         if: runner.environment == 'github-hosted'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
         with:
           driver-opts: network=host
       - name: Set up Docker Buildx for custom runners
         if: runner.environment == 'self-hosted'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
         with:
           driver-opts: network=host
           buildkitd-config-inline: |
@@ -374,16 +379,19 @@ jobs:
           CPUS: 2
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
           USE_BRIDGE_NETWORK: ${{ inputs.use_bridge_network && '1' || '' }}
+          STEPS_FIND_OVMF_OUTPUTS_FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
+          INPUTS_SUITE_TIMEOUT: ${{ inputs.suite_timeout }}
+          INPUTS_TEST: ${{ inputs.test }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
-            export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
+            export FIRMWARE="${STEPS_FIND_OVMF_OUTPUTS_FIRMWARE}"
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
           fi
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           echo "ISO is: $ISO"
           pushd tests
           go mod download
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "${{ inputs.suite_timeout }}" --label-filter "${{ inputs.test }}" --fail-fast -r ./...
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "${INPUTS_SUITE_TIMEOUT}" --label-filter "${INPUTS_TEST}" --fail-fast -r ./...
           popd
       - name: Run encryption tests
         if: ${{ startsWith(inputs.test, 'encryption-') }}

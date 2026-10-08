@@ -78,6 +78,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
@@ -124,11 +125,14 @@ jobs:
         # FIPS multi-call kairos is embedded via bundled_fips.go. The "pr"
         # scope has no FIPS build, so it embeds placeholders instead.
         env:
+          MATRIX_ARCH: ${{ matrix.arch }}
           FIPS_STUBS: ${{ inputs.matrix_scope == 'pr' && '1' || '' }}
-        run: make kairos-init ARCH=${{ matrix.arch }} VARIANT=default
+        run: make kairos-init ARCH="${MATRIX_ARCH}" VARIANT=default
 
       - name: Package kairos-init archive
-        run: make archives ARCH=${{ matrix.arch }} VARIANT=default
+        run: make archives ARCH="${MATRIX_ARCH}" VARIANT=default
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1

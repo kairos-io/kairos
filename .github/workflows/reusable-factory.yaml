@@ -286,12 +286,12 @@ on:
       custom_tag_format:
         type: string
         required: false
-        description: "Custom tag format using variables like $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $UKI, $COMMIT_SHA. If not provided, uses default format."
+        description: "Custom tag format using variables like $FLAVOR, $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $K8S, $UKI, $COMMIT_SHA. If not provided, uses default format."
 
       custom_artifact_format:
         type: string
         required: false
-        description: "Custom artifact filename format using variables like $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $UKI, $COMMIT_SHA. If not provided, uses auroraboot's default naming."
+        description: "Custom artifact filename format using variables like $FLAVOR, $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $K8S, $UKI, $COMMIT_SHA. If not provided, uses auroraboot's default naming."
 
       custom_job_name_format:
         type: string
@@ -450,6 +450,7 @@ jobs:
           # set caller-vetted-ref; the fallback will be dropped in the next
           # major version.
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref || inputs.ref != '' }}
+          persist-credentials: false
 
       - name: Validate inputs and setup Dockerfile
         shell: bash
@@ -459,24 +460,24 @@ jobs:
           echo "📁 Created temporary directory: $TEMP_DIR"
 
           # Check if user provided a dockerfile_path
-          if [[ -n "${{ inputs.dockerfile_path }}" ]]; then
+          if [[ -n "${INPUTS_DOCKERFILE_PATH}" ]]; then
             # User provided a path - validate it exists
-            if [ ! -f "${{ inputs.dockerfile_path }}" ]; then
-              echo "❌ Error: Dockerfile not found at ${{ inputs.dockerfile_path }}"
+            if [ ! -f "${INPUTS_DOCKERFILE_PATH}" ]; then
+              echo "❌ Error: Dockerfile not found at ${INPUTS_DOCKERFILE_PATH}"
               echo "   Current directory: $(pwd)"
               echo "   Directory contents: $(ls -la)"
               echo "   Please ensure the Dockerfile exists at the specified path"
               exit 1
             fi
-            echo "✅ Found Dockerfile at ${{ inputs.dockerfile_path }}"
-            echo "DOCKERFILE_PATH=${{ inputs.dockerfile_path }}" >> $GITHUB_ENV
+            echo "✅ Found Dockerfile at ${INPUTS_DOCKERFILE_PATH}"
+            echo "DOCKERFILE_PATH=${INPUTS_DOCKERFILE_PATH}" >> $GITHUB_ENV
           else
             # User didn't provide a path - download fallback
-            echo "📥 No Dockerfile path provided, downloading fallback from Kairos ${{ inputs.kairos_version }}"
+            echo "📥 No Dockerfile path provided, downloading fallback from Kairos ${INPUTS_KAIROS_VERSION}"
 
             # Download the default Kairos Dockerfile to temp directory
-            echo "📥 Downloading default Kairos Dockerfile from https://github.com/kairos-io/kairos/blob/${{ inputs.kairos_version }}/images/Dockerfile"
-            curl -L "https://raw.githubusercontent.com/kairos-io/kairos/${{ inputs.kairos_version }}/images/Dockerfile" -o "$TEMP_DIR/Dockerfile"
+            echo "📥 Downloading default Kairos Dockerfile from https://github.com/kairos-io/kairos/blob/${INPUTS_KAIROS_VERSION}/images/Dockerfile"
+            curl -L "https://raw.githubusercontent.com/kairos-io/kairos/${INPUTS_KAIROS_VERSION}/images/Dockerfile" -o "$TEMP_DIR/Dockerfile"
 
             if [ -f "$TEMP_DIR/Dockerfile" ]; then
               echo "✅ Successfully downloaded default Dockerfile to $TEMP_DIR/Dockerfile"
@@ -490,8 +491,8 @@ jobs:
 
           # Download Dockerfile.img only if RAW builds are requested
           if [[ "${{ inputs.raw }}" == "true" ]]; then
-            echo "📥 Downloading Kairos Dockerfile.img for RAW builds from https://github.com/kairos-io/kairos/blob/${{ inputs.kairos_version }}/images/Dockerfile.img"
-            curl -L "https://raw.githubusercontent.com/kairos-io/kairos/${{ inputs.kairos_version }}/images/Dockerfile.img" -o "$TEMP_DIR/Dockerfile.img"
+            echo "📥 Downloading Kairos Dockerfile.img for RAW builds from https://github.com/kairos-io/kairos/blob/${INPUTS_KAIROS_VERSION}/images/Dockerfile.img"
+            curl -L "https://raw.githubusercontent.com/kairos-io/kairos/${INPUTS_KAIROS_VERSION}/images/Dockerfile.img" -o "$TEMP_DIR/Dockerfile.img"
 
             if [ -f "$TEMP_DIR/Dockerfile.img" ]; then
               echo "✅ Successfully downloaded Dockerfile.img to $TEMP_DIR/Dockerfile.img"
@@ -504,14 +505,14 @@ jobs:
           fi
 
           # Validate required inputs
-          if [[ -z "${{ inputs.version }}" ]]; then
+          if [[ -z "${INPUTS_VERSION}" ]]; then
             echo "❌ Error: version is required"
             exit 1
           fi
 
           # Validate kubernetes_distro values
-          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
-            case "${{ inputs.kubernetes_distro }}" in
+          if [[ -n "${INPUTS_KUBERNETES_DISTRO}" ]]; then
+            case "${INPUTS_KUBERNETES_DISTRO}" in
               k3s|k0s)
                 ;;
               *)
@@ -522,7 +523,7 @@ jobs:
           fi
 
           # Validate arch values
-          case "${{ inputs.arch }}" in
+          case "${INPUTS_ARCH}" in
             amd64|arm64)
               ;;
             *)
@@ -532,7 +533,7 @@ jobs:
           esac
 
           # Validate security scan mode
-          case "${{ inputs.security_scan_mode }}" in
+          case "${INPUTS_SECURITY_SCAN_MODE}" in
             legacy|enforce|report-only)
               ;;
             *)
@@ -542,20 +543,27 @@ jobs:
           esac
 
           echo "✅ Input validation passed"
+        env:
+          INPUTS_DOCKERFILE_PATH: ${{ inputs.dockerfile_path }}
+          INPUTS_KAIROS_VERSION: ${{ inputs.kairos_version }}
+          INPUTS_VERSION: ${{ inputs.version }}
+          INPUTS_KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
+          INPUTS_ARCH: ${{ inputs.arch }}
+          INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
 
       - name: Setup environment
         id: setup
         shell: bash
         run: |
           # Determine variant based on kubernetes_distro
-          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+          if [[ -n "${INPUTS_KUBERNETES_DISTRO}" ]]; then
             VARIANT="standard"
           else
             VARIANT="core"
           fi
 
           # Handle version resolution
-          if [[ "${{ inputs.version }}" == "auto" ]]; then
+          if [[ "${INPUTS_VERSION}" == "auto" ]]; then
             VERSION=$(git describe --tags --dirty --always)
             # Handle three cases:
             # 1. No tags: 39d55d3 → v0.0.0-39d55d3
@@ -566,27 +574,27 @@ jobs:
               VERSION="v0.0.0-$VERSION"
             fi
           else
-            VERSION="${{ inputs.version }}"
+            VERSION="${INPUTS_VERSION}"
           fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-          if [[ "${{ inputs.kairos_version }}" == "auto" ]]; then
+          if [[ "${INPUTS_KAIROS_VERSION}" == "auto" ]]; then
             KAIROS_VERSION=$VERSION
-          elif [[ "${{ inputs.kairos_version }}" != "" ]]; then
-            KAIROS_VERSION="${{ inputs.kairos_version }}"
+          elif [[ "${INPUTS_KAIROS_VERSION}" != "" ]]; then
+            KAIROS_VERSION="${INPUTS_KAIROS_VERSION}"
           fi
           echo "KAIROS_VERSION=$KAIROS_VERSION" >> $GITHUB_ENV
 
           # Handle kubernetes version resolution
-          if [[ "${{ inputs.kubernetes_version }}" == "auto" ]]; then
+          if [[ "${INPUTS_KUBERNETES_VERSION}" == "auto" ]]; then
             KUBERNETES_VERSION=""
           else
-            KUBERNETES_VERSION="${{ inputs.kubernetes_version }}"
+            KUBERNETES_VERSION="${INPUTS_KUBERNETES_VERSION}"
           fi
 
           # Split base image for tag generation
-          BASE_IMAGE=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
-          BASE_TAG=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          BASE_IMAGE=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 2 || echo 'latest')
 
           # Handle base images with slashes (registry paths)
           # Examples:
@@ -615,7 +623,7 @@ jobs:
           fi
 
           # Special case for nvidia
-          if [[ "${{ inputs.model }}" == "nvidia-jetson-agx-orin" ]]; then
+          if [[ "${INPUTS_MODEL}" == "nvidia-jetson-agx-orin" ]]; then
             FLAVOR="ubuntu"
             FLAVOR_RELEASE="22.04"
           fi
@@ -631,9 +639,9 @@ jobs:
           fi
 
           # Define variables for tag generation
-          ARCH="${{ inputs.arch }}"
-          MODEL="${{ inputs.model }}"
-          KUBERNETES_DISTRO="${{ inputs.kubernetes_distro }}"
+          ARCH="${INPUTS_ARCH}"
+          MODEL="${INPUTS_MODEL}"
+          KUBERNETES_DISTRO="${INPUTS_KUBERNETES_DISTRO}"
           UKI="$UKI_SUFFIX"
           COMMIT_SHA="${{ github.sha }}"
 
@@ -648,6 +656,20 @@ jobs:
             K8S="-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION"
           fi
 
+          # custom_tag_format and custom_artifact_format name the variables
+          # above, such as $FLAVOR_RELEASE or $K8S. Only those names are
+          # replaced, and the rest of the format stays literal text, so a
+          # format cannot run commands. Longer names go first, so that
+          # $FLAVOR does not match the start of $FLAVOR_RELEASE.
+          expand_format() {
+            local out="$1" v
+            for v in SANITIZED_KUBERNETES_VERSION KUBERNETES_DISTRO KUBERNETES_VERSION FLAVOR_RELEASE COMMIT_SHA VARIANT VERSION FLAVOR MODEL ARCH K8S UKI; do
+              out=${out//"\${$v}"/"${!v}"}
+              out=${out//"\$$v"/"${!v}"}
+            done
+            printf '%s' "$out"
+          }
+
           # Generate default tag
           if [[ -n "$KUBERNETES_VERSION" ]]; then
             DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION$UKI"
@@ -656,20 +678,19 @@ jobs:
           fi
 
           # Use custom tag format if provided, otherwise use default
-          if [[ -n "${{ inputs.custom_tag_format }}" ]]; then
-            # Shell will automatically expand variables in the format
-            TAG="${{ inputs.custom_tag_format }}"
+          if [[ -n "${INPUTS_CUSTOM_TAG_FORMAT}" ]]; then
+            TAG="$(expand_format "${INPUTS_CUSTOM_TAG_FORMAT}")"
           else
             TAG="$DEFAULT_TAG"
           fi
 
           # Determine registry, namespace, and repository
-          REGISTRY="${{ inputs.registry_domain }}"
-          NAMESPACE="${{ inputs.registry_namespace }}"
+          REGISTRY="${INPUTS_REGISTRY_DOMAIN}"
+          NAMESPACE="${INPUTS_REGISTRY_NAMESPACE}"
 
           # Use registry_repository if specified, otherwise use FLAVOR
-          if [[ -n "${{ inputs.registry_repository }}" ]]; then
-            REPOSITORY="${{ inputs.registry_repository }}"
+          if [[ -n "${INPUTS_REGISTRY_REPOSITORY}" ]]; then
+            REPOSITORY="${INPUTS_REGISTRY_REPOSITORY}"
           else
             REPOSITORY="$FLAVOR"
           fi
@@ -690,9 +711,8 @@ jobs:
           echo "IMAGE_NAME=$IMAGE_TAG" >> $GITHUB_ENV
 
           # Generate artifact name
-          if [[ -n "${{ inputs.custom_artifact_format }}" ]]; then
-            # Shell will automatically expand variables in the format
-            ARTIFACT_NAME="${{ inputs.custom_artifact_format }}"
+          if [[ -n "${INPUTS_CUSTOM_ARTIFACT_FORMAT}" ]]; then
+            ARTIFACT_NAME="$(expand_format "${INPUTS_CUSTOM_ARTIFACT_FORMAT}")"
           else
             # Generate default artifact name format
             DEFAULT_ARTIFACT_NAME="kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION"
@@ -709,22 +729,22 @@ jobs:
           fi
 
           # Use keys_dir if specified
-          if [[ -n "${{ inputs.keys_dir }}" ]]; then
-            KEYS_DIR="${{ inputs.keys_dir }}"
+          if [[ -n "${INPUTS_KEYS_DIR}" ]]; then
+            KEYS_DIR="${INPUTS_KEYS_DIR}"
           else
             KEYS_DIR=""
           fi
 
           # Use sysext_dir if specified
-          if [[ -n "${{ inputs.sysext_dir }}" ]]; then
-            SYSEXT_DIR="${{ inputs.sysext_dir }}"
+          if [[ -n "${INPUTS_SYSEXT_DIR}" ]]; then
+            SYSEXT_DIR="${INPUTS_SYSEXT_DIR}"
           else
             SYSEXT_DIR=""
           fi
 
           # Use single_efi_cmdline if specified
-          if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
-            SINGLE_EFI_CMDLINE="${{ inputs.single_efi_cmdline }}"
+          if [[ -n "${INPUTS_SINGLE_EFI_CMDLINE}" ]]; then
+            SINGLE_EFI_CMDLINE="${INPUTS_SINGLE_EFI_CMDLINE}"
           else
             SINGLE_EFI_CMDLINE=""
           fi
@@ -750,27 +770,43 @@ jobs:
           echo "   Namespace: $NAMESPACE"
           echo "   Repository: $REPOSITORY"
           echo "   Default Tag: $DEFAULT_TAG"
-          if [[ -n "${{ inputs.custom_tag_format }}" ]]; then
-            echo "   Custom Tag Format: ${{ inputs.custom_tag_format }}"
+          if [[ -n "${INPUTS_CUSTOM_TAG_FORMAT}" ]]; then
+            echo "   Custom Tag Format: ${INPUTS_CUSTOM_TAG_FORMAT}"
           fi
-          if [[ -n "${{ inputs.custom_artifact_format }}" ]]; then
-            echo "   Custom Artifact Format: ${{ inputs.custom_artifact_format }}"
+          if [[ -n "${INPUTS_CUSTOM_ARTIFACT_FORMAT}" ]]; then
+            echo "   Custom Artifact Format: ${INPUTS_CUSTOM_ARTIFACT_FORMAT}"
             echo "   Artifact Name: $ARTIFACT_NAME"
           fi
-          if [[ -n "${{ inputs.keys_dir }}" ]]; then
-            echo "   Keys Dir: ${{ inputs.keys_dir }}"
+          if [[ -n "${INPUTS_KEYS_DIR}" ]]; then
+            echo "   Keys Dir: ${INPUTS_KEYS_DIR}"
           fi
-          if [[ -n "${{ inputs.sysext_dir }}" ]]; then
-            echo "   Sysext Dir: ${{ inputs.sysext_dir }}"
+          if [[ -n "${INPUTS_SYSEXT_DIR}" ]]; then
+            echo "   Sysext Dir: ${INPUTS_SYSEXT_DIR}"
           fi
-          if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
-            echo "   Single EFI Cmdline: ${{ inputs.single_efi_cmdline }}"
+          if [[ -n "${INPUTS_SINGLE_EFI_CMDLINE}" ]]; then
+            echo "   Single EFI Cmdline: ${INPUTS_SINGLE_EFI_CMDLINE}"
           fi
           echo "   Final Tag: $TAG"
           echo "   Image Tag: $IMAGE_TAG"
+        env:
+          INPUTS_KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
+          INPUTS_VERSION: ${{ inputs.version }}
+          INPUTS_KAIROS_VERSION: ${{ inputs.kairos_version }}
+          INPUTS_KUBERNETES_VERSION: ${{ inputs.kubernetes_version }}
+          INPUTS_BASE_IMAGE: ${{ inputs.base_image }}
+          INPUTS_MODEL: ${{ inputs.model }}
+          INPUTS_ARCH: ${{ inputs.arch }}
+          INPUTS_CUSTOM_TAG_FORMAT: ${{ inputs.custom_tag_format }}
+          INPUTS_REGISTRY_DOMAIN: ${{ inputs.registry_domain }}
+          INPUTS_REGISTRY_NAMESPACE: ${{ inputs.registry_namespace }}
+          INPUTS_REGISTRY_REPOSITORY: ${{ inputs.registry_repository }}
+          INPUTS_CUSTOM_ARTIFACT_FORMAT: ${{ inputs.custom_artifact_format }}
+          INPUTS_KEYS_DIR: ${{ inputs.keys_dir }}
+          INPUTS_SYSEXT_DIR: ${{ inputs.sysext_dir }}
+          INPUTS_SINGLE_EFI_CMDLINE: ${{ inputs.single_efi_cmdline }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@bedaf135699075c88620cd30772b9b6eadc9ba99  # master
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
         with:
           platforms: linux/${{ inputs.arch }}
 
@@ -794,15 +830,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${{ inputs.oci_context_name }}" ]]; then
+          if [[ -z "${INPUTS_OCI_CONTEXT_NAME}" ]]; then
             echo "::error::oci_context_artifact needs oci_context_name"
             exit 1
           fi
           mkdir -p "$RUNNER_TEMP/oci-context/layout"
           tar -xf "$RUNNER_TEMP"/oci-context/*.tar -C "$RUNNER_TEMP/oci-context/layout"
+        env:
+          INPUTS_OCI_CONTEXT_NAME: ${{ inputs.oci_context_name }}
 
       - name: Build Kairos image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
@@ -825,10 +863,12 @@ jobs:
       - name: Check for Grype config
         if: inputs.grype || inputs.grype_sarif
         id: grype-config
+        env:
+          INPUTS_GRYPE_CONFIG: ${{ inputs.grype_config }}
         run: |
-          if [[ -n "${{ inputs.grype_config }}" && -f "${{ inputs.grype_config }}" ]]; then
-            echo "📄 Using Grype config: ${{ inputs.grype_config }}"
-            echo "path=${{ inputs.grype_config }}" >> $GITHUB_OUTPUT
+          if [[ -n "${INPUTS_GRYPE_CONFIG}" && -f "${INPUTS_GRYPE_CONFIG}" ]]; then
+            echo "📄 Using Grype config: ${INPUTS_GRYPE_CONFIG}"
+            echo "path=${INPUTS_GRYPE_CONFIG}" >> $GITHUB_OUTPUT
           elif [[ -f ".grype.yaml" ]]; then
             echo "📄 Using Grype config: .grype.yaml"
             echo "path=.grype.yaml" >> $GITHUB_OUTPUT
@@ -852,21 +892,23 @@ jobs:
       - name: Parse Grype scan results
         if: inputs.grype
         id: grype-results
+        env:
+          STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
         run: |
           # Check if the JSON file exists and is not empty
-          if [[ ! -f "${{ steps.grype.outputs.json }}" ]] || [[ ! -s "${{ steps.grype.outputs.json }}" ]]; then
+          if [[ ! -f "${STEPS_GRYPE_OUTPUTS_JSON}" ]] || [[ ! -s "${STEPS_GRYPE_OUTPUTS_JSON}" ]]; then
             echo "❌ Error: Grype JSON output file is missing or empty"
-            echo "   Expected file: ${{ steps.grype.outputs.json }}"
+            echo "   Expected file: ${STEPS_GRYPE_OUTPUTS_JSON}"
             echo "   This indicates the Grype scan failed or didn't produce output"
             echo "critical_count=0" >> $GITHUB_OUTPUT
             echo "status=error" >> $GITHUB_OUTPUT
             exit 1
           fi
 
-          CRITICAL_COUNT=$(jq '[.matches[]? | select((.vulnerability.severity // "") == "Critical")] | length' "${{ steps.grype.outputs.json }}")
+          CRITICAL_COUNT=$(jq '[.matches[]? | select((.vulnerability.severity // "") == "Critical")] | length' "${STEPS_GRYPE_OUTPUTS_JSON}")
           echo "critical_count=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
 
-          jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${{ steps.grype.outputs.json }}" > grype-critical.txt
+          jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${STEPS_GRYPE_OUTPUTS_JSON}" > grype-critical.txt
 
           if [[ "$CRITICAL_COUNT" -gt 0 ]]; then
             echo "status=failed" >> $GITHUB_OUTPUT
@@ -920,13 +962,13 @@ jobs:
         if: inputs.security_scan_mode == 'legacy' && inputs.grype
         shell: bash
         run: |
-          GRYPE_CRITICAL="${{ steps.grype-results.outputs.critical_count }}"
+          GRYPE_CRITICAL="${STEPS_GRYPE_RESULTS_OUTPUTS_CRITICAL_COUNT}"
           [[ -z "$GRYPE_CRITICAL" ]] && GRYPE_CRITICAL=0
 
           if [[ "$GRYPE_CRITICAL" -gt 0 ]]; then
             echo "❌ Security gate blocked build (legacy mode): Grype found $GRYPE_CRITICAL critical vulnerabilities."
             if [[ ! -s grype-critical.txt ]]; then
-              jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${{ steps.grype.outputs.json }}" > grype-critical.txt
+              jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${STEPS_GRYPE_OUTPUTS_JSON}" > grype-critical.txt
             fi
             if [[ -s grype-critical.txt ]]; then
               echo "   Grype critical findings:"
@@ -938,6 +980,9 @@ jobs:
           fi
 
           echo "✅ Security gate passed (legacy mode)."
+        env:
+          STEPS_GRYPE_RESULTS_OUTPUTS_CRITICAL_COUNT: ${{ steps.grype-results.outputs.critical_count }}
+          STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
 
       - name: Enforce security scan policy (enforce)
         if: inputs.security_scan_mode == 'enforce'
@@ -946,12 +991,12 @@ jobs:
           FAIL=0
 
           if [[ "${{ inputs.grype }}" == "true" ]]; then
-            GRYPE_CRITICAL="${{ steps.grype-results.outputs.critical_count }}"
+            GRYPE_CRITICAL="${STEPS_GRYPE_RESULTS_OUTPUTS_CRITICAL_COUNT}"
             [[ -z "$GRYPE_CRITICAL" ]] && GRYPE_CRITICAL=0
             if [[ "$GRYPE_CRITICAL" -gt 0 ]]; then
               echo "❌ Grype found $GRYPE_CRITICAL critical vulnerabilities."
               if [[ ! -s grype-critical.txt ]]; then
-                jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${{ steps.grype.outputs.json }}" > grype-critical.txt
+                jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${STEPS_GRYPE_OUTPUTS_JSON}" > grype-critical.txt
               fi
               if [[ -s grype-critical.txt ]]; then
                 echo "   Grype critical findings:"
@@ -964,7 +1009,7 @@ jobs:
           fi
 
           if [[ "${{ inputs.trivy }}" == "true" ]]; then
-            TRIVY_CRITICAL="${{ steps.trivy-results.outputs.critical_count }}"
+            TRIVY_CRITICAL="${STEPS_TRIVY_RESULTS_OUTPUTS_CRITICAL_COUNT}"
             [[ -z "$TRIVY_CRITICAL" ]] && TRIVY_CRITICAL=0
             if [[ "$TRIVY_CRITICAL" -gt 0 ]]; then
               echo "❌ Trivy found $TRIVY_CRITICAL critical vulnerabilities."
@@ -987,6 +1032,10 @@ jobs:
           fi
 
           echo "✅ Security gate passed (enforce mode)."
+        env:
+          STEPS_GRYPE_RESULTS_OUTPUTS_CRITICAL_COUNT: ${{ steps.grype-results.outputs.critical_count }}
+          STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
+          STEPS_TRIVY_RESULTS_OUTPUTS_CRITICAL_COUNT: ${{ steps.trivy-results.outputs.critical_count }}
 
       - name: Run Trivy SARIF scan
         if: inputs.trivy_sarif
@@ -1047,7 +1096,7 @@ jobs:
       # kind of small lie that costs someone an afternoon.
       - name: Push Kairos image
         if: inputs.registry_domain != ''
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
@@ -1071,6 +1120,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Install AuroraBoot runtime library
         # cmd/test-artifacts runs the AuroraBoot release binary for genkey,
@@ -1115,95 +1165,100 @@ jobs:
         env:
           KEYS_DIR_INPUT: ${{ steps.test-artifacts.outputs.keys_dir || inputs.keys_dir }}
           SYSEXT_DIR_INPUT: ${{ steps.test-artifacts.outputs.sysext_dir || inputs.sysext_dir }}
+          INPUTS_MODEL: ${{ inputs.model }}
+          STEPS_SETUP_OUTPUTS_IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          INPUTS_CLOUD_CONFIG: ${{ inputs.cloud_config }}
+          INPUTS_AURORABOOT_VERSION: ${{ inputs.auroraboot_version }}
+          INPUTS_SINGLE_EFI_CMDLINE: ${{ inputs.single_efi_cmdline }}
         run: |
           echo "🔍 Debug: Starting ISO generation step"
-          echo "   Inputs: iso=${{ inputs.iso }}, model=${{ inputs.model }}"
-          echo "   Image tag: ${{ steps.setup.outputs.image_tag }}"
+          echo "   Inputs: iso=${{ inputs.iso }}, model=${INPUTS_MODEL}"
+          echo "   Image tag: ${STEPS_SETUP_OUTPUTS_IMAGE_TAG}"
 
           mkdir -p artifacts
-          echo "   Using image: ${{ steps.setup.outputs.image_tag }}"
+          echo "   Using image: ${STEPS_SETUP_OUTPUTS_IMAGE_TAG}"
 
           echo "📦 Building ISO ..."
-            DOCKER_CMD="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock"
-            DOCKER_CMD="$DOCKER_CMD -v $PWD/artifacts:/output"
+          # The command is a bash array run as "${cmd[@]}", not a string
+          # run with eval. eval would read input values such as the
+          # cloud-config path or the kernel command line as shell code;
+          # in an array each one stays a single argument.
+          cmd=(docker run --rm -v /var/run/docker.sock:/var/run/docker.sock)
+          cmd+=(-v "$PWD/artifacts:/output")
 
-            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              if [[ "$KEYS_DIR_INPUT" != /* ]]; then
-                KEYS_DIR_INPUT="$PWD/$KEYS_DIR_INPUT"
-              fi
-              DOCKER_CMD="$DOCKER_CMD -v \"$KEYS_DIR_INPUT\":/keys"
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            if [[ "$KEYS_DIR_INPUT" != /* ]]; then
+              KEYS_DIR_INPUT="$PWD/$KEYS_DIR_INPUT"
             fi
+            cmd+=(-v "$KEYS_DIR_INPUT:/keys")
+          fi
 
-            # build-iso takes --overlay-iso just like build-uki, so the
-            # extensions ship on the GRUB ISO too. The agent sweeps the live
-            # media for *.sysext.raw on both install flows, so keeping this
-            # mount inside the trusted_boot branch left the GRUB half of that
-            # sweep with nothing to find and no test.
-            if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
-              if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
-                SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
-              fi
-              DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
+          # build-iso takes --overlay-iso just like build-uki, so the
+          # extensions ship on the GRUB ISO too. The agent sweeps the live
+          # media for *.sysext.raw on both install flows, so keeping this
+          # mount inside the trusted_boot branch left the GRUB half of that
+          # sweep with nothing to find and no test.
+          if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
+            if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
+              SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
             fi
+            cmd+=(-v "$SYSEXT_DIR_INPUT:/overlay")
+          fi
 
-            # Optional cloud-config (file path or URL)
-            CLOUD_CONFIG_ARG=""
-            CLOUD_CONFIG_INPUT="${{ inputs.cloud_config }}"
-            if [[ -n "$CLOUD_CONFIG_INPUT" ]]; then
-              if [[ "$CLOUD_CONFIG_INPUT" =~ ^https?:// ]]; then
-                CLOUD_CONFIG_ARG="--cloud-config \"$CLOUD_CONFIG_INPUT\""
+          # Optional cloud-config (file path or URL)
+          cloud_config_args=()
+          CLOUD_CONFIG_INPUT="${INPUTS_CLOUD_CONFIG}"
+          if [[ -n "$CLOUD_CONFIG_INPUT" ]]; then
+            if [[ "$CLOUD_CONFIG_INPUT" =~ ^https?:// ]]; then
+              cloud_config_args=(--cloud-config "$CLOUD_CONFIG_INPUT")
+            else
+              # Mount local file into container and refer to stable path
+              if [[ "$CLOUD_CONFIG_INPUT" != /* ]]; then
+                ABS_CC_PATH="$PWD/$CLOUD_CONFIG_INPUT"
               else
-                # Mount local file into container and refer to stable path
-                if [[ "$CLOUD_CONFIG_INPUT" != /* ]]; then
-                  ABS_CC_PATH="$PWD/$CLOUD_CONFIG_INPUT"
-                else
-                  ABS_CC_PATH="$CLOUD_CONFIG_INPUT"
-                fi
-                DOCKER_CMD="$DOCKER_CMD -v \"$ABS_CC_PATH\":/cloud-config:ro"
-                CLOUD_CONFIG_ARG="--cloud-config /cloud-config"
+                ABS_CC_PATH="$CLOUD_CONFIG_INPUT"
               fi
+              cmd+=(-v "$ABS_CC_PATH:/cloud-config:ro")
+              cloud_config_args=(--cloud-config /cloud-config)
             fi
-            DOCKER_CMD="$DOCKER_CMD quay.io/kairos/auroraboot:${{ inputs.auroraboot_version }} --debug"
-            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              DOCKER_CMD="$DOCKER_CMD build-uki"
-            else
-              DOCKER_CMD="$DOCKER_CMD build-iso"
+          fi
+          cmd+=("quay.io/kairos/auroraboot:${INPUTS_AURORABOOT_VERSION}" --debug)
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            cmd+=(build-uki)
+          else
+            cmd+=(build-iso)
+          fi
+          ## auroraboot flags
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            cmd+=(--output-dir /output/)
+          else
+            cmd+=(--output /output/)
+          fi
+
+          if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
+            cmd+=(--allow-insecure-registries)
+          fi
+
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            cmd+=(--output-type=iso)
+            cmd+=(--public-keys /keys)
+            cmd+=(--tpm-pcr-private-key /keys/tpm2-pcr-private.pem)
+            cmd+=(--sb-key /keys/db.key --sb-cert /keys/db.pem)
+
+            if [[ -n "${INPUTS_SINGLE_EFI_CMDLINE}" ]]; then
+              cmd+=("--single-efi-cmdline=${INPUTS_SINGLE_EFI_CMDLINE}")
             fi
-            ## auroraboot flags
-            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              DOCKER_CMD="$DOCKER_CMD --output-dir /output/"
-            else
-              DOCKER_CMD="$DOCKER_CMD --output /output/"
-            fi
+          fi
 
-            if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
-              DOCKER_CMD="$DOCKER_CMD --allow-insecure-registries"
-            fi
+          if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
+            cmd+=(--overlay-iso /overlay)
+          fi
 
-            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              DOCKER_CMD="$DOCKER_CMD --output-type=iso"
-              DOCKER_CMD="$DOCKER_CMD --public-keys /keys"
-              DOCKER_CMD="$DOCKER_CMD --tpm-pcr-private-key /keys/tpm2-pcr-private.pem"
-              DOCKER_CMD="$DOCKER_CMD --sb-key /keys/db.key --sb-cert /keys/db.pem"
+          cmd+=("${cloud_config_args[@]}")
+          cmd+=("docker:${STEPS_SETUP_OUTPUTS_IMAGE_TAG}")
 
-              if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
-                DOCKER_CMD="$DOCKER_CMD --single-efi-cmdline=\"${{ inputs.single_efi_cmdline }}\""
-              fi
-            fi
-
-            if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
-              DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
-            fi
-
-            # Append cloud-config flag if provided
-            if [[ -n "$CLOUD_CONFIG_ARG" ]]; then
-              DOCKER_CMD="$DOCKER_CMD $CLOUD_CONFIG_ARG"
-            fi
-
-            DOCKER_CMD="$DOCKER_CMD docker:${{ steps.setup.outputs.image_tag }}"
-
-            echo "🔧 Executing: $DOCKER_CMD"
-            eval $DOCKER_CMD
+          echo "🔧 Executing: ${cmd[*]}"
+          "${cmd[@]}"
 
 
           ISO_FILE=$(ls artifacts/*.iso | head -1)
@@ -1223,41 +1278,43 @@ jobs:
         run: |
           mkdir -p artifacts
           echo "📦 Building RAW artifact..."
-          DOCKER_CMD="docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock"
-          DOCKER_CMD="$DOCKER_CMD -v $PWD/artifacts:/output"
+          # The command is a bash array run as "${cmd[@]}", not a string
+          # run with eval. eval would read input values such as the
+          # cloud-config path or the kernel command line as shell code;
+          # in an array each one stays a single argument.
+          cmd=(docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock)
+          cmd+=(-v "$PWD/artifacts:/output")
 
           # Optional cloud-config (file path or URL)
-          CLOUD_CONFIG_ARG=""
-          CLOUD_CONFIG_INPUT="${{ inputs.cloud_config }}"
+          cloud_config_args=()
+          CLOUD_CONFIG_INPUT="${INPUTS_CLOUD_CONFIG}"
           if [[ -n "$CLOUD_CONFIG_INPUT" ]]; then
             if [[ "$CLOUD_CONFIG_INPUT" =~ ^https?:// ]]; then
-              CLOUD_CONFIG_ARG="--cloud-config \"$CLOUD_CONFIG_INPUT\""
+              cloud_config_args=(--cloud-config "$CLOUD_CONFIG_INPUT")
             else
               if [[ "$CLOUD_CONFIG_INPUT" != /* ]]; then
                 ABS_CC_PATH="$PWD/$CLOUD_CONFIG_INPUT"
               else
                 ABS_CC_PATH="$CLOUD_CONFIG_INPUT"
               fi
-              DOCKER_CMD="$DOCKER_CMD -v \"$ABS_CC_PATH\":/cloud-config:ro"
-              CLOUD_CONFIG_ARG="--cloud-config /cloud-config"
+              cmd+=(-v "$ABS_CC_PATH:/cloud-config:ro")
+              cloud_config_args=(--cloud-config /cloud-config)
             fi
           fi
 
-          DOCKER_CMD="$DOCKER_CMD quay.io/kairos/auroraboot:${{ inputs.auroraboot_version }} --debug"
-          if [[ -n "$CLOUD_CONFIG_ARG" ]]; then
-            DOCKER_CMD="$DOCKER_CMD $CLOUD_CONFIG_ARG"
-          fi
-          DOCKER_CMD="$DOCKER_CMD --set \"disable_http_server=true\""
-          DOCKER_CMD="$DOCKER_CMD --set \"disable_netboot=true\""
-          DOCKER_CMD="$DOCKER_CMD --set \"container_image=docker:${{ steps.setup.outputs.image_tag }}\""
-          DOCKER_CMD="$DOCKER_CMD --set \"state_dir=/output\""
-          DOCKER_CMD="$DOCKER_CMD --set \"disk.raw=true\""
+          cmd+=("quay.io/kairos/auroraboot:${INPUTS_AURORABOOT_VERSION}" --debug)
+          cmd+=("${cloud_config_args[@]}")
+          cmd+=(--set "disable_http_server=true")
+          cmd+=(--set "disable_netboot=true")
+          cmd+=(--set "container_image=docker:${STEPS_SETUP_OUTPUTS_IMAGE_TAG}")
+          cmd+=(--set "state_dir=/output")
+          cmd+=(--set "disk.raw=true")
           if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
-            DOCKER_CMD="$DOCKER_CMD --set \"allow-insecure-registries=true\""
+            cmd+=(--set "allow-insecure-registries=true")
           fi
 
-          echo "🔧 Executing: $DOCKER_CMD"
-          eval $DOCKER_CMD
+          echo "🔧 Executing: ${cmd[*]}"
+          "${cmd[@]}"
 
           RAW_FILE=$(ls artifacts/*.raw | head -1)
           if [[ -n "$RAW_FILE" ]]; then
@@ -1269,10 +1326,14 @@ jobs:
             ls -la artifacts/ || echo "   Artifacts directory is empty or doesn't exist"
             exit 1
           fi
+        env:
+          INPUTS_CLOUD_CONFIG: ${{ inputs.cloud_config }}
+          INPUTS_AURORABOOT_VERSION: ${{ inputs.auroraboot_version }}
+          STEPS_SETUP_OUTPUTS_IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
 
       - name: Create OCI artifact from RAW image
         if: inputs.raw && inputs.registry_domain != ''
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_IMG_PATH }}
@@ -1333,7 +1394,7 @@ jobs:
 
       - name: Install Cosign
         if: inputs.cosign
-        uses: sigstore/cosign-installer@828df1e55de306ba29db814d6057ddae71883cda  # main
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
         with:
           cosign-release: "v3.1.3"
 
@@ -1341,12 +1402,13 @@ jobs:
         if: inputs.cosign && inputs.registry_domain != ''
         env:
           COSIGN_YES: true
+          STEPS_SETUP_OUTPUTS_IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "🔏 Signing image in registry: ${{ steps.setup.outputs.image_tag }}"
-          cosign sign ${{ steps.setup.outputs.image_tag }}
+          echo "🔏 Signing image in registry: ${STEPS_SETUP_OUTPUTS_IMAGE_TAG}"
+          cosign sign "${STEPS_SETUP_OUTPUTS_IMAGE_TAG}"
 
           echo "🔏 Signing artifact checksums"
           for checksum in artifacts/*.sha256; do
@@ -1356,9 +1418,9 @@ jobs:
             fi
           done
 
-          if [[ -n "${{ env.RAW_ARTIFACT }}" ]]; then
-            echo "🔏 Signing RAW OCI image tag in registry: ${{ steps.setup.outputs.image_tag }}-img"
-            cosign sign ${{ steps.setup.outputs.image_tag }}-img
+          if [[ -n "${RAW_ARTIFACT:-}" ]]; then
+            echo "🔏 Signing RAW OCI image tag in registry: ${STEPS_SETUP_OUTPUTS_IMAGE_TAG}-img"
+            cosign sign "${STEPS_SETUP_OUTPUTS_IMAGE_TAG}-img"
           fi
       - name: GitHub Release
         if: inputs.release
@@ -1470,17 +1532,17 @@ jobs:
         run: |
           echo "## 🏭 Kairos Factory Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ steps.setup.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${STEPS_SETUP_OUTPUTS_IMAGE_TAG}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
-          echo "- Base Image: \`${{ inputs.base_image }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Model: \`${{ inputs.model }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Architecture: \`${{ inputs.arch }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Variant: \`${{ steps.setup.outputs.variant }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Version: \`${{ steps.setup.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Base Image: \`${INPUTS_BASE_IMAGE}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Model: \`${INPUTS_MODEL}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Architecture: \`${INPUTS_ARCH}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Variant: \`${STEPS_SETUP_OUTPUTS_VARIANT}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: \`${STEPS_SETUP_OUTPUTS_VERSION}\`" >> $GITHUB_STEP_SUMMARY
 
-          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
-            echo "- Kubernetes: \`${{ inputs.kubernetes_distro }}\` \`${{ steps.setup.outputs.kubernetes_version }}\`" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${INPUTS_KUBERNETES_DISTRO}" ]]; then
+            echo "- Kubernetes: \`${INPUTS_KUBERNETES_DISTRO}\` \`${STEPS_SETUP_OUTPUTS_KUBERNETES_VERSION}\`" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
@@ -1502,7 +1564,7 @@ jobs:
             echo "- No artifacts generated" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [[ "${{ inputs.cosign }}" == "true" && "${{ inputs.registry_domain }}" != "" ]]; then
+          if [[ "${{ inputs.cosign }}" == "true" && "${INPUTS_REGISTRY_DOMAIN}" != "" ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Security:**" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ Image signed with cosign" >> $GITHUB_STEP_SUMMARY
@@ -1510,7 +1572,7 @@ jobs:
             if ls artifacts/*.iso artifacts/*.raw artifacts/*.vhd artifacts/*.tar 2>/dev/null | grep -q .; then
               echo "- ✅ Artifacts signed with cosign" >> $GITHUB_STEP_SUMMARY
             fi
-          elif [[ "${{ inputs.cosign }}" == "true" && "${{ inputs.registry_domain }}" == "" ]]; then
+          elif [[ "${{ inputs.cosign }}" == "true" && "${INPUTS_REGISTRY_DOMAIN}" == "" ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Security:**" >> $GITHUB_STEP_SUMMARY
             echo "- ⚠️  Cosign signing skipped (requires registry_domain)" >> $GITHUB_STEP_SUMMARY
@@ -1519,10 +1581,10 @@ jobs:
           # Check which security scans were run
           if [[ "${{ inputs.grype }}" == "true" || "${{ inputs.trivy }}" == "true" ]]; then
             MAX_FINDINGS=50
-            GRYPE_CRITICAL="${{ steps.grype-results.outputs.critical_count }}"
-            TRIVY_CRITICAL="${{ steps.trivy-results.outputs.critical_count }}"
-            GRYPE_STATUS="${{ steps.grype-results.outputs.status }}"
-            TRIVY_STATUS="${{ steps.trivy-results.outputs.status }}"
+            GRYPE_CRITICAL="${STEPS_GRYPE_RESULTS_OUTPUTS_CRITICAL_COUNT}"
+            TRIVY_CRITICAL="${STEPS_TRIVY_RESULTS_OUTPUTS_CRITICAL_COUNT}"
+            GRYPE_STATUS="${STEPS_GRYPE_RESULTS_OUTPUTS_STATUS}"
+            TRIVY_STATUS="${STEPS_TRIVY_RESULTS_OUTPUTS_STATUS}"
             [[ -z "$GRYPE_CRITICAL" ]] && GRYPE_CRITICAL=0
             [[ -z "$TRIVY_CRITICAL" ]] && TRIVY_CRITICAL=0
 
@@ -1535,7 +1597,7 @@ jobs:
               elif [[ "$GRYPE_STATUS" == "failed" ]]; then
                 echo "- Grype: ❌ failed ($GRYPE_CRITICAL critical)" >> $GITHUB_STEP_SUMMARY
                 if [[ "$GRYPE_CRITICAL" -gt 0 && ! -s grype-critical.txt ]]; then
-                  jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${{ steps.grype.outputs.json }}" > grype-critical.txt
+                  jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${STEPS_GRYPE_OUTPUTS_JSON}" > grype-critical.txt
                 fi
                 if [[ -s grype-critical.txt ]]; then
                   echo "" >> $GITHUB_STEP_SUMMARY
@@ -1575,14 +1637,14 @@ jobs:
               fi
             fi
 
-            echo "- Policy: \`${{ inputs.security_scan_mode }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- Policy: \`${INPUTS_SECURITY_SCAN_MODE}\`" >> $GITHUB_STEP_SUMMARY
 
             BLOCKED=false
-            if [[ "${{ inputs.security_scan_mode }}" == "legacy" ]]; then
+            if [[ "${INPUTS_SECURITY_SCAN_MODE}" == "legacy" ]]; then
               if [[ "${{ inputs.grype }}" == "true" && "$GRYPE_CRITICAL" -gt 0 ]]; then
                 BLOCKED=true
               fi
-            elif [[ "${{ inputs.security_scan_mode }}" == "enforce" ]]; then
+            elif [[ "${INPUTS_SECURITY_SCAN_MODE}" == "enforce" ]]; then
               if [[ "${{ inputs.grype }}" == "true" && "$GRYPE_CRITICAL" -gt 0 ]]; then
                 BLOCKED=true
               fi
@@ -1593,16 +1655,32 @@ jobs:
 
             if [[ "$BLOCKED" == "true" ]]; then
               echo "- Gate: ❌ blocked by policy" >> $GITHUB_STEP_SUMMARY
-            elif [[ "${{ inputs.security_scan_mode }}" == "report-only" ]]; then
+            elif [[ "${INPUTS_SECURITY_SCAN_MODE}" == "report-only" ]]; then
               echo "- Gate: ✅ report-only (non-blocking)" >> $GITHUB_STEP_SUMMARY
             else
               echo "- Gate: ✅ passed" >> $GITHUB_STEP_SUMMARY
             fi
           fi
+        env:
+          STEPS_SETUP_OUTPUTS_IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+          INPUTS_BASE_IMAGE: ${{ inputs.base_image }}
+          INPUTS_MODEL: ${{ inputs.model }}
+          INPUTS_ARCH: ${{ inputs.arch }}
+          STEPS_SETUP_OUTPUTS_VARIANT: ${{ steps.setup.outputs.variant }}
+          STEPS_SETUP_OUTPUTS_VERSION: ${{ steps.setup.outputs.version }}
+          INPUTS_KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
+          STEPS_SETUP_OUTPUTS_KUBERNETES_VERSION: ${{ steps.setup.outputs.kubernetes_version }}
+          INPUTS_REGISTRY_DOMAIN: ${{ inputs.registry_domain }}
+          STEPS_GRYPE_RESULTS_OUTPUTS_CRITICAL_COUNT: ${{ steps.grype-results.outputs.critical_count }}
+          STEPS_TRIVY_RESULTS_OUTPUTS_CRITICAL_COUNT: ${{ steps.trivy-results.outputs.critical_count }}
+          STEPS_GRYPE_RESULTS_OUTPUTS_STATUS: ${{ steps.grype-results.outputs.status }}
+          STEPS_TRIVY_RESULTS_OUTPUTS_STATUS: ${{ steps.trivy-results.outputs.status }}
+          STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
+          INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
 
       - name: Upload ISO artifacts
         if: inputs.iso
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.iso.zip
           path: |
@@ -1615,7 +1693,7 @@ jobs:
         # keys of the build whose ISO it installs. They are throwaway keys,
         # kept for one day.
         if: inputs.generate_test_keys && inputs.iso
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.test-keys
           path: ${{ steps.test-artifacts.outputs.keys_dir }}
@@ -1624,7 +1702,7 @@ jobs:
 
       - name: Upload RAW artifacts
         if: inputs.raw
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.raw.zip
           path: |
