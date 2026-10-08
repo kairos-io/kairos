@@ -58,4 +58,7 @@ jobs:
           # exhaust that on their own; passing the workflow token lifts the
           # cap to 5000/hr.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The race detector needs cgo, which the runner has. It is off in
+          # the Makefile so that `make test` works without a C compiler.
+          GOFLAGS: -race
         run: make test
