@@ -122,10 +122,12 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   test:
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-24.04
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
     # Backstop only. ginkgo's own --timeout below should always fire first,

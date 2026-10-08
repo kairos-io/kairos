@@ -68,10 +68,12 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   image:
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

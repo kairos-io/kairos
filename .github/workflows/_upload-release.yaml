@@ -14,10 +14,12 @@ on:
         default: ''
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   upload:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
