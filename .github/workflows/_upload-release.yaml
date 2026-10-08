@@ -20,6 +20,8 @@ jobs:
   upload:
     permissions:
       contents: write
+      # Keyless cosign signing of checksums.txt.
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -41,6 +43,15 @@ jobs:
           find dist/download -name '*.tar.gz' -exec cp {} dist/release/ \;
           find dist/download -name 'checksums-*.txt' -exec cat {} \; | sort -u > dist/release/checksums.txt
           ls -l dist/release/
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+        with:
+          cosign-release: "v3.1.3"
+
+      - name: Sign checksums
+        # checksums.txt covers every archive, so signing it signs them all.
+        run: cosign sign-blob --yes --bundle=dist/release/checksums.txt.sigstore.json dist/release/checksums.txt
 
       - name: Upload to GitHub Release
         env:
