@@ -14,7 +14,8 @@ on:
     inputs:
       matrix_scope:
         description: |
-          "ci" -> amd64 + arm64, both default and FIPS (PR + master).
+          "pr" -> amd64 only, default and FIPS (slim PR pipeline, compile check).
+          "ci" -> amd64 + arm64, both default and FIPS (pr-full + master).
           "release" -> full 5-cell matrix (amd64+arm64+riscv64 default
           plus amd64+arm64 FIPS). Keeps parity with _build-kairos.yaml
           so both pipes have matching FIPS coverage.
@@ -55,7 +56,9 @@ jobs:
         env:
           SCOPE: ${{ inputs.matrix_scope }}
         run: |
-          if [[ "$SCOPE" == "release" ]]; then
+          if [[ "$SCOPE" == "pr" ]]; then
+            echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"amd64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
+          elif [[ "$SCOPE" == "release" ]]; then
             echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"riscv64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
           else
             echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"

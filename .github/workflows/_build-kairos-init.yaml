@@ -14,7 +14,8 @@ on:
     inputs:
       matrix_scope:
         description: |
-          "ci" -> amd64 + arm64 (PR only).
+          "pr" -> amd64 only: the slim PR pipeline only builds and tests amd64.
+          "ci" -> amd64 + arm64 (pr-full).
           "full" -> amd64 + arm64 + riscv64. Used by both master and release
         type: string
         required: true
@@ -53,7 +54,9 @@ jobs:
         env:
           SCOPE: ${{ inputs.matrix_scope }}
         run: |
-          if [[ "$SCOPE" == "full" ]]; then
+          if [[ "$SCOPE" == "pr" ]]; then
+            echo 'matrix={"include":[{"arch":"amd64"}]}' >> "$GITHUB_OUTPUT"
+          elif [[ "$SCOPE" == "full" ]]; then
             echo 'matrix={"include":[{"arch":"amd64"},{"arch":"arm64"},{"arch":"riscv64"}]}' >> "$GITHUB_OUTPUT"
           else
             echo 'matrix={"include":[{"arch":"amd64"},{"arch":"arm64"}]}' >> "$GITHUB_OUTPUT"

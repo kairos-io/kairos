@@ -47,6 +47,13 @@ on:
         type: string
         default: ''
 
+      arches:
+        description: |
+          Space-separated architectures to build the image for. The slim
+          PR pipeline passes "amd64" because it only builds and tests that.
+        type: string
+        default: 'amd64 arm64'
+
       ref:
         description: 'git ref to check out (defaults to the trigger event ref)'
         type: string
@@ -83,17 +90,20 @@ jobs:
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
 
-      - name: Download kairos-init artifacts (amd64 + arm64)
+      - name: Download kairos-init artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          pattern: 'kairos-init-linux-@(amd64|arm64)'
+          pattern: 'kairos-init-linux-*'
           path: dist/download
 
       - name: Reassemble dist/linux-<arch>/
         # The Dockerfile consumes dist/linux-${TARGETARCH}/kairos-init.
+        env:
+          ARCHES: ${{ inputs.arches }}
         run: |
           set -euo pipefail
-          for arch in amd64 arm64; do
+          read -ra arches <<< "$ARCHES"
+          for arch in "${arches[@]}"; do
             mkdir -p "dist/linux-$arch"
             d="dist/download/kairos-init-linux-$arch"
             [ -d "$d" ] || continue
@@ -133,13 +143,16 @@ jobs:
           EXTRA_TAG: ${{ inputs.image_extra_tag }}
           PUSH: ${{ inputs.push }}
           OCI_ARTIFACT: ${{ inputs.oci_artifact }}
+          ARCHES: ${{ inputs.arches }}
         run: |
           set -euo pipefail
           if [ "$PUSH" = "true" ] && [ -n "$OCI_ARTIFACT" ]; then
             echo "::error::oci_artifact and push are mutually exclusive"
             exit 1
           fi
-          args=(--platform "linux/amd64,linux/arm64" -f kairos-init/Dockerfile
+          read -ra arches <<< "$ARCHES"
+          platforms=$(printf 'linux/%s,' "${arches[@]}"); platforms=${platforms%,}
+          args=(--platform "$platforms" -f kairos-init/Dockerfile
                 -t "$REGISTRY/kairos-init:$TAG")
           [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/kairos-init:$EXTRA_TAG")
           [ "$PUSH" = "true" ] && args+=(--push)
