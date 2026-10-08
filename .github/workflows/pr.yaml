@@ -61,7 +61,6 @@ jobs:
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
       matrix_scope: pr
-      fips: false
 
   build-kcrypt-challenger:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
@@ -81,7 +80,7 @@ jobs:
       image_tag: pr
       push: false
       oci_artifact: kairos-init-oci
-      arches: amd64
+      matrix_scope: pr
 
   # One ISO cell. registry_domain is empty, so the factory builds and
   # loads the OS image into the runner's docker and never logs in or

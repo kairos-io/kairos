@@ -7,12 +7,19 @@
 # bundled_fips.go's build constraint is `!riscv64` (not `fips`), every
 # non-riscv64 build needs both binaries/ and binaries/fips/ populated
 # regardless of VARIANT.
+#
+# FIPS_STUBS=1 fills binaries/fips/ with zero-byte placeholders instead of
+# copying from BIN_SOURCE_FIPS. The slim PR pipeline uses it because it
+# never builds FIPS; kairos-init refuses a --fips install from such a build.
 
 set -euo pipefail
 
+# The FIPS binaries kairos-init embeds (bundled_fips.go).
+FIPS_BINS=(kairos kairos-installer provider-kairos)
+
 : "${ARCH:?ARCH must be set (amd64, arm64, or riscv64)}"
 : "${BIN_SOURCE:?BIN_SOURCE must point at the dist/linux-<arch>/ output}"
-if [[ "$ARCH" != "riscv64" ]]; then
+if [[ "$ARCH" != "riscv64" && "${FIPS_STUBS:-}" != "1" ]]; then
     : "${BIN_SOURCE_FIPS:?BIN_SOURCE_FIPS must point at the dist/linux-<arch>-fips/ output}"
 fi
 
@@ -39,9 +46,13 @@ cp "$BIN_SOURCE/kairos" "$DEST_ROOT/kairos"
 cp "$BIN_SOURCE/kairos-installer" "$DEST_ROOT/kairos-installer"
 cp "$BIN_SOURCE/provider-kairos" "$DEST_ROOT/provider-kairos"
 if [[ "$ARCH" != "riscv64" ]]; then
-    cp "$BIN_SOURCE_FIPS/kairos" "$DEST_FIPS/kairos"
-    cp "$BIN_SOURCE_FIPS/kairos-installer" "$DEST_FIPS/kairos-installer"
-    cp "$BIN_SOURCE_FIPS/provider-kairos" "$DEST_FIPS/provider-kairos"
+    for f in "${FIPS_BINS[@]}"; do
+        if [[ "${FIPS_STUBS:-}" == "1" ]]; then
+            : > "$DEST_FIPS/$f"
+        else
+            cp "$BIN_SOURCE_FIPS/$f" "$DEST_FIPS/$f"
+        fi
+    done
 fi
 
 # --- Fetch defaults from external repos (edgevpn only) ---
