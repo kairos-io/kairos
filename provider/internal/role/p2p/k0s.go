@@ -136,7 +136,17 @@ func (k *K0sNode) GenArgs() ([]string, error) {
 	}
 
 	if k.HA() && !k.ClusterInit() {
-		args = append(args, "--token-file /etc/k0s/token")
+		// Nothing else on the controller path puts the token on disk: the one
+		// writer, SetupWorker, belongs to the worker role. Write it here, next
+		// to the flag that names it, so the two cannot disagree.
+		nodeToken, err := k.Token()
+		if err != nil {
+			return args, err
+		}
+		if err := writeK0sJoinToken(k0sTokenFile, nodeToken); err != nil {
+			return args, err
+		}
+		args = append(args, "--token-file "+k0sTokenFile)
 	}
 
 	// when we start implementing this functionality, remember to use
@@ -150,6 +160,33 @@ func (k *K0sNode) Service() (machine.Service, error) {
 	return machinesvc.New(services.K0sSpec(k.ServiceName()))
 }
 
+// k0sTokenFile is the path k0s reads a join token back from, through
+// --token-file. Both roles that join an existing cluster use it.
+const k0sTokenFile = "/etc/k0s/token"
+
+// writeK0sJoinToken stores a join token where k0s will read it back from.
+//
+// The mode is 0600: the token is the whole credential for joining the cluster,
+// k0s reads it as root, and nobody else on the node needs the bytes. A file
+// that is already there is tightened before the write, because os.WriteFile
+// keeps the mode of a file it truncates, so the mode below would not reach a
+// token a previous version of Kairos left at a wider one.
+func writeK0sJoinToken(path, token string) error {
+	if token == "" {
+		return errors.New("refusing to write an empty k0s join token")
+	}
+
+	if _, err := os.Stat(path); err == nil {
+		if err := os.Chmod(path, 0600); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	return os.WriteFile(path, []byte(token), 0600)
+}
+
 func (k *K0sNode) Token() (string, error) {
 	if k.IsWorker() {
 		return k.RoleConfig().Client.Get("workertoken", "token")
@@ -161,10 +198,11 @@ func (k *K0sNode) Token() (string, error) {
 func (k *K0sNode) GenerateEnv() (env map[string]string) {
 	env = make(map[string]string)
 
-	if k.HA() && !k.ClusterInit() {
-		nodeToken, _ := k.Token()
-		env["K0S_TOKEN"] = nodeToken
-	}
+	// No K0S_TOKEN here. GenArgs writes the token to k0sTokenFile and passes
+	// --token-file, and k0s refuses to start when it is handed the token more
+	// than once: cmd/internal/tokendata.go counts the flag and the environment
+	// variable as two sources. The file is the half that works on every k0s
+	// Kairos builds for, because K0S_TOKEN is only read from v1.35 onwards.
 
 	pConfig := k.ProviderConfig()
 
