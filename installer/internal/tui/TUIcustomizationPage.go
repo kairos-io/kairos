@@ -1,74 +1,44 @@
 package tui
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	sdk "github.com/kairos-io/kairos/v4/sdk/bus"
-	"github.com/mudler/go-pluggable"
 )
 
 // Customization Page
 
-// providerBus discovers and talks to agent-provider-* plugins. The kairos-sdk
-// bus already provides the manager (autoload prefix/paths, Initialize), so we
-// don't keep a local copy.
-var providerBus = sdk.NewBus()
-
-// Discover and run plugins for customization
-func runCustomizationPlugins() ([]sdk.YAMLPrompt, error) {
-	providerBus.Initialize()
-	var r []sdk.YAMLPrompt
-
-	providerBus.Response(sdk.EventInteractiveInstall, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
-		if resp.Data == "" {
-			return
-		}
-		if err := json.Unmarshal([]byte(resp.Data), &r); err != nil {
-			fmt.Println(err)
-		}
-	})
-
-	_, err := providerBus.Publish(sdk.EventInteractiveInstall, sdk.EventPayload{})
-	if err != nil {
-		return r, err
-	}
-
-	return r, nil
-
+// customizationPage is the menu of the optional wizard steps, in the order
+// wizard.Steps returns them, followed by the way to the summary.
+type customizationPage struct {
+	cursor  int
+	options []string
+	// ids holds the page ID each option leads to, by index.
+	ids []string
 }
 
 func newCustomizationPage() *customizationPage {
-	return &customizationPage{
-		options: []string{
-			"User & Password",
-			"SSH Keys",
-		},
-
-		cursor: 0,
-		cursorWithIDs: map[int]string{
-			0: "user_password",
-			1: "ssh_keys",
-		},
-	}
+	p := &customizationPage{}
+	p.load()
+	return p
 }
 
-func checkPageExists(pageID string, options map[int]string) bool {
-	for _, opt := range options {
-		if strings.Contains(opt, pageID) {
-			return true
+// load rebuilds the menu from mainModel.steps.
+func (p *customizationPage) load() {
+	p.options, p.ids = nil, nil
+	for _, s := range mainModel.steps {
+		if !s.Optional {
+			continue
 		}
+		p.options = append(p.options, s.Title)
+		p.ids = append(p.ids, s.ID)
 	}
-	return false
-}
-
-type customizationPage struct {
-	cursor        int
-	options       []string
-	cursorWithIDs map[int]string
+	p.options = append(p.options, "Finish Customization and start Installation")
+	p.ids = append(p.ids, summaryPageID)
+	if p.cursor >= len(p.options) {
+		p.cursor = 0
+	}
 }
 
 func (p *customizationPage) Title() string {
@@ -80,46 +50,7 @@ func (p *customizationPage) Help() string {
 }
 
 func (p *customizationPage) Init() tea.Cmd {
-	mainModel.log.Debugf("Running customization plugins...")
-	yaML, err := runCustomizationPlugins()
-	if err != nil {
-		mainModel.log.Debugf("Error running customization plugins: %v", err)
-		return nil
-	}
-	if len(yaML) > 0 {
-		startIdx := len(p.options)
-		for i, prompt := range yaML {
-			// Check if its already added to the options!
-			if checkPageExists(idFromSection(prompt), p.cursorWithIDs) {
-				mainModel.log.Debugf("Customization page for %s already exists, skipping", prompt.YAMLSection)
-				continue
-			}
-			optIdx := startIdx + i
-			if !prompt.Bool {
-				mainModel.log.Debugf("Adding customization option for %s", prompt.YAMLSection)
-				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
-				pageID := idFromSection(prompt)
-				p.cursorWithIDs[optIdx] = pageID
-				newPage := newGenericQuestionPage(prompt)
-				mainModel.pages = append(mainModel.pages, newPage)
-			} else {
-				mainModel.log.Debugf("Adding customization option(bool) for %s", prompt.YAMLSection)
-				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
-				pageID := idFromSection(prompt)
-				p.cursorWithIDs[optIdx] = pageID
-				newPage := newGenericBoolPage(prompt)
-				mainModel.pages = append(mainModel.pages, newPage)
-			}
-		}
-	}
-
-	// Now add the finish and install options to the bottom of the list
-	if !checkPageExists("summary", p.cursorWithIDs) {
-		p.options = append(p.options, "Finish Customization and start Installation")
-		p.cursorWithIDs[len(p.cursorWithIDs)] = "summary"
-	}
-
-	mainModel.log.Debugf("Customization options loaded: %v", p.cursorWithIDs)
+	p.load()
 	return nil
 }
 
@@ -136,7 +67,8 @@ func (p *customizationPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				p.cursor++
 			}
 		case "enter":
-			if pageID, ok := p.cursorWithIDs[p.cursor]; ok {
+			if p.cursor < len(p.ids) {
+				pageID := p.ids[p.cursor]
 				return p, func() tea.Msg { return GoToPageMsg{PageID: pageID} }
 			}
 		}
@@ -154,8 +86,7 @@ func (p *customizationPage) View() string {
 			cursor = lipgloss.NewStyle().Foreground(kairosAccent).Render(">")
 		}
 		tick := ""
-		pageID, ok := p.cursorWithIDs[i]
-		if ok && p.isConfigured(pageID) {
+		if i < len(p.ids) && p.isConfigured(p.ids[i]) {
 			tick = lipgloss.NewStyle().Foreground(kairosAccent).Render(checkMark)
 		}
 		s += fmt.Sprintf("%s %s %s\n", cursor, option, tick)
@@ -164,34 +95,16 @@ func (p *customizationPage) View() string {
 	return s
 }
 
-// Helper methods to check configuration
-func (p *customizationPage) isUserConfigured() bool {
-	return mainModel.username != "" && mainModel.passwordHash != ""
-}
-
-func (p *customizationPage) isSSHConfigured() bool {
-	return len(mainModel.sshKeys) > 0
-}
-
 func (p *customizationPage) ID() string { return "customization" }
 
-// isConfigured checks if a given pageID is configured, supporting both static and dynamic fields
+// isConfigured finds the page with this ID and asks it.
 func (p *customizationPage) isConfigured(pageID string) bool {
-	// Hardcoded checks for static fields
-	if pageID == "user_password" {
-		return p.isUserConfigured()
-	}
-	if pageID == "ssh_keys" {
-		return p.isSSHConfigured()
-	}
-	// Try to find a page with this ID and call Configured() if available
 	for _, page := range mainModel.pages {
-		if idProvider, ok := page.(interface{ ID() string }); ok && idProvider.ID() == pageID {
-			// We found the page with the given ID, check if it has a Configured method
-			if configuredProvider, ok := page.(interface{ Configured() bool }); ok {
-				// Call the Configured method to check if it's configured
-				return configuredProvider.Configured()
-			}
+		if page.ID() != pageID {
+			continue
+		}
+		if c, ok := page.(interface{ Configured() bool }); ok {
+			return c.Configured()
 		}
 	}
 	return false

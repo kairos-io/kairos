@@ -1,6 +1,8 @@
 package image
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/logs"
@@ -85,7 +87,16 @@ func (e OCIImageExtractor) extract(imageRef, destination, platformRef string, ex
 	if err != nil {
 		return err
 	}
-	return ExtractOCIImage(img, destination, excludes...)
+	if err := ExtractOCIImage(img, destination, excludes...); err != nil {
+		if errors.Is(err, ErrEmptyExtraction) {
+			// Name the image. An empty destination on its own does not say
+			// which read produced it, and GetImage reads either the local
+			// daemon or a registry.
+			return fmt.Errorf("%s: %w", imageRef, err)
+		}
+		return err
+	}
+	return nil
 }
 
 func (e OCIImageExtractor) GetOCIImageSize(imageRef, platformRef string) (int64, error) {

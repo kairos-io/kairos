@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
+	"strings"
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	installer "github.com/kairos-io/kairos/v4/agent/pkg/extensions"
@@ -151,21 +151,28 @@ func getDirExtensions(cfg *sdkConfig.Config, dir string) ([]Extension, error) {
 	return out, nil
 }
 
-// GetExtension returns the system extension for a given name
+// GetExtension returns the system extension for a given name.
+//
+// The name is matched against the whole image filename ("tailscale.raw"), or
+// against the part of it that ends on a dot, so that the bare name "fwupd"
+// resolves the catalog's two-part "fwupd.sysext.raw".
+//
+// It used to be compiled as a regular expression and matched
+// unanchored, which meant the first image merely *containing* the name won: with
+// tailscale.raw and tailscale-agent.raw both installed, `sysext remove
+// tailscale` deleted tailscale-agent.raw, because ReadDir is sorted and "-"
+// sorts before ".". It also meant an image whose name holds a metacharacter,
+// such as nvidia+cuda.raw, could be installed and then never enabled or
+// removed. The "<name>.<something>" shape is the same convention
+// extensionEnabledAnywhere already relies on in the phonehome handlers.
 func GetExtension(cfg *sdkConfig.Config, name, bootState, extType string) (Extension, error) {
 	// Get a list of all installed system extensions
 	installed, err := ListExtensions(cfg, bootState, extType)
 	if err != nil {
 		return Extension{}, err
 	}
-	// Check if the extension is installed
-	// regex against the name
-	re, err := regexp.Compile(name)
-	if err != nil {
-		return Extension{}, err
-	}
 	for _, ext := range installed {
-		if re.MatchString(ext.Name) {
+		if ext.Name == name || strings.HasPrefix(ext.Name, name+".") {
 			return ext, nil
 		}
 	}
