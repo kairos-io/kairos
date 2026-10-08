@@ -20,9 +20,10 @@ name: PR full matrix
 #   - the `authorize` job fails unless the person who added the label
 #     has write, maintain or admin access to this repository. The triage
 #     role can add labels too, and it must not be enough;
-#   - every checkout uses `github.event.pull_request.head.sha`, the
-#     commit that was current when the label was added. A push after the
-#     label changes refs/pull/<N>/head, but not what this run builds.
+#   - every checkout of PR code uses `github.event.pull_request.head.sha`,
+#     the commit that was current when the label was added. A push after
+#     the label changes refs/pull/<N>/head, but not what this run builds.
+#     The size-diff job checks out the base branch and runs no PR code.
 #
 # Adding the label is the review. Read the diff before you add it, in
 # particular any change under .github/, Makefile, scripts/ and Dockerfiles.
@@ -654,23 +655,13 @@ jobs:
       contents: read
       actions: read
     steps:
-      # pull_request_target checks out the base branch by default, which
-      # would not have this PR's script yet. build-iso already sits
-      # behind the authorize gate, so pulling the PR ref here is the same
-      # vetted-ref deal the rest of the workflow makes.
-      #
-      # actions/checkout refuses a fork ref under pull_request_target
-      # unless the caller opts in, so this is the inline equivalent of
-      # the `caller-vetted-ref: true` every reusable above passes. It
-      # rests on the same `needs: authorize` chain: size-diff needs
-      # build-iso, which needs build-image-kairos-init, which needs
-      # authorize. Without it the job fails at checkout on every fork
-      # PR and never reaches the comparison.
+      # The base branch, not the PR head: this job only measures the
+      # ISOs the PR built, so it runs the reviewed copy of the size
+      # script and no code from the PR. pr.yaml runs the script's own
+      # test on every PR, so a change to the script is still tested.
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          allow-unsafe-pr-checkout: true
           persist-credentials: false
       - name: Install xorriso and mtools
         # Needed to read the .efi files out of the UKI ISOs.
