@@ -31,9 +31,11 @@ name: PR full matrix
 # unlocks actions/checkout's `allow-unsafe-pr-checkout` opt-in inside
 # each reusable, and it is honest only because of the `authorize` gate.
 # Do NOT drop the authorize job, or the codeql findings become real.
+# zizmor flags the trigger for the same reason, and the same three parts
+# are why it is ignored below.
 
 on:
-  pull_request_target:
+  pull_request_target:  # zizmor: ignore[dangerous-triggers]
     types: [labeled]
 
 permissions:

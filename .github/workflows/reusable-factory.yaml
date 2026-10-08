@@ -806,7 +806,7 @@ jobs:
           INPUTS_SINGLE_EFI_CMDLINE: ${{ inputs.single_efi_cmdline }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@bedaf135699075c88620cd30772b9b6eadc9ba99  # master
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
         with:
           platforms: linux/${{ inputs.arch }}
 
@@ -840,7 +840,7 @@ jobs:
           INPUTS_OCI_CONTEXT_NAME: ${{ inputs.oci_context_name }}
 
       - name: Build Kairos image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
@@ -1096,7 +1096,7 @@ jobs:
       # kind of small lie that costs someone an afternoon.
       - name: Push Kairos image
         if: inputs.registry_domain != ''
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
@@ -1120,6 +1120,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version-file: go.mod
+          cache: false
 
       - name: Install AuroraBoot runtime library
         # cmd/test-artifacts runs the AuroraBoot release binary for genkey,
@@ -1330,7 +1331,7 @@ jobs:
 
       - name: Create OCI artifact from RAW image
         if: inputs.raw && inputs.registry_domain != ''
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_IMG_PATH }}
@@ -1391,7 +1392,7 @@ jobs:
 
       - name: Install Cosign
         if: inputs.cosign
-        uses: sigstore/cosign-installer@828df1e55de306ba29db814d6057ddae71883cda  # main
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
         with:
           cosign-release: "v3.1.3"
 
@@ -1677,7 +1678,7 @@ jobs:
 
       - name: Upload ISO artifacts
         if: inputs.iso
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.iso.zip
           path: |
@@ -1690,7 +1691,7 @@ jobs:
         # keys of the build whose ISO it installs. They are throwaway keys,
         # kept for one day.
         if: inputs.generate_test_keys && inputs.iso
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.test-keys
           path: ${{ steps.test-artifacts.outputs.keys_dir }}
@@ -1699,7 +1700,7 @@ jobs:
 
       - name: Upload RAW artifacts
         if: inputs.raw
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.raw.zip
           path: |
