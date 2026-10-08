@@ -915,6 +915,7 @@ jobs:
         id: grype-results
         env:
           STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
+          INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
         run: |
           # Check if the JSON file exists and is not empty. This is the
           # scanner-did-not-run case: either the step above was tolerated by
@@ -922,14 +923,14 @@ jobs:
           if [[ ! -f "${STEPS_GRYPE_OUTPUTS_JSON}" ]] || [[ ! -s "${STEPS_GRYPE_OUTPUTS_JSON}" ]]; then
             echo "critical_count=0" >> $GITHUB_OUTPUT
             echo "status=error" >> $GITHUB_OUTPUT
-            if [[ "${{ inputs.security_scan_mode }}" == "report-only" ]]; then
+            if [[ "${INPUTS_SECURITY_SCAN_MODE}" == "report-only" ]]; then
               echo "::warning title=Grype scan did not run::The Grype scan produced no results, so this image was not scanned by Grype. The build is not gated on Grype in report-only mode, so it continues."
               exit 0
             fi
             echo "❌ Error: Grype JSON output file is missing or empty"
             echo "   Expected file: ${STEPS_GRYPE_OUTPUTS_JSON}"
             echo "   This indicates the Grype scan failed or didn't produce output"
-            echo "   Grype gates the build in '${{ inputs.security_scan_mode }}' mode, so this is a failure."
+            echo "   Grype gates the build in '${INPUTS_SECURITY_SCAN_MODE}' mode, so this is a failure."
             exit 1
           fi
 
@@ -966,12 +967,14 @@ jobs:
         if: inputs.trivy
         id: trivy-results
         shell: bash
+        env:
+          INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
         run: |
           if [[ ! -f "trivy.json" ]] || [[ ! -s "trivy.json" ]]; then
             echo "critical_count=0" >> $GITHUB_OUTPUT
             echo "status=error" >> $GITHUB_OUTPUT
-            if [[ "${{ inputs.security_scan_mode }}" != "enforce" ]]; then
-              echo "::warning title=Trivy scan did not run::The Trivy scan produced no results, so this image was not scanned by Trivy. The build is not gated on Trivy in '${{ inputs.security_scan_mode }}' mode, so it continues."
+            if [[ "${INPUTS_SECURITY_SCAN_MODE}" != "enforce" ]]; then
+              echo "::warning title=Trivy scan did not run::The Trivy scan produced no results, so this image was not scanned by Trivy. The build is not gated on Trivy in '${INPUTS_SECURITY_SCAN_MODE}' mode, so it continues."
               exit 0
             fi
             echo "❌ Error: Trivy JSON output file is missing or empty"
