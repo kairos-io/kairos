@@ -4,6 +4,10 @@ name: Upload cloud images
 # these jobs need, instead of racing the same tag push. See the commit
 # message for why (mauromorales/mission-control#174 has the evidence).
 #
+# zizmor flags workflow_run because it runs with secrets after a workflow
+# that untrusted code can start. Here that workflow is `release`, which
+# only a tag push starts, and only maintainers can push tags. The jobs
+# also skip unless that release run succeeded.
 on:
   workflow_run:
     workflows: ["release"]

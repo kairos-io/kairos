@@ -133,7 +133,6 @@ jobs:
     with:
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   lint:
     needs: authorize
@@ -141,7 +140,6 @@ jobs:
     with:
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # The kairos-init pipe (multi-call kairos -> kairos-init -> image ->
   # iso -> qemu). This is the critical path for the qemu suites below.
@@ -152,7 +150,6 @@ jobs:
       matrix_scope: ci
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   build-kairos-init:
     needs: build-kairos
@@ -161,7 +158,6 @@ jobs:
       matrix_scope: ci
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # Flavor smoke matrix. For every supported base OS (ubuntu
   # 24.04/25.10/26.04, debian 12/13, fedora 42/43, alpine, opensuse
@@ -181,7 +177,6 @@ jobs:
       matrix_scope: ci
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # unit-tests + lint gate any image push (visible outside the run).
   # The kairos-init image is what build-iso consumes.
@@ -198,7 +193,6 @@ jobs:
       registry_login: ghcr
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # The kcrypt-challenger pipe runs in parallel to the kairos pipe.
   # Nothing on the build-iso / tests path depends on it -- the
@@ -211,7 +205,6 @@ jobs:
       matrix_scope: ci
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   build-image-kcrypt-challenger:
     needs: [build-kcrypt-challenger, unit-tests, lint]
@@ -226,7 +219,6 @@ jobs:
       registry_login: ghcr
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # ISO matrix is split into two jobs so test-* start as soon
   # as the amd64 cells they consume are ready, without waiting for
@@ -301,7 +293,6 @@ jobs:
       release: false
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   build-iso-arm:
     needs: build-image-kairos-init
@@ -369,7 +360,9 @@ jobs:
       release: false
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   # QEMU test suites. Matrix at THIS level (caller side) calling
   # reusable-qemu-test.yaml directly, because matrix + uses on a
@@ -421,7 +414,6 @@ jobs:
       release-matcher: ${{ matrix.release-matcher || '' }}
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # FIPS smoke coverage. install + acceptance is the cheapest signal
   # that the FIPS variant of the multi-call kairos binary boots and
@@ -456,7 +448,6 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # Same smoke shape as test-core-fips.
   test-core-ubuntu-20:
@@ -483,7 +474,6 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   test-core-rocky-9:
     needs: build-iso
@@ -508,7 +498,6 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   test-core-leap:
     needs: build-iso
@@ -533,7 +522,6 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   test-standard:
     needs: build-iso
@@ -563,7 +551,6 @@ jobs:
       release-matcher: ${{ matrix.release-matcher || '' }}
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # encryption-* tests spin up a k3s cluster with a kcrypt-challenger
   # Deployment, and that deployment now runs the image this PR just
@@ -607,7 +594,6 @@ jobs:
       kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-${{ github.event.pull_request.number }}
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # UKI qemu tests. `generic` needs the standard (k3s) UKI ISO plus a
   # dynamically-built upgrade image; `boot-assessment` runs against
@@ -639,7 +625,6 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
-    secrets: inherit
 
   # Per-PR ISO size signal. Downloads the amd64/generic ISOs this PR
   # just built, UKI ones included, grabs the same set from the last green
