@@ -362,6 +362,9 @@ jobs:
       release: false
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
+    # The only Quay login in this workflow. The two Jetson cells push to
+    # quay.io (see above), so this job builds PR code with those
+    # credentials, which is safe only behind the `authorize` gate.
     secrets:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
