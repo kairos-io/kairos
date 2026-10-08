@@ -1,17 +1,30 @@
 name: "Enable QEMU tools"
 stages:
   boot:
+    # qemu-guest-agent.service is BindTo= and After=
+    # dev-virtio\x2dports-org.qemu.guest_agent.0.device (qemu
+    # contrib/systemd/qemu-guest-agent.service), so a blocking start on a guest
+    # whose hypervisor did not attach that channel waits for the device unit
+    # until DefaultTimeoutStartSec, 90s by default, and only then fails. That
+    # holds up the rest of the boot stage and everything ordered after it. The
+    # agent cannot do anything without the channel anyway, so only start it when
+    # the channel is there. udev creates the symlink from a rule both systemd
+    # and eudev ship (SUBSYSTEM=="virtio-ports", SYMLINK+="virtio-ports/$attr{name}"),
+    # and the same rule tags the device so udev starts the service by itself the
+    # moment it appears.
     - name: "Enable QEMU"
       if: |
-          grep -qiFx "QEMU" /sys/class/dmi/id/sys_vendor 2>/dev/null ||
-            grep -qiE "qemu|kvm|Virtual Machine" /sys/class/dmi/id/product_name 2>/dev/null
+          (grep -qiFx "QEMU" /sys/class/dmi/id/sys_vendor 2>/dev/null ||
+            grep -qiE "qemu|kvm|Virtual Machine" /sys/class/dmi/id/product_name 2>/dev/null) &&
+            test -e /dev/virtio-ports/org.qemu.guest_agent.0
       only_service_manager: "openrc"
       commands:
         - rc-service qemu-guest-agent start
     - name: "Enable QEMU"
       if: |
-          grep -qiFx "QEMU" /sys/class/dmi/id/sys_vendor 2>/dev/null ||
-            grep -qiE "qemu|kvm|Virtual Machine" /sys/class/dmi/id/product_name 2>/dev/null
+          (grep -qiFx "QEMU" /sys/class/dmi/id/sys_vendor 2>/dev/null ||
+            grep -qiE "qemu|kvm|Virtual Machine" /sys/class/dmi/id/product_name 2>/dev/null) &&
+            test -e /dev/virtio-ports/org.qemu.guest_agent.0
       only_service_manager: "systemd"
       commands:
         - systemctl start qemu-guest-agent
