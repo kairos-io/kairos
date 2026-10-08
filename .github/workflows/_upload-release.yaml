@@ -41,7 +41,9 @@ jobs:
           set -euo pipefail
           mkdir -p dist/release
           find dist/download -name '*.tar.gz' -exec cp {} dist/release/ \;
-          find dist/download -name 'checksums-*.txt' -exec cat {} \; | sort -u > dist/release/checksums.txt
+          # Checksum the archives being uploaded, rather than joining the
+          # per-build checksum files: not every build artifact carries one.
+          (cd dist/release && sha256sum -- *.tar.gz > checksums.txt)
           ls -l dist/release/
 
       - name: Install Cosign
