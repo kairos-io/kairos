@@ -8,6 +8,11 @@ name: Upload cloud images
 # that untrusted code can start. Here that workflow is `release`, which
 # only a tag push starts, and only maintainers can push tags. The jobs
 # also skip unless that release run succeeded.
+#
+# Every job checks out the default branch, so the upload scripts are
+# always reviewed code. A workflow_run carries the release tag in
+# workflow_run.head_branch; the GCP and AWS jobs upload that tag, and
+# schedule and workflow_dispatch runs upload the latest tag instead.
 on:
   workflow_run:  # zizmor: ignore[dangerous-triggers]
     workflows: ["release"]
@@ -41,10 +46,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-          # workflow_run's default checkout context is this repo's default
-          # branch, not the tag that triggered the release build -- pin to
-          # the exact commit the release build itself ran on.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
       - run: |
           git fetch --prune --unshallow
       # https://github.com/google-github-actions/auth?tab=readme-ov-file#authenticate-to-google-cloud-from-github-actions
@@ -65,10 +66,15 @@ jobs:
         env:
           GCP_PROJECT: palette-kairos
           GCS_BUCKET: kairos-cloud-images
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -xe
 
-          latestTag=$(git describe --tags --abbrev=0)
+          latestTag="${RELEASE_TAG:-$(git describe --tags --abbrev=0)}"
+          if [[ ! "$latestTag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Not a release tag: $latestTag"
+            exit 1
+          fi
           latestTagSanitized=$(echo "$latestTag" | tr '.' '-')
 
           echo "Fetching all pushed versions"
@@ -138,7 +144,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
       - run: |
           git fetch --prune --unshallow
       # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
@@ -153,10 +158,15 @@ jobs:
         env:
           AWS_S3_BUCKET: kairos-cloud-images
           AWS_REGION: eu-central-1
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
         run: |
           set -e
 
-          latestTag=$(git describe --tags --abbrev=0)
+          latestTag="${RELEASE_TAG:-$(git describe --tags --abbrev=0)}"
+          if [[ ! "$latestTag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "Not a release tag: $latestTag"
+            exit 1
+          fi
 
           echo "Fetching all pushed versions"
           mapfile -t kairosVersions < <(aws --region "$AWS_REGION" ec2 describe-images --owners self --query 'Images[].Tags[?Key==`KairosVersion`].Value' --output text)
@@ -210,7 +220,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
       - run: |
           git fetch --prune --unshallow
       # https://github.com/Azure/login?tab=readme-ov-file#azure-login-action
