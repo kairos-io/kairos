@@ -575,7 +575,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			err := grub.Install(target, rootDir, bootDir, constants.GrubConf, "", false, "")
 			Expect(err).To(HaveOccurred())
 		})
-		It("attempts to copy the grub fonts in efi mode", func() {
+		It("copies the grub fonts into the boot dir in efi mode", func() {
 			// Full efi setup with shim, grub and modules
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/efi/x86_64/"), constants.DirPerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte(""), constants.FilePerm)).To(Succeed())
@@ -583,11 +583,6 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
 			// One font present, the others missing so the warn path runs too.
-			// NOTE: Install passes the grub.cfg *file* path as the bootDir
-			// argument of copyGrubFonts, so the font write target is always
-			// under a file path and the copy never succeeds; fonts are only
-			// logged as missing. This exercises the lookup and write-error
-			// paths and documents the current (broken) behavior.
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/unicode.pf2"), []byte("font"), constants.FilePerm)).To(Succeed())
 			// A font that matches by name but cannot be read (it is a dir),
 			// exercising the read-error path of the font lookup
@@ -597,10 +592,14 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			err := grub.Install(target, rootDir, bootDir, constants.GrubConf, "", true, "")
 			Expect(err).ToNot(HaveOccurred())
 
-			// The font does not end up in the boot dir due to the wrong dir
-			// being passed in the production code
-			_, err = fs.Stat(filepath.Join(bootDir, "grub2", fmt.Sprintf("%s-efi", config.Arch), "fonts", "unicode.pf2"))
-			Expect(err).To(HaveOccurred())
+			// `loadfont unicode` in the shipped grub.cfg reads
+			// $prefix/fonts/unicode.pf2, and the stub grub.cfg on the ESP sets
+			// prefix to ($root)/grub2, so the font has to land in
+			// <bootDir>/grub2/fonts.
+			fontPath := filepath.Join(bootDir, "grub2", "fonts", "unicode.pf2")
+			content, err := fs.ReadFile(fontPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(content)).To(Equal("font"))
 		})
 		It("fails in efi mode when a module cannot be read", func() {
 			// A module path which matches the name but is a directory
