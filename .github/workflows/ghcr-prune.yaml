@@ -45,7 +45,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: ghcr-prune
@@ -53,6 +52,9 @@ concurrency:
 
 jobs:
   prune:
+    permissions:
+      contents: read
+      packages: write
     name: prune
     runs-on: ubuntu-latest
     env:

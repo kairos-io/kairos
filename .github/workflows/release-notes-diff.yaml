@@ -12,12 +12,14 @@ on:
         type: string
 
 permissions:
-  contents: write
-  actions: read
-  security-events: read
+  contents: read
 
 jobs:
   generate-diff:
+    permissions:
+      contents: write
+      actions: read
+      security-events: read
     if: ${{ !github.event.release.prerelease && !github.event.release.draft }}
     runs-on: ubuntu-latest
     env:
