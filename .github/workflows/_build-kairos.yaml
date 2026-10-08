@@ -14,8 +14,8 @@ on:
     inputs:
       matrix_scope:
         description: |
-          "pr" -> amd64 only, default and FIPS: the slim PR pipeline only
-          builds and tests amd64. kairos-init embeds both variants.
+          "pr" -> amd64 default only: the slim PR pipeline only builds and
+          tests a non-FIPS amd64 ISO (kairos-init gets FIPS placeholders).
           "ci" -> amd64 + arm64, both default and FIPS (pr-full).
           "full" -> full 5-cell matrix (amd64+arm64+riscv64 default plus
           amd64+arm64 FIPS). Used by both master and release.
@@ -57,7 +57,7 @@ jobs:
           SCOPE: ${{ inputs.matrix_scope }}
         run: |
           if [[ "$SCOPE" == "pr" ]]; then
-            echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"amd64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[{"arch":"amd64","variant":"default"}]}' >> "$GITHUB_OUTPUT"
           elif [[ "$SCOPE" == "full" ]]; then
             echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"riscv64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
           else

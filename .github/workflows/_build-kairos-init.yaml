@@ -20,6 +20,15 @@ on:
         type: string
         required: true
 
+      fips:
+        description: |
+          Embed the real FIPS multi-call kairos. The slim PR pipeline passes
+          false: it never builds a FIPS image, so the FIPS binaries are
+          zero-byte placeholders (as with `make kairos-init-embed-stubs`)
+          and `--fips` installs from that kairos-init would not work.
+        type: boolean
+        default: true
+
       ref:
         description: 'git ref to check out (defaults to the trigger event ref)'
         type: string
@@ -88,8 +97,8 @@ jobs:
           path: dist/download/default
 
       - name: Download FIPS multi-call kairos artifact
-        # FIPS is not built on riscv64.
-        if: matrix.arch != 'riscv64'
+        # FIPS is not built on riscv64, nor in the slim PR pipeline.
+        if: matrix.arch != 'riscv64' && inputs.fips
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: kairos-linux-${{ matrix.arch }}-fips
@@ -105,10 +114,17 @@ jobs:
           done
           if [ "${{ matrix.arch }}" != "riscv64" ]; then
             mkdir -p "dist/linux-${{ matrix.arch }}-fips"
-            for tarball in dist/download/fips/*.tar.gz; do
-              [ -f "$tarball" ] || continue
-              tar -xzf "$tarball" -C "dist/linux-${{ matrix.arch }}-fips"
-            done
+            if [ "${{ inputs.fips }}" = "true" ]; then
+              for tarball in dist/download/fips/*.tar.gz; do
+                [ -f "$tarball" ] || continue
+                tar -xzf "$tarball" -C "dist/linux-${{ matrix.arch }}-fips"
+              done
+            else
+              # bundled_fips.go embeds these on every non-riscv64 build.
+              for f in kairos kairos-installer provider-kairos; do
+                : > "dist/linux-${{ matrix.arch }}-fips/$f"
+              done
+            fi
           fi
           ls -l "dist/linux-${{ matrix.arch }}"
           [ "${{ matrix.arch }}" = "riscv64" ] || ls -l "dist/linux-${{ matrix.arch }}-fips"

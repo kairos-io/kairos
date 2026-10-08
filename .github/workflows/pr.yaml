@@ -49,8 +49,8 @@ jobs:
   lint:
     uses: ./.github/workflows/_lint.yaml
 
-  # The slim pipeline only builds and tests amd64, so the builds below
-  # skip arm64 (pr-full.yaml keeps it).
+  # The slim pipeline only builds and tests a non-FIPS amd64 ISO, so the
+  # builds below skip arm64 and FIPS (pr-full.yaml keeps both).
   build-kairos:
     uses: ./.github/workflows/_build-kairos.yaml
     with:
@@ -61,6 +61,7 @@ jobs:
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
       matrix_scope: pr
+      fips: false
 
   build-kcrypt-challenger:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
