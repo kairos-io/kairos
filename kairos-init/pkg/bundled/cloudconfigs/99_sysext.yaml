@@ -4,15 +4,46 @@ stages:
     - name: "Default sysext/confext extensions dirs"
       only_service_manager: "systemd"
       directories:
+        # yip applies this mode verbatim, and chmods the directory even when it
+        # already exists, so an omitted permissions: would leave 0000 here on
+        # every boot. 0755 is what systemd's own tmpfiles use for these, and it
+        # keeps them traversable for a non-root `systemd-sysext status`.
         - path: /etc/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /run/confexts
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /run/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /var/lib/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /var/lib/confexts
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /usr/lib/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /usr/lib/confexts
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /usr/local/lib/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /usr/local/lib/confexts
+          permissions: 0755
+          owner: 0
+          group: 0
   initramfs:
     - name: "systemd-sysext/confext uki config"
       if: '[ -e "/run/cos/uki_boot_mode" ] && [ ! -e "/run/cos/recovery_mode" ] && [ ! -e "/run/cos/autoreset_mode" ]'
@@ -31,11 +62,16 @@ stages:
             ExecStart=systemd-sysext refresh --image-policy="root=signed+absent:usr=signed+absent"
             ExecReload=
             ExecReload=systemd-sysext refresh --image-policy="root=signed+absent:usr=signed+absent"
-            # set the sysext hierarchies so we dont overwrite our mount at /usr/local
-            # set them very specifically instead of a generic /usr/local as systemd <= 255 mounts the overlay as RO
-            # and we dont want the full /usr/local to be RO as we store state in there
-            # on systemd 256 we can control if they are mutable or not
-            Environment="SYSTEMD_SYSEXT_HIERARCHIES=/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"
+            # Spell out the hierarchies, and keep every /usr/local path out of
+            # them. /usr/local is where COS_PERSISTENT is mounted, and a
+            # successful merge makes every hierarchy it covers read-only:
+            # merge_hierarchy() mounts the overlay and then calls
+            # bind_remount_recursive(..., MS_RDONLY, MS_RDONLY, ...). Listing
+            # /usr/local/bin and its siblings was enough to turn the writable
+            # half of the persistent partition read-only for the rest of the
+            # boot, which breaks bundles and the stages that write scripts
+            # into /usr/local/bin.
+            Environment="SYSTEMD_SYSEXT_HIERARCHIES=/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"
             [Unit]
             # Make it timeout early to avoid blocking boot if keys are not in there to unlock sysext
             JobRunningTimeoutSec=5
@@ -72,11 +108,16 @@ stages:
             ExecStart=systemd-sysext refresh --image-policy="root=verity+absent:usr=verity+absent"
             ExecReload=
             ExecReload=systemd-sysext refresh --image-policy="root=verity+absent:usr=verity+absent"
-            # set the sysext hierarchies so we dont overwrite our mount at /usr/local
-            # set them very specifically instead of a generic /usr/local as systemd <= 255 mounts the overlay as RO
-            # and we dont want the full /usr/local to be RO as we store state in there
-            # on systemd 256 we can control if they are mutable or not
-            Environment="SYSTEMD_SYSEXT_HIERARCHIES=/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"
+            # Spell out the hierarchies, and keep every /usr/local path out of
+            # them. /usr/local is where COS_PERSISTENT is mounted, and a
+            # successful merge makes every hierarchy it covers read-only:
+            # merge_hierarchy() mounts the overlay and then calls
+            # bind_remount_recursive(..., MS_RDONLY, MS_RDONLY, ...). Listing
+            # /usr/local/bin and its siblings was enough to turn the writable
+            # half of the persistent partition read-only for the rest of the
+            # boot, which breaks bundles and the stages that write scripts
+            # into /usr/local/bin.
+            Environment="SYSTEMD_SYSEXT_HIERARCHIES=/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"
             [Unit]
             # Make it timeout early to avoid blocking boot if keys are not in there to unlock sysext
             JobRunningTimeoutSec=5
@@ -105,7 +146,11 @@ stages:
           owner: 0
           group: 0
           content: |
-            export SYSTEMD_SYSEXT_HIERARCHIES="/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"
+            # Same list as the service drop-ins above, so that an interactive
+            # `systemd-sysext status` reports on the hierarchies the boot
+            # actually merged. /usr/local is deliberately absent: it is the
+            # persistent partition mount and must stay writable.
+            export SYSTEMD_SYSEXT_HIERARCHIES="/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"
     - name: "systemd-sysext/confext initramfs settings"
       only_service_manager: "systemd"
       systemctl:

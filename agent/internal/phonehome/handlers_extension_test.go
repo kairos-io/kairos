@@ -163,6 +163,27 @@ var _ = Describe("DefaultCommandHandler, extension command", func() {
 		Expect(err).To(MatchError(ContainSubstring("unsupported type")))
 	})
 
+	It("refuses an upgrade that smuggles an extension install past the policy", func() {
+		rec := &commandRecorder{}
+		defer withRecordedCommands(rec.record)()
+		defer withRebootScheduler(func() { Fail("no reboot should be scheduled") })()
+		raw, _ := json.Marshal([]BundledExtension{
+			{Type: "sysext", Name: "tailscale-agent", Source: "https://attacker/a"},
+		})
+		// The policy a stock node runs: `upgrade` granted, `extension` withheld.
+		safeDefaults := func(command string) bool { return (&Config{}).IsAllowed(command) }
+		handler := DefaultCommandHandler("http://example", func() string { return "" }, safeDefaults, nil, nil)
+		_, err := handler(CommandData{
+			ID: "c1", Command: "upgrade",
+			Args: map[string]string{
+				"source":     "oci:quay.io/myorg/edge-os:v4.2.0",
+				"extensions": string(raw),
+			},
+		})
+		Expect(err).To(MatchError(ContainSubstring(`command "extension" is not permitted`)))
+		Expect(rec.calls).To(BeEmpty())
+	})
+
 	It("dispatches to handleExtension when the args validate", func() {
 		rec := &commandRecorder{}
 		defer withRecordedCommands(rec.record)()
@@ -460,8 +481,19 @@ var _ = Describe("handleUpgrade, extensions bundle", func() {
 	var restoreExec, restoreRoot, restoreReboot func()
 	var rebootCalled bool
 
+	// allowExtension is the policy of an operator who ticked `extension` on top
+	// of the safe defaults. The specs that exercise the bundle need it, because
+	// a bundled install is the `extension` command's work done under another
+	// name and is gated on the same grant.
+	allowExtension := func(string) bool { return true }
+
 	upgrade := func(cmd CommandData) (string, error) {
-		return handleUpgrade(context.Background(), cmd, "", "", nil, 0, 0)
+		return handleUpgrade(context.Background(), cmd, "", "", nil, 0, 0, allowExtension)
+	}
+
+	// upgradeWithPolicy runs the same handler under an arbitrary policy.
+	upgradeWithPolicy := func(cmd CommandData, isAllowed func(string) bool) (string, error) {
+		return handleUpgrade(context.Background(), cmd, "", "", nil, 0, 0, isAllowed)
 	}
 
 	BeforeEach(func() {
@@ -544,21 +576,90 @@ var _ = Describe("handleUpgrade, extensions bundle", func() {
 		Expect(rebootCalled).To(BeFalse())
 	})
 
-	It("enables bundled extensions at --recovery scope for upgrade-recovery", func() {
+	// Both encodings of "upgrade the recovery image" have to reach the same
+	// three decisions: the --recovery flag, the extension scope, and skipping
+	// the reboot. Each entry sends one encoding only, so neither can pass by
+	// borrowing the other's.
+	DescribeTable("treats a recovery upgrade the same however it is addressed",
+		func(command string, args map[string]string) {
+			raw, _ := json.Marshal([]BundledExtension{
+				{Type: "sysext", Name: "rescue-tools", Source: "https://x/r"},
+			})
+			args["source"] = "oci:quay.io/myorg/edge-os:v4.2.0"
+			args["extensions"] = string(raw)
+
+			out, err := upgrade(CommandData{Command: command, Args: args})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rec.calls).To(HaveLen(3))
+			Expect(rec.calls[1]).To(Equal([]string{"kairos-agent", "sysext", "enable", "--recovery", "rescue-tools"}))
+			Expect(rec.calls[2]).To(Equal([]string{"kairos-agent", "upgrade", "--source", "oci:quay.io/myorg/edge-os:v4.2.0", "--recovery"}))
+			Expect(rebootCalled).To(BeFalse())
+			Expect(out).To(ContainSubstring("No reboot needed"))
+		},
+		Entry("the upgrade-recovery command", "upgrade-recovery", map[string]string{}),
+		Entry("an upgrade carrying recovery=true", "upgrade", map[string]string{"recovery": "true"}),
+	)
+
+	// The default policy permits `upgrade` and `upgrade-recovery` and withholds
+	// `extension`, because installing an extension ships code to the node.
+	// These pin that an upgrade cannot spend a grant it was not given.
+	safeDefaults := func(command string) bool { return (&Config{}).IsAllowed(command) }
+
+	It("refuses an upgrade carrying bundled extensions under the default policy", func() {
 		raw, _ := json.Marshal([]BundledExtension{
-			{Type: "sysext", Name: "rescue-tools", Source: "https://x/r"},
+			{Type: "sysext", Name: "tailscale-agent", Source: "https://attacker/a"},
 		})
-		_, err := upgrade(CommandData{
+		_, err := upgradeWithPolicy(CommandData{
+			Command: "upgrade",
+			Args: map[string]string{
+				"source":     "oci:quay.io/myorg/edge-os:v4.2.0",
+				"extensions": string(raw),
+			},
+		}, safeDefaults)
+		Expect(err).To(MatchError(ContainSubstring(`command "extension" is not permitted`)))
+		Expect(rec.calls).To(BeEmpty())
+		Expect(rebootCalled).To(BeFalse())
+	})
+
+	It("refuses an upgrade-recovery carrying bundled extensions under the default policy", func() {
+		raw, _ := json.Marshal([]BundledExtension{
+			{Type: "confext", Name: "rescue-config", Source: "https://attacker/b"},
+		})
+		_, err := upgradeWithPolicy(CommandData{
 			Command: "upgrade-recovery",
 			Args: map[string]string{
 				"source":     "oci:quay.io/myorg/edge-os:v4.2.0",
-				"recovery":   "true",
 				"extensions": string(raw),
 			},
-		})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(rec.calls).To(HaveLen(3))
-		Expect(rec.calls[1]).To(Equal([]string{"kairos-agent", "sysext", "enable", "--recovery", "rescue-tools"}))
+		}, safeDefaults)
+		Expect(err).To(MatchError(ContainSubstring(`command "extension" is not permitted`)))
+		Expect(rec.calls).To(BeEmpty())
 		Expect(rebootCalled).To(BeFalse())
+	})
+
+	It("still runs an upgrade that carries no extensions under the default policy", func() {
+		_, err := upgradeWithPolicy(CommandData{
+			Command: "upgrade",
+			Args:    map[string]string{"source": "oci:quay.io/myorg/edge-os:v4.2.0"},
+		}, safeDefaults)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(rec.calls).To(HaveLen(1))
+		Expect(rec.calls[0]).To(ContainElement("upgrade"))
+		Expect(rebootCalled).To(BeTrue())
+	})
+
+	It("refuses bundled extensions when no policy was wired through at all", func() {
+		raw, _ := json.Marshal([]BundledExtension{
+			{Type: "sysext", Name: "x", Source: "https://attacker/a"},
+		})
+		_, err := upgradeWithPolicy(CommandData{
+			Command: "upgrade",
+			Args: map[string]string{
+				"source":     "oci:quay.io/myorg/edge-os:v4.2.0",
+				"extensions": string(raw),
+			},
+		}, nil)
+		Expect(err).To(MatchError(ContainSubstring(`command "extension" is not permitted`)))
+		Expect(rec.calls).To(BeEmpty())
 	})
 })

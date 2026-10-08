@@ -80,6 +80,30 @@ on:
           Use docker secrets (BuildKit `--secret`) or dedicated CI
           secret-injection mechanisms for anything sensitive.
 
+      oci_context_artifact:
+        type: string
+        required: false
+        default: ''
+        description: |
+          Name of a workflow artifact that holds an OCI layout tarball
+          (as written by `docker buildx build --output type=oci`). When
+          set, the tarball is downloaded and passed to the image build
+          as the named build context `oci_context_name`, so a `FROM` of
+          that name resolves to it instead of to a registry.
+
+          This is how the PR pipeline feeds its freshly built kairos-init
+          image into the OS image build without pushing it anywhere: a
+          plain pull_request run has no registry credentials.
+
+      oci_context_name:
+        type: string
+        required: false
+        default: ''
+        description: |
+          Build context name the `oci_context_artifact` layout is bound
+          to. Must match the image reference the Dockerfile uses in its
+          `FROM`, e.g. the value the caller passes as KAIROS_INIT_IMAGE.
+
       # Kairos version for fallback Dockerfile
       kairos_version:
         type: string
@@ -288,7 +312,30 @@ on:
       sysext_dir:
         type: string
         required: false
-        description: "Path to directory containing system extensions overlay (optional, only used when trusted_boot is true)"
+        description: "Path to directory containing system extensions overlay (optional)"
+
+      generate_test_keys:
+        type: boolean
+        required: false
+        default: false
+        description: |
+          Generate a throwaway Secure Boot and TPM PCR key set with
+          cmd/test-artifacts and sign trusted boot builds with it instead of
+          keys_dir. The set is uploaded as the <artifact name>.test-keys
+          artifact for one day, so a later job can sign an upgrade image the
+          installed test system accepts. For CI test builds only.
+
+      generate_test_sysext:
+        type: boolean
+        required: false
+        default: false
+        description: |
+          Build the CI test system extensions with cmd/test-artifacts and
+          bake them onto the ISO instead of sysext_dir. Trusted boot builds
+          get a signed work extension (signed with the generated keys, so
+          generate_test_keys must be true) plus the hello-broke extension
+          the image policy rejects; other builds get a verity-only work
+          extension.
 
       single_efi_cmdline:
         type: string
@@ -320,6 +367,10 @@ on:
         type: boolean
         default: false
         description: "Remove preinstalled packages to free disk space on the runner"
+
+# Every job declares the permissions it needs, so nothing is granted by
+# default.
+permissions: {}
 
 jobs:
   build:
@@ -731,6 +782,25 @@ jobs:
           username: ${{ secrets.registry_username }}
           password: ${{ secrets.registry_password }}
 
+      - name: Download OCI build context
+        if: inputs.oci_context_artifact != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: ${{ inputs.oci_context_artifact }}
+          path: ${{ runner.temp }}/oci-context
+
+      - name: Unpack OCI build context
+        if: inputs.oci_context_artifact != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${{ inputs.oci_context_name }}" ]]; then
+            echo "::error::oci_context_artifact needs oci_context_name"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/oci-context/layout"
+          tar -xf "$RUNNER_TEMP"/oci-context/*.tar -C "$RUNNER_TEMP/oci-context/layout"
+
       - name: Build Kairos image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
         with:
@@ -740,6 +810,7 @@ jobs:
           no-cache: ${{ inputs.no_cache }}
           push: false
           load: true
+          build-contexts: ${{ inputs.oci_context_artifact != '' && format('{0}=oci-layout://{1}/oci-context/layout', inputs.oci_context_name, runner.temp) || '' }}
           tags: ${{ steps.setup.outputs.image_tag }}
           labels: ${{ inputs.image_labels }}
           build-args: |
@@ -984,6 +1055,7 @@ jobs:
           push: true
           sbom: ${{ inputs.sbom }}
           tags: ${{ steps.setup.outputs.image_tag }}
+          build-contexts: ${{ inputs.oci_context_artifact != '' && format('{0}=oci-layout://{1}/oci-context/layout', inputs.oci_context_name, runner.temp) || '' }}
           labels: ${{ inputs.image_labels }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
@@ -994,10 +1066,55 @@ jobs:
             VERSION=${{ steps.setup.outputs.version }}
             ${{ inputs.build_args }}
 
+      - name: Set up Go for test artifacts
+        if: inputs.generate_test_keys || inputs.generate_test_sysext
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install AuroraBoot runtime library
+        # cmd/test-artifacts runs the AuroraBoot release binary for genkey,
+        # which links libpcsclite.
+        if: inputs.generate_test_keys
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite1
+
+      - name: Generate test keys and system extensions
+        id: test-artifacts
+        if: inputs.generate_test_keys || inputs.generate_test_sysext
+        env:
+          GENERATE_KEYS: ${{ inputs.generate_test_keys }}
+          GENERATE_SYSEXT: ${{ inputs.generate_test_sysext }}
+          TRUSTED_BOOT: ${{ inputs.trusted_boot }}
+          ARCH: ${{ inputs.arch }}
+        run: |
+          set -euo pipefail
+          keys="$RUNNER_TEMP/test-keys"
+          sysext="$RUNNER_TEMP/test-sysext"
+          if [[ "$GENERATE_KEYS" == "true" ]]; then
+            go run ./cmd/test-artifacts keys --out "$keys"
+            echo "keys_dir=$keys" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$GENERATE_SYSEXT" == "true" ]]; then
+            if [[ "$TRUSTED_BOOT" == "true" ]]; then
+              if [[ "$GENERATE_KEYS" != "true" ]]; then
+                echo "::error::generate_test_sysext on a trusted boot build needs generate_test_keys"
+                exit 1
+              fi
+              go run ./cmd/test-artifacts sysext --out "$sysext" --name work --arch "$ARCH" --key "$keys/db.key" --cert "$keys/db.pem"
+              go run ./cmd/test-artifacts sysext-plain --out "$sysext" --name hello-broke
+            else
+              go run ./cmd/test-artifacts sysext --out "$sysext" --name work --arch "$ARCH"
+            fi
+            echo "sysext_dir=$sysext" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Generate ISO artifact
         if: inputs.iso && inputs.model == 'generic'
         id: generate-iso
         shell: bash
+        env:
+          KEYS_DIR_INPUT: ${{ steps.test-artifacts.outputs.keys_dir || inputs.keys_dir }}
+          SYSEXT_DIR_INPUT: ${{ steps.test-artifacts.outputs.sysext_dir || inputs.sysext_dir }}
         run: |
           echo "🔍 Debug: Starting ISO generation step"
           echo "   Inputs: iso=${{ inputs.iso }}, model=${{ inputs.model }}"
@@ -1011,19 +1128,22 @@ jobs:
             DOCKER_CMD="$DOCKER_CMD -v $PWD/artifacts:/output"
 
             if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              KEYS_DIR_INPUT="${{ inputs.keys_dir }}"
               if [[ "$KEYS_DIR_INPUT" != /* ]]; then
                 KEYS_DIR_INPUT="$PWD/$KEYS_DIR_INPUT"
               fi
               DOCKER_CMD="$DOCKER_CMD -v \"$KEYS_DIR_INPUT\":/keys"
+            fi
 
-              if [[ -n "${{ inputs.sysext_dir }}" ]]; then
-                SYSEXT_DIR_INPUT="${{ inputs.sysext_dir }}"
-                if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
-                  SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
-                fi
-                DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
+            # build-iso takes --overlay-iso just like build-uki, so the
+            # extensions ship on the GRUB ISO too. The agent sweeps the live
+            # media for *.sysext.raw on both install flows, so keeping this
+            # mount inside the trusted_boot branch left the GRUB half of that
+            # sweep with nothing to find and no test.
+            if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
+              if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
+                SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
               fi
+              DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
             fi
 
             # Optional cloud-config (file path or URL)
@@ -1069,10 +1189,10 @@ jobs:
               if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
                 DOCKER_CMD="$DOCKER_CMD --single-efi-cmdline=\"${{ inputs.single_efi_cmdline }}\""
               fi
+            fi
 
-              if [[ -n "${{ inputs.sysext_dir }}" ]]; then
-                DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
-              fi
+            if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
+              DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
             fi
 
             # Append cloud-config flag if provided
@@ -1488,6 +1608,18 @@ jobs:
           path: |
             artifacts/*.iso
             artifacts/*.sha256
+          if-no-files-found: error
+
+      - name: Upload test keys
+        # The UKI upgrade test signs its upgrade image with the db and PCR
+        # keys of the build whose ISO it installs. They are throwaway keys,
+        # kept for one day.
+        if: inputs.generate_test_keys && inputs.iso
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: ${{ steps.setup.outputs.artifact_name }}.test-keys
+          path: ${{ steps.test-artifacts.outputs.keys_dir }}
+          retention-days: 1
           if-no-files-found: error
 
       - name: Upload RAW artifacts

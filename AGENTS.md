@@ -31,6 +31,21 @@ locally because you assume the real fix will be slow to merge.
 - Disclose in the pull request body that AI was used, and say whether a human
   read the code before it was opened.
 - Conventional Commits for the subject line: `fix(iso): ...`, `docs: ...`.
+- Every pull request references an issue. Write
+  `Fixes kairos-io/kairos#NNNN` when the pull request completes the issue, or
+  `Part of kairos-io/kairos#NNNN` when it is one step of a larger piece of
+  work. Use `Part of` when you are not sure, so that merging one slice does not
+  close a parent issue that is still open.
+- Search the open issues for the area you are touching before you file a new
+  one, and search by the area rather than by your own wording for the problem.
+  Most work already has an issue. Parent issues often have child issues that
+  are a closer match to your change than the parent is.
+- If no issue matches, do not stretch one that is merely close, and do not
+  invent a reference. Say so, and file an issue that states the problem the
+  change solves, so the work is tracked before it is reviewed.
+- File the issue in `kairos-io/kairos`. Most of the other repositories have
+  their issue tracker turned off on purpose, so that the project has one
+  Issues tab.
 - Open a pull request for every change. Push the branch to a fork if you do not
   have write access to the repository, otherwise to the repository. Never push
   to the default branch.
@@ -39,6 +54,12 @@ locally because you assume the real fix will be slow to merge.
 - Never force-push or rebase someone else's branch.
 - Never enable GPG signing, `-S`. It blocks on a passphrase nobody will type.
   That is a different flag from `-s`.
+
+## The project board
+
+The issue tracking board holds issues only. Do not add a pull request to it. A
+pull request reaches the board through the issue it references, which is why
+the reference is required.
 
 ## Writing
 
@@ -68,7 +89,25 @@ no emojis, plain words rather than jargon and acronyms.
 Tested procedures for the hard parts live in
 [kairos-io/skills](https://github.com/kairos-io/skills): driving QEMU
 headlessly, testing immucore in a real boot, testing the installer on a Hadron
-image, cutting a backport release. Prefer one over improvising.
+image, performing QA on a ticket, cutting a backport release. Prefer one over
+improvising.
+
+## QA
+
+QA is requested by moving an issue into the QA column of
+[project 1](https://github.com/orgs/kairos-io/projects/1/views/1). An issue
+sitting there is a live request, including one that was tested before and sent
+back.
+
+A verdict is a comment on the issue that starts `### QA Result:` and says PASS,
+FAIL or BLOCKED, with the evidence behind it. Read those before you work on the
+issue. A `QA: fail` verdict names a real reproduction that somebody still has to
+fix, and it does not reach you any other way.
+
+A passing issue is labelled `QA: pass` and moves to `QA OK`. A failing one is
+labelled `QA: fail` and stays in QA.
+
+The `performing-kairos-qa` skill has the procedure for producing a verdict.
 
 ## Go
 
@@ -90,6 +129,29 @@ image, cutting a backport release. Prefer one over improvising.
   `hadron`, as above.
 - `hadolint` runs in CI. Run it locally before pushing.
 
+## Patching third-party source
+
+- A build failure in a third-party package is usually a bug in that package.
+  Fix it upstream first. Carry a patch here only to unblock the build while
+  upstream reviews the fix.
+- Put the patch in `patches/` in `hadron`, as a file. Do not edit third-party
+  source with a `sed` in a Dockerfile. A `sed` has no header to read, no name
+  that says what it repairs, and nothing that tells the next person when to
+  remove it.
+- Give every patch a header that says what breaks, why it breaks on this target
+  and not on the others, where the fix went upstream, and the condition for
+  dropping the patch. `patches/0001-audit-syslog-plugin-include-unistd.patch`
+  is the model to copy.
+- Where you cannot send the fix upstream yourself, say so in the patch header
+  and in the pull request, and write the upstream report so that a maintainer
+  only has to send it. A patch that nobody reported is carried for ever by
+  whoever inherits it.
+- Disclose AI use in the upstream report too, the same way you disclose it
+  here, and say how the patch was verified: which target it was built on, which
+  test failed before and passes after. Many projects now reject an undisclosed
+  AI patch on sight, and an unverified one wastes a maintainer's time. State
+  plainly when the fix was not built or run on the affected target.
+
 ## This repository, specifically
 
 - `go build ./...` and `go test ./...` fail on a fresh clone with
@@ -107,3 +169,17 @@ image, cutting a backport release. Prefer one over improvising.
 - Where there is no C compiler, `CGO_ENABLED=0 go build ./...` builds the whole
   tree. Do not commit a build tag or a dependency swap to work around a missing
   local compiler.
+- When you add, rename or remove a systemd unit, add it to `Journal` in
+  `defaultLogsConfig` (`agent/internal/agent/logs.go`) in the same change. That
+  list is what `kairos-agent logs` puts in a debug bundle, and it is written by
+  hand: a unit missing from it is silently absent from every bundle, so the one
+  boot that needed the journal is the boot that does not have it. Listing a unit
+  that did not run costs nothing, `Collect` drops an empty journal. This applies
+  to units written by the bundled cloud-configs, by a provider, and by the agent
+  itself at runtime.
+- Test fixtures are generated, not committed. `internal/testartifacts`
+  builds them, and `cmd/test-artifacts` is its command line for CI.
+  Generating keys downloads the AuroraBoot release binary and needs `openssl`
+  and `libpcsclite`; building system extensions also needs Docker. Set
+  `KAIROS_TEST_AURORABOOT_BINARY` to a local `auroraboot` binary to skip the
+  download, for offline hosts or architectures without a release binary.
