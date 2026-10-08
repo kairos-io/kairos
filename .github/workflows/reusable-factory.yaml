@@ -1179,86 +1179,86 @@ jobs:
           echo "   Using image: ${STEPS_SETUP_OUTPUTS_IMAGE_TAG}"
 
           echo "📦 Building ISO ..."
-            DOCKER_CMD="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock"
-            DOCKER_CMD="$DOCKER_CMD -v $PWD/artifacts:/output"
+          # The command is a bash array run as "${cmd[@]}", not a string
+          # run with eval. eval would read input values such as the
+          # cloud-config path or the kernel command line as shell code;
+          # in an array each one stays a single argument.
+          cmd=(docker run --rm -v /var/run/docker.sock:/var/run/docker.sock)
+          cmd+=(-v "$PWD/artifacts:/output")
 
-            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              if [[ "$KEYS_DIR_INPUT" != /* ]]; then
-                KEYS_DIR_INPUT="$PWD/$KEYS_DIR_INPUT"
-              fi
-              DOCKER_CMD="$DOCKER_CMD -v \"$KEYS_DIR_INPUT\":/keys"
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            if [[ "$KEYS_DIR_INPUT" != /* ]]; then
+              KEYS_DIR_INPUT="$PWD/$KEYS_DIR_INPUT"
             fi
+            cmd+=(-v "$KEYS_DIR_INPUT:/keys")
+          fi
 
-            # build-iso takes --overlay-iso just like build-uki, so the
-            # extensions ship on the GRUB ISO too. The agent sweeps the live
-            # media for *.sysext.raw on both install flows, so keeping this
-            # mount inside the trusted_boot branch left the GRUB half of that
-            # sweep with nothing to find and no test.
-            if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
-              if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
-                SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
-              fi
-              DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
+          # build-iso takes --overlay-iso just like build-uki, so the
+          # extensions ship on the GRUB ISO too. The agent sweeps the live
+          # media for *.sysext.raw on both install flows, so keeping this
+          # mount inside the trusted_boot branch left the GRUB half of that
+          # sweep with nothing to find and no test.
+          if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
+            if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
+              SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
             fi
+            cmd+=(-v "$SYSEXT_DIR_INPUT:/overlay")
+          fi
 
-            # Optional cloud-config (file path or URL)
-            CLOUD_CONFIG_ARG=""
-            CLOUD_CONFIG_INPUT="${INPUTS_CLOUD_CONFIG}"
-            if [[ -n "$CLOUD_CONFIG_INPUT" ]]; then
-              if [[ "$CLOUD_CONFIG_INPUT" =~ ^https?:// ]]; then
-                CLOUD_CONFIG_ARG="--cloud-config \"$CLOUD_CONFIG_INPUT\""
+          # Optional cloud-config (file path or URL)
+          cloud_config_args=()
+          CLOUD_CONFIG_INPUT="${INPUTS_CLOUD_CONFIG}"
+          if [[ -n "$CLOUD_CONFIG_INPUT" ]]; then
+            if [[ "$CLOUD_CONFIG_INPUT" =~ ^https?:// ]]; then
+              cloud_config_args=(--cloud-config "$CLOUD_CONFIG_INPUT")
+            else
+              # Mount local file into container and refer to stable path
+              if [[ "$CLOUD_CONFIG_INPUT" != /* ]]; then
+                ABS_CC_PATH="$PWD/$CLOUD_CONFIG_INPUT"
               else
-                # Mount local file into container and refer to stable path
-                if [[ "$CLOUD_CONFIG_INPUT" != /* ]]; then
-                  ABS_CC_PATH="$PWD/$CLOUD_CONFIG_INPUT"
-                else
-                  ABS_CC_PATH="$CLOUD_CONFIG_INPUT"
-                fi
-                DOCKER_CMD="$DOCKER_CMD -v \"$ABS_CC_PATH\":/cloud-config:ro"
-                CLOUD_CONFIG_ARG="--cloud-config /cloud-config"
+                ABS_CC_PATH="$CLOUD_CONFIG_INPUT"
               fi
+              cmd+=(-v "$ABS_CC_PATH:/cloud-config:ro")
+              cloud_config_args=(--cloud-config /cloud-config)
             fi
-            DOCKER_CMD="$DOCKER_CMD quay.io/kairos/auroraboot:${INPUTS_AURORABOOT_VERSION} --debug"
-            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              DOCKER_CMD="$DOCKER_CMD build-uki"
-            else
-              DOCKER_CMD="$DOCKER_CMD build-iso"
+          fi
+          cmd+=("quay.io/kairos/auroraboot:${INPUTS_AURORABOOT_VERSION}" --debug)
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            cmd+=(build-uki)
+          else
+            cmd+=(build-iso)
+          fi
+          ## auroraboot flags
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            cmd+=(--output-dir /output/)
+          else
+            cmd+=(--output /output/)
+          fi
+
+          if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
+            cmd+=(--allow-insecure-registries)
+          fi
+
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            cmd+=(--output-type=iso)
+            cmd+=(--public-keys /keys)
+            cmd+=(--tpm-pcr-private-key /keys/tpm2-pcr-private.pem)
+            cmd+=(--sb-key /keys/db.key --sb-cert /keys/db.pem)
+
+            if [[ -n "${INPUTS_SINGLE_EFI_CMDLINE}" ]]; then
+              cmd+=("--single-efi-cmdline=${INPUTS_SINGLE_EFI_CMDLINE}")
             fi
-            ## auroraboot flags
-            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              DOCKER_CMD="$DOCKER_CMD --output-dir /output/"
-            else
-              DOCKER_CMD="$DOCKER_CMD --output /output/"
-            fi
+          fi
 
-            if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
-              DOCKER_CMD="$DOCKER_CMD --allow-insecure-registries"
-            fi
+          if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
+            cmd+=(--overlay-iso /overlay)
+          fi
 
-            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
-              DOCKER_CMD="$DOCKER_CMD --output-type=iso"
-              DOCKER_CMD="$DOCKER_CMD --public-keys /keys"
-              DOCKER_CMD="$DOCKER_CMD --tpm-pcr-private-key /keys/tpm2-pcr-private.pem"
-              DOCKER_CMD="$DOCKER_CMD --sb-key /keys/db.key --sb-cert /keys/db.pem"
+          cmd+=("${cloud_config_args[@]}")
+          cmd+=("docker:${STEPS_SETUP_OUTPUTS_IMAGE_TAG}")
 
-              if [[ -n "${INPUTS_SINGLE_EFI_CMDLINE}" ]]; then
-                DOCKER_CMD="$DOCKER_CMD --single-efi-cmdline=\"${INPUTS_SINGLE_EFI_CMDLINE}\""
-              fi
-            fi
-
-            if [[ -n "$SYSEXT_DIR_INPUT" ]]; then
-              DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
-            fi
-
-            # Append cloud-config flag if provided
-            if [[ -n "$CLOUD_CONFIG_ARG" ]]; then
-              DOCKER_CMD="$DOCKER_CMD $CLOUD_CONFIG_ARG"
-            fi
-
-            DOCKER_CMD="$DOCKER_CMD docker:${STEPS_SETUP_OUTPUTS_IMAGE_TAG}"
-
-            echo "🔧 Executing: $DOCKER_CMD"
-            eval $DOCKER_CMD
+          echo "🔧 Executing: ${cmd[*]}"
+          "${cmd[@]}"
 
 
           ISO_FILE=$(ls artifacts/*.iso | head -1)
@@ -1278,41 +1278,43 @@ jobs:
         run: |
           mkdir -p artifacts
           echo "📦 Building RAW artifact..."
-          DOCKER_CMD="docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock"
-          DOCKER_CMD="$DOCKER_CMD -v $PWD/artifacts:/output"
+          # The command is a bash array run as "${cmd[@]}", not a string
+          # run with eval. eval would read input values such as the
+          # cloud-config path or the kernel command line as shell code;
+          # in an array each one stays a single argument.
+          cmd=(docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock)
+          cmd+=(-v "$PWD/artifacts:/output")
 
           # Optional cloud-config (file path or URL)
-          CLOUD_CONFIG_ARG=""
+          cloud_config_args=()
           CLOUD_CONFIG_INPUT="${INPUTS_CLOUD_CONFIG}"
           if [[ -n "$CLOUD_CONFIG_INPUT" ]]; then
             if [[ "$CLOUD_CONFIG_INPUT" =~ ^https?:// ]]; then
-              CLOUD_CONFIG_ARG="--cloud-config \"$CLOUD_CONFIG_INPUT\""
+              cloud_config_args=(--cloud-config "$CLOUD_CONFIG_INPUT")
             else
               if [[ "$CLOUD_CONFIG_INPUT" != /* ]]; then
                 ABS_CC_PATH="$PWD/$CLOUD_CONFIG_INPUT"
               else
                 ABS_CC_PATH="$CLOUD_CONFIG_INPUT"
               fi
-              DOCKER_CMD="$DOCKER_CMD -v \"$ABS_CC_PATH\":/cloud-config:ro"
-              CLOUD_CONFIG_ARG="--cloud-config /cloud-config"
+              cmd+=(-v "$ABS_CC_PATH:/cloud-config:ro")
+              cloud_config_args=(--cloud-config /cloud-config)
             fi
           fi
 
-          DOCKER_CMD="$DOCKER_CMD quay.io/kairos/auroraboot:${INPUTS_AURORABOOT_VERSION} --debug"
-          if [[ -n "$CLOUD_CONFIG_ARG" ]]; then
-            DOCKER_CMD="$DOCKER_CMD $CLOUD_CONFIG_ARG"
-          fi
-          DOCKER_CMD="$DOCKER_CMD --set \"disable_http_server=true\""
-          DOCKER_CMD="$DOCKER_CMD --set \"disable_netboot=true\""
-          DOCKER_CMD="$DOCKER_CMD --set \"container_image=docker:${STEPS_SETUP_OUTPUTS_IMAGE_TAG}\""
-          DOCKER_CMD="$DOCKER_CMD --set \"state_dir=/output\""
-          DOCKER_CMD="$DOCKER_CMD --set \"disk.raw=true\""
+          cmd+=("quay.io/kairos/auroraboot:${INPUTS_AURORABOOT_VERSION}" --debug)
+          cmd+=("${cloud_config_args[@]}")
+          cmd+=(--set "disable_http_server=true")
+          cmd+=(--set "disable_netboot=true")
+          cmd+=(--set "container_image=docker:${STEPS_SETUP_OUTPUTS_IMAGE_TAG}")
+          cmd+=(--set "state_dir=/output")
+          cmd+=(--set "disk.raw=true")
           if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
-            DOCKER_CMD="$DOCKER_CMD --set \"allow-insecure-registries=true\""
+            cmd+=(--set "allow-insecure-registries=true")
           fi
 
-          echo "🔧 Executing: $DOCKER_CMD"
-          eval $DOCKER_CMD
+          echo "🔧 Executing: ${cmd[*]}"
+          "${cmd[@]}"
 
           RAW_FILE=$(ls artifacts/*.raw | head -1)
           if [[ -n "$RAW_FILE" ]]; then
