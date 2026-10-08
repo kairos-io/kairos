@@ -1,0 +1,206 @@
+header:
+  schema-version: 2.2.0
+  last-updated: '2026-10-08'
+  last-reviewed: '2026-10-08'
+  url: https://raw.githubusercontent.com/kairos-io/kairos/master/security-insights.yml
+  comment: >
+    Security Insights for Kairos, read by OpenSSF Baseline tooling. The
+    control-by-control Baseline Level 1 evidence is tracked in
+    kairos-io/kairos#3753.
+
+project:
+  name: Kairos
+  homepage: https://kairos.io
+  administrators:
+    - name: Ettore Di Giacinto
+      social: https://github.com/mudler
+      affiliation: Spectro Cloud
+      primary: true
+    - name: Dimitris Karakasilis
+      social: https://github.com/jimmykarily
+      affiliation: Spectro Cloud
+      primary: false
+    - name: Itxaka Serrano Garcia
+      social: https://github.com/itxaka
+      affiliation: Spectro Cloud
+      primary: false
+    - name: Mauro Morales
+      social: https://github.com/mauromorales
+      affiliation: Spectro Cloud
+      primary: false
+  repositories:
+    - name: kairos
+      url: https://github.com/kairos-io/kairos
+      comment: >
+        The OS: shared SDK, agent, immucore, kairos-init, installer,
+        Kubernetes providers, kcrypt and the boot tests. Also the issue
+        tracker for the whole organization.
+    - name: AuroraBoot
+      url: https://github.com/kairos-io/AuroraBoot
+      comment: Builds ISOs, raw disk images and netboot artifacts.
+    - name: hadron
+      url: https://github.com/kairos-io/hadron
+      comment: The minimal base OS, built from source.
+    - name: hadron-layers
+      url: https://github.com/kairos-io/hadron-layers
+      comment: Extensions and additions for Hadron.
+    - name: kairos-operator
+      url: https://github.com/kairos-io/kairos-operator
+      comment: Kubernetes operator for upgrading and managing Kairos nodes.
+    - name: cluster-api-provider-kairos
+      url: https://github.com/kairos-io/cluster-api-provider-kairos
+      comment: Cluster API provider for Kairos.
+    - name: packages
+      url: https://github.com/kairos-io/packages
+      comment: Cross-distribution packages published as OCI images.
+    - name: kairos-docs
+      url: https://github.com/kairos-io/kairos-docs
+      comment: The documentation published at kairos.io.
+  vulnerability-reporting:
+    reports-accepted: true
+    bug-bounty-available: false
+    policy: https://github.com/kairos-io/kairos/blob/master/SECURITY.md
+    contact:
+      name: Kairos maintainers
+      email: members@kairos.io
+      primary: true
+    comment: >
+      Report through a GitHub draft security advisory on kairos-io/kairos,
+      or by email if you have no GitHub account.
+  documentation:
+    quickstart-guide: https://kairos.io/quickstart/
+    detailed-guide: https://kairos.io/docs/
+    code-of-conduct: https://github.com/kairos-io/kairos/blob/master/CODE_OF_CONDUCT.md
+    signature-verification: https://kairos.io/docs/installation/check-the-signatures/
+
+repository:
+  url: https://github.com/kairos-io/kairos
+  status: active
+  accepts-change-request: true
+  accepts-automated-change-request: true
+  core-team:
+    - name: Ettore Di Giacinto
+      social: https://github.com/mudler
+      affiliation: Spectro Cloud
+      primary: true
+    - name: Dimitris Karakasilis
+      social: https://github.com/jimmykarily
+      affiliation: Spectro Cloud
+      primary: false
+    - name: Itxaka Serrano Garcia
+      social: https://github.com/itxaka
+      affiliation: Spectro Cloud
+      primary: false
+    - name: Mauro Morales
+      social: https://github.com/mauromorales
+      affiliation: Spectro Cloud
+      primary: false
+    - name: Rishi Anand
+      social: https://github.com/rishi-anand
+      affiliation: Spectro Cloud
+      primary: false
+    - name: William Rizzo
+      social: https://github.com/wrkode
+      affiliation: Mirantis
+      primary: false
+  documentation:
+    contributing-guide: https://github.com/kairos-io/kairos/blob/master/CONTRIBUTING.md
+    governance: https://github.com/kairos-io/community/blob/main/GOVERNANCE.md
+    security-policy: https://github.com/kairos-io/kairos/blob/master/SECURITY.md
+  license:
+    url: https://github.com/kairos-io/kairos/blob/master/LICENSE
+    expression: Apache-2.0
+  release:
+    automated-pipeline: true
+    distribution-points:
+      - uri: https://github.com/kairos-io/kairos/releases
+        comment: ISOs, binaries, checksums, signatures and SBOMs.
+      - uri: https://quay.io/organization/kairos
+        comment: Container images of the OS flavors, kairos-init and kcrypt-challenger.
+  security:
+    assessments:
+      self:
+        evidence: https://github.com/kairos-io/kairos/issues/3753
+        date: '2026-10-08'
+        comment: OpenSSF Baseline Level 1 self-assessment.
+    tools:
+      - name: Renovate
+        type: SCA
+        rulesets:
+          - default
+        integration:
+          adhoc: true
+          ci: false
+          release: false
+        results: {}
+        comment: Opens update pull requests for Go modules, actions, images and pinned versions.
+      - name: OSV-Scanner
+        type: SCA
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: true
+        results: {}
+        comment: Scans the Go dependencies on pull requests that change them and on every release.
+      - name: Grype
+        type: container
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: true
+        results: {}
+        comment: Scans the built OS images.
+      - name: Trivy
+        type: container
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: true
+        results: {}
+        comment: Scans the built OS images.
+      - name: CodeQL
+        type: SAST
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
+        comment: Runs on pull requests and pushes to master.
+      - name: golangci-lint
+        type: SAST
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: true
+        results: {}
+        comment: Runs in the lint job that gates every build.
+      - name: zizmor
+        type: other
+        rulesets:
+          - default
+        integration:
+          adhoc: false
+          ci: true
+          release: false
+        results: {}
+        comment: Audits the GitHub Actions workflows on every change to them.
+      - name: OpenSSF Scorecard
+        type: other
+        rulesets:
+          - default
+        integration:
+          adhoc: true
+          ci: true
+          release: false
+        results: {}
+        comment: Runs weekly and on every push to master.
