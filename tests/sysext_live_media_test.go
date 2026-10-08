@@ -12,13 +12,30 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-// The extension the ISO ships. tests/assets/sysext-grub is mounted as the
-// auroraboot --overlay-iso directory by _build-iso.yaml on non-trusted-boot
-// cells, so the image in it lands at the ISO root and therefore under
-// /run/initramfs/live while the installer runs. Its work.sysext.raw is
-// verity-only (unsigned) so systemd-sysext can activate it on a boot with
-// no test signing key enrolled.
+// The extension the ISO ships. The generated test extension directory is
+// mounted as the auroraboot --overlay-iso directory by the CI workflows on
+// non-trusted-boot cells, so the image in it lands at the ISO root and
+// therefore under /run/initramfs/live while the installer runs. Its
+// work.sysext.raw is verity-only (unsigned) so systemd-sysext can activate
+// it on a boot with no test signing key enrolled.
 const liveMediaExtension = "work.sysext.raw"
+
+// The hierarchy list the kairos drop-in installs, spelled out so that
+// `systemd-sysext status` reports on what the boot merged instead of on its
+// own defaults. /usr/local is deliberately not in it: it is the persistent
+// partition mount, and a merge would turn it read-only.
+const sysextHierarchiesEnv = `SYSTEMD_SYSEXT_HIERARCHIES="/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"`
+
+// Both test extensions carry their payload at /usr/bin/hello.sh, which is a
+// merged hierarchy, so a successful merge puts the script on the host's PATH.
+// Running it is the strongest proof the overlay went up: it needs the image to
+// be accepted by the boot's image policy, merged, and visible to a fresh
+// process. internal/testartifacts builds both images with that payload.
+const (
+	mergedExtensionHierarchy = "/usr/bin"
+	mergedExtensionCommand   = "hello.sh"
+	mergedExtensionOutput    = "Hello world"
+)
 
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
 // is asserted in uki_test.go, where the extension reaches the EFI partition.
@@ -86,9 +103,8 @@ users:
 
 				// The hierarchies have to be spelled out the same way the
 				// kairos drop-in does, or systemd-sysext reports on its own
-				// defaults and misses the /usr/local ones.
-				env := "SYSTEMD_SYSEXT_HIERARCHIES=\"/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin\""
-				out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", env))
+				// defaults rather than on what this boot merged.
+				out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", sysextHierarchiesEnv))
 				Expect(err).ToNot(HaveOccurred(), out)
 
 				var sysexts sysextStatus
@@ -96,18 +112,18 @@ users:
 
 				var merged bool
 				for _, sysext := range sysexts {
-					if sysext.Hierarchy == "/usr/local/bin" {
+					if sysext.Hierarchy == mergedExtensionHierarchy {
 						Expect(sysext.Extensions).To(ContainElement("work"))
 						merged = true
 					}
 				}
-				Expect(merged).To(BeTrue(), "no /usr/local/bin hierarchy in %s", out)
+				Expect(merged).To(BeTrue(), "no %s hierarchy in %s", mergedExtensionHierarchy, out)
 			})
 
 			By("running a command the extension provides", func() {
-				out, err := vm.Sudo("hello.sh")
+				out, err := vm.Sudo(mergedExtensionCommand)
 				Expect(err).ToNot(HaveOccurred(), out)
-				Expect(out).To(ContainSubstring("Hello world"))
+				Expect(out).To(ContainSubstring(mergedExtensionOutput))
 			})
 		})
 	})

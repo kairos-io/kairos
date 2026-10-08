@@ -34,6 +34,9 @@ func TestKmsgText(t *testing.T) {
 
 // testConsole returns a KernelConsole wired to temp files and a recording
 // signal func, so nothing in the test touches /proc or PID 1.
+//
+// The command line it points at is a plain one, with no quiet and no
+// systemd.show_status, so status counts as on unless a test says otherwise.
 func testConsole(t *testing.T, printkBody string) (*KernelConsole, *bytes.Buffer, *[]syscall.Signal, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -45,8 +48,9 @@ func testConsole(t *testing.T, printkBody string) (*KernelConsole, *bytes.Buffer
 	var sigs []syscall.Signal
 	out := &bytes.Buffer{}
 	k := &KernelConsole{
-		Out:        out,
-		PrintkPath: printk,
+		Out:         out,
+		PrintkPath:  printk,
+		CmdlinePath: writeCmdline(t, "BOOT_IMAGE=/boot/vmlinuz console=tty1 splash"),
 		Signal: func(s syscall.Signal) error {
 			mu.Lock()
 			defer mu.Unlock()
@@ -55,6 +59,16 @@ func testConsole(t *testing.T, printkBody string) (*KernelConsole, *bytes.Buffer
 		},
 	}
 	return k, out, &sigs, printk
+}
+
+// writeCmdline puts a kernel command line in a temp file and returns its path.
+func writeCmdline(t *testing.T, body string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "cmdline")
+	if err := os.WriteFile(p, []byte(body+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }
 
 // Quiet has to remember what it clobbered. Without this, a boot that shows the
@@ -85,6 +99,88 @@ func TestQuietRestoresThePreviousPrintk(t *testing.T) {
 	off, on := (*sigs)[0], (*sigs)[1]
 	if off != on+1 {
 		t.Errorf("quiet sent %d and unquiet %d; off must be SIGRTMIN+21 and on SIGRTMIN+20", off, on)
+	}
+}
+
+// The bug this guards: SIGRTMIN+20 sets an override systemd keeps for the rest
+// of the uptime, and across switch-root. Sending it on a boot that asked for
+// quiet turns unit status on that was never on, which is what printed the
+// switch-root jobs over the splash and left the console noisy afterwards.
+func TestUnquietLeavesStatusOffWhenTheBootAskedForQuiet(t *testing.T) {
+	k, _, sigs, printk := testConsole(t, "4 4 1 7\n")
+	k.CmdlinePath = writeCmdline(t, "BOOT_IMAGE=/boot/vmlinuz console=tty1 splash quiet")
+
+	k.Quiet()
+	k.Unquiet()
+
+	// The printk level is still restored: that part was never conditional,
+	// and leaving the kernel at loglevel 1 would silence the next boot stage.
+	raw, err := os.ReadFile(printk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "4 4 1 7\n" {
+		t.Errorf("printk after Unquiet = %q, want the original", raw)
+	}
+	if len(*sigs) != 1 {
+		t.Fatalf("signals = %v, want only the hide-status one from Quiet", *sigs)
+	}
+	if want := showStatusSignal(21); (*sigs)[0] != want {
+		t.Errorf("signal = %d, want SIGRTMIN+21 (%d)", (*sigs)[0], want)
+	}
+}
+
+// A console that was quiet by command line stays quiet when the user presses
+// Escape for the kernel log too: the log stream is what they asked for, and
+// systemd's unit status is not part of it.
+func TestEnterLogsLeavesStatusOffWhenTheBootAskedForQuiet(t *testing.T) {
+	k, _, sigs, _ := testConsole(t, "4 4 1 7\n")
+	k.CmdlinePath = writeCmdline(t, "console=tty1 splash systemd.show_status=no")
+	k.KmsgPath = writeCmdline(t, "6,1,10,-;a record")
+
+	k.Quiet()
+	if err := k.EnterLogs(); err != nil {
+		t.Fatal(err)
+	}
+	if err := k.stopStream(); err != nil {
+		t.Fatal(err)
+	}
+	if len(*sigs) != 1 {
+		t.Errorf("signals = %v, want only the hide-status one from Quiet", *sigs)
+	}
+}
+
+// What the command line says about unit status, option by option. The last
+// option wins, because that is how systemd reads its own command line.
+func TestStatusOnFromCmdline(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		cmdline string
+		want    bool
+	}{
+		{"a plain command line prints status", "console=tty1 splash", true},
+		{"quiet turns it off", "console=tty1 quiet splash", false},
+		{"a false show_status turns it off", "splash systemd.show_status=no", false},
+		{"auto is not every unit", "splash systemd.show_status=auto", false},
+		{"error is not every unit", "splash systemd.show_status=error", false},
+		{"a true show_status keeps it on", "splash systemd.show_status=yes", true},
+		{"show_status=1 keeps it on", "splash systemd.show_status=1", true},
+		{"an explicit yes after quiet wins", "quiet systemd.show_status=yes", true},
+		{"quiet after an explicit yes wins", "systemd.show_status=yes quiet", false},
+		// quiet is a whole option, not a substring of one.
+		{"a value ending in quiet is not quiet", "foo=bequiet splash", true},
+	} {
+		if got := statusOnFromCmdline(writeCmdline(t, tc.cmdline)); got != tc.want {
+			t.Errorf("%s: statusOnFromCmdline(%q) = %v, want %v", tc.name, tc.cmdline, got, tc.want)
+		}
+	}
+}
+
+// A command line that cannot be read is a container or a developer box, not a
+// boot that asked for silence, so the console is handed back the way it was.
+func TestStatusOnFromCmdlineDefaultsToOnWhenItCannotBeRead(t *testing.T) {
+	if !statusOnFromCmdline(filepath.Join(t.TempDir(), "absent")) {
+		t.Error("an unreadable command line must count as status on")
 	}
 }
 

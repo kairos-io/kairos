@@ -22,8 +22,7 @@ var _ = Describe("the MCP route", func() {
 	// A stand-in for mcp.Handler: this package must not care what the handler
 	// does, only that requests to MCPPath arrive at it.
 	mount := func(h http.Handler) {
-		srv = httptest.NewServer(newServer(Options{MCP: h}))
-		DeferCleanup(srv.Close)
+		srv = newTestServer(Options{MCP: h})
 	}
 
 	BeforeEach(func() {
@@ -100,14 +99,13 @@ var _ = Describe("the MCP route on a tokened server", func() {
 
 	BeforeEach(func() {
 		reached = nil
-		srv = httptest.NewServer(newServer(Options{
+		srv = newTestServer(Options{
 			WebUI: branding.WebUI{Token: token},
 			MCP: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				reached = append(reached, r.Method)
 				w.WriteHeader(http.StatusOK)
 			}),
-		}))
-		DeferCleanup(srv.Close)
+		})
 	})
 
 	do := func(req *http.Request) int {
