@@ -37,7 +37,26 @@ func TestKmsgText(t *testing.T) {
 //
 // The command line it points at is a plain one, with no quiet and no
 // systemd.show_status, so status counts as on unless a test says otherwise.
-func testConsole(t *testing.T, printkBody string) (*KernelConsole, *bytes.Buffer, *[]syscall.Signal, string) {
+// lockedBuffer is the console's output in tests. EnterLogs starts a goroutine
+// that writes kernel records to it while the test reads what came out.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func testConsole(t *testing.T, printkBody string) (*KernelConsole, *lockedBuffer, *[]syscall.Signal, string) {
 	t.Helper()
 	dir := t.TempDir()
 	printk := filepath.Join(dir, "printk")
@@ -46,7 +65,7 @@ func testConsole(t *testing.T, printkBody string) (*KernelConsole, *bytes.Buffer
 	}
 	var mu sync.Mutex
 	var sigs []syscall.Signal
-	out := &bytes.Buffer{}
+	out := &lockedBuffer{}
 	k := &KernelConsole{
 		Out:         out,
 		PrintkPath:  printk,
