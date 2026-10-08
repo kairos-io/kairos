@@ -204,7 +204,7 @@ func (c *Client) connect(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), nil)
 	if err != nil {
 		return false, fmt.Errorf("websocket dial: %w", err)
 	}
@@ -220,7 +220,7 @@ func (c *Client) connect(ctx context.Context) (bool, error) {
 		c.mu.Unlock()
 	}()
 
-	c.logger.Infof("connected to %s", wsURL)
+	c.logger.Infof("connected to %s", logSafeURL(wsURL))
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -436,10 +436,43 @@ func (c *Client) sendCommandStatus(conn *websocket.Conn, id, phase, result strin
 	}
 }
 
-func (c *Client) buildWSURL() (string, error) {
+// secretQueryParams names the query parameters whose value is a credential.
+// The WebSocket upgrade is authenticated from ?token=, so unlike the artifact
+// download, which carries the key in an Authorization header, the value has to
+// travel in the URL. It must not travel anywhere else.
+var secretQueryParams = map[string]bool{"token": true}
+
+// redactedQueryValue stands in for a credential in a URL rendered for a human.
+// Letters only, so url.Values.Encode leaves it alone and the line stays
+// readable.
+const redactedQueryValue = "REDACTED"
+
+// logSafeURL renders a URL for a log line with the value of every credential
+// in its query replaced. It takes the parsed URL rather than the dial string
+// so that there is no second parse to get wrong: the caller cannot hand it a
+// value it fails to redact. Redacted, not String, so a password written into
+// the configured url goes the same way as the query token.
+func logSafeURL(u *url.URL) string {
+	q := u.Query()
+	redacted := false
+	for name := range q {
+		if secretQueryParams[strings.ToLower(name)] {
+			q.Set(name, redactedQueryValue)
+			redacted = true
+		}
+	}
+	if !redacted {
+		return u.Redacted()
+	}
+	safe := *u
+	safe.RawQuery = q.Encode()
+	return safe.Redacted()
+}
+
+func (c *Client) buildWSURL() (*url.URL, error) {
 	u, err := url.Parse(c.cfg.URL)
 	if err != nil {
-		return "", fmt.Errorf("parse URL: %w", err)
+		return nil, fmt.Errorf("parse URL: %w", err)
 	}
 
 	switch u.Scheme {
@@ -454,7 +487,7 @@ func (c *Client) buildWSURL() (string, error) {
 	q.Set("token", c.credentials.APIKey)
 	u.RawQuery = q.Encode()
 
-	return u.String(), nil
+	return u, nil
 }
 
 func (c *Client) loadCredentials() (*Credentials, error) {
