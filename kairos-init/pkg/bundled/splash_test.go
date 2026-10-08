@@ -1,6 +1,7 @@
 package bundled_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -535,5 +536,130 @@ var _ = Describe("SplashServiceDracut on each boot entry", func() {
 		cmdline := strings.Replace(grubCmdline("cos", false), " splash ", " ", 1)
 		Expect(cmdline).ToNot(MatchRegexp(`\bsplash\b`))
 		Expect(kernelCmdlineAllows(unitSection(), cmdline)).To(BeFalse())
+	})
+})
+
+// grubToBash rewrites the subset of GRUB script BootArgsCfg uses into bash, so
+// that a test can run the real thing and read the command line it builds
+// rather than pattern-match its source.
+//
+// Three rewrites, and no others. Each one is a syntax difference, never a
+// behaviour one:
+//
+//  1. "(loop0)" is GRUB's name for the mounted system image. It becomes
+//     $LOOP0, a directory the test fills with os-release and kairos-release,
+//     so the "source" lines and the [ -f ] guard run for real.
+//  2. GRUB spells assignment "set var=value"; bash spells it "var=value".
+//  3. GRUB's test is a token-stream parser, so the "-o test" in setSelinux
+//     parses as "-o" followed by a one-argument test of the word "test",
+//     which is a non-empty string and therefore true, ANDed with the
+//     comparison that follows. bash's test rejects the extra word outright.
+//     Dropping it keeps GRUB's meaning.
+//
+// Anything else has to run as written. The caller asserts on an empty stderr,
+// which is what stops a construct this does not model from passing silently.
+func grubToBash(script string) string {
+	script = strings.ReplaceAll(script, "(loop0)", "${LOOP0}")
+	script = strings.ReplaceAll(script, " -o test ", " -o ")
+	script = strings.ReplaceAll(script, " -a test ", " -a ")
+
+	lines := strings.Split(script, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		indent := line[:len(line)-len(trimmed)]
+		if rest, ok := strings.CutPrefix(trimmed, "set "); ok && strings.Contains(rest, "=") {
+			lines[i] = indent + rest
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// entryLabel reads the "set label=" a menuentry assigns before it sources
+// bootargs.cfg. The quiet carve-out keys off that value, so the test takes it
+// from GrubCfg instead of restating it: moving an entry to a different label
+// has to show up here.
+func entryLabel(id string) string {
+	for _, line := range strings.Split(menuentry(bundled.GrubCfg, id), "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "set label="); ok {
+			return rest
+		}
+	}
+	return ""
+}
+
+var _ = Describe("BootArgsCfg quiet", func() {
+	var dir string
+
+	BeforeEach(func() {
+		dir = GinkgoT().TempDir()
+		Expect(os.MkdirAll(filepath.Join(dir, "loop0", "etc"), 0o755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "loop0", "etc", "os-release"),
+			[]byte("ID=alpine\n"), 0o644)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "loop0", "etc", "kairos-release"),
+			[]byte("KAIROS_FAMILY=alpine\nKAIROS_MODEL=generic\n"), 0o644)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "bootargs.sh"),
+			[]byte(grubToBash(bundled.BootArgsCfg)), 0o644)).To(Succeed())
+	})
+
+	// cmdline runs bootargs.cfg with the variables a menuentry has set by the
+	// time it sources the file, and returns the $kernelcmd it builds.
+	cmdline := func(label, recoverylabel, img string) string {
+		script := filepath.Join(dir, "bootargs.sh")
+		cmd := exec.Command("bash", "-c", "source "+script+"; printf '%s' \"$kernelcmd\"")
+		cmd.Env = append(os.Environ(),
+			"LOOP0="+filepath.Join(dir, "loop0"),
+			"label="+label,
+			"recoverylabel="+recoverylabel,
+			"img="+img,
+			"selinux_enabled=false",
+			"selinux_mode=permissive",
+		)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		Expect(err).ToNot(HaveOccurred(), stderr.String())
+		// An untranslated GRUB construct shows up here as a bash diagnostic,
+		// and a silently mis-evaluated branch is exactly the failure this
+		// whole helper would otherwise hide.
+		Expect(stderr.String()).To(BeEmpty())
+		Expect(string(out)).ToNot(BeEmpty())
+		return string(out)
+	}
+
+	// The splash cannot cover the text that is printed before it can draw:
+	// the kernel starts logging at its own loglevel long before PID 1, and
+	// the initramfs unit has to wait for udev to create /dev/tty1. quiet on
+	// the command line is what closes that window.
+	It("asks for quiet on the entries that animate", func() {
+		for _, id := range []string{"cos", "fallback"} {
+			label := entryLabel(id)
+			Expect(label).ToNot(BeEmpty(), "no label in menuentry %s", id)
+			Expect(cmdline(label, "", "/cOS/"+id+".img")).To(
+				MatchRegexp(`(^|\s)quiet(\s|$)`), id)
+		}
+	})
+
+	// Recovery and the state reset are where someone goes to read a boot that
+	// went wrong, and the booted-system animation is already refused there by
+	// SplashService's /run/cos sentinels. Both entries boot the recovery
+	// image, as a squashfs when there is one and as a .img when there is not,
+	// and only the squashfs case sets recoverylabel. The carve-out has to
+	// cover both.
+	It("leaves recovery and the state reset verbose", func() {
+		for _, id := range []string{"recovery", "statereset"} {
+			Expect(entryLabel(id)).To(Equal("COS_SYSTEM"), id)
+		}
+		for _, recoverylabel := range []string{"COS_RECOVERY", ""} {
+			Expect(cmdline("COS_SYSTEM", recoverylabel, "/cOS/recovery.img")).ToNot(
+				MatchRegexp(`(^|\s)quiet(\s|$)`), recoverylabel)
+		}
+	})
+
+	// quiet would be pointless on an entry that does not ask for the splash,
+	// and misleading on one that does not get it, so the two tokens have to
+	// keep travelling together on the animated entries.
+	It("keeps quiet and splash on the same entries", func() {
+		Expect(cmdline(entryLabel("cos"), "", "/cOS/active.img")).To(
+			MatchRegexp(`(^|\s)splash(\s|$)`))
 	})
 })

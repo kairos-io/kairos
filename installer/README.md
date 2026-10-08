@@ -110,7 +110,7 @@ one frontend refuses the other refuses too, with the same message.
 | `ssh_keys` | SSH public keys, or `github:` and `gitlab:` user names | yes |
 | `hostname` | the host name | yes |
 | `locale` | the timezone and the console keymap | yes |
-| `extensions` | system extensions from the live media or the catalogs | yes |
+| `extensions` | system extensions from the catalogs; the ones on the live media are always installed, so the step lists them instead of offering them | yes |
 | `provider` | the fields a provider plugin asks for; a field the plugin asks only after a yes gets that yes or no in front of it | yes, and it is shown only when a provider asks something |
 | `finish` | reboot, power off, or nothing after the install | no, it starts on nothing |
 

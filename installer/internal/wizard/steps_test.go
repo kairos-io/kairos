@@ -115,13 +115,41 @@ var _ = Describe("Steps", func() {
 		Expect(s.Notice).To(ContainSubstring("no time zone database"))
 	})
 
-	It("keeps live media extensions and carries a notice when no catalog was read", func() {
+	It("lists live media extensions and carries a notice when no catalog was read", func() {
 		e := env
 		e.exts = []wizard.Choice{{Value: "/run/initramfs/live/k3s.sysext.raw", Label: "k3s", Detail: "live media"}}
 		e.extErr = errors.New("no extension catalog could be read")
 		s, _ := wizard.StepByID(wizard.Steps(context.Background(), e), wizard.StepExtensions)
-		Expect(s.Fields[0].Choices).To(HaveLen(1))
+		Expect(s.Fields[0].Choices).To(BeEmpty())
+		Expect(s.Notice).To(ContainSubstring("Always installed from the live media: k3s."))
 		Expect(s.Notice).To(ContainSubstring("No catalog could be read"))
+	})
+
+	// The agent installs every image on the live media whatever
+	// install.extensions names, so a checkbox for one would not do anything
+	// when unticked (kairos-io/kairos#5294).
+	It("does not offer a live media extension as a choice", func() {
+		e := env
+		e.exts = []wizard.Choice{
+			{Value: "/run/initramfs/live/debug.sysext.raw", Label: "debug", Detail: "live media"},
+			{Value: "/run/initramfs/live/k3s.sysext.raw", Label: "k3s", Detail: "live media"},
+			{Value: "tailscale", Label: "tailscale", Detail: "kairos-io/hadron-layers, latest 1.2.3"},
+		}
+		s, _ := wizard.StepByID(wizard.Steps(context.Background(), e), wizard.StepExtensions)
+		Expect(s.Fields[0].Choices).To(Equal([]wizard.Choice{e.exts[2]}))
+		Expect(s.Notice).To(Equal("Always installed from the live media: debug, k3s."))
+
+		_, errs := wizard.Apply(wizard.Steps(context.Background(), e), wizard.Answers{}, wizard.StepExtensions,
+			map[string]string{wizard.FieldExtensions: "/run/initramfs/live/k3s.sysext.raw"})
+		Expect(errs).ToNot(BeEmpty())
+	})
+
+	It("says nothing was found when neither the live media nor a catalog has an extension", func() {
+		e := env
+		e.exts = nil
+		s, _ := wizard.StepByID(wizard.Steps(context.Background(), e), wizard.StepExtensions)
+		Expect(s.Fields[0].Choices).To(BeEmpty())
+		Expect(s.Notice).To(Equal("No extension was found on the live media or in the catalog."))
 	})
 
 	It("offers nothing, reboot and power off, defaulting to nothing", func() {

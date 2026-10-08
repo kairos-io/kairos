@@ -294,10 +294,9 @@ jobs:
       # install-upgrade qemu test has something to upgrade.
       # Factory-action ignores it on non-UKI cells.
       single_efi_cmdline: 'testentry: nothing'
-      # Opt in to the CI-only sysext overlay. _build-iso.yaml picks
-      # tests/assets/sysext-uki for UKI cells and tests/assets/sysext-grub
-      # for the rest. Release cells do not set this and therefore ship no
-      # test extensions.
+      # Opt in to the CI-only sysext overlay. The extensions are generated
+      # per build: signed on UKI cells, verity-only on the rest. Release
+      # cells do not set this and therefore ship no test extensions.
       test_sysext_overlay: true
       release: false
       ref: ${{ github.event.pull_request.head.sha }}

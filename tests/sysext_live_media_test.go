@@ -12,12 +12,12 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-// The extension the ISO ships. tests/assets/sysext-grub is mounted as the
-// auroraboot --overlay-iso directory by _build-iso.yaml on non-trusted-boot
-// cells, so the image in it lands at the ISO root and therefore under
-// /run/initramfs/live while the installer runs. Its work.sysext.raw is
-// verity-only (unsigned) so systemd-sysext can activate it on a boot with
-// no test signing key enrolled.
+// The extension the ISO ships. The generated test extension directory is
+// mounted as the auroraboot --overlay-iso directory by the CI workflows on
+// non-trusted-boot cells, so the image in it lands at the ISO root and
+// therefore under /run/initramfs/live while the installer runs. Its
+// work.sysext.raw is verity-only (unsigned) so systemd-sysext can activate
+// it on a boot with no test signing key enrolled.
 const liveMediaExtension = "work.sysext.raw"
 
 // The hierarchy list the kairos drop-in installs, spelled out so that
@@ -30,10 +30,7 @@ const sysextHierarchiesEnv = `SYSTEMD_SYSEXT_HIERARCHIES="/usr/bin:/usr/share:/u
 // merged hierarchy, so a successful merge puts the script on the host's PATH.
 // Running it is the strongest proof the overlay went up: it needs the image to
 // be accepted by the boot's image policy, merged, and visible to a fresh
-// process. The payload used to live at /usr/local/bin/hello.sh, which stopped
-// being a merged hierarchy when /usr/local came off the list; the images were
-// regenerated rather than the assertion weakened. See each asset's README for
-// the rebuild recipe.
+// process. internal/testartifacts builds both images with that payload.
 const (
 	mergedExtensionHierarchy = "/usr/bin"
 	mergedExtensionCommand   = "hello.sh"
