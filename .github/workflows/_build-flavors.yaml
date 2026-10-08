@@ -156,6 +156,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
 
       - name: Get VERSION for docker build
         # kairos-init writes VERSION into the produced rootfs's

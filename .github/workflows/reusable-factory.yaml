@@ -450,6 +450,7 @@ jobs:
           # set caller-vetted-ref; the fallback will be dropped in the next
           # major version.
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref || inputs.ref != '' }}
+          persist-credentials: false
 
       - name: Validate inputs and setup Dockerfile
         shell: bash

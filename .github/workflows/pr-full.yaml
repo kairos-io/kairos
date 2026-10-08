@@ -681,6 +681,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           allow-unsafe-pr-checkout: true
+          persist-credentials: false
       - name: Install xorriso and mtools
         # Needed to read the .efi files out of the UKI ISOs.
         run: |
