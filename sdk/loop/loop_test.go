@@ -56,6 +56,11 @@ type fakeSyscall struct {
 	calls   []ioctlCall
 }
 
+// Syscall turns arg back into the LoopInfo64 that Attach pinned, as the kernel
+// would. The race detector's pointer checks reject converting a bare uintptr
+// into a heap pointer outside a real syscall, so they are off for this method.
+//
+//go:nocheckptr
 func (f *fakeSyscall) Syscall(trap, _, request, arg uintptr) (uintptr, uintptr, syscall.Errno) {
 	if trap != syscall.SYS_IOCTL {
 		return 0, 0, syscall.ENOSYS

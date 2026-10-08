@@ -6,23 +6,33 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
 
 // TestIssue4412_CustomizeFurtherKeepsDefaultFinishAction reproduces the
 // reported bug: choosing "Customize Further" with the default after-install
-// action selected used to leave mainModel.finishAction empty because only
-// the "Start Install" branch set it. See kairos-io/kairos#4412.
+// action selected used to leave the finish action unset because only the
+// "Start Install" branch set it. See kairos-io/kairos#4412. The wizard spells
+// "do nothing" as the empty string, so the test checks that the default
+// choice went through Apply rather than being skipped.
 func TestIssue4412_CustomizeFurtherKeepsDefaultFinishAction(t *testing.T) {
 	logger := sdkLogger.NewKairosLogger("installer-test", "info", true)
 	mainModel = InitialModel(&logger, "")
 
+	mainModel.answers.FinishAction = "stale"
 	p := newInstallOptionsPage()
 	p.cursor = 1 // "Customize Further"
 	if _, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
 		cmd()
 	}
-	if mainModel.finishAction != "nothing" {
-		t.Fatalf("expected finishAction to default to %q, got %q", "nothing", mainModel.finishAction)
+	if mainModel.answers.FinishAction != "" {
+		t.Fatalf("expected the finish action to default to nothing, got %q", mainModel.answers.FinishAction)
+	}
+	if normalizedFinishAction() != "nothing" {
+		t.Fatalf("expected normalizedFinishAction to say nothing, got %q", normalizedFinishAction())
 	}
 }
 
@@ -39,21 +49,21 @@ func TestIssue4412_CustomizeFurtherPreservesSelectedFinishAction(t *testing.T) {
 	if _, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
 		cmd()
 	}
-	if mainModel.finishAction != "reboot" {
-		t.Fatalf("expected finishAction to remain %q, got %q", "reboot", mainModel.finishAction)
+	if mainModel.answers.FinishAction != "reboot" {
+		t.Fatalf("expected the finish action to remain %q, got %q", "reboot", mainModel.answers.FinishAction)
 	}
 }
 
 // TestIssue4412_CompletedInstallHelpNeverBlank guarantees the completed
 // install page never renders the blank "System will  shortly" message that
-// resulted from an empty finishAction reaching the page, and that a key
+// resulted from an empty finish action reaching the page, and that a key
 // press still exits in that case.
 func TestIssue4412_CompletedInstallHelpNeverBlank(t *testing.T) {
 	for _, finishAction := range []string{"nothing", "", "bogus"} {
 		t.Run(finishAction, func(t *testing.T) {
 			logger := sdkLogger.NewKairosLogger("installer-test", "info", true)
 			mainModel = InitialModel(&logger, "")
-			mainModel.finishAction = finishAction
+			mainModel.answers.FinishAction = finishAction
 			mainModel.currentPageID = "install_process"
 
 			ip := findInstallProcessPage(t)
@@ -85,7 +95,7 @@ func TestIssue4412_CompletedInstallHelpNeverBlank(t *testing.T) {
 func TestIssue4412_CompletedInstallBlocksKeysForRebootPoweroff(t *testing.T) {
 	logger := sdkLogger.NewKairosLogger("installer-test", "info", true)
 	mainModel = InitialModel(&logger, "")
-	mainModel.finishAction = "reboot"
+	mainModel.answers.FinishAction = "reboot"
 	mainModel.currentPageID = "install_process"
 
 	ip := findInstallProcessPage(t)
@@ -111,3 +121,56 @@ func findInstallProcessPage(t *testing.T) *installProcessPage {
 	t.Fatal("install_process page not found in mainModel.pages")
 	return nil
 }
+
+var _ = Describe("the install options page", func() {
+	BeforeEach(func() {
+		l := sdkLogger.NewKairosLogger("test", "error", false)
+		mainModel = InitialModel(&l, "")
+	})
+
+	It("offers the finish step's choices by label and applies their value", func() {
+		p := newInstallOptionsPage()
+		view := p.View()
+		Expect(view).To(ContainSubstring("Nothing"))
+		Expect(view).To(ContainSubstring("Reboot"))
+		Expect(view).To(ContainSubstring("Power off"))
+		p.Update(tea.KeyMsg{Type: tea.KeyRight})
+		p.Update(tea.KeyMsg{Type: tea.KeyRight})
+		_, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		Expect(cmd()).To(Equal(GoToPageMsg{PageID: "summary"}))
+		Expect(mainModel.answers.FinishAction).To(Equal(wizard.FinishPoweroff))
+	})
+
+	It("shows the current finish action when the page is opened again", func() {
+		mainModel.answers.FinishAction = wizard.FinishReboot
+		p := newInstallOptionsPage()
+		p.Init()
+		_, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		Expect(cmd).ToNot(BeNil())
+		Expect(mainModel.answers.FinishAction).To(Equal(wizard.FinishReboot))
+	})
+
+	It("hides Customize Further and the optional steps behind the branding switch", func() {
+		env := newFakeWizardEnv()
+		env.noAdvanced = true
+		useFakeWizardEnv(env)
+		l := sdkLogger.NewKairosLogger("test", "error", false)
+		mainModel = InitialModel(&l, "")
+		p := newInstallOptionsPage()
+		Expect(p.View()).ToNot(ContainSubstring("Customize Further"))
+		for _, pg := range mainModel.pages {
+			Expect(pg.ID()).ToNot(Equal(wizard.StepUser))
+		}
+		Expect(newSummaryPage().View()).ToNot(ContainSubstring("Username"))
+	})
+
+	It("is where the disk step leads, after the prerequisites and the install mode page", func() {
+		ids := []string{}
+		for _, pg := range mainModel.pages {
+			ids = append(ids, pg.ID())
+		}
+		Expect(ids).To(Equal([]string{welcomePageID, "prerequisites", installModePageID, wizard.StepDisk, "install_options", "customization",
+			wizard.StepUser, wizard.StepSSHKeys, wizard.StepHostname, wizard.StepLocale, wizard.StepExtensions,
+			"summary", editPageID, "install_process", DebugBundlePageID}))
+	})
+})

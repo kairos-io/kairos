@@ -50,6 +50,17 @@ var _ = Describe("LoadFromCollector", func() {
 		Expect(cfg.ArtifactDownloadRetryInterval).To(Equal(2 * time.Second))
 	})
 
+	It("withholds the extension command from the default policy", func() {
+		// AuroraBoot lists `extension` among its destructive commands because
+		// installing one ships code to the node, so a node that was given only
+		// the safe defaults has not been granted it. handleUpgrade relies on
+		// this, and the upgrade commands below are what make the grant matter.
+		cfg := &phonehome.Config{}
+		Expect(cfg.IsAllowed("extension")).To(BeFalse())
+		Expect(cfg.IsAllowed("upgrade")).To(BeTrue())
+		Expect(cfg.IsAllowed("upgrade-recovery")).To(BeTrue())
+	})
+
 	It("returns ok=false when the phonehome section is absent", func() {
 		c := newCollectorConfig(nil)
 		cfg, ok, err := phonehome.LoadFromCollector(c)
