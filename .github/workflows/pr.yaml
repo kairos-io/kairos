@@ -49,23 +49,25 @@ jobs:
   lint:
     uses: ./.github/workflows/_lint.yaml
 
+  # The slim pipeline only builds and tests a non-FIPS amd64 ISO, so the
+  # builds below skip arm64 and FIPS (pr-full.yaml keeps both).
   build-kairos:
     uses: ./.github/workflows/_build-kairos.yaml
     with:
-      matrix_scope: ci
+      matrix_scope: pr
 
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
-      matrix_scope: ci
+      matrix_scope: pr
 
   build-kcrypt-challenger:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:
-      matrix_scope: ci
+      matrix_scope: pr
 
-  # Builds the multi-arch kairos-init image and uploads it as an OCI
+  # Builds the kairos-init image (amd64 only here) and uploads it as an OCI
   # layout instead of pushing it. The tag is only a local name.
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
@@ -78,6 +80,7 @@ jobs:
       image_tag: pr
       push: false
       oci_artifact: kairos-init-oci
+      matrix_scope: pr
 
   # One ISO cell. registry_domain is empty, so the factory builds and
   # loads the OS image into the runner's docker and never logs in or

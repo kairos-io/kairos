@@ -14,7 +14,11 @@ on:
     inputs:
       matrix_scope:
         description: |
-          "ci" -> amd64 + arm64 (PR only).
+          "pr" -> amd64 only, without FIPS: the slim PR pipeline only builds
+          and tests a non-FIPS amd64 ISO. The embedded FIPS binaries are
+          zero-byte placeholders (FIPS_STUBS=1), and kairos-init refuses a
+          --fips install from that build.
+          "ci" -> amd64 + arm64 (pr-full).
           "full" -> amd64 + arm64 + riscv64. Used by both master and release
         type: string
         required: true
@@ -53,7 +57,9 @@ jobs:
         env:
           SCOPE: ${{ inputs.matrix_scope }}
         run: |
-          if [[ "$SCOPE" == "full" ]]; then
+          if [[ "$SCOPE" == "pr" ]]; then
+            echo 'matrix={"include":[{"arch":"amd64"}]}' >> "$GITHUB_OUTPUT"
+          elif [[ "$SCOPE" == "full" ]]; then
             echo 'matrix={"include":[{"arch":"amd64"},{"arch":"arm64"},{"arch":"riscv64"}]}' >> "$GITHUB_OUTPUT"
           else
             echo 'matrix={"include":[{"arch":"amd64"},{"arch":"arm64"}]}' >> "$GITHUB_OUTPUT"
@@ -86,39 +92,42 @@ jobs:
           path: dist/download/default
 
       - name: Download FIPS multi-call kairos artifact
-        # FIPS is not built on riscv64.
-        if: matrix.arch != 'riscv64'
+        # FIPS is not built on riscv64, nor in the "pr" scope.
+        if: matrix.arch != 'riscv64' && inputs.matrix_scope != 'pr'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: kairos-linux-${{ matrix.arch }}-fips
           path: dist/download/fips
 
       - name: Reassemble dist/linux-${{ matrix.arch }}{,-fips}/
+        env:
+          ARCH: ${{ matrix.arch }}
+          SCOPE: ${{ inputs.matrix_scope }}
         run: |
           set -euo pipefail
-          mkdir -p "dist/linux-${MATRIX_ARCH}"
+          mkdir -p "dist/linux-$ARCH"
           for tarball in dist/download/default/*.tar.gz; do
             [ -f "$tarball" ] || continue
-            tar -xzf "$tarball" -C "dist/linux-${MATRIX_ARCH}"
+            tar -xzf "$tarball" -C "dist/linux-$ARCH"
           done
-          if [ "${MATRIX_ARCH}" != "riscv64" ]; then
-            mkdir -p "dist/linux-${MATRIX_ARCH}-fips"
+          if [ "$ARCH" != "riscv64" ] && [ "$SCOPE" != "pr" ]; then
+            mkdir -p "dist/linux-$ARCH-fips"
             for tarball in dist/download/fips/*.tar.gz; do
               [ -f "$tarball" ] || continue
-              tar -xzf "$tarball" -C "dist/linux-${MATRIX_ARCH}-fips"
+              tar -xzf "$tarball" -C "dist/linux-$ARCH-fips"
             done
           fi
-          ls -l "dist/linux-${MATRIX_ARCH}"
-          [ "${MATRIX_ARCH}" = "riscv64" ] || ls -l "dist/linux-${MATRIX_ARCH}-fips"
-        env:
-          MATRIX_ARCH: ${{ matrix.arch }}
+          ls -l "dist/linux-$ARCH"
+          [ ! -d "dist/linux-$ARCH-fips" ] || ls -l "dist/linux-$ARCH-fips"
 
       - name: Build kairos-init
         # kairos-init compiles under the default variant flag; the
-        # FIPS multi-call kairos is embedded via bundled_fips.go.
-        run: make kairos-init ARCH="${MATRIX_ARCH}" VARIANT=default
+        # FIPS multi-call kairos is embedded via bundled_fips.go. The "pr"
+        # scope has no FIPS build, so it embeds placeholders instead.
         env:
           MATRIX_ARCH: ${{ matrix.arch }}
+          FIPS_STUBS: ${{ inputs.matrix_scope == 'pr' && '1' || '' }}
+        run: make kairos-init ARCH="${MATRIX_ARCH}" VARIANT=default
 
       - name: Package kairos-init archive
         run: make archives ARCH="${MATRIX_ARCH}" VARIANT=default
