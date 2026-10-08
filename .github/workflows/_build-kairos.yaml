@@ -80,7 +80,10 @@ jobs:
           go-version-file: go.mod
 
       - name: Build kairos
-        run: make kairos ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+        run: make kairos ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
+          MATRIX_VARIANT: ${{ matrix.variant }}
 
       # kairos-installer ships in the same (arch, variant) archive as
       # the multi-call kairos. build-kairos-init downloads that
@@ -88,7 +91,10 @@ jobs:
       # to be present for the embed step; building it here is what
       # puts it there.
       - name: Build kairos-installer
-        run: make kairos-installer ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+        run: make kairos-installer ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
+          MATRIX_VARIANT: ${{ matrix.variant }}
 
       # Same deal as kairos-installer: provider-kairos rides in the
       # (arch, variant) archive that build-kairos-init unpacks, and the
@@ -97,14 +103,22 @@ jobs:
       # provider-kairos repo's releases by
       # scripts/prepare-kairos-init-binaries.sh; it is built here now.
       - name: Build provider-kairos
-        run: make provider-kairos ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+        run: make provider-kairos ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
+          MATRIX_VARIANT: ${{ matrix.variant }}
 
       - name: Verify FIPS binaries
         if: matrix.variant == 'fips'
-        run: make verify-fips ARCH=${{ matrix.arch }} VARIANT=fips
+        run: make verify-fips ARCH="${MATRIX_ARCH}" VARIANT=fips
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
 
       - name: Package archives
-        run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+        run: make archives ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
+          MATRIX_VARIANT: ${{ matrix.variant }}
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1

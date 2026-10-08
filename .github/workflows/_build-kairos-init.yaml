@@ -95,28 +95,34 @@ jobs:
       - name: Reassemble dist/linux-${{ matrix.arch }}{,-fips}/
         run: |
           set -euo pipefail
-          mkdir -p "dist/linux-${{ matrix.arch }}"
+          mkdir -p "dist/linux-${MATRIX_ARCH}"
           for tarball in dist/download/default/*.tar.gz; do
             [ -f "$tarball" ] || continue
-            tar -xzf "$tarball" -C "dist/linux-${{ matrix.arch }}"
+            tar -xzf "$tarball" -C "dist/linux-${MATRIX_ARCH}"
           done
-          if [ "${{ matrix.arch }}" != "riscv64" ]; then
-            mkdir -p "dist/linux-${{ matrix.arch }}-fips"
+          if [ "${MATRIX_ARCH}" != "riscv64" ]; then
+            mkdir -p "dist/linux-${MATRIX_ARCH}-fips"
             for tarball in dist/download/fips/*.tar.gz; do
               [ -f "$tarball" ] || continue
-              tar -xzf "$tarball" -C "dist/linux-${{ matrix.arch }}-fips"
+              tar -xzf "$tarball" -C "dist/linux-${MATRIX_ARCH}-fips"
             done
           fi
-          ls -l "dist/linux-${{ matrix.arch }}"
-          [ "${{ matrix.arch }}" = "riscv64" ] || ls -l "dist/linux-${{ matrix.arch }}-fips"
+          ls -l "dist/linux-${MATRIX_ARCH}"
+          [ "${MATRIX_ARCH}" = "riscv64" ] || ls -l "dist/linux-${MATRIX_ARCH}-fips"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
 
       - name: Build kairos-init
         # kairos-init compiles under the default variant flag; the
         # FIPS multi-call kairos is embedded via bundled_fips.go.
-        run: make kairos-init ARCH=${{ matrix.arch }} VARIANT=default
+        run: make kairos-init ARCH="${MATRIX_ARCH}" VARIANT=default
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
 
       - name: Package kairos-init archive
-        run: make archives ARCH=${{ matrix.arch }} VARIANT=default
+        run: make archives ARCH="${MATRIX_ARCH}" VARIANT=default
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1

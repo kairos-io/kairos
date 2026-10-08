@@ -81,14 +81,22 @@ jobs:
           go-version-file: go.mod
 
       - name: Build kcrypt-challenger
-        run: make kcrypt-challenger ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+        run: make kcrypt-challenger ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
+          MATRIX_VARIANT: ${{ matrix.variant }}
 
       - name: Verify FIPS binaries
         if: matrix.variant == 'fips'
-        run: make verify-fips ARCH=${{ matrix.arch }} VARIANT=fips
+        run: make verify-fips ARCH="${MATRIX_ARCH}" VARIANT=fips
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
 
       - name: Package archives
-        run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+        run: make archives ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
+          MATRIX_VARIANT: ${{ matrix.variant }}
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
