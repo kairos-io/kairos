@@ -434,3 +434,4 @@ jobs:
     uses: ./.github/workflows/_upload-release.yaml
     permissions:
       contents: write
+      id-token: write

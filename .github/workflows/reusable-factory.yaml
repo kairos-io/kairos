@@ -1411,9 +1411,11 @@ jobs:
           cosign sign "${STEPS_SETUP_OUTPUTS_IMAGE_TAG}"
 
           echo "🔏 Signing artifact checksums"
+          # The bundle holds the signature and the certificate. .sigstore.json
+          # is the name Sigstore tools and OpenSSF Scorecard look for.
           for checksum in artifacts/*.sha256; do
             if [[ -f "$checksum" ]]; then
-              cosign sign-blob --yes --bundle="${checksum}.bundle" --output-certificate="${checksum}.pem" --output-signature="${checksum}.sig" "$checksum"
+              cosign sign-blob --yes --bundle="${checksum}.sigstore.json" "$checksum"
               echo "✅ Signed checksum: $checksum"
             fi
           done
@@ -1444,9 +1446,7 @@ jobs:
           RELEASE_FILES=(
             artifacts/*.iso
             artifacts/*.iso.sha256
-            artifacts/*.iso.sha256.sig
-            artifacts/*.iso.sha256.bundle
-            artifacts/*.iso.sha256.pem
+            artifacts/*.iso.sha256.sigstore.json
           )
           RAW_FILES=( artifacts/*.raw )
           shopt -u nullglob
