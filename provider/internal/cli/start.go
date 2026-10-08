@@ -44,10 +44,11 @@ var networkAPI = []cli.Flag{
 		Usage: "Edgevpn API endpoint. Accepts a TCP URL (e.g. http://127.0.0.1:8080) " +
 			"or a unix socket path with the 'unix://' prefix (e.g. unix:///run/edgevpn.sock). " +
 			"Defaults to whatever the local edgevpn daemon was configured to listen on, " +
+			"and to the address the bridge command serves when there is no local daemon, " +
 			"so it normally needs no setting.",
 		// Placeholder only. applyAPIDefault replaces this at startup with the
 		// address the local daemon was actually given, so the two ends cannot
-		// drift apart. It stands alone when there is no daemon configured yet.
+		// drift apart. Off a node it becomes the bridge's address instead.
 		Value:   provider.DefaultEdgeVPNAPIAddress,
 		EnvVars: []string{"EDGEVPN_API"},
 	},
@@ -79,6 +80,11 @@ func setAPIFlagDefault(address string) {
 // as soon as anything passes an explicit address to the agent at bootstrap, and
 // the failure is silent: the client queries an address nothing is listening on
 // and prints an empty answer.
+//
+// Where there is no daemon at all the address becomes the one the bridge
+// command serves, because these same commands are meant to be run from an
+// operator's machine once "bridge" has a tunnel up, and that machine has no
+// socket for them to talk to.
 //
 // This moves the default only. An explicit --api, or EDGEVPN_API in the
 // environment, still wins, because urfave/cli prefers both over a flag's value.

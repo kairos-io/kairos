@@ -27,6 +27,26 @@ on:
         type: string
         required: true
 
+      kairos_init_artifact:
+        description: |
+          Name of a workflow artifact holding kairos-init as an OCI layout
+          tarball (_build-image-kairos-init.yaml's oci_artifact). When
+          set, `kairos_init_image` is not pulled: it becomes the build
+          context name the layout is bound to, so any name works, e.g.
+          `kairos-init-local`. The PR pipeline uses this because it has
+          no registry to pull from.
+        type: string
+        default: ''
+
+      security_scans:
+        description: |
+          Run the trivy and grype scans and upload their SARIF reports.
+          The PR pipeline turns this off: a pull_request run from a fork
+          gets a read-only token, so the SARIF upload cannot succeed, and
+          master already scans every image that lands.
+        type: boolean
+        default: true
+
       arch:
         description: 'linux/<arch>: amd64, arm64, or riscv64'
         type: string
@@ -116,6 +136,23 @@ on:
           for the resulting image to be end-to-end FIPS-capable; passing
           this flag alone against a non-FIPS base produces a partial-FIPS
           image and defeats the point.
+        type: boolean
+        default: false
+
+      test_sysext_overlay:
+        description: |
+          Bake the CI-only sysext test extensions onto the ISO as
+          auroraboot's --overlay-iso tree. Explicit opt-in: default
+          false so a release caller cannot accidentally leak the test
+          extensions into a shipped ISO. The extensions are generated per
+          build. Trusted boot cells get a work extension signed with the
+          key set generated for the run (the UKI cell enrolls its
+          certificate into the Secure Boot db, so the kernel accepts the
+          verity root-hash signature) plus the hello-broke extension the
+          image policy rejects; a plain GRUB cell enrolls nothing, so it
+          gets a verity-only work extension.
+          The extensions are what tests/sysext_live_media_test.go and
+          tests/uki_test.go's boot-assessment spec assert on.
         type: boolean
         default: false
 
@@ -224,6 +261,8 @@ jobs:
       build_args: |
         KAIROS_INIT_IMAGE=${{ inputs.kairos_init_image }}
         ${{ inputs.fips && 'FIPS=fips' || '' }}
+      oci_context_artifact: ${{ inputs.kairos_init_artifact }}
+      oci_context_name: ${{ inputs.kairos_init_artifact != '' && inputs.kairos_init_image || '' }}
       base_image: ${{ inputs.base_image }}
       arch: ${{ inputs.arch }}
       model: ${{ inputs.model }}
@@ -240,30 +279,24 @@ jobs:
       custom_tag_format: ${{ inputs.custom_tag_format }}
       custom_artifact_format: ${{ inputs.custom_artifact_format }}
       trusted_boot: ${{ inputs.trusted_boot }}
-      # Factory-action's keys_dir is "required when trusted_boot is
-      # true" but has no sensible default -- if we leave it empty
-      # the build-uki step mounts the repo root as /keys and
-      # auroraboot exits with "keys directory does not contain
-      # required file: db.auth" because db.auth lives at
-      # tests/assets/keys/db.auth, not at /db.auth. Pass the path
-      # unconditionally; factory-action ignores it on non-UKI cells.
-      keys_dir: 'tests/assets/keys'
-      # sysext_dir bakes work.sysext.raw + hello-broke.sysext.raw into
-      # every ISO, UKI and GRUB alike, as the auroraboot --overlay-iso
-      # tree. Without it the boot-assessment test's sysext assertions
-      # ("/run/extensions should contain work.sysext.raw", uki_test.go)
-      # and the GRUB-side ones in sysext_live_media_test.go fail,
-      # because there is no sysext on the media to load.
-      sysext_dir: '$PWD/tests/assets/sysext'
+      # Trusted boot test builds sign with a key set generated for this run,
+      # and the test system extensions are built for this run too, only for
+      # cells that build an ISO (signed with that key set on trusted boot
+      # builds). Release builds never
+      # enable trusted boot (internal/ciguard/release_test.go) and never
+      # get the CI-only extensions, because test_sysext_overlay is pinned
+      # off in release.yaml.
+      generate_test_keys: ${{ inputs.trusted_boot && !inputs.release }}
+      generate_test_sysext: ${{ inputs.test_sysext_overlay && inputs.iso }}
       single_efi_cmdline: ${{ inputs.single_efi_cmdline }}
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
       kubernetes_version: ${{ inputs.kubernetes_version }}
       raw: ${{ inputs.raw }}
-      grype: ${{ inputs.grype }}
-      grype_sarif: ${{ inputs.grype }}
-      trivy: true
-      trivy_sarif: true
+      grype: ${{ inputs.security_scans && inputs.grype }}
+      grype_sarif: ${{ inputs.security_scans && inputs.grype }}
+      trivy: ${{ inputs.security_scans }}
+      trivy_sarif: ${{ inputs.security_scans }}
       sbom: ${{ inputs.sbom }}
       security_scan_mode: 'report-only'
       grype_sarif_fail_build: false

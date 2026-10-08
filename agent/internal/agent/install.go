@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,7 +25,6 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/branding"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
-	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -35,50 +33,48 @@ import (
 	"github.com/sanity-io/litter"
 )
 
-// webUIAddresses returns the addresses an operator can type into a browser to
-// reach the web UI, one per address this node holds, given the address the
-// server listens on.
+// installerInfoLine names the interfaces this node holds, so an operator who
+// has to reach it, to pair with `kairosctl register` or to open the web UI the
+// interactive installer serves, can read them off the installer's own screen.
 //
-// Addresses that cannot carry the operator there are left out. A loopback
-// address only reaches the node itself, and a link-local one needs a zone
-// (fe80::1%eth0) that neither this line nor a browser's address bar carries.
-//
-// The port comes from listen, and the two are joined with net.JoinHostPort so
-// an IPv6 address is bracketed: "fe80::1" + ":8080" is not a host:port, and
-// net.SplitHostPort rejects it with "too many colons in address".
-func webUIAddresses(ips []string, listen string) []string {
-	_, port, err := net.SplitHostPort(listen)
-	if err != nil || port == "" {
-		// A listen address with no port in it is not something to invent one
-		// for. Say nothing rather than print an address that goes nowhere.
-		return nil
-	}
-
-	var out []string
-	for _, s := range ips {
-		ip := net.ParseIP(s)
-		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
-			continue
-		}
-		out = append(out, net.JoinHostPort(s, port))
-	}
-	return out
+// It advertises no web UI address. The plain installer this line belongs to
+// serves nothing on its own: it used to run next to a kairos-webui service
+// that listened on 8080, and that service is retired. The web UI now lives
+// inside the interactive installer, which prints its own address, so an
+// address printed here would point at a closed port.
+func installerInfoLine(ifaces []string) string {
+	return "Interfaces: " + strings.Join(ifaces, " ")
 }
 
-func displayInfo(agentConfig *branding.Config) {
-	if !agentConfig.WebUI.Disable {
-		ifaces := machine.Interfaces()
-		message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
-		if !agentConfig.WebUI.HasAddress() {
-			addrs := webUIAddresses(machine.LocalIPs(), sdkConstants.DefaultWebUIListenAddress)
-			if len(addrs) > 0 {
-				message = message + " - WebUI installer: " + strings.Join(addrs, " ")
-			}
-		} else {
-			message = message + fmt.Sprintf(" - WebUI installer: %s", agentConfig.WebUI.ListenAddress)
-		}
-		fmt.Println(message)
+func displayInfo() {
+	fmt.Println(installerInfoLine(machine.Interfaces()))
+}
+
+// configErrorNotice is the line reporting a config that was found but could
+// not be read, or nothing when the scan went through. config.Scan reports no
+// config at all as an empty config, not as an error, so a node booted without
+// one gets no notice.
+func configErrorNotice(scanErr error) string {
+	if scanErr == nil {
+		return ""
 	}
+	return "The configuration on this node could not be read: " + scanErr.Error()
+}
+
+func printConfigError(scanErr error) {
+	if notice := configErrorNotice(scanErr); notice != "" {
+		pterm.Error.Println(notice)
+	}
+}
+
+// printPairing draws the end of the pairing screen. The config error goes
+// last, below the QR code, so it is still on screen once the code is drawn.
+func printPairing(tk string, scanErr error) {
+	if tk != "" {
+		qr.Print(tk)
+		displayInfo()
+	}
+	printConfigError(scanErr)
 }
 
 func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValidations, useDefaultDirs, allowInsecureRegistries bool) error {
@@ -138,26 +134,27 @@ func startGetty() {
 // a decision left for a human, and the caller runs its own UX.
 //
 // A config that cannot be read is not an error here, only the absence of an
-// unattended install; the failure is printed and the caller carries on. The
+// unattended install; the failure is printed and returned as scanErr, and the
+// caller carries on. err is only ever the unattended install failing. The
 // config it did read is returned so the caller does not have to scan again:
 // config.Scan follows config_url over HTTP, so a second scan refetches the
 // remote config.
-func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...string) (bool, *sdkConfig.Config, error) {
+func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...string) (installed bool, cc *sdkConfig.Config, scanErr error, err error) {
 	// Without the wait, a config still being written by the datasource reads
 	// as absent, which is the race this function exists to close.
 	ensureDataSourceReady()
 
-	cc, err := config.Scan(collector.Directories(dir...),
+	cc, scanErr = config.Scan(collector.Directories(dir...),
 		collector.Readers(strings.NewReader(generateInstallConfForCLIArgs(sourceImgURL, allowInsecureRegistries))),
 		collector.MergeBootLine)
-	if err != nil {
+	if scanErr != nil {
 		// This is where the scan happens now, so it is where the failure has
 		// to be reported: Install used to print it and no longer scans.
-		fmt.Printf("- config not found in the system: %s\n", err.Error())
+		fmt.Printf("- config not found in the system: %s\n", scanErr.Error())
 	}
 
-	if err != nil || !autoInstallRequested(cc) {
-		return false, cc, nil
+	if scanErr != nil || !autoInstallRequested(cc) {
+		return false, cc, scanErr, nil
 	}
 
 	// Only the branch that installs captures SIGINT and SIGTERM. Registering
@@ -169,7 +166,7 @@ func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...strin
 	}, syscall.SIGINT, syscall.SIGTERM)
 
 	if err := runInstallFn(cc); err != nil {
-		return true, cc, err
+		return true, cc, nil, err
 	}
 
 	if !cc.Install.Reboot && !cc.Install.Poweroff {
@@ -177,13 +174,15 @@ func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...strin
 		startGetty()
 	}
 
-	return true, cc, nil
+	return true, cc, nil, nil
 }
 
 // Install runs the provider flow for a config that still needs a human
 // decision. cc is the config AutoInstall already scanned; scanning it again
-// here would refetch a remote config_url once more per boot.
-func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
+// here would refetch a remote config_url once more per boot. scanErr is the
+// error that scan reported, if any: Install clears the screen, so it prints
+// it again once the screen is drawn.
+func Install(cc *sdkConfig.Config, scanErr error, sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
 	bus.Manager.Initialize()
 	utils.OnSignal(func() {
 		startGetty()
@@ -220,11 +219,12 @@ func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries 
 	cmd.ClearScreen()
 	cmd.PrintBranding(DefaultBanner)
 
-	// If there are no providers registered, we enter a shell for manual installation
-	// and print information about the webUI
+	// If there are no providers registered, we enter a shell for manual
+	// installation and print the interfaces it can be reached on.
 	if !bus.Manager.HasRegisteredPlugins() {
-		displayInfo(agentConfig)
+		displayInfo()
 		fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
+		printConfigError(scanErr)
 		return utils.Shell().Run()
 	}
 
@@ -250,10 +250,7 @@ func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries 
 		time.Sleep(5 * time.Second)
 	}
 
-	if tk != "" {
-		qr.Print(tk)
-		displayInfo(agentConfig)
-	}
+	printPairing(tk, scanErr)
 
 	if _, err := bus.Manager.Publish(events.EventInstall, events.InstallPayload{Token: tk, Config: configStr}); err != nil {
 		return err

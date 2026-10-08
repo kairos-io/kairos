@@ -1,0 +1,64 @@
+name: zizmor
+
+# Static security audit of the workflow files and in-repo actions
+# (template injection, credential persistence, secret inheritance,
+# dangerous triggers, unpinned actions). See https://docs.zizmor.sh.
+#
+# The `zizmor` job fails on any finding and reports each one as an
+# annotation on the offending line. It is not a required check, so a
+# red result is a signal on the pull request and never blocks a merge.
+# On master, `zizmor-sarif` also sends the findings to the Security
+# tab; in SARIF mode zizmor exits 0, so that job stays green.
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actions/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zizmor-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+env:
+  ZIZMOR_VERSION: '1.30.1'
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit workflows
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482  # v0.6.4
+        with:
+          version: ${{ env.ZIZMOR_VERSION }}
+          advanced-security: false
+          annotations: true
+
+  zizmor-sarif:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit workflows
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482  # v0.6.4
+        with:
+          version: ${{ env.ZIZMOR_VERSION }}

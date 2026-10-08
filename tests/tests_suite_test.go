@@ -212,14 +212,21 @@ func expectDefaultService(vm VM) {
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("kairos-agent"))
 		} else {
-			// This is also run in the upgrade latest, so we need to check for both kairos-installer and kairos in case the service name changed
+			// This is also run in the upgrade latest, so we need to check for both kairos-installer and kairos in case the service name changed.
+			// kairos-interactive is the third name: on an interactive live
+			// cmdline the bundled cloud-config disables kairos-installer and
+			// enables kairos-interactive instead, so which of the two is the
+			// live entry point follows the GRUB entry the media defaults to.
+			// The assertion is that the live media brought up an install
+			// entry point, not which of the two it picked.
 			Eventually(func() string {
 
-				out, _ := vm.Sudo("systemctl status kairos-installer || systemctl status kairos")
+				out, _ := vm.Sudo("systemctl status kairos-installer || systemctl status kairos-interactive || systemctl status kairos")
 				return out
 			}, 3*time.Minute, 2*time.Second).Should(
 				Or(
 					ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled;"),
+					ContainSubstring("loaded (/etc/systemd/system/kairos-interactive.service; enabled;"),
 					ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"),
 				))
 		}
@@ -228,17 +235,26 @@ func expectDefaultService(vm VM) {
 
 func expectStartedInstallation(vm VM) {
 	By("checking that installation has started", func() {
+		// Either live entry point installs an install.auto config
+		// unattended: interactive-install calls AutoInstall before it draws
+		// anything, and runs the install in the same process. So the process
+		// name is the one the unit started, and "interactive-install" does
+		// not contain "kairos-agent install".
 		Eventually(func() string {
 			out, _ := vm.Sudo("ps aux || ps")
 			return out
-		}, 30*time.Minute, 1*time.Second).Should(ContainSubstring("/usr/bin/kairos-agent install"))
+		}, 30*time.Minute, 1*time.Second).Should(
+			Or(
+				ContainSubstring("/usr/bin/kairos-agent install"),
+				ContainSubstring("/usr/bin/kairos-agent interactive-install"),
+			))
 	})
 }
 
 func expectRebootedToActive(vm VM) {
 	By("checking that vm has rebooted to 'active'", func() {
 		Eventually(func() string {
-			out, _ := vm.Sudo("kairos-agent state boot")
+			out, _ := vm.Sudo("kairos-agent state get boot")
 			return out
 		}, 40*time.Minute, 10*time.Second).Should(
 			Or(
@@ -389,42 +405,29 @@ func isReadable(fileName string) bool {
 	return true
 }
 
-// getEfivarsFile returns the appropriate efivars file path based on the firmware being used.
-// It checks if 4M firmware is being used and selects the matching VARS file.
-// For 4M firmware, it tries the 4M variant first, then falls back to 2M for backward compatibility.
-func getEfivarsFile(firmwarePath, assetsDir string, empty bool) (string, error) {
-	// Check if we're using 4M firmware (Ubuntu 24.04+)
-	// 4M CODE requires 4M VARS, while 2M CODE uses 128KB VARS
-	fwInfo, err := os.Stat(firmwarePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to stat firmware file %s: %w", firmwarePath, err)
+// efivarsFile returns the UEFI variable store template that ships next to
+// the firmware, as distributions package them: OVMF_CODE_4M.secboot.fd comes
+// with OVMF_VARS_4M.fd, and AAVMF_CODE.fd with AAVMF_VARS.fd. The plain
+// template has no keys enrolled, which leaves the firmware in setup mode so a
+// UKI install can enroll its own. enrolled picks the .ms variant instead,
+// which has the Microsoft keys enrolled, so that a shim-signed install boots
+// with Secure Boot on. FIRMWARE_VARS overrides the choice, for layouts this
+// does not know: Arch packages no .ms variant, and Fedora names it
+// OVMF_VARS.secboot.fd.
+func efivarsFile(firmware string, enrolled bool) (string, error) {
+	if vars := os.Getenv("FIRMWARE_VARS"); vars != "" {
+		return vars, nil
 	}
-
-	is4M := fwInfo.Size() >= 3*1024*1024 ||
-		filepath.Base(firmwarePath) == "OVMF_CODE_4M.fd" ||
-		filepath.Base(firmwarePath) == "OVMF_CODE_4M.secboot.fd"
-
-	var baseName string
-	if empty {
-		baseName = "efivars.empty"
-	} else {
-		baseName = "efivars"
+	name := strings.Replace(filepath.Base(firmware), "CODE", "VARS", 1)
+	name = strings.Replace(name, ".secboot", "", 1)
+	if enrolled {
+		name = strings.TrimSuffix(name, ".fd") + ".ms.fd"
 	}
-
-	var varsFile string
-	if is4M {
-		// Try 4M version first, fall back to 2M for backward compatibility
-		varsFile = filepath.Join(assetsDir, baseName+".4m.fd")
-		if _, err := os.Stat(varsFile); os.IsNotExist(err) {
-			varsFile = filepath.Join(assetsDir, baseName+".fd")
-		}
-	} else {
-		varsFile = filepath.Join(assetsDir, baseName+".fd")
+	vars := filepath.Join(filepath.Dir(firmware), name)
+	if _, err := os.Stat(vars); err != nil {
+		return "", fmt.Errorf("no UEFI variable store for %s (set FIRMWARE_VARS): %w", firmware, err)
 	}
-
-	GinkgoLogr.Info("reading efivars file", "file", varsFile)
-
-	return varsFile, nil
+	return vars, nil
 }
 
 func defaultVMOpts(stateDir string) []types.MachineOption {
@@ -571,36 +574,19 @@ func vmOptsNoDrives(stateDir string, withTPM bool) []types.MachineOption {
 
 	// Now optional settings
 
-	// If FIRMWARE is set, that usually means we are using UEFI to boot
-	// This could be normal or UKI so we have a different set of efivars for each
-	// UKI_TEST env var is just a flag to use empty efivars so we can test the auto enrollment
-	// otherwise we need to use an efivars which contains the secureboot keys already enrolled
-	// see tests/assets/efivars.md to know how to update them or regenerate them
+	// If FIRMWARE is set, the VM boots with UEFI. A UKI test (UKI_TEST set)
+	// starts with no keys enrolled so that it can test enrollment; any other
+	// test starts with the Microsoft keys enrolled and Secure Boot on.
 	if os.Getenv("FIRMWARE") != "" {
 		opts = append(opts, func(m *types.MachineConfig) error {
 			FW := os.Getenv("FIRMWARE")
-			getwd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
 			m.Args = append(m.Args, "-drive",
 				fmt.Sprintf("file=%s,if=pflash,format=raw,readonly=on", FW),
 			)
 
-			assetsDir := filepath.Join(getwd, "assets")
-			UKI := os.Getenv("UKI_TEST")
-			emptyVars := UKI != ""
-
-			var varsFile string
-			// Get the appropriate efivars file based on firmware type
-			if arch == "aarch64" {
-				// On aarch64 we always use the efivars-aarch64 file
-				varsFile = filepath.Join(assetsDir, "efivars-aarch64.fd")
-			} else {
-				varsFile, err = getEfivarsFile(FW, assetsDir, emptyVars)
-				if err != nil {
-					return err
-				}
+			varsFile, err := efivarsFile(FW, os.Getenv("UKI_TEST") == "")
+			if err != nil {
+				return err
 			}
 
 			// Copy the efivars file to state directory to not modify the original

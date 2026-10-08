@@ -18,12 +18,12 @@ package uki
 
 import (
 	"bytes"
-	"encoding/binary"
 	"os"
 	"path/filepath"
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	"github.com/kairos-io/kairos/v4/internal/testartifacts"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkutils "github.com/kairos-io/kairos/v4/sdk/utils"
 
@@ -31,20 +31,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v5"
 )
-
-// patchPEMajorImageVersion copies the PE binary at src to dst while setting
-// the MajorImageVersion field of the PE64 optional header to version.
-func patchPEMajorImageVersion(src, dst string, version uint16) {
-	data, err := os.ReadFile(src)
-	Expect(err).ToNot(HaveOccurred())
-	// e_lfanew lives at offset 0x3C and points to the PE signature
-	peOff := binary.LittleEndian.Uint32(data[0x3C:])
-	// PE signature (4 bytes) + COFF file header (20 bytes) = optional header start
-	optOff := peOff + 4 + 20
-	// MajorImageVersion is at offset 44 inside the PE32+ optional header
-	binary.LittleEndian.PutUint16(data[optOff+44:], version)
-	Expect(os.WriteFile(dst, data, 0644)).To(Succeed())
-}
 
 var _ = Describe("Common helpers", func() {
 	var fs vfs.FS
@@ -93,6 +79,17 @@ var _ = Describe("Common helpers", func() {
 			Expect(filepath.Join(dir, "active.efi")).ToNot(BeAnExistingFile())
 			Expect(filepath.Join(dir, "active.conf")).ToNot(BeAnExistingFile())
 			Expect(filepath.Join(dir, "passive.efi")).To(BeAnExistingFile())
+		})
+
+		It("reports an unreadable artifact dir instead of panicking", func() {
+			// WalkDirFs calls the callback with a nil DirEntry when it cannot
+			// stat the root, so the callback has to check the error before it
+			// touches info. See kairos-io/kairos#4774.
+			var err error
+			Expect(func() {
+				err = removeArtifactSetWithRole(fs, filepath.Join(dir, "missing"), "active")
+			}).ToNot(Panic())
+			Expect(err).To(MatchError(os.ErrNotExist))
 		})
 	})
 
@@ -464,15 +461,16 @@ var _ = Describe("Common helpers", func() {
 
 	Describe("upgradeEfiKeysInLoaderEntries", func() {
 		var entriesDir string
-		var fixture string
+		var writeSystemdBoot func(major uint16)
 
 		BeforeEach(func() {
 			entriesDir = filepath.Join(dir, "loader/entries")
 			Expect(os.MkdirAll(filepath.Join(dir, "EFI/BOOT"), 0755)).To(Succeed())
 			Expect(os.MkdirAll(entriesDir, 0755)).To(Succeed())
-			cwd, err := os.Getwd()
-			Expect(err).ToNot(HaveOccurred())
-			fixture = filepath.Join(cwd, "tests/fbx64.efi")
+			writeSystemdBoot = func(major uint16) {
+				img := testartifacts.MinimalPE(testartifacts.PEOptions{MajorImageVersion: major})
+				Expect(os.WriteFile(filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), img, 0644)).To(Succeed())
+			}
 		})
 
 		It("skips the upgrade when systemd-boot can not be read", func() {
@@ -480,10 +478,7 @@ var _ = Describe("Common helpers", func() {
 		})
 
 		It("does not touch entries when systemd-boot is older than 259", func() {
-			// fixture has MajorImageVersion 0
-			data, err := os.ReadFile(fixture)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(os.WriteFile(filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), data, 0644)).To(Succeed())
+			writeSystemdBoot(0)
 			entry := filepath.Join(entriesDir, "active.conf")
 			Expect(os.WriteFile(entry, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 
@@ -496,7 +491,7 @@ var _ = Describe("Common helpers", func() {
 		})
 
 		It("upgrades efi keys to uki keys when systemd-boot is >= 259", func() {
-			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), 259)
+			writeSystemdBoot(259)
 			withEfi := filepath.Join(entriesDir, "active.conf")
 			Expect(os.WriteFile(withEfi, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 			withoutEfi := filepath.Join(entriesDir, "passive.conf")
@@ -521,7 +516,8 @@ var _ = Describe("Common helpers", func() {
 		})
 
 		It("uses the arm64 systemd-boot binary name", func() {
-			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTAA64.EFI"), 260)
+			img := testartifacts.MinimalPE(testartifacts.PEOptions{MajorImageVersion: 260})
+			Expect(os.WriteFile(filepath.Join(dir, "EFI/BOOT/BOOTAA64.EFI"), img, 0644)).To(Succeed())
 			entry := filepath.Join(entriesDir, "active.conf")
 			Expect(os.WriteFile(entry, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 
@@ -536,7 +532,7 @@ var _ = Describe("Common helpers", func() {
 			if os.Geteuid() == 0 {
 				Skip("file permissions are not enforced for root")
 			}
-			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), 259)
+			writeSystemdBoot(259)
 			entry := filepath.Join(entriesDir, "active.conf")
 			Expect(os.WriteFile(entry, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 			Expect(os.Chmod(entry, 0000)).To(Succeed())
@@ -548,7 +544,7 @@ var _ = Describe("Common helpers", func() {
 			if os.Geteuid() == 0 {
 				Skip("file permissions are not enforced for root")
 			}
-			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), 259)
+			writeSystemdBoot(259)
 			entry := filepath.Join(entriesDir, "active.conf")
 			Expect(os.WriteFile(entry, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 			Expect(os.Chmod(entry, 0444)).To(Succeed())
@@ -558,7 +554,7 @@ var _ = Describe("Common helpers", func() {
 
 		It("fails when the entries dir is missing and systemd-boot is >= 259", func() {
 			Expect(os.RemoveAll(entriesDir)).To(Succeed())
-			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), 259)
+			writeSystemdBoot(259)
 
 			Expect(upgradeEfiKeysInLoaderEntries("amd64", fs, dir, logger)).ToNot(Succeed())
 		})

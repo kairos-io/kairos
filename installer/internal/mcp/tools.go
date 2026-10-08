@@ -2,12 +2,14 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/disks"
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 )
@@ -294,9 +296,11 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		return errorResult("no kairos-agent binary was found, so nothing can be installed"), out, nil
 	}
 
-	// One install per server. A second one would race the first over the same
-	// disk, and a retry after a successful install would wipe what was just
-	// written.
+	// One install per server: a second MCP call would race the first over the
+	// same disk, and a retry after a successful install would wipe what was
+	// just written. This covers MCP only. An install started from the TUI or
+	// the browser is refused by agentrun's process-wide guard below, which is
+	// the one all three frontends share.
 	if !s.installing.TryLock() {
 		return errorResult("an install is already running on this session"), out, nil
 	}
@@ -334,6 +338,14 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		},
 		func(line string) { s.log.Print(line) },
 	)
+
+	// Another frontend of this same installer holds the disk. Nothing was
+	// started, so say that rather than reporting an install that failed: the
+	// caller's answer is to wait, not to fix anything.
+	if errors.Is(runErr, agentrun.ErrInstallInProgress) {
+		out.Error = runErr.Error()
+		return errorResult("refusing to install: an install started from another frontend of this installer is already running. Wait for it to finish."), out, nil
+	}
 
 	switch {
 	case sawError != "":
@@ -396,4 +408,27 @@ func stepList(steps []string) string {
 	}
 
 	return strings.Join(steps, ", ")
+}
+
+// renderCloudConfig builds the cloud-config an MCP install runs with: the
+// caller's own YAML, with the confirmed device, source and finish action
+// written over it by wizard.Finalize. FinishNone is the MCP spelling of the
+// wizard's empty finish action.
+func renderCloudConfig(device, source, finishAction, extra string) (string, error) {
+	if finishAction == FinishNone {
+		finishAction = ""
+	}
+	out, err := wizard.Finalize(extra, wizard.Overrides{
+		Device: device, Source: source, FinishAction: finishAction, DefaultNoUsers: true,
+	})
+	if err != nil {
+		// The MCP tool argument is named cloud_config, and its callers
+		// already match on this wording.
+		inner := errors.Unwrap(err)
+		if inner == nil {
+			inner = err
+		}
+		return "", fmt.Errorf("cloud_config is not valid YAML: %w", inner)
+	}
+	return out, nil
 }
