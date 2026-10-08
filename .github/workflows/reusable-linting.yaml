@@ -59,6 +59,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
       - name: embed stubs
         # kairos-init/pkg/bundled/bundled.go uses //go:embed
         # binaries/*, and bundled_fips.go uses //go:embed
@@ -120,6 +121,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
       - name: hadolint
         env:
           HADOLINT_VERSION: 2.12.0-alpine
@@ -133,6 +135,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
       - name: renovate-validate
         env:
           RENOVATE_VERSION: "35"
@@ -146,6 +149,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
       - name: shellcheck-lint
         env:
           SHELLCHECK_VERSION: v0.9.0
@@ -159,6 +163,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
       - name: yamllint
         shell: bash
         run: find ${INPUTS_YAMLDIRS} -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint --strict

@@ -144,6 +144,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
 
       - name: Set Version
         # Match reusable-factory.yaml's setup step so the IMAGE_NAME this
