@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,6 +31,108 @@ func section(unit, name string) string {
 		return rest[:next]
 	}
 	return rest
+}
+
+// unitDirective collects every value one [Unit] directive is given, so an
+// assertion about ordering reads the directives rather than the file text:
+// systemd accepts the same unit listed on its own line or space separated
+// with others, and a word in a comment is not a dependency at all.
+func unitDirective(unit, key string) []string {
+	var out []string
+	for _, line := range strings.Split(section(unit, "Unit"), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+		v, ok := strings.CutPrefix(line, key+"=")
+		if !ok {
+			continue
+		}
+		out = append(out, strings.Fields(v)...)
+	}
+	return out
+}
+
+// defaultServiceAfter is the implicit ordering systemd.service(5) gives a
+// service unit that does not set DefaultDependencies=no: "dependencies of
+// type Requires= and After= on sysinit.target, a dependency of type After= on
+// basic.target as well as dependencies of type Conflicts= and Before= on
+// shutdown.target".
+var defaultServiceAfter = []string{"sysinit.target", "basic.target"}
+
+// effectiveAfter is what a service unit really waits for: the After= it
+// declares plus the implicit ordering, unless it has opted out. Reading only
+// the declared After= would call a unit early that systemd holds until
+// basic.target.
+func effectiveAfter(unit string) []string {
+	after := unitDirective(unit, "After")
+	if !slices.Contains(unitDirective(unit, "DefaultDependencies"), "no") {
+		after = append(after, defaultServiceAfter...)
+	}
+	return after
+}
+
+// bootOrder returns the units the splash is ordered against, earliest first,
+// by sorting the ordering edges it declares together with the ones systemd's
+// own units declare. It reports an error when the edges cannot be sorted,
+// which is the ordering cycle systemd would log and then break at random.
+//
+// The fixed edges are read off the shipped units: systemd-vconsole-setup
+// carries Before=sysinit.target, getty@.service carries Before=getty.target
+// and has default dependencies, and sysinit.target is before basic.target.
+func bootOrder(unit, name string) ([]string, error) {
+	before := map[string][]string{
+		"systemd-vconsole-setup.service": {"sysinit.target"},
+		"sysinit.target":                 {"basic.target"},
+		"basic.target":                   {"getty@tty1.service", "getty.target"},
+		"getty@tty1.service":             {"getty.target"},
+	}
+	edge := func(from, to string) { before[from] = append(before[from], to) }
+	for _, u := range effectiveAfter(unit) {
+		edge(u, name)
+	}
+	for _, u := range unitDirective(unit, "Before") {
+		edge(name, u)
+	}
+
+	nodes := map[string]bool{name: true}
+	for from, tos := range before {
+		nodes[from] = true
+		for _, to := range tos {
+			nodes[to] = true
+		}
+	}
+	indeg := map[string]int{}
+	for n := range nodes {
+		indeg[n] += 0
+		for _, to := range before[n] {
+			indeg[to]++
+		}
+	}
+	var ready []string
+	for n, d := range indeg {
+		if d == 0 {
+			ready = append(ready, n)
+		}
+	}
+	var order []string
+	for len(ready) > 0 {
+		// Sort the frontier so the result does not depend on map order.
+		slices.Sort(ready)
+		n := ready[0]
+		ready = ready[1:]
+		order = append(order, n)
+		for _, to := range before[n] {
+			indeg[to]--
+			if indeg[to] == 0 {
+				ready = append(ready, to)
+			}
+		}
+	}
+	if len(order) != len(nodes) {
+		return order, fmt.Errorf("ordering cycle: sorted %d of %d units", len(order), len(nodes))
+	}
+	return order, nil
 }
 
 // menuentry returns the body of one grub menuentry block, selected by its
@@ -144,6 +247,52 @@ var _ = Describe("SplashService", func() {
 
 	It("is a no-op when started a second time", func() {
 		Expect(section(unit(), "Service")).To(ContainSubstring("RemainAfterExit=yes"))
+	})
+
+	// The initramfs animation is killed at switch-root. If this unit waits
+	// for basic.target, which is what systemd gives a service that keeps its
+	// default dependencies, the console is blank with systemd status on it
+	// for the whole of sysinit: 2.7 s on the boot in kairos-io/kairos#5272.
+	// None of that work is anything the animation reads.
+	It("does not wait for the whole of sysinit before it draws", func() {
+		Expect(effectiveAfter(unit())).ToNot(ContainElement("basic.target"),
+			"the booted splash is held until basic.target, so the console "+
+				"stays blank from switch-root until sysinit is done")
+		Expect(effectiveAfter(unit())).ToNot(ContainElement("sysinit.target"))
+	})
+
+	// The console font is loaded by systemd-vconsole-setup.service. The
+	// wordmark is block art, so a font swap underneath a painted frame is
+	// visible, and the unit is Before=sysinit.target anyway: waiting for it
+	// costs nothing of the gap this unit exists to fill.
+	It("waits for the console font before painting block art", func() {
+		Expect(unitDirective(unit(), "After")).
+			To(ContainElement("systemd-vconsole-setup.service"))
+	})
+
+	// Opting out of the default dependencies also opts out of the two that
+	// take a unit down with the system, so they have to be written back. A
+	// oneshot with RemainAfterExit=yes is still active at shutdown, and
+	// without these systemd has no order in which to stop it.
+	It("is still stopped at shutdown without the default dependencies", func() {
+		if slices.Contains(unitDirective(unit(), "DefaultDependencies"), "no") {
+			Expect(unitDirective(unit(), "Conflicts")).To(ContainElement("shutdown.target"))
+			Expect(unitDirective(unit(), "Before")).To(ContainElement("shutdown.target"))
+		}
+	})
+
+	// Ordering a unit earlier is only safe if the edges it declares still
+	// sort against the ones the shipped systemd units declare. Sorting them
+	// catches the cycle that an After= on something downstream of getty
+	// would make, which systemd logs and then breaks by dropping an edge of
+	// its choice.
+	It("sorts between the console setup and the getty on tty1", func() {
+		order, err := bootOrder(unit(), "kairos-splash.service")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(slices.Index(order, "systemd-vconsole-setup.service")).
+			To(BeNumerically("<", slices.Index(order, "kairos-splash.service")))
+		Expect(slices.Index(order, "kairos-splash.service")).
+			To(BeNumerically("<", slices.Index(order, "getty@tty1.service")))
 	})
 
 	// The live ISO runs the interactive installer on tty1 and an automatic
