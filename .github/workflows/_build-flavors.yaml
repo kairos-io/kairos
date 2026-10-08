@@ -173,14 +173,16 @@ jobs:
       - name: Reassemble dist/linux-${{ matrix.platform }}/kairos-init
         # Dockerfile.test consumes dist/linux-${TARGETARCH}/kairos-init;
         # unpack the tarball artifact into that layout.
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          mkdir -p "dist/linux-${{ matrix.platform }}"
+          mkdir -p "dist/linux-${PLATFORM}"
           for tarball in dist/download/*.tar.gz; do
             [ -f "$tarball" ] || continue
-            tar -xzf "$tarball" -C "dist/linux-${{ matrix.platform }}"
+            tar -xzf "$tarball" -C "dist/linux-${PLATFORM}"
           done
-          ls -l "dist/linux-${{ matrix.platform }}"
+          ls -l "dist/linux-${PLATFORM}"
 
       - name: Set up QEMU
         # Needed on riscv64 (no native runner). Also cheap enough to

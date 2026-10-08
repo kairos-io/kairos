@@ -121,12 +121,14 @@ jobs:
           fi
 
           {
-            echo '${{ steps.cve-check.outputs.warning }}'
+            echo "${STEPS_CVE_CHECK_OUTPUTS_WARNING}"
             cat current_body.md
           } > updated_body.md
 
           gh release edit "$CURRENT_TAG" --repo "${{ github.repository }}" --notes-file updated_body.md
           echo "CVE warning prepended to release notes."
+        env:
+          STEPS_CVE_CHECK_OUTPUTS_WARNING: ${{ steps.cve-check.outputs.warning }}
 
       - name: Resolve previous final release tag
         id: prev
@@ -170,8 +172,10 @@ jobs:
         if: ${{ steps.prev.outputs.skip == 'false' }}
         run: |
           output_file="RELEASE_DIFF_${CURRENT_TAG}.md"
-          ./scripts/kairos-diff.sh "${{ steps.prev.outputs.tag }}" "$CURRENT_TAG" --output "$output_file"
+          ./scripts/kairos-diff.sh "${STEPS_PREV_OUTPUTS_TAG}" "$CURRENT_TAG" --output "$output_file"
           echo "output_file=$output_file" >> "$GITHUB_ENV"
+        env:
+          STEPS_PREV_OUTPUTS_TAG: ${{ steps.prev.outputs.tag }}
 
       - name: Generate security fixes section
         # OpenSSF Best Practices `release_notes_vulns`: release notes must
@@ -214,16 +218,18 @@ jobs:
           {
             cat current_body.md
             echo
-            cat "${{ steps.security.outputs.security_file }}"
+            cat "${STEPS_SECURITY_OUTPUTS_SECURITY_FILE}"
           } > with_security_body.md
 
           gh release edit "$CURRENT_TAG" --repo "${{ github.repository }}" --notes-file with_security_body.md
+        env:
+          STEPS_SECURITY_OUTPUTS_SECURITY_FILE: ${{ steps.security.outputs.security_file }}
 
       - name: Append diff to release description
         if: ${{ steps.prev.outputs.skip == 'false' }}
         id: append
         run: |
-          header="# Changes since previous version (${{ steps.prev.outputs.tag }})"
+          header="# Changes since previous version (${STEPS_PREV_OUTPUTS_TAG})"
 
           gh release view "$CURRENT_TAG" --repo "${{ github.repository }}" --json body --jq '.body // ""' > current_body.md
 
@@ -243,6 +249,8 @@ jobs:
 
           gh release edit "$CURRENT_TAG" --repo "${{ github.repository }}" --notes-file combined_body.md
           echo "appended=true" >> "$GITHUB_OUTPUT"
+        env:
+          STEPS_PREV_OUTPUTS_TAG: ${{ steps.prev.outputs.tag }}
 
       - name: Write workflow summary
         if: ${{ steps.prev.outputs.skip == 'false' }}
@@ -251,10 +259,13 @@ jobs:
             echo "## Release diff generated"
             echo
             echo "- Current release: \`${CURRENT_TAG}\`"
-            echo "- Previous final release: \`${{ steps.prev.outputs.tag }}\`"
-            if [ "${{ steps.append.outputs.appended }}" = "true" ]; then
+            echo "- Previous final release: \`${STEPS_PREV_OUTPUTS_TAG}\`"
+            if [ "${STEPS_APPEND_OUTPUTS_APPENDED}" = "true" ]; then
               echo "- Release description updated: \`yes\`"
             else
               echo "- Release description updated: \`no (already contained section header)\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          STEPS_PREV_OUTPUTS_TAG: ${{ steps.prev.outputs.tag }}
+          STEPS_APPEND_OUTPUTS_APPENDED: ${{ steps.append.outputs.appended }}
