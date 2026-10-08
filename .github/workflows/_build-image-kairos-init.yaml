@@ -67,6 +67,13 @@ on:
         type: boolean
         required: false
         default: false
+    secrets:
+      QUAY_USERNAME:
+        description: 'quay.io user, needed only when pushing to quay.io'
+        required: false
+      QUAY_PASSWORD:
+        description: 'quay.io password, needed only when pushing to quay.io'
+        required: false
 
 permissions:
   contents: read

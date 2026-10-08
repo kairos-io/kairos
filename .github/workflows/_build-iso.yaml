@@ -215,12 +215,13 @@ on:
         type: boolean
         required: false
         default: false
-
-# No `secrets:` block on workflow_call: registry credentials are
-# derived from inputs.registry_domain inside the job (ghcr.io ->
-# github.actor + GITHUB_TOKEN, quay.io -> QUAY_USERNAME + QUAY_PASSWORD),
-# which only works when the caller uses `secrets: inherit` so this
-# reusable can see the org-level QUAY_* secrets.
+    secrets:
+      QUAY_USERNAME:
+        description: 'quay.io user, needed only when registry_domain is quay.io'
+        required: false
+      QUAY_PASSWORD:
+        description: 'quay.io password, needed only when registry_domain is quay.io'
+        required: false
 
 permissions:
   # packages: write is required for factory-action's push to ghcr:
@@ -244,8 +245,8 @@ jobs:
       # ghcr.io accepts github.actor + GITHUB_TOKEN; the token is
       # write-scoped only for same-repo events (push, same-repo PR).
       # Fork PR jobs are gated off at the caller with an if: check.
-      # quay.io uses the repo-level QUAY_USERNAME/QUAY_PASSWORD, which
-      # reach this reusable only because callers pass `secrets: inherit`.
+      # quay.io uses QUAY_USERNAME/QUAY_PASSWORD, which only the callers
+      # that push to quay.io pass in.
       registry_username: ${{ inputs.registry_domain == 'ghcr.io' && github.actor || secrets.QUAY_USERNAME }}
       registry_password: ${{ inputs.registry_domain == 'ghcr.io' && secrets.GITHUB_TOKEN || secrets.QUAY_PASSWORD }}
     with:
