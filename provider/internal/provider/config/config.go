@@ -63,12 +63,23 @@ func (c *Config) IsKubernetesConfigured() bool {
 type KubeVIP struct {
 	EIP         string `yaml:"eip,omitempty"`
 	ManifestURL string `yaml:"manifest_url,omitempty"`
-	Interface   string `yaml:"interface,omitempty"`
 	Enable      *bool  `yaml:"enable,omitempty"`
 	StaticPod   bool   `yaml:"static_pod,omitempty"`
 	Version     string `yaml:"version,omitempty"`
 	Image       string `yaml:"image,omitempty"`
-	kubevip.Config
+
+	// kube-vip's own settings, which applyKConfigToInitConfig copies into the
+	// manifest it generates. Without the inline tag yaml.v3 treats an
+	// anonymous struct field as an ordinary field named after its type, so
+	// every one of these keys had to be nested under `kubevip.config` to be
+	// read, and `kubevip.enableBGP` was accepted and dropped.
+	//
+	// The outer `interface` field is gone because kube-vip declares
+	// one too, and yaml.v3 refuses to inline a struct that repeats a key of the
+	// outer one. Both are strings and both mean the interface the VIP is
+	// bound to, so the promoted field keeps KubeVIP.Interface reading the same
+	// key it always did.
+	kubevip.Config `yaml:",inline"`
 }
 
 func (k KubeVIP) IsEnabled() bool {
