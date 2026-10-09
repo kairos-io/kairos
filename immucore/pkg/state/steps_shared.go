@@ -460,9 +460,20 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 
 // MountCustomBindsDagStep will add mounting s.BindMounts
 // mount state is defined over a custom mount (/usr/local/.state for instance, needs to be mounted over a device).
+//
+// OpOverlayMount and OpCustomMounts are weak dependencies. herd never executes
+// a node whose hard dependency errored, and both of those steps collect a
+// multierror across a loop, so one extra volume with the wrong label or one
+// overlay path that fails would skip every bind here: /home, /root, /opt,
+// /etc/ssh, /etc/systemd, /var/log and the rest of PERSISTENT_STATE_PATHS. The
+// node then boots to a login prompt on a pristine image /etc with no
+// persistence, and nothing reports it, because none of these ops are fatal.
+// Weak keeps the graph edge and so the ordering, and drops only that cascade,
+// which is what every other consumer of these two steps already does.
 func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpMountBind,
-		append(opts, herd.WithDeps(cnst.OpOverlayMount, cnst.OpCustomMounts, cnst.OpLoadConfig),
+		append(opts, herd.WithDeps(cnst.OpLoadConfig),
+			herd.WithWeakDeps(cnst.OpOverlayMount, cnst.OpCustomMounts),
 			TimedCallback(cnst.OpMountBind,
 				func(_ context.Context) error {
 					var err *multierror.Error
@@ -483,7 +494,20 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 						}
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount end")
 					}
-					internalUtils.KLog.Logger.Warn().Err(err.ErrorOrNil()).Send()
+
+					// A bind that does not happen is a path the booted system
+					// writes to the ephemeral overlay instead of the persistent
+					// partition, and the boot carries on either way. Name the
+					// paths, rather than emitting a bare warning with no
+					// message on every boot including the ones that worked.
+					// multierror.Error.Len has a value receiver, so it panics on
+					// the nil accumulator a clean boot leaves behind. Ask
+					// ErrorOrNil first.
+					if bindErr := err.ErrorOrNil(); bindErr != nil {
+						internalUtils.KLog.Logger.Warn().Err(bindErr).Int("failed", err.Len()).
+							Msg("Some persistent binds did not mount. Those paths are ephemeral for this boot and their contents are lost on reboot.")
+					}
+
 					return err.ErrorOrNil()
 				},
 			),
