@@ -26,11 +26,41 @@ import (
 	"syscall"
 )
 
+// chrootSyscalls is the set of system calls Chroot makes. Production uses
+// realSyscalls. Tests substitute a fake, which is the only way to drive
+// RunCallback in a unit test job that does not run as root.
+//
+// agent/pkg/utils/chroot.go, which is the same type, takes this seam through
+// sdk/types/syscall.Interface. That interface carries no Unmount, and Close
+// needs one, so Chroot declares its own.
+type chrootSyscalls interface {
+	Chdir(path string) error
+	Chroot(path string) error
+	Mount(source, target, fstype string, flags uintptr, data string) error
+	Unmount(target string, flags int) error
+}
+
+// realSyscalls runs the calls against the running system. Mount goes through
+// this package's own Mount so that it keeps flushing before and after.
+type realSyscalls struct{}
+
+func (realSyscalls) Chdir(path string) error  { return syscall.Chdir(path) }
+func (realSyscalls) Chroot(path string) error { return syscall.Chroot(path) }
+
+func (realSyscalls) Mount(source, target, fstype string, flags uintptr, data string) error {
+	return Mount(source, target, fstype, flags, data)
+}
+
+func (realSyscalls) Unmount(target string, flags int) error {
+	return syscall.Unmount(target, flags)
+}
+
 // Chroot represents the struct that will allow us to run commands inside a given chroot.
 type Chroot struct {
 	path          string
 	defaultMounts []string
 	activeMounts  []string
+	sys           chrootSyscalls
 }
 
 func NewChroot(path string) *Chroot {
@@ -41,6 +71,7 @@ func NewChroot(path string) *Chroot {
 			"/run/rootfsbase", "/run/initramfs/live", "/run",
 		},
 		activeMounts: []string{},
+		sys:          realSyscalls{},
 	}
 }
 
@@ -70,9 +101,9 @@ func (c *Chroot) Prepare() error {
 		// For example you can also have a cdrom device mounted under /dev/sr0 or /dev/cdrom and we dont know how to find it and mark it private
 		switch mnt {
 		case "/sys", "/dev", "/run":
-			err = Mount(mnt, mountPoint, "", syscall.MS_BIND, "")
+			err = c.sys.Mount(mnt, mountPoint, "", syscall.MS_BIND, "")
 		default:
-			err = Mount(mnt, mountPoint, "", syscall.MS_BIND|syscall.MS_REC, "")
+			err = c.sys.Mount(mnt, mountPoint, "", syscall.MS_BIND|syscall.MS_REC, "")
 		}
 
 		if err != nil {
@@ -80,7 +111,7 @@ func (c *Chroot) Prepare() error {
 			return err
 		}
 		// "remount" with private so unmount events do not propagate
-		err = Mount("", mountPoint, "", syscall.MS_PRIVATE, "")
+		err = c.sys.Mount("", mountPoint, "", syscall.MS_PRIVATE, "")
 		if err != nil {
 			KLog.Logger.Err(err).Str("where", mountPoint).Str("what", mnt).Msg("Mounting chroot bind")
 			return err
@@ -96,12 +127,12 @@ func (c *Chroot) Close() error {
 	failures := []string{}
 	KLog.Logger.Debug().Strs("activeMounts", c.activeMounts).Msg("Closing chroot")
 	// Something mounts this due to selinux, so we need to try to manually unmount and ignore any errors
-	_ = syscall.Unmount(filepath.Join(c.path, "/sys/fs/selinux"), 0)
+	_ = c.sys.Unmount(filepath.Join(c.path, "/sys/fs/selinux"), 0)
 	for len(c.activeMounts) > 0 {
 		curr := c.activeMounts[len(c.activeMounts)-1]
 		KLog.Logger.Debug().Str("what", curr).Msg("Unmounting from chroot")
 		c.activeMounts = c.activeMounts[:len(c.activeMounts)-1]
-		err := syscall.Unmount(curr, 0)
+		err := c.sys.Unmount(curr, 0)
 		if err != nil {
 			KLog.Logger.Err(err).Str("what", curr).Msg("Error unmounting")
 			failures = append(failures, curr)
@@ -146,18 +177,24 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 			KLog.Logger.Err(err).Msg("Can't mount default mounts")
 			return err
 		}
+		// Keep the first error. Assigning straight to err here would
+		// discard the callback's error, a failure to chroot back out, and a
+		// failing Chroot below, every time the unmounts happen to succeed.
 		defer func(c *Chroot) {
-			err = c.Close()
+			tmpErr := c.Close()
+			if err == nil {
+				err = tmpErr
+			}
 		}(c)
 	}
 	// Change to new dir before running chroot!
-	err = syscall.Chdir(c.path)
+	err = c.sys.Chdir(c.path)
 	if err != nil {
 		KLog.Logger.Err(err).Str("path", c.path).Msg("Can't chdir")
 		return err
 	}
 
-	err = syscall.Chroot(c.path)
+	err = c.sys.Chroot(c.path)
 	if err != nil {
 		KLog.Logger.Err(err).Str("path", c.path).Msg("Can't chroot")
 		return err
@@ -172,7 +209,7 @@ func (c *Chroot) RunCallback(callback func() error) (err error) {
 				err = tmpErr
 			}
 		} else {
-			tmpErr = syscall.Chroot(".")
+			tmpErr = c.sys.Chroot(".")
 			if tmpErr != nil {
 				KLog.Logger.Err(tmpErr).Str("path", oldRootF.Name()).Msg("Can't chroot back to old root")
 				if err == nil {
