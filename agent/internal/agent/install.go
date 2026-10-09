@@ -77,8 +77,16 @@ func printPairing(tk string, scanErr error) {
 	printConfigError(scanErr)
 }
 
+// manualInstallPreflightClient is the client manual-install checks a remote
+// config URL with. It carries the same timeout the rest of the agent uses
+// for its own HTTP work, so a config server that never answers costs one
+// timeout rather than the whole install.
+func manualInstallPreflightClient() *http.Client {
+	return &http.Client{Timeout: time.Second * constants.HTTPTimeout}
+}
+
 func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValidations, useDefaultDirs, allowInsecureRegistries bool) error {
-	configSource, err := prepareConfiguration(c)
+	configSource, err := prepareConfiguration(c, manualInstallPreflightClient())
 	if err != nil {
 		return err
 	}
@@ -417,7 +425,16 @@ func ensureDataSourceReady() {
 	}
 }
 
-func prepareConfiguration(source string) (io.Reader, error) {
+// prepareConfiguration turns the config argument of manual-install into a
+// reader the collector can consume. A remote source is only checked for
+// existence here, the collector fetches it for real afterwards.
+//
+// client bounds that existence check. http.DefaultClient has a zero-value
+// Timeout, so a config server that completes the TCP handshake and then
+// never answers blocks the install forever, with nothing on screen. The
+// collector that fetches the same URL a moment later is bounded for the
+// same reason, see fetchRemoteConfig in sdk/collector.
+func prepareConfiguration(source string, client *http.Client) (io.Reader, error) {
 	var cfg io.Reader
 	// source can be either a file in the system or an url
 	// We need to differentiate between the two
@@ -434,7 +451,12 @@ func prepareConfiguration(source string) (io.Reader, error) {
 	}
 	// Its a remote url
 	// Check if it actually exists and fail if it doesn't
-	resp, err := http.Head(source)
+	req, err := http.NewRequest(http.MethodHead, source, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
