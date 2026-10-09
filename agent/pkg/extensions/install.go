@@ -265,12 +265,19 @@ func ResolveURI(cfg *sdkConfig.Config, catalogs extensions.Catalogs, requested e
 // so a config that names nothing but URIs installs without network access to
 // any index.
 //
-// Each entry downloads into its own staging directory inside target and is
-// then renamed in. Staging inside target keeps the move on one filesystem, so
-// no image is written twice, and it records which file came from which entry.
-// Without that, two entries resolving to the same file name overwrite each
-// other and the node keeps one of the two versions asked for with nothing in
-// the log to say which.
+// Every entry downloads into its own staging directory inside target, and
+// nothing is moved into target until all of them have been staged and their
+// names checked against each other. Staging inside target keeps the move on
+// one filesystem, so no image is written twice, and it records which file came
+// from which entry. Without that, two entries resolving to the same file name
+// overwrite each other and the node keeps one of the two versions asked for
+// with nothing in the log to say which.
+//
+// Staging the whole set before moving any of it is what makes the refusal
+// true. The name check used to run while the earlier entries were already in
+// target, so "nothing was installed" named a state the node was not in: the
+// images staged before the clash stayed on disk and were merged on the next
+// boot. See kairos-io/kairos#5370.
 func InstallDeclared(cfg *sdkConfig.Config, requested extensiontypes.Extensions, target string) ([]string, error) {
 	if len(requested) == 0 {
 		return nil, nil
@@ -289,60 +296,118 @@ func InstallDeclared(cfg *sdkConfig.Config, requested extensiontypes.Extensions,
 		return nil, err
 	}
 
-	var installed []string
-	installedBy := map[string]string{}
+	staged, err := stageDeclared(cfg, catalogs, requested, target)
+	defer func() {
+		for _, entry := range staged {
+			if removeErr := cfg.Fs.RemoveAll(entry.staging); removeErr != nil {
+				cfg.Logger.Logger.Warn().Str("dir", entry.staging).Err(removeErr).Msg("Could not remove the extension staging directory")
+			}
+		}
+	}()
+	if err != nil {
+		return nil, err
+	}
+
+	return moveStaged(cfg, staged, target)
+}
+
+// stagedExtension is one declared extension downloaded into its own staging
+// directory, with the names it put there in the order ReadDir returned them.
+type stagedExtension struct {
+	extension extensiontypes.Extension
+	staging   string
+	names     []string
+	isDir     map[string]bool
+}
+
+// stageDeclared downloads every requested extension into its own staging
+// directory under target and refuses a set in which two entries produce the
+// same file name.
+//
+// The staged entries are returned on the error path too, so the caller can
+// remove the directories that were created before the failure.
+func stageDeclared(cfg *sdkConfig.Config, catalogs extensions.Catalogs, requested extensiontypes.Extensions, target string) ([]stagedExtension, error) {
+	var staged []stagedExtension
+	stagedBy := map[string]string{}
 	for i, extension := range requested {
 		uri, err := ResolveURI(cfg, catalogs, extension)
 		if err != nil {
-			return nil, fmt.Errorf("resolve extension %s: %w", extension, err)
+			return staged, fmt.Errorf("resolve extension %s: %w", extension, err)
 		}
 
-		staging := filepath.Join(target, fmt.Sprintf(".staging-%d", i))
-		names, err := installToStaging(cfg, uri, staging, target, extension, installedBy)
-		if removeErr := cfg.Fs.RemoveAll(staging); removeErr != nil {
-			cfg.Logger.Logger.Warn().Str("dir", staging).Err(removeErr).Msg("Could not remove the extension staging directory")
-		}
+		entry, err := stageOne(cfg, uri, filepath.Join(target, fmt.Sprintf(".staging-%d", i)), extension, stagedBy)
+		staged = append(staged, entry)
 		if err != nil {
-			return nil, err
+			return staged, err
 		}
+	}
+	return staged, nil
+}
 
-		installed = append(installed, names...)
-		cfg.Logger.Logger.Info().Str("extension", extension.String()).Str("target", target).Msg("Installed extension")
+// stageOne downloads one extension into staging and records the names it
+// produced there, rejecting a name an earlier entry already staged.
+//
+// The returned entry always carries its staging path, including on the error
+// path, because the directory may exist even when the download failed
+// part-way.
+func stageOne(cfg *sdkConfig.Config, uri, staging string, extension extensiontypes.Extension, stagedBy map[string]string) (stagedExtension, error) {
+	entry := stagedExtension{extension: extension, staging: staging, isDir: map[string]bool{}}
+
+	if err := Install(cfg, uri, staging); err != nil {
+		return entry, fmt.Errorf("install extension %s: %w", extension, err)
+	}
+
+	dirEntries, err := cfg.Fs.ReadDir(staging)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return entry, nil
+		}
+		return entry, fmt.Errorf("reading what extension %s installed: %w", extension, err)
+	}
+
+	for _, dirEntry := range dirEntries {
+		name := dirEntry.Name()
+		if owner, clash := stagedBy[name]; clash {
+			return entry, fmt.Errorf("extensions %s and %s both install %s: only one of the two would survive, so nothing was installed", owner, extension, name)
+		}
+		stagedBy[name] = extension.String()
+		entry.names = append(entry.names, name)
+		entry.isDir[name] = dirEntry.IsDir()
+	}
+	return entry, nil
+}
+
+// moveStaged moves every staged file into target and returns the file names it
+// installed, in install order. Directories are moved but not reported, which
+// is what an OCI source produces alongside the image.
+//
+// A rename can still fail here, and there is no filesystem transaction to undo
+// the ones that already succeeded, so the error names what is on the node
+// instead of claiming nothing is.
+func moveStaged(cfg *sdkConfig.Config, staged []stagedExtension, target string) ([]string, error) {
+	var installed, moved []string
+	for _, entry := range staged {
+		for _, name := range entry.names {
+			if err := cfg.Fs.Rename(filepath.Join(entry.staging, name), filepath.Join(target, name)); err != nil {
+				return nil, fmt.Errorf("moving %s from extension %s into %s%s: %w", name, entry.extension, target, alreadyInTarget(moved), err)
+			}
+			moved = append(moved, name)
+			if !entry.isDir[name] {
+				installed = append(installed, name)
+			}
+		}
+		cfg.Logger.Logger.Info().Str("extension", entry.extension.String()).Str("target", target).Msg("Installed extension")
 	}
 	return installed, nil
 }
 
-// installToStaging downloads one extension into staging and moves what it
-// produced into target, recording each name in installedBy so that a later
-// entry producing the same name is reported instead of overwriting it.
-func installToStaging(cfg *sdkConfig.Config, uri, staging, target string, extension extensiontypes.Extension, installedBy map[string]string) ([]string, error) {
-	if err := Install(cfg, uri, staging); err != nil {
-		return nil, fmt.Errorf("install extension %s: %w", extension, err)
+// alreadyInTarget renders the clause naming what a failed move leaves behind,
+// so the operator is not left to guess which half of the set reached the node.
+func alreadyInTarget(moved []string) string {
+	if len(moved) == 0 {
+		return ", and nothing was installed"
 	}
-
-	entries, err := cfg.Fs.ReadDir(staging)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("reading what extension %s installed: %w", extension, err)
-	}
-
-	var names []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if owner, clash := installedBy[name]; clash {
-			return nil, fmt.Errorf("extensions %s and %s both install %s: only one of the two would survive, so nothing was installed", owner, extension, name)
-		}
-		if err := cfg.Fs.Rename(filepath.Join(staging, name), filepath.Join(target, name)); err != nil {
-			return nil, fmt.Errorf("moving %s from extension %s into %s: %w", name, extension, target, err)
-		}
-		installedBy[name] = extension.String()
-		if !entry.IsDir() {
-			names = append(names, name)
-		}
-	}
-	return names, nil
+	return ", after installing " + strings.Join(moved, ", ")
 }
 
 // requestedNeedsCatalog reports whether any entry has to be looked up by name.
