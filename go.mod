@@ -35,7 +35,7 @@ require (
 	github.com/jaypipes/ghw v0.25.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kairos-io/go-nodepair v0.3.0
-	github.com/kairos-io/tpm-helpers v0.0.0-20260901080153-3b403a08f864
+	github.com/kairos-io/tpm-helpers v0.0.0-20260922065406-012adaae3798
 	github.com/labstack/echo/v5 v5.3.1
 	github.com/moby/moby/api v1.56.0
 	github.com/moby/moby/client v0.6.0
