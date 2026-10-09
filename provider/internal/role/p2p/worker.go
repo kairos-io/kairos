@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 
@@ -79,6 +80,10 @@ func Worker(cc *sdkConfig.Config, pconfig *providerConfig.Config) role.Role { //
 			return err
 		}
 
+		if err := writeWorkerEnv(svc, node); err != nil {
+			return err
+		}
+
 		c.Logger.Info(fmt.Sprintf("Configuring %s worker", node.Distro()))
 		if err := svc.OverrideCmd(fmt.Sprintf("%s %s %s", k8sBin, node.Role(), strings.Join(args, " "))); err != nil {
 			return err
@@ -96,4 +101,25 @@ func Worker(cc *sdkConfig.Config, pconfig *providerConfig.Config) role.Role { //
 
 		return role.CreateSentinel()
 	}
+}
+
+// writeWorkerEnv writes the environment the node's own configuration block
+// declares into the worker service's env file.
+//
+// The master path does this through svc.SetEnv in master.go, and the non-p2p
+// path through svc.SetEnv in bootstrap.go. This path did not, and k0s has no
+// other writer: K3sNode.SetupWorker has to write an env file for K3S_URL and
+// K3S_TOKEN and folds k3s-agent.env in while it is there, while a k0s worker
+// joins with --token-file and so writes no environment at all. Without this,
+// k0s-worker.env is accepted, validated and dropped.
+//
+// Nothing is written when the block declares no environment, so a node that
+// configures none is left with the file its init system already has.
+func writeWorkerEnv(svc machine.Service, node K8sNode) error {
+	env := node.Env()
+	if len(env) == 0 {
+		return nil
+	}
+
+	return svc.SetEnv(env)
 }
