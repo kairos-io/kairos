@@ -1030,8 +1030,15 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			sbin, err := fs.RawPath("/usr/sbin")
 			Expect(err).ShouldNot(HaveOccurred())
 
-			path := os.Getenv("PATH")
-			os.Setenv("PATH", fmt.Sprintf("%s:%s", sbin, path))
+			// PATH is replaced, not prepended: a host that ships its own
+			// chcon would otherwise keep satisfying CommandExists after the
+			// mock is removed, and "does nothing if chcon is not available"
+			// would run the command it asserts never runs.
+			origPath := os.Getenv("PATH")
+			os.Setenv("PATH", sbin)
+			DeferCleanup(func() {
+				os.Setenv("PATH", origPath)
+			})
 			_, err = fs.Create("/usr/sbin/chcon")
 			Expect(err).ShouldNot(HaveOccurred())
 			err = fs.Chmod("/usr/sbin/chcon", 0o777)
