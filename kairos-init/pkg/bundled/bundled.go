@@ -500,6 +500,32 @@ install() {
 // RemainAfterExit keeps a second `systemctl start` a no-op rather than a
 // replay of the animation.
 //
+// DefaultDependencies=no is what makes the animation continuous across
+// switch-root. The default dependencies put After=basic.target on the unit,
+// and basic.target is the whole of sysinit plus sockets: on a measured boot
+// the initramfs animation was killed at 11.23 s and this unit only started at
+// 13.96 s, so the console sat blank with systemd status on it for 2.7 s in
+// between. Nothing the splash draws needs any of that work. The binary is in
+// the root image immucore mounted before switch-root, the /run/cos sentinels
+// the conditions read were written in the initramfs and /run survives the
+// switch, and /dev/tty1 comes from devtmpfs at kernel init.
+//
+// The one thing it does need is systemd-vconsole-setup.service, which loads
+// the console font and keymap. It carries Before=sysinit.target, so it still
+// runs well inside the gap, and ordering after it keeps the block-art glyphs
+// from being painted with a font that is about to be replaced under them.
+//
+// Dropping the default dependencies also drops the two that stop a unit at
+// shutdown, so they are written out again. Without them a cosmetic oneshot
+// with RemainAfterExit=yes is still "active" while the system goes down, and
+// systemd has no order in which to stop it.
+//
+// Starting this early means the unit is now reliably on screen before a DRM
+// driver binds and fbcon switches resolution, instead of racing it by about
+// 70 ms as it did before. The animation has to follow a console that changes
+// size underneath it for that to look right, which is why this change belongs
+// after the TIOCGWINSZ poll in internal/splash.
+//
 // The conditions are the boots that own tty1 themselves, or that a human is
 // watching for output, and so must not have a logo drawn over them: the live
 // ISO (the interactive installer runs there), an automatic state reset, and
@@ -508,6 +534,10 @@ install() {
 // themselves out of a recovery boot.
 const SplashService = `[Unit]
 Description=Kairos boot splash
+DefaultDependencies=no
+After=systemd-vconsole-setup.service
+Conflicts=shutdown.target
+Before=shutdown.target
 Before=getty.target
 Before=getty@tty1.service
 ConditionKernelCommandLine=splash
