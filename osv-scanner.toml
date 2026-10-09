@@ -61,52 +61,6 @@ id = "GO-2026-5932"
 ignoreUntil = 2026-11-10
 reason = "no-fix-available: golang.org/x/crypto. No fixed version published at any of the versions in the bundle."
 
-[[IgnoredVulns]]
-id = "GO-2026-4479"
-ignoreUntil = 2026-11-29
-reason = "no-fix-available: github.com/pion/dtls/v2, unmaintained with no fixed version published. Reached only through libp2p's optional WebRTC transport, which the provider does not enable. New to the root module graph with the provider-kairos absorption; carried over from that repo's own osv-scanner.toml."
-
-
-# ---------------------------------------------------------------------------
-# major-upgrade-required -- fixed in containerd 2.3.2, a 1.7 -> 2.3 major
-# upgrade inside provider-kairos. Planned work, not a release-time decision.
-# ---------------------------------------------------------------------------
-
-[[IgnoredVulns]]
-id = "GHSA-xhf5-7wjv-pqxp"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-53488, containerd. Fixed in 2.3.2, a major upgrade in provider-kairos."
-
-[[IgnoredVulns]]
-id = "GO-2026-5758"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-53488 (Go advisory alias), containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GHSA-jpcc-p29g-p8mq"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-47262, containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5475"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-47262 (Go advisory alias), containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5064"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-53492, containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5338"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-50195, containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5622"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-53489, containerd. Fixed in 2.3.2."
-
 
 # ---------------------------------------------------------------------------
 # upstream-regression -- a fix exists upstream, but taking it breaks the
