@@ -16,11 +16,15 @@ import (
 // than sdk/types/config.Config, with the reader, so a key can only be here on
 // purpose.
 var readOutsideConfig = map[string]string{
-	"kcrypt":  "sdk/kcrypt through the collector scan (ScanKcryptConfig, ScanEncryptOnBootPolicy), read by immucore and the kcrypt hooks",
-	"kubevip": "provider-kairos, provider/internal/role/p2p",
-	"p2p":     "provider-kairos, provider/internal/role",
-	"stages":  "yip, through the cloud-init runner",
-	"users":   "the yip users plugin, run from the initramfs stage",
+	"k0s":        "provider-kairos, provider/internal/provider/config K0s, as the k0s controller block",
+	"k0s-worker": "provider-kairos, provider/internal/provider/config K0s, as the k0s worker block",
+	"k3s":        "provider-kairos, provider/internal/provider/config K3s, as the k3s server block",
+	"k3s-agent":  "provider-kairos, provider/internal/provider/config K3s, as the k3s agent block",
+	"kcrypt":     "sdk/kcrypt through the collector scan (ScanKcryptConfig, ScanEncryptOnBootPolicy), read by immucore and the kcrypt hooks",
+	"kubevip":    "provider-kairos, provider/internal/role/p2p",
+	"p2p":        "provider-kairos, provider/internal/role",
+	"stages":     "yip, through the cloud-init runner",
+	"users":      "the yip users plugin, run from the initramfs stage",
 }
 
 // The parity check in agent/pkg/config guards one direction: every field of

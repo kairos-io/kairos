@@ -28,6 +28,10 @@ type RootSchema struct {
 	// agent/pkg/config). An explicit empty list is still rejected.
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
+	K3s                       K3sSchema                `json:"k3s,omitempty"`
+	K3sAgent                  K3sSchema                `json:"k3s-agent,omitempty"`
+	K0s                       K0sSchema                `json:"k0s,omitempty"`
+	K0sWorker                 K0sSchema                `json:"k0s-worker,omitempty"`
 	KubeVIP                   KubeVIPSchema            `json:"kubevip,omitempty"`
 	Debug                     bool                     `json:"debug,omitempty" mapstructure:"debug"`
 	Strict                    bool                     `json:"strict,omitempty" mapstructure:"strict"`
