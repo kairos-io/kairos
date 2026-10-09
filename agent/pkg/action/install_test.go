@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
@@ -120,9 +121,14 @@ var _ = Describe("Install action tests", func() {
 
 			cmdFail = ""
 			runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+				// Match cmdFail against the whole command line, not only the
+				// binary name, so a spec can fail one invocation of a binary
+				// the install runs several times -- the tune2fs that labels
+				// each image is run once per image.
+				full := strings.TrimSpace(cmd + " " + strings.Join(args, " "))
 				regexCmd := regexp.MustCompile(cmdFail)
-				if cmdFail != "" && regexCmd.MatchString(cmd) {
-					return []byte{}, fmt.Errorf("failed on %s", cmd)
+				if cmdFail != "" && regexCmd.MatchString(full) {
+					return []byte{}, fmt.Errorf("failed on %s", full)
 				}
 				switch cmd {
 				case "lsblk":
@@ -420,7 +426,9 @@ var _ = Describe("Install action tests", func() {
 			err := config.Fs.Remove(filepath.Join(spec.Active.MountPoint, "sbin", "grub2-install"))
 			Expect(err).To(BeNil())
 			Expect(installer.Run()).NotTo(BeNil())
-			Expect(runner.MatchMilestones([][]string{{"grub2-install"}}))
+			// The install gives up before invoking the bootloader, so the disk
+			// is never left carrying a half-written GRUB.
+			Expect(runner.IncludesCmds([][]string{{"grub2-install"}})).NotTo(BeNil())
 		})
 
 		It("Runs grub-install chrooted into the source rootfs with relative paths", Label("grub", "chroot"), func() {
@@ -443,16 +451,18 @@ var _ = Describe("Install action tests", func() {
 
 		It("Fails copying Passive image", Label("copy", "active"), func() {
 			spec.Target = device
-			cmdFail = "tune2fs"
+			cmdFail = "tune2fs -L " + constants.PassiveLabel
 			Expect(installer.Run()).NotTo(BeNil())
-			Expect(runner.MatchMilestones([][]string{{"tune2fs", "-L", constants.PassiveLabel}}))
+			Expect(runner.MatchMilestones([][]string{{"tune2fs", "-L", constants.PassiveLabel}})).To(BeNil())
 		})
 		It("Fails if there is no grub2 artifacts", Label("grub"), func() {
 			spec.Target = device
 			err := config.Fs.Remove(filepath.Join(spec.Active.MountPoint, "usr", "lib", "grub", "i386-pc", "modinfo.sh"))
 			Expect(err).To(BeNil())
 			Expect(installer.Run()).NotTo(BeNil())
-			Expect(runner.MatchMilestones([][]string{{"grub2-install"}}))
+			// The install gives up before invoking the bootloader, so the disk
+			// is never left carrying a half-written GRUB.
+			Expect(runner.IncludesCmds([][]string{{"grub2-install"}})).NotTo(BeNil())
 		})
 	})
 })

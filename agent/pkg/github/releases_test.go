@@ -126,13 +126,13 @@ var _ = Describe("Releases", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(releases)).To(BeNumerically(">", 0))
 		// Expect the first one to be greater than the last one
-		Expect(releases[0].GreaterThan(releases[len(releases)-1]))
+		Expect(releases[0].GreaterThan(releases[len(releases)-1])).To(BeTrue())
 	})
 	It("can find the proper releases in order with prereleases", func() {
 		releases, err := github.FindReleases(context.Background(), token, "kairos-io/kairos", true)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(releases)).To(BeNumerically(">", 0))
 		// Expect the first one to be greater than the last one
-		Expect(releases[0].GreaterThan(releases[len(releases)-1]))
+		Expect(releases[0].GreaterThan(releases[len(releases)-1])).To(BeTrue())
 	})
 })
