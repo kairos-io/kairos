@@ -106,6 +106,11 @@ type fileSource struct {
 // Download streams the file to the destination with bounded memory usage
 // Uses io.Copy instead of buffering the entire file to avoid OOM on pods with limited memory
 func (f *fileSource) Download(dst string) error {
+	name := filepath.Base(f.uri)
+	if err := checkExtensionFileName(f.uri, name); err != nil {
+		return err
+	}
+
 	// Open source file for reading
 	srcFile, err := f.cfg.Fs.Open(f.uri)
 	if err != nil {
@@ -120,7 +125,7 @@ func (f *fileSource) Download(dst string) error {
 	}
 
 	// Create destination file with same permissions
-	dstFile := filepath.Join(dst, filepath.Base(f.uri))
+	dstFile := filepath.Join(dst, name)
 	dstFileHandle, err := f.cfg.Fs.OpenFile(dstFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, stat.Mode())
 	if err != nil {
 		return fmt.Errorf("failed to create file %s: %w", dstFile, err)
@@ -142,7 +147,11 @@ type httpSource struct {
 }
 
 func (h httpSource) Download(s string) error {
-	target := filepath.Join(s, extensionFileNameFromURI(h.uri))
+	name, err := extensionFileNameFromURI(h.uri)
+	if err != nil {
+		return err
+	}
+	target := filepath.Join(s, name)
 	h.cfg.Logger.Logger.Debug().Str("uri", h.uri).Str("target", target).Msg("Downloading system extension")
 	return h.cfg.Client.GetURL(sdkLogger.NewNullLogger(), h.uri, target)
 }
@@ -153,11 +162,36 @@ func (h httpSource) Download(s string) error {
 // the file name. A name with a query attached loses its `.raw` suffix, which
 // ListExtensions relies on to find the extension again. Falls back to the raw
 // basename when the URI does not parse or carries no path.
-func extensionFileNameFromURI(uri string) string {
+//
+// The derived name is returned alongside the error, so a caller that wants to
+// report the name does not have to derive it a second time.
+func extensionFileNameFromURI(uri string) (string, error) {
+	name := filepath.Base(uri)
 	if u, err := url.Parse(uri); err == nil && u.Path != "" {
-		return filepath.Base(u.Path)
+		name = filepath.Base(u.Path)
 	}
-	return filepath.Base(uri)
+	return name, checkExtensionFileName(uri, name)
+}
+
+// checkExtensionFileName refuses a name the merge could never pick up.
+//
+// ListExtensions keeps a directory entry only when its extension is ".raw", so
+// a download written under any other name is dead the moment it lands: it is
+// invisible to `sysext list`, to `sysext enable` and to the merge itself, and
+// nothing in the log says so. Failing here turns that silent no-op into a
+// diagnosis.
+//
+// A URL that carries the identity of the file in its query string rather than
+// in its path is what made this worth checking. Pixiecore serves every
+// artifact as `/_/file?name=<id>`, so the path basename of every extension in
+// a netbooted node's `kairos.extensions=` is the literal string "file": one
+// such extension installs as a file nothing will ever read, and two of them
+// collide on that one name. See kairos-io/kairos#5369.
+func checkExtensionFileName(uri, name string) error {
+	if filepath.Ext(name) == ".raw" {
+		return nil
+	}
+	return fmt.Errorf("the URI %s names the extension %q, and only a name ending in .raw is ever merged, so the download would be installed and then ignored", uri, name)
 }
 
 type dockerSource struct {

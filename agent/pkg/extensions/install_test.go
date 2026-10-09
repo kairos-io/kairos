@@ -389,3 +389,82 @@ func TestInstallCreatesATargetWrittenWithATrailingSlash(t *testing.T) {
 		t.Fatalf("extension was not written: %v", err)
 	}
 }
+
+// Pixiecore mints every served URL as /_/file?name=<id>, so the path basename
+// of every extension in a netbooted node's kairos.extensions= is the literal
+// string "file". Writing the download under that name installs an image the
+// merge never picks up, and `sysext list` reports nothing, with no error to
+// explain it. The install refuses before it writes or fetches anything. See
+// kairos-io/kairos#5369.
+func TestInstallRefusesAnHTTPURIThatNamesNothingMergeable(t *testing.T) {
+	cfg, client, _ := testConfig(t, nil)
+	const uri = "http://10.0.0.1:8090/_/file?name=other-2"
+
+	err := installer.Install(cfg, uri, "/var/lib/kairos/extensions")
+	if err == nil {
+		t.Fatal("Install accepted a URI whose path basename is \"file\"")
+	}
+	for _, want := range []string{uri, `"file"`, ".raw"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not mention %s", err, want)
+		}
+	}
+	if len(client.requested) != 0 {
+		t.Fatalf("the image was fetched anyway: %v", client.requested)
+	}
+	entries, err := cfg.Fs.ReadDir("/var/lib/kairos/extensions")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("the target is not empty: %v", entries)
+	}
+}
+
+// The same rule holds for a local image: a file whose name the merge skips is
+// refused rather than copied into the extensions directory.
+func TestInstallRefusesAFileURIThatNamesNothingMergeable(t *testing.T) {
+	cfg, _, _ := testConfig(t, nil)
+	if err := vfs.MkdirAll(cfg.Fs, "/src", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.WriteFile("/src/tools.sysext", []byte("extension"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := installer.Install(cfg, "file:/src/tools.sysext", "/var/lib/kairos/extensions")
+	if err == nil {
+		t.Fatal("Install accepted a local image with no .raw suffix")
+	}
+	if !strings.Contains(err.Error(), `"tools.sysext"`) {
+		t.Fatalf("error %q does not name the file it refused", err)
+	}
+	if _, err := cfg.Fs.Stat("/var/lib/kairos/extensions/tools.sysext"); !os.IsNotExist(err) {
+		t.Fatalf("the image was copied in anyway: %v", err)
+	}
+}
+
+// Two pixiecore URLs used to collide on the name "file" and only then be
+// reported, which named the collision rather than its cause. The first entry
+// is now refused on its own, and the message points at the URI.
+func TestInstallDeclaredRefusesAPixiecoreServedExtension(t *testing.T) {
+	cfg, _, _ := testConfig(t, nil)
+	requested := extensiontypes.Extensions{
+		{Name: "http://10.0.0.1:8090/_/file?name=other-2"},
+		{Name: "http://10.0.0.1:8090/_/file?name=other-3"},
+	}
+
+	installed, err := installer.InstallDeclared(cfg, requested, "/var/lib/kairos/extensions")
+	if err == nil {
+		t.Fatal("InstallDeclared accepted two URIs that both derive the name \"file\"")
+	}
+	if len(installed) != 0 {
+		t.Fatalf("InstallDeclared reported installing %v", installed)
+	}
+	if !strings.Contains(err.Error(), "http://10.0.0.1:8090/_/file?name=other-2") {
+		t.Fatalf("error %q does not name the entry it refused", err)
+	}
+	if !strings.Contains(err.Error(), ".raw") {
+		t.Fatalf("error %q does not say what the name has to end in", err)
+	}
+}
