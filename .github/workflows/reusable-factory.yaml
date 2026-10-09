@@ -877,9 +877,30 @@ jobs:
             echo "path=" >> $GITHUB_OUTPUT
           fi
 
+      # `fail-build: false` only stops grype failing on findings. The action
+      # downloads the grype release asset at run time, so it can also fail for
+      # reasons that say nothing about the image: a 500 from the release CDN, a
+      # checksum mismatch on a truncated download, a vulnerability database
+      # that will not fetch. Those used to fail this job, and every scan step
+      # runs before "Push Kairos image", so a build that was told not to gate
+      # on scanning never published its image.
+      #
+      # Whether a scanner is allowed to fail the job follows from whether its
+      # findings gate the build in the mode we are running in:
+      #
+      #   mode          grype gates   trivy gates
+      #   legacy        yes           no
+      #   enforce       yes           yes
+      #   report-only   no            no
+      #
+      # A scan that gates fails closed: if it cannot run we do not know whether
+      # the image is clean, so the build has to stop. A scan that gates nothing
+      # must not be able to fail the build at all. Findings are still handled
+      # exactly as before, by the parse and enforce steps below.
       - name: Run Grype security scan
         if: inputs.grype
         id: grype
+        continue-on-error: ${{ inputs.security_scan_mode == 'report-only' }}
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         with:
           image: ${{ steps.setup.outputs.image_tag }}
@@ -894,14 +915,22 @@ jobs:
         id: grype-results
         env:
           STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
+          INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
         run: |
-          # Check if the JSON file exists and is not empty
+          # Check if the JSON file exists and is not empty. This is the
+          # scanner-did-not-run case: either the step above was tolerated by
+          # continue-on-error, or it reported success without producing output.
           if [[ ! -f "${STEPS_GRYPE_OUTPUTS_JSON}" ]] || [[ ! -s "${STEPS_GRYPE_OUTPUTS_JSON}" ]]; then
+            echo "critical_count=0" >> $GITHUB_OUTPUT
+            echo "status=error" >> $GITHUB_OUTPUT
+            if [[ "${INPUTS_SECURITY_SCAN_MODE}" == "report-only" ]]; then
+              echo "::warning title=Grype scan did not run::The Grype scan produced no results, so this image was not scanned by Grype. The build is not gated on Grype in report-only mode, so it continues."
+              exit 0
+            fi
             echo "❌ Error: Grype JSON output file is missing or empty"
             echo "   Expected file: ${STEPS_GRYPE_OUTPUTS_JSON}"
             echo "   This indicates the Grype scan failed or didn't produce output"
-            echo "critical_count=0" >> $GITHUB_OUTPUT
-            echo "status=error" >> $GITHUB_OUTPUT
+            echo "   Grype gates the build in '${INPUTS_SECURITY_SCAN_MODE}' mode, so this is a failure."
             exit 1
           fi
 
@@ -920,9 +949,12 @@ jobs:
             echo "✅ Grype found no critical vulnerabilities."
           fi
 
+      # Trivy findings only gate the build in 'enforce' mode, so 'legacy' and
+      # 'report-only' tolerate a Trivy that cannot run.
       - name: Run Trivy security scan
         if: inputs.trivy
         id: trivy-scan
+        continue-on-error: ${{ inputs.security_scan_mode != 'enforce' }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ steps.setup.outputs.image_tag }}
@@ -935,11 +967,18 @@ jobs:
         if: inputs.trivy
         id: trivy-results
         shell: bash
+        env:
+          INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
         run: |
           if [[ ! -f "trivy.json" ]] || [[ ! -s "trivy.json" ]]; then
-            echo "❌ Error: Trivy JSON output file is missing or empty"
             echo "critical_count=0" >> $GITHUB_OUTPUT
             echo "status=error" >> $GITHUB_OUTPUT
+            if [[ "${INPUTS_SECURITY_SCAN_MODE}" != "enforce" ]]; then
+              echo "::warning title=Trivy scan did not run::The Trivy scan produced no results, so this image was not scanned by Trivy. The build is not gated on Trivy in '${INPUTS_SECURITY_SCAN_MODE}' mode, so it continues."
+              exit 0
+            fi
+            echo "❌ Error: Trivy JSON output file is missing or empty"
+            echo "   Trivy gates the build in 'enforce' mode, so this is a failure."
             exit 1
           fi
 
@@ -1037,8 +1076,14 @@ jobs:
           STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
           STEPS_TRIVY_RESULTS_OUTPUTS_CRITICAL_COUNT: ${{ steps.trivy-results.outputs.critical_count }}
 
+      # SARIF generation and upload only feed the GitHub Security tab. Nothing
+      # downstream gates on them, so they must not be able to fail the job and
+      # block the push. The one exception is grype_sarif_fail_build, which is
+      # the caller asking for findings to fail the job, and which is left
+      # intact.
       - name: Run Trivy SARIF scan
         if: inputs.trivy_sarif
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ steps.setup.outputs.image_tag }}
@@ -1050,6 +1095,7 @@ jobs:
 
       - name: Generate Grype SARIF
         if: inputs.grype_sarif
+        continue-on-error: ${{ !inputs.grype_sarif_fail_build }}
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         with:
           image: ${{ steps.setup.outputs.image_tag }}
@@ -1061,8 +1107,11 @@ jobs:
           fail-build: ${{ inputs.grype_sarif_fail_build }}
           config: ${{ steps.grype-config.outputs.path }}
 
+      # The hashFiles guards keep the filter and upload steps from failing on a
+      # SARIF file the step above did not manage to write.
       - name: Filter Grype SARIF to critical
-        if: inputs.grype_sarif
+        if: inputs.grype_sarif && hashFiles('grype.sarif') != ''
+        continue-on-error: true
         uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433  # v1
         with:
           input: grype.sarif
@@ -1070,7 +1119,8 @@ jobs:
           severity: critical
 
       - name: Filter Trivy SARIF to critical
-        if: inputs.trivy_sarif
+        if: inputs.trivy_sarif && hashFiles('trivy.sarif') != ''
+        continue-on-error: true
         uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433  # v1
         with:
           input: trivy.sarif
@@ -1078,14 +1128,16 @@ jobs:
           severity: critical
 
       - name: Upload Trivy scan results to GitHub Security tab
-        if: inputs.trivy_sarif
+        if: inputs.trivy_sarif && hashFiles('trivy.sarif') != ''
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63  # v4.38.0
         with:
           sarif_file: 'trivy.sarif'
           category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
 
       - name: Upload Grype scan results to GitHub Security tab
-        if: inputs.grype_sarif
+        if: inputs.grype_sarif && hashFiles('grype.sarif') != ''
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63  # v4.38.0
         with:
           sarif_file: 'grype.sarif'
