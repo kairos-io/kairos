@@ -340,6 +340,13 @@ const (
 // Kairos drives plymouth: an encrypted boot asks for its passphrase on the
 // console through kcrypt, and immucore's failure screen paints there too, so
 // both are better off with plymouth out of the picture.
+//
+// Omitting it does cost something that is not obvious from this line: dracut's
+// plymouth module is what pulls the drm (or simpledrm) module in, through its
+// depends(), and both of those have a check() that returns 255, so neither is
+// ever included on its own. Without plymouth an initramfs therefore has no KMS
+// driver at all. The kairos-splash module's installkernel() brings back the
+// few drivers the animation needs.
 const SplashDracutConfig = `add_dracutmodules+=" kairos-splash "
 omit_dracutmodules+=" plymouth "`
 
@@ -433,6 +440,36 @@ check() {
 # /dev/kmsg, both of which systemd and the kernel provide.
 depends() {
     return 0
+}
+
+# Without a KMS driver the initramfs has no framebuffer, so /dev/tty1 is the
+# firmware text console: 80x25 cells on a BIOS VGA machine. The booted system
+# binds a real driver and fbcon switches to the panel resolution, 160x50 on the
+# same screen, so the second half of the animation is drawn into cells less than
+# half the size and the logo visibly shrinks at switch-root. Pulling a driver in
+# here gives both halves the same console geometry.
+#
+# dracut's own drm module is not the way to do that. Kairos builds with
+# hostonly="no" (see ImmucoreConfigDracut), and with no host to narrow it down
+# that module installs every KMS driver under drivers/gpu/drm: tens of megabytes
+# of initramfs for a logo. The three below are the small drivers that cover the
+# displays an image is most often watched on: a firmware framebuffer and the two
+# emulated adapters QEMU offers. Hardware with a native driver keeps it in the
+# root filesystem and takes the console over after switch-root, which is the
+# handover simpledrm exists for.
+#
+#   - simpledrm, for the framebuffer EFI hands over.
+#   - bochs, for QEMU -vga std. bochs-drm is the same driver's name before
+#     Linux 6.4, listed as well because kairos-init builds on base images whose
+#     kernels straddle the rename.
+#   - virtio-gpu, for QEMU and the cloud hypervisors that use virtio.
+#
+# instmods is optional unless called with -c, so a kernel built without one of
+# these skips it instead of failing the image build. hostonly='' keeps that
+# decision independent of the hardware the image happens to be built on, the
+# same way dracut's own simpledrm module does it.
+installkernel() {
+    hostonly='' instmods simpledrm bochs bochs-drm virtio-gpu
 }
 
 install() {
