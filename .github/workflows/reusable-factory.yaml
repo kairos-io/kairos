@@ -182,11 +182,29 @@ on:
       output_format:
         type: string
         default: "auto"
+        description: |
+          Not implemented. This workflow does not read this input, and it has
+          never read it: it arrived with the factory-action subtree already
+          dead. It is still declared so that an existing caller keeps parsing,
+          but setting it to anything other than the default now fails the
+          build instead of being dropped silently.
+
+          Select artifacts with the `iso`, `raw`, `vhd`, `gce` and `tar`
+          booleans instead.
 
       # Security and signing
       security_checks:
         type: string
         default: ""
+        description: |
+          Not implemented. This workflow does not read this input, and it has
+          never read it. Nothing is scanned because this is set, so a build
+          that passes it is not a build that was scanned. Setting it to
+          anything other than the default now fails the build rather than
+          being dropped silently.
+
+          Enable scanning with the `cosign`, `grype`, `trivy` and `sbom`
+          booleans, and choose the policy with `security_scan_mode`.
 
       security_scan_mode:
         type: string
@@ -542,6 +560,27 @@ jobs:
               ;;
           esac
 
+          # Reject the two inputs this workflow declares but does not
+          # implement. They are kept in the workflow_call block so that an
+          # existing caller keeps parsing, but a caller that sets one is
+          # asking for something that will not happen, and silence there is
+          # worse than a failure: security_checks reads as a scanning control
+          # and enables no scan at all.
+          if [[ "${INPUTS_SECURITY_CHECKS}" != "" ]]; then
+            echo "❌ Error: security_checks is not implemented by this workflow and never has been."
+            echo "   Nothing is scanned because it is set. Enable scanning with the"
+            echo "   'cosign', 'grype', 'trivy' and 'sbom' inputs, and choose the policy"
+            echo "   with 'security_scan_mode'. Remove 'security_checks' from the caller."
+            exit 1
+          fi
+
+          if [[ "${INPUTS_OUTPUT_FORMAT}" != "auto" ]]; then
+            echo "❌ Error: output_format is not implemented by this workflow and never has been."
+            echo "   Select artifacts with the 'iso', 'raw', 'vhd', 'gce' and 'tar' inputs."
+            echo "   Remove 'output_format' from the caller, or leave it at 'auto'."
+            exit 1
+          fi
+
           echo "✅ Input validation passed"
         env:
           INPUTS_DOCKERFILE_PATH: ${{ inputs.dockerfile_path }}
@@ -550,6 +589,8 @@ jobs:
           INPUTS_KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
           INPUTS_ARCH: ${{ inputs.arch }}
           INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
+          INPUTS_SECURITY_CHECKS: ${{ inputs.security_checks }}
+          INPUTS_OUTPUT_FORMAT: ${{ inputs.output_format }}
 
       - name: Setup environment
         id: setup
