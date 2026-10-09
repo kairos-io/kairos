@@ -16,10 +16,10 @@ func Worker(cc *sdkConfig.Config, pconfig *providerConfig.Config) role.Role { //
 	return func(c *service.RoleConfig) error {
 		c.Logger.Info("Starting Worker")
 
-		if pconfig.P2P.Role != "" {
+		if pinnedRole := pconfig.P2P.HardcodedRole(); pinnedRole != "" {
 			// propagate role if we were forced by configuration
 			// This unblocks eventual auto instances to try to assign roles
-			if err := c.Client.Set("role", c.UUID, pconfig.P2P.Role); err != nil {
+			if err := c.Client.Set("role", c.UUID, pinnedRole); err != nil {
 				return err
 			}
 		}

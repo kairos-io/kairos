@@ -5,6 +5,11 @@ import "github.com/kube-vip/kube-vip/pkg/kubevip"
 const (
 	K3sDistro = "k3s"
 	K0sDistro = "k0s"
+
+	// RoleNone is the value the Kairos schema used to advertise as the
+	// default for p2p.role. No role handler was ever registered for it, so
+	// it is treated as "no hardcoded role".
+	RoleNone = "none"
 )
 
 type P2P struct {
@@ -20,6 +25,17 @@ type P2P struct {
 	Auto         Auto `yaml:"auto,omitempty"`
 
 	DynamicRoles bool `yaml:"dynamic_roles,omitempty"`
+}
+
+// HardcodedRole returns the role the user pinned this node to, or the empty
+// string when the node has to take its role from the p2p ledger. `none` maps
+// to the empty string: it was the schema's advertised default, so it is in the
+// wild, and nothing ever implemented it as a role.
+func (p P2P) HardcodedRole() string {
+	if p.Role == RoleNone {
+		return ""
+	}
+	return p.Role
 }
 
 func (p P2P) IsAutoEnabled() bool {
