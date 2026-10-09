@@ -11,6 +11,17 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
+// luksUUID reads the LUKS UUID of a device. cryptsetup prints the UUID on
+// stdout and its warnings on stderr, and it warns on a successful run whenever
+// /run/cryptsetup is missing, so only stdout can be parsed here.
+func luksUUID(device string) (uuid.UUID, error) {
+	out, err := utils.SHStdout(fmt.Sprintf("cryptsetup luksUUID %s", device))
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return uuid.FromString(strings.TrimSpace(out))
+}
+
 // UpgradeKcryptPartitions will try check for the uuid of the persistent partition and upgrade its uuid.
 func UpgradeKcryptPartitions() error {
 	// Generate the predictable UUID
@@ -25,19 +36,13 @@ func UpgradeKcryptPartitions() error {
 				KLog.Logger.Debug().Str("label", p.FilesystemLabel).Str("dev", p.Name).Msg("found luks partition")
 				if p.FilesystemLabel == "persistent" {
 					// Get current UUID
-					volumeUUID, err := utils.SH(fmt.Sprintf("cryptsetup luksUUID %s", filepath.Join("/dev", p.Name)))
+					volumeUUIDParsed, err := luksUUID(filepath.Join("/dev", p.Name))
 					if err != nil {
 						KLog.Logger.Err(err).Send()
 						return err
 					}
-					volumeUUID = strings.TrimSpace(volumeUUID)
-					volumeUUIDParsed, err := uuid.FromString(volumeUUID)
 					KLog.Logger.Debug().Interface("volumeUUID", volumeUUIDParsed).Send()
 					KLog.Logger.Debug().Interface("persistentUUID", persistentUUID).Send()
-					if err != nil {
-						KLog.Logger.Err(err).Send()
-						return err
-					}
 
 					// Check to see if it's the same already to not do anything
 					if volumeUUIDParsed.String() != persistentUUID.String() {
