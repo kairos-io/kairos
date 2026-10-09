@@ -706,8 +706,13 @@ func enableExtensionsFrom(s *State, sourceDir, destDir, extType string, passes f
 		// Check if it already exists with the same name
 		// This is because as we have the common dir, there could be a point in which the common dir and the
 		// specific boot state dir have the same file, and we dont want to fail at this point, just warn and continue
+		// Lstat, not Stat: the link written here points at the path the
+		// extension has after the switch root, so while immucore is still in
+		// the initramfs it does not resolve. Stat follows it, reports
+		// ENOENT for a link that is plainly there, and the os.Symlink below
+		// then fails with EEXIST and takes the boot down.
 		dst := filepath.Join(destDir, entry.Name())
-		if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		if _, err := os.Lstat(dst); !os.IsNotExist(err) {
 			internalUtils.KLog.Logger.Warn().Str("file", dst).Msgf("Skipping %s as its already enabled", extType)
 			continue
 		}
