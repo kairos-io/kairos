@@ -187,6 +187,16 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
 	}
 
+	// The install block can reach the label and the filesystem of the image
+	// slots, and the boot path reads neither from the config.
+	if err := checkImageSlots([]imageSlot{
+		{key: "install.system", boundTo: sdkConstants.ActiveLabel, computed: activeImg, got: spec.Active},
+		{key: "install.passive", boundTo: sdkConstants.PassiveLabel, computed: passiveImg, got: spec.Passive},
+		{key: "install.recovery-system", boundTo: sdkConstants.SystemLabel, computed: recoveryImg, got: spec.Recovery},
+	}); err != nil {
+		return nil, err
+	}
+
 	// resolve also the target of the spec so we can partition properly
 	spec.Target, err = resolveTarget(spec.Target)
 	if err != nil {
