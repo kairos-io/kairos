@@ -7,7 +7,9 @@ import (
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	install "github.com/kairos-io/kairos/v4/sdk/types/install"
@@ -119,6 +121,21 @@ func SelinuxGrubOpts(selinux install.SelinuxOptions) map[string]string {
 	}
 }
 
+// OEMIsEncrypted reports whether the partition labelled COS_OEM is a LUKS
+// container on this node. It is the runtime equivalent of the install hook's
+// read of install.encrypted_partitions: by the time the first boot runs, that
+// config is no longer the authority on what is on the disk, so the block
+// devices are asked instead. The classification is the one every other
+// consumer of the question uses (the kcrypt encrypt subcommand, immucore's
+// encrypt-pending step), so none of them drifts on the edge cases.
+func OEMIsEncrypted() (bool, error) {
+	disks, err := lookup.ScanBlockDevices()
+	if err != nil {
+		return false, err
+	}
+	return lookup.LabelIsEncrypted(disks, cnst.OEMLabel, lookup.FindByBlkid, lookup.FilesystemType)
+}
+
 // GrubFirstBootOptions is a hook that runs on the first boot to add grub options.
 type GrubFirstBootOptions struct{}
 
@@ -128,10 +145,22 @@ func (b GrubFirstBootOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	}
 	c.Logger.Logger.Info().Msg("Running GrubOptions hook")
 	c.Logger.Debugf("Setting grub options: %s", c.GrubOptions)
-	// At first boot, we don't know if OEM is encrypted, so assume it's not encrypted
-	// and write to OEM only (if OEM is actually encrypted, grubenv will be written to STATE during install)
-	err := grubOptions(c, c.GrubOptions, false)
+
+	// GRUB finds its environment block by searching the filesystems it can
+	// read, so a grubenv on an encrypted COS_OEM is loaded by nobody. These
+	// are the top-level grub_options, which the install hook never sees, so
+	// writing them to OEM on an encrypted node loses them for good. Ask the
+	// disk which grubenv GRUB will be able to read.
+	oemEncrypted, err := OEMIsEncrypted()
 	if err != nil {
+		// Keep the previous target rather than move the file on a guess, and
+		// say why the question went unanswered, because on an encrypted node
+		// the options are about to be written where GRUB cannot read them.
+		c.Logger.Logger.Warn().Err(err).Msg("Could not determine whether COS_OEM is encrypted, writing grub options to OEM; if it is encrypted GRUB cannot read them")
+		oemEncrypted = false
+	}
+
+	if err := grubOptions(c, c.GrubOptions, oemEncrypted); err != nil {
 		return err
 	}
 	c.Logger.Logger.Info().Msg("Finish GrubOptions hook")
@@ -140,17 +169,46 @@ func (b GrubFirstBootOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 
 // writeGrubenvToState writes grub options to STATE partition's grubenv file
 // Used when OEM is encrypted since GRUB can't read the OEM partition before decryption
+//
+// On a booted node the initramfs has already mounted COS_STATE read-only at
+// /run/initramfs/cos-state. Mounting the same device again at
+// /run/cos/state yields a second read-only mount of the same superblock, so
+// the write fails with EROFS. Remount read-write for the write and put the
+// flag back, which is what SelectBootEntry does for this same file.
 func writeGrubenvToState(c sdkConfig.Config, opts map[string]string) error {
-	_ = machine.Umount(cnst.StateDir)
-	c.Logger.Logger.Debug().Msg("Mounting STATE partition")
-	_ = machine.Mount(cnst.StateLabel, cnst.StateDir)
+	device, err := lookup.MountSourceForLabel(cnst.StateLabel)
+	if err != nil {
+		c.Logger.Logger.Error().Err(err).Str("label", cnst.StateLabel).Msg("Failed to find the STATE partition")
+		return err
+	}
+
+	if err := fsutils.MkdirAll(c.Fs, cnst.StateDir, cnst.DirPerm); err != nil {
+		c.Logger.Logger.Error().Err(err).Str("dir", cnst.StateDir).Msg("Failed to create the STATE mountpoint")
+		return err
+	}
+
+	c.Logger.Logger.Debug().Str("device", device).Msg("Mounting STATE partition")
+	_ = c.Mounter.Unmount(cnst.StateDir)
+	if err := c.Mounter.Mount(device, cnst.StateDir, "auto", []string{}); err != nil {
+		c.Logger.Logger.Error().Err(err).Str("device", device).Msg("Failed to mount the STATE partition")
+		return err
+	}
 	defer func() {
 		c.Logger.Logger.Debug().Msg("Unmounting STATE partition")
-		_ = machine.Umount(cnst.StateDir)
+		// Back to read-only first: the remount below changes the superblock,
+		// so it is also the one the initramfs mount of this device sees.
+		_ = c.Mounter.Mount(device, cnst.StateDir, "auto", []string{"remount", "ro"})
+		_ = c.Mounter.Unmount(cnst.StateDir)
 	}()
 
+	// Best effort: a remount that fails on a filesystem that is writable
+	// anyway must not stop the write, and the write reports the real error.
+	if err := c.Mounter.Mount(device, cnst.StateDir, "auto", []string{"remount", "rw"}); err != nil {
+		c.Logger.Logger.Warn().Err(err).Msg("Could not remount the STATE partition read-write")
+	}
+
 	grubenvPath := filepath.Join(cnst.StateDir, cnst.GrubEnv)
-	err := utils.SetPersistentVariables(grubenvPath, opts, &c)
+	err = utils.SetPersistentVariables(grubenvPath, opts, &c)
 	if err != nil {
 		c.Logger.Logger.Error().Err(err).Str("grubfile", grubenvPath).Msg("Failed to set grub options in STATE")
 		return err
