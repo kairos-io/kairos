@@ -1,8 +1,10 @@
 package hook
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
@@ -69,18 +71,30 @@ func (b BundlePostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	}()
 
 	err = os.MkdirAll("/usr/local/.state/var-lib-extensions.bind", os.ModeDir|os.ModePerm)
-	if c.FailOnBundleErrors && err != nil {
-		return err
+	if err != nil {
+		c.Logger.Errorf("could not create the extensions bind directory: %s", err)
+		if c.FailOnBundleErrors {
+			return err
+		}
 	}
 
 	cmd := exec.Command("rsync", "-aqAX", "/var/lib/extensions/", "/usr/local/.state/var-lib-extensions.bind")
-	_, err = cmd.CombinedOutput()
-	if c.FailOnBundleErrors && err != nil {
-		return err
+	// CombinedOutput leaves ExitError.Stderr nil, so the output has to be
+	// carried into the message by hand or "exit status 23" is all anyone sees.
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		err = fmt.Errorf("rsync of /var/lib/extensions failed: %w: %s", err, strings.TrimSpace(string(out)))
+		c.Logger.Errorf("%s", err)
+		if c.FailOnBundleErrors {
+			return err
+		}
 	}
 	err = c.Syscall.Mount("/usr/local/.state/var-lib-extensions.bind", "/var/lib/extensions", "", syscall.MS_BIND, "")
-	if c.FailOnBundleErrors && err != nil {
-		return err
+	if err != nil {
+		c.Logger.Errorf("could not bind mount the extensions directory: %s", err)
+		if c.FailOnBundleErrors {
+			return err
+		}
 	}
 	defer func() {
 		_ = machine.Umount("/var/lib/extensions")
@@ -88,8 +102,16 @@ func (b BundlePostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 
 	opts := c.Install.Bundles.Options()
 	err = bundles.RunBundles(opts...)
-	if c.FailOnBundleErrors && err != nil {
-		return err
+	if err != nil {
+		// fail_on_bundles_errors decides whether the install aborts, not
+		// whether the operator gets to know. Without this line a bundle that
+		// cannot be pulled leaves no trace anywhere: RunBundles does not log,
+		// and the warning in finish.go is unreachable because this hook
+		// returns nil.
+		c.Logger.Errorf("could not install the bundles: %s", err)
+		if c.FailOnBundleErrors {
+			return err
+		}
 	}
 	c.Logger.Logger.Info().Msg("Finish BundlePostInstall hook")
 	return nil
@@ -102,8 +124,11 @@ func (b BundleFirstBoot) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	c.Logger.Logger.Debug().Msg("Running BundleFirstBoot hook")
 	opts := c.Bundles.Options()
 	err := bundles.RunBundles(opts...)
-	if c.FailOnBundleErrors && err != nil {
-		return err
+	if err != nil {
+		c.Logger.Errorf("could not install the bundles: %s", err)
+		if c.FailOnBundleErrors {
+			return err
+		}
 	}
 	c.Logger.Logger.Debug().Msg("Finish BundleFirstBoot hook")
 	return nil
