@@ -344,6 +344,40 @@ func TestStateRegistersGetAndNoApply(t *testing.T) {
 	}
 }
 
+// TestKcryptNVIndexFlagLeavesRoomForTheConfig guards the precedence the three
+// kcrypt NV subcommands document, "explicit flag > config > default", at the
+// entry point that decides it. The flag used to carry
+// kcrypt.DefaultLocalPassphraseNVIndex as its Value, so c.String("nv-index")
+// was never empty and action.resolveNVIndexAndDevice could never reach its
+// config branch: a node setting kcrypt.nv_index had checknv, readnv and
+// cleanupnv silently operate on 0x1500000. The default is applied by the
+// resolver instead, which is the only place that can see the config.
+// See kairos-io/kairos#5183.
+func TestKcryptNVIndexFlagLeavesRoomForTheConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "unset", args: []string{"kairos-agent"}, want: ""},
+		{name: "given", args: []string{"kairos-agent", "--nv-index", "0x1500001"}, want: "0x1500001"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got string
+			app := &cli.App{
+				Flags:  []cli.Flag{&kcryptNVIndexFlag},
+				Action: func(c *cli.Context) error { got = c.String("nv-index"); return nil },
+			}
+			if err := app.Run(tc.args); err != nil {
+				t.Fatalf("running the app: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("c.String(%q) = %q, want %q", "nv-index", got, tc.want)
+			}
+		})
+	}
+}
+
 // `upgrade --dry-run` must be registered as a bool flag that defaults to off,
 // so a plain `upgrade` keeps running the real upgrade.
 func TestUpgradeRegistersDryRunFlag(t *testing.T) {
