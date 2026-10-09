@@ -86,9 +86,33 @@ var _ = Describe("Apply", func() {
 	})
 
 	It("splits SSH keys on newlines and drops blank lines", func() {
-		a, errs := Apply(steps, Answers{}, StepSSHKeys, map[string]string{FieldSSHKeys: "github:a\n\n  ssh-ed25519 AAAA x  \n"})
+		a, errs := Apply(steps, Answers{Username: "kairos"}, StepSSHKeys, map[string]string{FieldSSHKeys: "github:a\n\n  ssh-ed25519 AAAA x  \n"})
 		Expect(errs).To(BeEmpty())
 		Expect(a.SSHKeys).To(Equal([]string{"github:a", "ssh-ed25519 AAAA x"}))
+	})
+
+	It("refuses SSH keys when no username was set, and keeps taking none", func() {
+		_, errs := Apply(steps, Answers{}, StepSSHKeys, map[string]string{FieldSSHKeys: "ssh-ed25519 AAAA"})
+		Expect(errFor(errs, FieldSSHKeys)).To(ContainSubstring("Set a username first"))
+
+		a, errs := Apply(steps, Answers{}, StepSSHKeys, map[string]string{FieldSSHKeys: "  \n\n"})
+		Expect(errs).To(BeEmpty())
+		Expect(a.SSHKeys).To(BeEmpty())
+	})
+
+	It("refuses to clear the username while SSH keys are held", func() {
+		held := Answers{Username: "kairos", PasswordHash: "$6$x", SSHKeys: []string{"ssh-ed25519 AAAA"}}
+		a, errs := Apply(steps, held, StepUser, map[string]string{FieldUsername: ""})
+		Expect(errFor(errs, FieldUsername)).To(ContainSubstring("Clear the SSH keys first"))
+		Expect(a).To(Equal(held))
+
+		// Clearing the keys first is what makes a no-user install reachable.
+		a, errs = Apply(steps, held, StepSSHKeys, map[string]string{FieldSSHKeys: ""})
+		Expect(errs).To(BeEmpty())
+		a, errs = Apply(steps, a, StepUser, map[string]string{FieldUsername: ""})
+		Expect(errs).To(BeEmpty())
+		Expect(a.Username).To(BeEmpty())
+		Expect(a.PasswordHash).To(BeEmpty())
 	})
 
 	DescribeTable("hostname",
