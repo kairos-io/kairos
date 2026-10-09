@@ -213,17 +213,25 @@ func getXattr(path, name string) ([]byte, error) {
 	return buf[:size], nil
 }
 
-// CreateBindStateDir creates the directory that backs a bind mount, with the
-// mode and the ownership of the directory it is going to be bound onto.
+// CreateDirLike creates dir with the mode and the ownership of mountpoint, the
+// directory whose place it is going to take at a mountpoint. A dir that is
+// already there is left alone.
 //
-// A bind mount shows the inode of the backing directory, so the mode and the
-// owner that end up visible at the mountpoint are the ones of that directory
-// and not the ones the image shipped. Creating it with os.ModePerm instead
-// hands back a laxer mode on every boot after the first, which for a path the
-// image keeps at 0700 root:root (/var/log/audit) is a downgrade nobody asked
-// for. The contents are SyncState's job, this is only about the directory.
-func CreateBindStateDir(mountpoint, stateDir string) error {
-	if _, err := os.Stat(stateDir); err == nil {
+// Both kinds of mount this repository stacks on an image directory report the
+// metadata of the directory that backs them and not the metadata of the
+// directory the image shipped:
+//
+//   - a bind mount shows the inode of the backing directory;
+//   - an overlay reports "metadata and extended attributes ... for the upper
+//     directory only", per Documentation/filesystems/overlayfs.rst.
+//
+// Creating the backing directory with os.ModePerm instead hands back 0777
+// minus whatever umask the initramfs happens to have, which for a path the
+// image keeps at 0700 root:root (/var/log/audit as a bind, /root as an
+// overlay on a recovery boot) is a downgrade nobody asked for. The contents
+// are SyncState's job, this is only about the directory.
+func CreateDirLike(mountpoint, dir string) error {
+	if _, err := os.Stat(dir); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
 		return err
@@ -234,12 +242,17 @@ func CreateBindStateDir(mountpoint, stateDir string) error {
 		return err
 	}
 
-	if err := os.MkdirAll(stateDir, info.Mode().Perm()); err != nil {
+	if err := os.MkdirAll(dir, info.Mode().Perm()); err != nil {
 		return err
 	}
 	// MkdirAll applies the umask, so the mode has to be set again to get the
-	// group and other bits the mountpoint has.
-	if err := os.Chmod(stateDir, info.Mode().Perm()); err != nil {
+	// group and other bits the mountpoint has. Perm() keeps the low nine bits
+	// only, so the setuid, setgid and sticky bits are carried over here too:
+	// an overlay on a sticky 1777 directory such as /var/tmp would otherwise
+	// publish it at 0777, and any user could delete another user's files in
+	// it. Only the final directory gets them, not the parents MkdirAll made
+	// on the way.
+	if err := os.Chmod(dir, info.Mode().Perm()|info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky)); err != nil {
 		return err
 	}
 
@@ -247,7 +260,7 @@ func CreateBindStateDir(mountpoint, stateDir string) error {
 	if !ok {
 		return nil
 	}
-	return os.Chown(stateDir, int(stat.Uid), int(stat.Gid))
+	return os.Chown(dir, int(stat.Uid), int(stat.Gid))
 }
 
 // AppendSlash it's in the name. Appends a slash.
