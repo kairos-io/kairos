@@ -220,6 +220,28 @@ func GetFallBackEfi(arch string) string {
 	}
 }
 
+// GetSystemdBootFallBackEfi returns the name of the systemd-boot binary that a
+// UKI image carries in EFI/BOOT on its ESP, for the given architecture.
+//
+// This is not GetFallBackEfi. That one names the file the agent itself writes
+// on the GRUB path, under EFI/boot and in lower case. The file named here is
+// written by AuroraBoot's build-uki, which spells all three names in upper case
+// (AuroraBoot/pkg/constants EfiFallbackNamex86, EfiFallbackNameArm and
+// EfiFallbackNameRiscv64). An ESP is vfat and vfat lookups ignore case, so on
+// amd64 and arm64 the two spellings reach the same file, but on riscv64 the
+// name itself differs, and a reader that does not know riscv64 asks for a file
+// that is not there.
+func GetSystemdBootFallBackEfi(arch string) string {
+	switch arch {
+	case ArchArm64:
+		return "BOOTAA64.EFI"
+	case ArchRiscv64:
+		return "BOOTRISCV64.EFI"
+	default:
+		return "BOOTX64.EFI"
+	}
+}
+
 // GetGrubFonts returns the default font files for grub.
 func GetGrubFonts() []string {
 	return []string{"ascii.pf2", "euro.pf2", "unicode.pf2"}

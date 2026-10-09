@@ -39,9 +39,11 @@ var _ = Describe("Common helpers", func() {
 	var logger sdkLogger.KairosLogger
 
 	BeforeEach(func() {
-		// Several helpers in common.go mix the KairosFS abstraction with
-		// direct os.* calls, so tests use the real OS filesystem rooted in a
-		// temporary directory.
+		// common.go no longer mixes os.* calls into the KairosFS abstraction,
+		// so these specs could run against a virtual root. They still use the
+		// OS filesystem because every fixture below writes through os.*, and
+		// an OS filesystem rooted in a temporary directory cannot tell the two
+		// apart. Converting them is what would prove the file stays honest.
 		fs = vfs.OSFS
 		dir = GinkgoT().TempDir()
 		memLog = &bytes.Buffer{}
@@ -209,7 +211,7 @@ var _ = Describe("Common helpers", func() {
 
 	Describe("replaceRoleInKey", func() {
 		It("fails when the file does not exist", func() {
-			err := replaceRoleInKey(filepath.Join(dir, "missing.conf"), "efi", "a", "b", logger)
+			err := replaceRoleInKey(fs, filepath.Join(dir, "missing.conf"), "efi", "a", "b", logger)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -217,7 +219,7 @@ var _ = Describe("Common helpers", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("title Kairos\n"), 0644)).To(Succeed())
 
-			err := replaceRoleInKey(path, "efi", "a", "b", logger)
+			err := replaceRoleInKey(fs, path, "efi", "a", "b", logger)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no efi entry"))
 		})
@@ -226,7 +228,7 @@ var _ = Describe("Common helpers", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("efi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 
-			Expect(replaceRoleInKey(path, "efi", "active", "passive", logger)).To(Succeed())
+			Expect(replaceRoleInKey(fs, path, "efi", "active", "passive", logger)).To(Succeed())
 
 			conf, err := sdkutils.SystemdBootConfReader(path)
 			Expect(err).ToNot(HaveOccurred())
@@ -236,14 +238,14 @@ var _ = Describe("Common helpers", func() {
 
 	Describe("replaceConfTitle", func() {
 		It("fails when the file does not exist", func() {
-			Expect(replaceConfTitle(filepath.Join(dir, "missing.conf"), "active")).ToNot(Succeed())
+			Expect(replaceConfTitle(fs, filepath.Join(dir, "missing.conf"), "active")).ToNot(Succeed())
 		})
 
 		It("fails when there is no title", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("efi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 
-			err := replaceConfTitle(path, "active")
+			err := replaceConfTitle(fs, path, "active")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("no title"))
 		})
@@ -252,7 +254,7 @@ var _ = Describe("Common helpers", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("title Kairos\n"), 0644)).To(Succeed())
 
-			err := replaceConfTitle(path, "wrongrole")
+			err := replaceConfTitle(fs, path, "wrongrole")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid role"))
 		})
@@ -261,7 +263,7 @@ var _ = Describe("Common helpers", func() {
 			path := filepath.Join(dir, "test.conf")
 			Expect(os.WriteFile(path, []byte("title Kairos\n"), 0644)).To(Succeed())
 
-			Expect(replaceConfTitle(path, "recovery")).To(Succeed())
+			Expect(replaceConfTitle(fs, path, "recovery")).To(Succeed())
 
 			conf, err := sdkutils.SystemdBootConfReader(path)
 			Expect(err).ToNot(HaveOccurred())
@@ -277,7 +279,7 @@ var _ = Describe("Common helpers", func() {
 			dst := filepath.Join(dir, "dst")
 			Expect(os.WriteFile(src, []byte("payload"), 0644)).To(Succeed())
 
-			Expect(copyFile(src, dst)).To(Succeed())
+			Expect(copyFile(fs, src, dst)).To(Succeed())
 
 			content, err := os.ReadFile(dst)
 			Expect(err).ToNot(HaveOccurred())
@@ -288,7 +290,7 @@ var _ = Describe("Common helpers", func() {
 			missing := filepath.Join(dir, "missing")
 			var err error
 			Expect(func() {
-				err = copyFile(missing, filepath.Join(dir, "dst"))
+				err = copyFile(fs, missing, filepath.Join(dir, "dst"))
 			}).ToNot(Panic())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(missing))
@@ -302,7 +304,7 @@ var _ = Describe("Common helpers", func() {
 			Expect(os.WriteFile(src, []byte("payload"), 0644)).To(Succeed())
 			var err error
 			Expect(func() {
-				err = copyFile(src, dst)
+				err = copyFile(fs, src, dst)
 			}).ToNot(Panic())
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(dst))
@@ -526,6 +528,39 @@ var _ = Describe("Common helpers", func() {
 			conf, err := utils.SystemdBootConfReader(fs, entry)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(conf["uki"]).To(Equal("/EFI/kairos/active.efi"))
+		})
+
+		It("uses the riscv64 systemd-boot binary name", func() {
+			// AuroraBoot's build-uki writes BOOTRISCV64.EFI on riscv64, not
+			// BOOTX64.EFI. Asking for the wrong one made the whole key
+			// migration a silent no-op on every riscv64 upgrade.
+			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTRISCV64.EFI"), 259)
+			entry := filepath.Join(entriesDir, "active.conf")
+			Expect(os.WriteFile(entry, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
+
+			Expect(upgradeEfiKeysInLoaderEntries("riscv64", fs, dir, logger)).To(Succeed())
+
+			conf, err := utils.SystemdBootConfReader(fs, entry)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(conf).ToNot(HaveKey("efi"))
+			Expect(conf["uki"]).To(Equal("/EFI/kairos/active.efi"))
+		})
+
+		It("does not read the amd64 binary on riscv64", func() {
+			// The inverse of the spec above: an ESP that only carries
+			// BOOTX64.EFI is not a riscv64 ESP, and the entries must be left
+			// alone rather than migrated off a version read from the wrong
+			// bootloader.
+			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), 259)
+			entry := filepath.Join(entriesDir, "active.conf")
+			Expect(os.WriteFile(entry, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
+
+			Expect(upgradeEfiKeysInLoaderEntries("riscv64", fs, dir, logger)).To(Succeed())
+
+			conf, err := utils.SystemdBootConfReader(fs, entry)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(conf["efi"]).To(Equal("/EFI/kairos/active.efi"))
+			Expect(conf).ToNot(HaveKey("uki"))
 		})
 
 		It("fails when an entry can not be read", func() {

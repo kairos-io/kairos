@@ -175,78 +175,220 @@ var _ = Describe("Uki upgrade action", func() {
 			// kairos-release satisfies the downgrade gate) and control
 			// flows on to the rotation logic these tests are about.
 			origExtract := extractFromInitrd
-			extractFromInitrd = func(_ string, extractions map[string]string) ([]string, error) {
-				found := []string{}
-				for src, dst := range extractions {
-					var body []byte
-					if src == constants.KairosReleaseFile {
-						body = []byte(`KAIROS_INIT_VERSION="v4.3.0"` + "\n")
-					}
-					if err := os.WriteFile(dst, body, 0o644); err != nil {
-						return found, err
-					}
-					found = append(found, src)
-				}
-				return found, nil
-			}
+			extractFromInitrd = initrdWith(`KAIROS_INIT_VERSION="v4.3.0"` + "\n")
 			DeferCleanup(func() { extractFromInitrd = origExtract })
 		})
 
-		It("installs the new artifact as active and fails removing the unassigned set", func() {
-			// the signature check passes and the new artifact is installed as
-			// active, but removing the unassigned artifacts goes through the
-			// real OS paths and fails
-			err := upgrader.Run()
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("removing artifact set"))
-
-			exists, _ := fsutils.Exists(fs, "/efi/EFI/Kairos/active.efi")
-			Expect(exists).To(BeTrue())
-		})
-
-		It("refuses to rotate when the EFI partition can not hold both copies", func() {
-			// An active set that does not fit in the free space, so copying it
-			// over passive cannot fit. Sparse, so it costs nothing.
-			Expect(fs.WriteFile("/efi/EFI/Kairos/active.efi", []byte("old active"), os.ModePerm)).To(Succeed())
-			Expect(fs.Truncate("/efi/EFI/Kairos/active.efi", tooBigFor(fs, "/efi"))).To(Succeed())
-			Expect(fs.WriteFile("/efi/EFI/Kairos/passive.efi", []byte("old passive"), os.ModePerm)).To(Succeed())
-
-			err := upgrader.Run()
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("not enough space on the EFI partition"))
-
-			// The entry the machine can still boot was left alone
-			content, err := fs.ReadFile("/efi/EFI/Kairos/passive.efi")
+		It("installs the new artifact as active and removes the unassigned set", func() {
+			signed, err := fs.ReadFile("/efi/EFI/Kairos/" + UnassignedArtifactRole + ".efi")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(string(content)).To(Equal("old passive"))
+
+			Expect(upgrader.Run()).To(Succeed())
+
+			active, err := fs.ReadFile("/efi/EFI/Kairos/active.efi")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(active).To(Equal(signed))
+
+			exists, err := fsutils.Exists(fs, "/efi/EFI/Kairos/"+UnassignedArtifactRole+".efi")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeFalse())
 		})
 
-		It("fails rotating the current active artifact to passive", func() {
-			// deleting the previous active artifact goes through the real OS
-			// paths and fails
+		It("rotates the current active artifact to passive", func() {
 			Expect(fs.WriteFile("/efi/EFI/Kairos/active.efi", []byte("old active"), os.ModePerm)).To(Succeed())
+			signed, err := fs.ReadFile("/efi/EFI/Kairos/" + UnassignedArtifactRole + ".efi")
+			Expect(err).ToNot(HaveOccurred())
 
-			err := upgrader.Run()
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("installing the new artifacts as active"))
+			Expect(upgrader.Run()).To(Succeed())
 
-			// the old active was still rotated to passive
+			// the old active became passive and the new artifact is active
 			content, err := fs.ReadFile("/efi/EFI/Kairos/passive.efi")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(string(content)).To(Equal("old active"))
+
+			active, err := fs.ReadFile("/efi/EFI/Kairos/active.efi")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(active).To(Equal(signed))
+		})
+
+		// kairos-io/kairos#4917 asks a refused upgrade to abort before the
+		// first write, so the ESP is left exactly as it was found. Run pushes
+		// removeArtifactSetWithRole onto its cleanup stack on each of the
+		// pre-rotation refusals to keep that promise. These specs are what
+		// holds it: they check the error and then that the dumped unassigned
+		// set is gone and the two entries the machine can still boot are
+		// byte-identical.
+		Describe("a refusal before rotation", func() {
+			BeforeEach(func() {
+				Expect(fs.WriteFile("/efi/EFI/Kairos/active.efi", []byte("old active"), os.ModePerm)).To(Succeed())
+				Expect(fs.WriteFile("/efi/EFI/Kairos/passive.efi", []byte("old passive"), os.ModePerm)).To(Succeed())
+			})
+
+			expectEspUnwound := func() {
+				exists, err := fsutils.Exists(fs, "/efi/EFI/Kairos/"+UnassignedArtifactRole+".efi")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exists).To(BeFalse(), "the unassigned set must not be left on the ESP")
+
+				active, err := fs.ReadFile("/efi/EFI/Kairos/active.efi")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(active)).To(Equal("old active"))
+
+				passive, err := fs.ReadFile("/efi/EFI/Kairos/passive.efi")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(passive)).To(Equal("old passive"))
+			}
+
+			It("unwinds the unassigned set when the signer does not match the booted one", func() {
+				requireSameSignerAsBootedFn = func(*sdkConfig.Config, string) error {
+					return fmt.Errorf("signed by a different certificate")
+				}
+
+				err := upgrader.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("signed by a different certificate"))
+				expectEspUnwound()
+			})
+
+			It("unwinds the unassigned set when the target is a KAIROS_INIT_VERSION downgrade", func() {
+				extractFromInitrd = initrdWith(`KAIROS_INIT_VERSION="v4.2.0"` + "\n")
+
+				err := upgrader.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+				Expect(err.Error()).To(ContainSubstring("v4.2.0"))
+				expectEspUnwound()
+			})
+
+			It("unwinds the unassigned set when the target carries no kairos-release", func() {
+				extractFromInitrd = func(_ string, extractions map[string]string) ([]string, error) {
+					found := []string{}
+					for src, dst := range extractions {
+						if src == constants.KairosReleaseFile {
+							continue
+						}
+						if err := os.WriteFile(dst, nil, 0o644); err != nil {
+							return found, err
+						}
+						found = append(found, src)
+					}
+					return found, nil
+				}
+
+				err := upgrader.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("carries no " + constants.KairosReleaseFile))
+				expectEspUnwound()
+			})
+
+			It("unwinds the unassigned set when the EFI partition can not hold both copies", func() {
+				Expect(fs.Truncate("/efi/EFI/Kairos/active.efi", tooBigFor(fs, "/efi"))).To(Succeed())
+
+				err := upgrader.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("not enough space on the EFI partition"))
+
+				exists, err := fsutils.Exists(fs, "/efi/EFI/Kairos/"+UnassignedArtifactRole+".efi")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exists).To(BeFalse(), "the unassigned set must not be left on the ESP")
+
+				passive, err := fs.ReadFile("/efi/EFI/Kairos/passive.efi")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(passive)).To(Equal("old passive"))
+			})
 		})
 	})
 
-	It("fails a single entry upgrade when the target entry is not installed", func() {
-		spec.Entry = "kairos-uki-test-nonexistent-entry"
-		err := upgrader.Run()
-		Expect(err).To(HaveOccurred())
-	})
+	Describe("installing a single entry", func() {
+		// The dump into this directory goes through cfg.Fs, and the test
+		// runner stands in for rsync without copying anything, so the specs
+		// write what the dump would have produced straight into it. The path
+		// is predictable because fsutils.TempDir skips the random suffix on a
+		// vfst.TestFS.
+		var dumpDir string
 
-	It("fails a recovery upgrade when the recovery entry is not installed", func() {
-		spec.Entry = constants.BootEntryRecovery
-		Expect(spec.RecoveryUpgrade()).To(BeTrue())
-		err := upgrader.Run()
-		Expect(err).To(HaveOccurred())
+		BeforeEach(func() {
+			dumpDir = filepath.Join(os.TempDir(), "kairos-uki-entry-")
+			Expect(fsutils.MkdirAll(fs, filepath.Join(dumpDir, "EFI", "kairos"), constants.DirPerm)).To(Succeed())
+			Expect(fsutils.MkdirAll(fs, filepath.Join(dumpDir, "loader", "entries"), constants.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(dumpDir, "EFI", "kairos", UnassignedArtifactRole+".efi"), []byte("new artifact"), 0o644)).To(Succeed())
+			Expect(fs.WriteFile(
+				filepath.Join(dumpDir, "loader", "entries", UnassignedArtifactRole+".conf"),
+				[]byte("title Kairos\nefi /EFI/kairos/"+UnassignedArtifactRole+".efi\n"), 0o644)).To(Succeed())
+
+			// The entry being upgraded has to already be installed on the ESP
+			Expect(fsutils.MkdirAll(fs, "/efi/EFI/kairos", constants.DirPerm)).To(Succeed())
+			Expect(fsutils.MkdirAll(fs, "/efi/loader/entries", constants.DirPerm)).To(Succeed())
+		})
+
+		It("installs the artifact and the conf on the given filesystem", func() {
+			Expect(fs.WriteFile("/efi/EFI/kairos/recovery.efi", []byte("old artifact"), 0o644)).To(Succeed())
+			spec.Entry = constants.BootEntryRecovery
+			Expect(spec.RecoveryUpgrade()).To(BeTrue())
+
+			Expect(upgrader.Run()).To(Succeed())
+
+			efi, err := fs.ReadFile("/efi/EFI/kairos/recovery.efi")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(efi)).To(Equal("new artifact"))
+
+			conf, err := fs.ReadFile("/efi/loader/entries/recovery.conf")
+			Expect(err).ToNot(HaveOccurred())
+			// installEntry rewrites the role in the efi key, installRecovery
+			// then rewrites the title
+			Expect(string(conf)).To(ContainSubstring("efi /EFI/kairos/recovery.efi"))
+			Expect(string(conf)).ToNot(ContainSubstring(UnassignedArtifactRole))
+			Expect(string(conf)).To(ContainSubstring("title Kairos recovery"))
+		})
+
+		It("removes the dump directory from the filesystem it created it on", func() {
+			Expect(fs.WriteFile("/efi/EFI/kairos/recovery.efi", []byte("old artifact"), 0o644)).To(Succeed())
+			spec.Entry = constants.BootEntryRecovery
+
+			Expect(upgrader.Run()).To(Succeed())
+
+			exists, err := fsutils.Exists(fs, dumpDir)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeFalse(), "the dump directory should have been removed from the given filesystem")
+		})
+
+		It("fails a single entry upgrade when the target entry is not installed", func() {
+			spec.Entry = "kairos-uki-test-nonexistent-entry"
+			err := upgrader.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not stat target efi file"))
+			// Nothing was written for an entry that is not installed
+			exists, err := fsutils.Exists(fs, "/efi/loader/entries/kairos-uki-test-nonexistent-entry.conf")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeFalse())
+		})
+
+		It("fails a recovery upgrade when the recovery entry is not installed", func() {
+			spec.Entry = constants.BootEntryRecovery
+			Expect(spec.RecoveryUpgrade()).To(BeTrue())
+			err := upgrader.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not stat target efi file"))
+		})
 	})
 })
+
+// initrdWith stands in for ExtractFromInitrd. The signed test .efi is not a
+// real Kairos UKI, so its .initrd cannot be walked by the production
+// extractor; this writes the files prepareFinalize asks for straight into the
+// host temp dir it chose, with release as the target's /etc/kairos-release.
+func initrdWith(release string) func(string, map[string]string) ([]string, error) {
+	return func(_ string, extractions map[string]string) ([]string, error) {
+		found := []string{}
+		for src, dst := range extractions {
+			var body []byte
+			if src == constants.KairosReleaseFile {
+				body = []byte(release)
+			}
+			if err := os.WriteFile(dst, body, 0o644); err != nil {
+				return found, err
+			}
+			found = append(found, src)
+		}
+		return found, nil
+	}
+}

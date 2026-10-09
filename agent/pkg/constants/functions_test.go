@@ -1,6 +1,8 @@
 package constants_test
 
 import (
+	"strings"
+
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -62,6 +64,33 @@ var _ = Describe("Constants functions", func() {
 		Entry("unknown arch defaults to bootx64.efi", "ppc64le", "bootx64.efi"),
 		Entry("empty arch defaults to bootx64.efi", "", "bootx64.efi"),
 	)
+
+	// These are the names AuroraBoot's build-uki writes into EFI/BOOT on the ESP,
+	// so they are upper case for every architecture. They are deliberately not the
+	// names GetFallBackEfi returns, which is the GRUB path's shim, written by this
+	// repository under EFI/boot.
+	DescribeTable("GetSystemdBootFallBackEfi",
+		func(arch, expected string) {
+			Expect(cnst.GetSystemdBootFallBackEfi(arch)).To(Equal(expected))
+		},
+		Entry("amd64", cnst.ArchAmd64, "BOOTX64.EFI"),
+		Entry("arm64", cnst.ArchArm64, "BOOTAA64.EFI"),
+		Entry("riscv64", cnst.ArchRiscv64, "BOOTRISCV64.EFI"),
+		Entry("unknown arch defaults to BOOTX64.EFI", "ppc64le", "BOOTX64.EFI"),
+		Entry("empty arch defaults to BOOTX64.EFI", "", "BOOTX64.EFI"),
+	)
+
+	It("GetSystemdBootFallBackEfi names a different file from GetFallBackEfi on riscv64 only", func() {
+		// On amd64 and arm64 the two differ only in case, and an ESP is vfat, so
+		// they reach the same file. On riscv64 the name itself differs, which is
+		// why a reader that does not know riscv64 finds nothing there.
+		for _, arch := range []string{cnst.ArchAmd64, cnst.ArchArm64} {
+			Expect(strings.EqualFold(cnst.GetFallBackEfi(arch), cnst.GetSystemdBootFallBackEfi(arch))).
+				To(BeTrue(), "arch %s", arch)
+		}
+		Expect(strings.EqualFold(cnst.GetFallBackEfi(cnst.ArchRiscv64), cnst.GetSystemdBootFallBackEfi(cnst.ArchAmd64))).
+			To(BeFalse())
+	})
 
 	DescribeTable("BaseBootTitle strips known suffixes",
 		func(title, expected string) {
