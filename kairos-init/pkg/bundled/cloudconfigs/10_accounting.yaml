@@ -53,7 +53,17 @@ stages:
   initramfs.after:
     # Run this in the after stage so it doesnt collide with other initramfs changes to the /etc/inittab
     # Otherwise this can lead to 2 steps modifying the inittab at the same time and overriding or not cleaning it properly
+    #
+    # The after stage does not avoid that collision on a live medium, it wins
+    # it: runstage.go runs every file's initramfs stage before any file's
+    # initramfs.after stage, so this step always runs after
+    # 25_autologin.yaml's, and its sed blanks the ttyS0 autologin line that one
+    # appends. Hence the guard below, which is the exact complement of the one
+    # 25_autologin.yaml's OpenRC step carries. One of the two applies on any
+    # boot, so ttyS0 always ends up with a line, and neither has to care which
+    # runs first.
     - name: "Enable serial login for alpine"  # https://wiki.alpinelinux.org/wiki/Enable_Serial_Console_on_Boot
+      if: '[ ! -f /run/cos/live_mode ]'
       only_service_manager: "openrc"
       commands:
         - sed -i -e 's/ttyS0.*//g' /etc/inittab
