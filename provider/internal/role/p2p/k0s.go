@@ -139,11 +139,18 @@ func (k *K0sNode) GenArgs() ([]string, error) {
 		args = append(args, "--token-file /etc/k0s/token")
 	}
 
-	// when we start implementing this functionality, remember to use
-	// AppendArgs, and not just return the args here, this is because the
-	// function understands if it needs to append or replace the args
+	// AppendArgs, not a bare return: it is what folds in the args: the k0s
+	// block carries and what honours replace_args. Anything this function
+	// generates has to be added above this line.
+	return k.AppendArgs(args), nil
+}
 
-	return args, nil
+// AppendArgs folds the k0s block's own args: into the ones this role
+// generated, the way K3sNode does for the k3s block.
+func (k *K0sNode) AppendArgs(other []string) []string {
+	c := k.ProviderConfig()
+
+	return appendUserArgs(other, c.K0s.Args, c.K0s.ReplaceArgs)
 }
 
 func (k *K0sNode) Service() (machine.Service, error) {
@@ -253,11 +260,7 @@ func (k *K0sNode) WorkerArgs() ([]string, error) {
 	k0sConfig := pconfig.K0sWorker
 	args := []string{"--token-file /etc/k0s/token"}
 
-	if k0sConfig.ReplaceArgs {
-		args = k0sConfig.Args
-	} else {
-		args = append(args, k0sConfig.Args...)
-	}
+	args = appendUserArgs(args, k0sConfig.Args, k0sConfig.ReplaceArgs)
 
 	return args, nil
 }
