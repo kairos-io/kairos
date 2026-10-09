@@ -1,7 +1,7 @@
 header:
   schema-version: 2.2.0
-  last-updated: '2026-10-08'
-  last-reviewed: '2026-10-08'
+  last-updated: '2026-10-09'
+  last-reviewed: '2026-10-09'
   url: https://raw.githubusercontent.com/kairos-io/kairos/master/security-insights.yml
   comment: >
     Security Insights for Kairos, read by OpenSSF Baseline tooling. The
@@ -120,8 +120,8 @@ repository:
   security:
     assessments:
       self:
-        evidence: https://github.com/kairos-io/kairos/issues/3753
-        date: '2026-10-08'
+        evidence: https://github.com/kairos-io/kairos/blob/master/docs/security/osps-baseline-level1.md
+        date: '2026-10-09'
         comment: OpenSSF Baseline Level 1 self-assessment.
     tools:
       - name: Renovate
