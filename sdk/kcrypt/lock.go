@@ -5,9 +5,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -88,46 +90,115 @@ func luksifyWithPassphrase(label string, passphrase string, logger sdkLogger.Kai
 	return fmt.Sprintf("%s:%s:%s", info.FilesystemLabel, info.Name, info.UUID), nil
 }
 
-// unmountIfMounted checks if a device is mounted and unmounts it if needed.
-// This is necessary because cryptsetup cannot format a mounted partition.
+// procMounts is the kernel's list of mounts in this mount namespace.
+const procMounts = "/proc/mounts"
+
+// unmountIfMounted unmounts every mount point backed by the device, because
+// cryptsetup refuses to format a partition that is still in use.
+//
+// A partition appears in /proc/mounts once per mount, and a bind mount
+// inherits the device name of the filesystem it was taken from. On a booted
+// node COS_PERSISTENT is mounted at /usr/local and then bind-mounted out of
+// /usr/local/.state for every entry of the bind list, so one partition has
+// many entries and unmounting only the first one leaves the device in use.
 func unmountIfMounted(device string, logger sdkLogger.KairosLogger) error {
-	// Read /proc/mounts to check if the device is mounted
-	// mount entries look like: /dev/sda6 / ext4 rw,relatime 0 0.
-	f, err := os.Open("/proc/mounts")
+	mountPoints, err := deviceMountPoints(device)
 	if err != nil {
-		return fmt.Errorf("failed to open /proc/mounts: %w", err)
+		return err
+	}
+
+	// If device is not mounted, nothing to do
+	if len(mountPoints) == 0 {
+		return nil
+	}
+
+	// Unmount in the reverse of the order the kernel lists them, which is the
+	// reverse of mount order. A mount that has another mount beneath it cannot
+	// be unmounted while that one is there, and unmounting the outermost first
+	// detaches it while every bind taken from it still holds the device.
+	for i := len(mountPoints) - 1; i >= 0; i-- {
+		mountPoint := mountPoints[i]
+		logger.Logger.Debug().Str("device", device).Str("mountpoint", mountPoint).Msg("Device is mounted, unmounting before encryption")
+		// Unmount using syscall.Unmount with flags=0 (standard unmount)
+		if err := syscall.Unmount(mountPoint, 0); err != nil {
+			return fmt.Errorf("failed to unmount %s from %s: %w", device, mountPoint, err)
+		}
+	}
+
+	// cryptsetup reports a device that is still in use without naming what
+	// holds it, so say so here while the mount point is still known.
+	left, err := deviceMountPoints(device)
+	if err != nil {
+		return err
+	}
+	if len(left) > 0 {
+		return fmt.Errorf("device %s is still mounted at %s", device, strings.Join(left, ", "))
+	}
+
+	logger.Logger.Debug().Str("device", device).Int("unmounted", len(mountPoints)).Msg("Successfully unmounted device")
+	return nil
+}
+
+// deviceMountPoints returns every mount point that /proc/mounts reports for
+// the device.
+func deviceMountPoints(device string) ([]string, error) {
+	f, err := os.Open(procMounts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open %s: %w", procMounts, err)
 	}
 	defer f.Close()
 
-	var mountPoint string
-	scanner := bufio.NewScanner(f)
+	mountPoints, err := mountPointsForDevice(f, device)
+	if err != nil {
+		return nil, fmt.Errorf("error reading %s: %w", procMounts, err)
+	}
+	return mountPoints, nil
+}
+
+// mountPointsForDevice returns the mount points a /proc/mounts stream reports
+// for the device, in the order the kernel lists them.
+func mountPointsForDevice(r io.Reader, device string) ([]string, error) {
+	var mountPoints []string
+
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
-		line := scanner.Text()
-		fields := strings.Fields(line)
+		// mount entries look like: /dev/sda6 / ext4 rw,relatime 0 0.
+		fields := strings.Fields(scanner.Text())
 		// fields[0] is device, fields[1] is mount point
-		if len(fields) >= 2 && fields[0] == device {
-			mountPoint = fields[1]
-			break
+		if len(fields) < 2 {
+			continue
+		}
+		if unescapeMountField(fields[0]) == device {
+			mountPoints = append(mountPoints, unescapeMountField(fields[1]))
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("error reading /proc/mounts: %w", err)
+		return nil, err
+	}
+	return mountPoints, nil
+}
+
+// unescapeMountField decodes the octal escapes the kernel writes into
+// /proc/mounts for the four characters that would otherwise split a field:
+// space, tab, newline and backslash.
+func unescapeMountField(field string) string {
+	if !strings.Contains(field, `\`) {
+		return field
 	}
 
-	// If device is not mounted, nothing to do
-	if mountPoint == "" {
-		return nil
+	var out strings.Builder
+	for i := 0; i < len(field); i++ {
+		if field[i] == '\\' && i+3 < len(field) {
+			if b, err := strconv.ParseUint(field[i+1:i+4], 8, 8); err == nil {
+				out.WriteByte(byte(b))
+				i += 3
+				continue
+			}
+		}
+		out.WriteByte(field[i])
 	}
-
-	logger.Logger.Debug().Str("device", device).Str("mountpoint", mountPoint).Msg("Device is mounted, unmounting before encryption")
-	// Unmount using syscall.Unmount with flags=0 (standard unmount)
-	if err := syscall.Unmount(mountPoint, 0); err != nil {
-		return fmt.Errorf("failed to unmount %s from %s: %w", device, mountPoint, err)
-	}
-
-	logger.Logger.Debug().Str("device", device).Msg("Successfully unmounted device")
-	return nil
+	return out.String()
 }
 
 func createLuks(dev, password string, cryptsetupArgs ...string) error {
