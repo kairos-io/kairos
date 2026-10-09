@@ -21,16 +21,36 @@ type InstallSchema struct {
 	SelinuxOptions      `json:"selinux,omitempty"`
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
-	Partitions      ElementalPartitions `json:"partitions,omitempty"`
-	GrubDefEntry    string              `json:"grub-entry-name,omitempty"`
-	ExtraPartitions []*Partition        `json:"extra-partitions,omitempty"`
-	Force           bool                `json:"force,omitempty"`
-	ExtraDirsRootfs []string            `json:"extra-dirs-rootfs,omitempty"`
-	SSHHardening    bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
-	OEMFiles        []OEMFileSchema     `json:"oem_files,omitempty" description:"Cloud-config files to write into the OEM partition of the installed system, which it reads as /oem, so they are applied on its first boot. The install fails if the target has no mounted OEM partition."`
-	Active          Image               `json:"system,omitempty"`
-	Recovery        Image               `json:"recovery-system,omitempty"`
-	Passive         Image               `json:"passive,omitempty"`
+	Partitions              ElementalPartitions `json:"partitions,omitempty"`
+	GrubDefEntry            string              `json:"grub-entry-name,omitempty"`
+	ExtraPartitions         []*Partition        `json:"extra-partitions,omitempty"`
+	Force                   bool                `json:"force,omitempty"`
+	ExtraDirsRootfs         []string            `json:"extra-dirs-rootfs,omitempty"`
+	SSHHardening            bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
+	OEMFiles                []OEMFileSchema     `json:"oem_files,omitempty" description:"Cloud-config files to write into the OEM partition of the installed system, which it reads as /oem, so they are applied on its first boot. The install fails if the target has no mounted OEM partition."`
+	AllowInsecureRegistries bool                `json:"allow-insecure-registries,omitempty" description:"Allow image pulls from registries using plain HTTP or untrusted TLS certificates."`
+	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
+	Active                  Image               `json:"system,omitempty"`
+	Recovery                Image               `json:"recovery-system,omitempty"`
+	Passive                 Image               `json:"passive,omitempty"`
+}
+
+// RegistryAuthSchema describes one explicit registry credential form. Exactly
+// one form is accepted by the agent at runtime.
+type RegistryAuthSchema struct {
+	File          string `json:"file,omitempty" description:"Path to a YAML credential object available before the operation starts. Cannot be combined with inline credentials."`
+	Username      string `json:"username,omitempty" description:"Registry username. Must be provided with password."`
+	Password      string `json:"password,omitempty" description:"Registry password."`
+	Auth          string `json:"auth,omitempty" description:"Base64 encoded username:password."`
+	IdentityToken string `json:"identity-token,omitempty" description:"Registry identity token."`
+	RegistryToken string `json:"registry-token,omitempty" description:"Registry bearer token."`
+}
+
+// UpgradeSchema documents the upgrade registry settings consumed by the agent.
+// Other upgrade keys remain unconstrained by this schema.
+type UpgradeSchema struct {
+	AllowInsecureRegistries bool                `json:"allow-insecure-registries,omitempty" description:"Allow image pulls from registries using plain HTTP or untrusted TLS certificates."`
+	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
 }
 
 // OEMFileSchema represents one entry of the install.oem_files block. The file

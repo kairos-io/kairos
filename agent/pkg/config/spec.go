@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
-	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	k8sutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/k8s"
@@ -166,8 +165,13 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 		PowerOff:  cfg.Install.Poweroff,
 	}
 
-	// Honor install.allow-insecure-registries before any image is fetched
-	if err := applyAllowInsecureRegistries(cfg, "install"); err != nil {
+	// Resolve the source override before sizing or scoping credentials. The
+	// unmarshal after sizing still preserves explicitly configured sizes.
+	if err := unmarshallFullSpec(cfg, "install", spec); err != nil {
+		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+	// Honor install registry options before any image is fetched
+	if err := applyRegistryOptions(cfg, "install", spec.Active.Source); err != nil {
 		return nil, err
 	}
 
@@ -411,8 +415,12 @@ func NewUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeSpec, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
 	}
-	// Honor upgrade.allow-insecure-registries before any image is fetched
-	if err := applyAllowInsecureRegistries(cfg, "upgrade"); err != nil {
+	// Honor upgrade registry options before any image is fetched
+	source := spec.Active.Source
+	if spec.RecoveryUpgrade() {
+		source = spec.Recovery.Source
+	}
+	if err := applyRegistryOptions(cfg, "upgrade", source); err != nil {
 		return nil, err
 	}
 	err = setUpgradeSourceSize(cfg, spec)
@@ -740,8 +748,13 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 		Flags:           []string{},
 	}
 
-	// Honor install.allow-insecure-registries before any image is fetched
-	if err := applyAllowInsecureRegistries(cfg, "install"); err != nil {
+	// Resolve the source override before sizing or scoping credentials. The
+	// unmarshal after sizing still preserves explicitly configured sizes.
+	if err := unmarshallFullSpec(cfg, "install", spec); err != nil {
+		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+	// Honor install registry options before any image is fetched
+	if err := applyRegistryOptions(cfg, "install", spec.Active.Source); err != nil {
 		return nil, err
 	}
 
@@ -785,8 +798,8 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 	if err := unmarshallFullSpec(cfg, "upgrade", spec); err != nil {
 		return nil, fmt.Errorf("failed unmarshalling full spec: %w", err)
 	}
-	// Honor upgrade.allow-insecure-registries before any image is fetched
-	if err := applyAllowInsecureRegistries(cfg, "upgrade"); err != nil {
+	// Honor upgrade registry options before any image is fetched
+	if err := applyRegistryOptions(cfg, "upgrade", spec.Active.Source); err != nil {
 		return nil, err
 	}
 	// Get the actual source size to calculate the image size and partitions size.
@@ -1157,48 +1170,6 @@ func configBool(value interface{}) (bool, error) {
 	default:
 		return false, fmt.Errorf("cannot read a %T as a boolean", value)
 	}
-}
-
-// applyAllowInsecureRegistries switches the config's ImageExtractor to one that
-// allows pulling from registries served over plain HTTP or presenting an
-// untrusted/self-signed TLS certificate, when the given cloud-config subkey
-// requests it (install.allow-insecure-registries / upgrade.allow-insecure-registries).
-// It is called before any image pull or size calculation so the whole flow honors
-// the setting. Only the default OCIImageExtractor is swapped, so extractors
-// injected by tests or providers are left untouched.
-func applyAllowInsecureRegistries(cfg *sdkConfig.Config, subkey string) error {
-	allow, err := readAllowInsecureRegistries(cfg, subkey)
-	if err != nil {
-		return err
-	}
-	if !allow {
-		return nil
-	}
-	if _, ok := cfg.ImageExtractor.(imageextractor.OCIImageExtractor); ok {
-		cfg.Logger.Infof("Allowing insecure registry pulls via %s.allow-insecure-registries", subkey)
-		cfg.ImageExtractor = imageextractor.OCIImageExtractor{Insecure: true}
-	}
-	return nil
-}
-
-// readAllowInsecureRegistries peeks the boolean <subkey>.allow-insecure-registries
-// value from the merged cloud config. It uses a fresh viper instance so the global
-// viper state used by unmarshallFullSpec is not disturbed.
-func readAllowInsecureRegistries(cfg *sdkConfig.Config, subkey string) (bool, error) {
-	ccString, err := cfg.Collector.String()
-	if err != nil {
-		return false, err
-	}
-	v := viper.New()
-	v.SetConfigType("yaml")
-	if err := v.ReadConfig(strings.NewReader(ccString)); err != nil {
-		return false, err
-	}
-	sub := v.Sub(subkey)
-	if sub == nil {
-		return false, nil
-	}
-	return sub.GetBool("allow-insecure-registries"), nil
 }
 
 // checkDeprecatedURIUsage checks if any Image structs in the spec have the deprecated URI field set
