@@ -171,10 +171,12 @@ func (u *UpgradeAction) Run() (err error) {
 	// after-upgrade-chroot hooks). Delegating it to the target agent lets a
 	// format change ship in an image without needing every previously
 	// released host agent to already understand that format (see
-	// https://github.com/kairos-io/kairos/issues/4456). We first try to
-	// hand off to the target's own kairos-agent inside a chroot; if the
-	// target predates the upgrade-finalize subcommand we run the same
-	// steps inline, preserving the historical behavior.
+	// https://github.com/kairos-io/kairos/issues/4456). The work is handed
+	// off to the target's own kairos-agent inside a chroot. There is no
+	// inline fallback: a target built with a kairos-init older than the
+	// running system's, which is how an agent without upgrade-finalize
+	// reaches us, is refused here before anything is renamed (see
+	// https://github.com/kairos-io/kairos/issues/4917).
 	if err = u.runFinalizeStep(&upgradeImg); err != nil {
 		return err
 	}
