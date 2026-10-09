@@ -115,6 +115,33 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 			if err := root.Symlink(header.Linkname, name); err != nil {
 				return fmt.Errorf("symlink: %w", err)
 			}
+		case tar.TypeLink:
+			log.Debugf("%s is a hard link to %s", header.Name, header.Linkname)
+			// A hard link names its target relative to the root of the
+			// archive, which is the one place it differs from a symlink,
+			// whose target is relative to the entry. The target is always an
+			// earlier entry of the same archive. git's "make install" emits
+			// one per helper in /usr/libexec/git-core, and busybox and
+			// coreutils install trees do the same, so an image that carries
+			// any of them is full of them.
+			if !allowList.MatchString(header.Linkname) {
+				// The target was skipped by this same loop, so there is
+				// nothing on disk to link to. The allow list decided that,
+				// not the layer, so drop the entry with a message that names
+				// both paths rather than failing the whole extraction.
+				log.Warnf("Skipping hard link %s: its target %s is outside the extension", header.Name, header.Linkname)
+				continue
+			}
+			target := strings.TrimPrefix(filepath.Clean(header.Linkname), "/")
+			if !filepath.IsLocal(target) {
+				return fmt.Errorf("%s: hard link target is outside the destination", header.Name)
+			}
+			if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+				return fmt.Errorf("mkdir: %w", err)
+			}
+			if err := root.Link(target, name); err != nil {
+				return fmt.Errorf("hard link: %w", err)
+			}
 		default:
 			return fmt.Errorf("unsupported type: %d", header.Typeflag)
 		}
