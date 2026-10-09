@@ -1276,7 +1276,7 @@ func DetectPreConfiguredDevice(logger sdkLogger.KairosLogger) (string, error) {
 // aliased on purpose: a user who wrote the old key got nothing, and quietly
 // turning it on now would change what an existing config does.
 var deprecatedKeys = map[string]map[string]string{
-	"install": {"no_format": "no-format"},
+	"install": {"no_format": "no-format", "image": "source"},
 }
 
 // warnDeprecatedKeys tells the user when a block carries a key that is parsed

@@ -27,14 +27,18 @@ func subFor(t *testing.T, cc, subkey string) *viper.Viper {
 
 func TestWarnDeprecatedKeys(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		cc   string
-		warn bool
+		name        string
+		cc          string
+		warn        bool
+		old         string
+		replacement string
 	}{
-		{"deprecated no_format warns", "install:\n  no_format: true\n", true},
-		{"deprecated key warns even when false", "install:\n  no_format: false\n", true},
-		{"supported no-format stays quiet", "install:\n  no-format: true\n", false},
-		{"empty install block stays quiet", "install: {}\n", false},
+		{"deprecated no_format warns", "install:\n  no_format: true\n", true, "no_format", "no-format"},
+		{"deprecated key warns even when false", "install:\n  no_format: false\n", true, "no_format", "no-format"},
+		{"supported no-format stays quiet", "install:\n  no-format: true\n", false, "no_format", "no-format"},
+		{"deprecated image warns", "install:\n  image: oci://quay.io/ex/a:v1\n", true, "image", "source"},
+		{"supported source stays quiet", "install:\n  source: oci://quay.io/ex/a:v1\n", false, "image", "source"},
+		{"empty install block stays quiet", "install: {}\n", false, "no_format", "no-format"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
@@ -45,10 +49,10 @@ func TestWarnDeprecatedKeys(t *testing.T) {
 
 			got := buf.String()
 			if tc.warn {
-				if !strings.Contains(got, "install.no_format") || !strings.Contains(got, "install.no-format") {
+				if !strings.Contains(got, "install."+tc.old) || !strings.Contains(got, "install."+tc.replacement) {
 					t.Fatalf("want a warning naming both keys, got %q", got)
 				}
-			} else if strings.Contains(got, "no_format") {
+			} else if strings.Contains(got, tc.old) {
 				t.Fatalf("want no warning, got %q", got)
 			}
 		})
