@@ -20,6 +20,10 @@ const (
 	filePrefix = "file://" //nolint:unused
 )
 
+// SupportedTargetSchemes lists the bundle target schemes NewBundleInstaller
+// knows how to install, in the form a bundle target is written in.
+var SupportedTargetSchemes = []string{"container://", "docker://", "run://", "package://"}
+
 type BundleConfig struct {
 	Target     string
 	Repository string
@@ -191,7 +195,10 @@ func NewBundleInstaller(bc BundleConfig) (BundleInstaller, error) {
 		return &LuetInstaller{}, nil
 	}
 
-	return &LuetInstaller{}, nil
+	return nil, fmt.Errorf(
+		"unsupported bundle target scheme %q in %q, use one of: %s",
+		scheme, bc.Target, strings.Join(SupportedTargetSchemes, ", "),
+	)
 }
 
 // OCIImageExtractor will extract an OCI image
