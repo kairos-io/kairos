@@ -8,6 +8,14 @@ stages:
         # already exists, so an omitted permissions: would leave 0000 here on
         # every boot. 0755 is what systemd's own tmpfiles use for these, and it
         # keeps them traversable for a non-root `systemd-sysext status`.
+        #
+        # systemd also searches /usr/lib/extensions and /usr/lib/confexts, and
+        # those are deliberately absent here. /usr is read-only once the rootfs
+        # is in place (00_rootfs.yaml sets RW_PATHS to /var /etc /srv and mounts
+        # COS_PERSISTENT at /usr/local), so creating them only produces a
+        # "read-only file system" error on every boot. Kairos extensions live in
+        # /var/lib/extensions since https://github.com/kairos-io/kairos/issues/1821,
+        # and systemd skips a search directory that does not exist.
         - path: /etc/extensions
           permissions: 0755
           owner: 0
@@ -25,14 +33,6 @@ stages:
           owner: 0
           group: 0
         - path: /var/lib/confexts
-          permissions: 0755
-          owner: 0
-          group: 0
-        - path: /usr/lib/extensions
-          permissions: 0755
-          owner: 0
-          group: 0
-        - path: /usr/lib/confexts
           permissions: 0755
           owner: 0
           group: 0

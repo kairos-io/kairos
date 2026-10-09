@@ -14,7 +14,7 @@ stages:
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -L "/etc/hosts" ]'
       name: "Ensure persistent hosts file"
       directories:
-        - path: "/usr/local/etc/"
+        - path: "/usr/local/etc"
           permissions: 0755
           owner: 0
           group: 0
@@ -32,7 +32,7 @@ stages:
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -d /usr/local/etc ]' # check that /usr/local/etc doesnt not exist already
       name: "Ensure persistent /etc/ directory"
       directories:
-        - path: "/usr/local/etc/"
+        - path: "/usr/local/etc"
           permissions: 0755
           owner: 0
           group: 0
