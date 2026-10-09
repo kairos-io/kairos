@@ -344,6 +344,187 @@ func TestStateRegistersGetAndNoApply(t *testing.T) {
 	}
 }
 
+// listReleasesCommand returns the registered "upgrade list-releases" command,
+// so that the tests exercise the command the binary actually serves rather than
+// a copy of it.
+func listReleasesCommand(t *testing.T) *cli.Command {
+	t.Helper()
+
+	for _, c := range cmds {
+		if c.Name != "upgrade" {
+			continue
+		}
+		for _, sub := range c.Subcommands {
+			if sub.Name == "list-releases" {
+				return sub
+			}
+		}
+	}
+
+	t.Fatal("no upgrade list-releases command registered")
+	return nil
+}
+
+func TestParseReleasesOutputAcceptsTheDocumentedFormats(t *testing.T) {
+	for in, want := range map[string]string{
+		"":         outputFormatTerminal,
+		"terminal": outputFormatTerminal,
+		"json":     outputFormatJSON,
+		"yaml":     outputFormatYAML,
+		"JSON":     outputFormatJSON,
+		"Yaml":     outputFormatYAML,
+	} {
+		got, err := parseReleasesOutput(in)
+		if err != nil {
+			t.Fatalf("parseReleasesOutput(%q) returned %v, want no error", in, err)
+		}
+		if got != want {
+			t.Fatalf("parseReleasesOutput(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// A typo in a script has to be visible. Falling back to the terminal format
+// would hand the caller output it cannot parse and an exit status of 0.
+func TestParseReleasesOutputRefusesAnUnknownFormat(t *testing.T) {
+	got, err := parseReleasesOutput("jsonn")
+	if err == nil {
+		t.Fatalf("parseReleasesOutput(\"jsonn\") = %q with no error, want it refused", got)
+	}
+	if !strings.Contains(err.Error(), "jsonn") {
+		t.Fatalf("error %v does not name the value the caller passed", err)
+	}
+}
+
+// The same validation has to run before anything is printed, which is why it
+// sits in the command's Before hook.
+func TestListReleasesRefusesAnUnknownOutputFormatBeforeRunning(t *testing.T) {
+	command := listReleasesCommand(t)
+
+	if command.Before == nil {
+		t.Fatal("list-releases lost its Before hook, so --output is no longer validated")
+	}
+	if err := command.Before(commandContext(t, command, "", "--output", "jsonn")); err == nil {
+		t.Fatal("list-releases accepted --output jsonn, so an unparsable format reaches the caller as terminal output")
+	}
+	if err := command.Before(commandContext(t, command, "", "--output", "json")); err != nil {
+		t.Fatalf("list-releases refused --output json: %v", err)
+	}
+}
+
+// The regression this guards: the flag was declared and documented for three
+// years while nothing read it.
+func TestListReleasesStillDeclaresTheOutputFlag(t *testing.T) {
+	command := listReleasesCommand(t)
+
+	ctx := commandContext(t, command, "", "--output", "yaml")
+	if got := ctx.String("output"); got != "yaml" {
+		t.Fatalf("list-releases --output parsed as %q, want %q", got, "yaml")
+	}
+}
+
+func TestReleasesToOutputRendersEachFormat(t *testing.T) {
+	rels := []string{"v3.5.0", "v3.4.2"}
+
+	if got := ReleasesToOutput(rels, outputFormatTerminal); len(got) != 2 || got[0] != "v3.5.0" || got[1] != "v3.4.2" {
+		t.Fatalf("terminal format = %q, want one release per element", got)
+	}
+
+	got := ReleasesToOutput(rels, outputFormatJSON)
+	if len(got) != 1 || got[0] != `["v3.5.0","v3.4.2"]` {
+		t.Fatalf("json format = %q, want a single JSON document", got)
+	}
+
+	got = ReleasesToOutput(rels, outputFormatYAML)
+	if len(got) != 1 || got[0] != "- v3.5.0\n- v3.4.2\n" {
+		t.Fatalf("yaml format = %q, want a single YAML document", got)
+	}
+}
+
+// An empty result is still a list. Marshalling the nil slice straight through
+// gives "null", which a caller ranging over the document cannot use.
+func TestReleasesToOutputRendersAnEmptyListAsAList(t *testing.T) {
+	if got := ReleasesToOutput(nil, outputFormatJSON); len(got) != 1 || got[0] != "[]" {
+		t.Fatalf("json format of no releases = %q, want [\"[]\"]", got)
+	}
+	if got := ReleasesToOutput(nil, outputFormatYAML); len(got) != 1 || got[0] != "[]\n" {
+		t.Fatalf("yaml format of no releases = %q, want [\"[]\\n\"]", got)
+	}
+}
+
+func TestPrintReleasesWritesOnePerLineOnTheTerminal(t *testing.T) {
+	var out strings.Builder
+
+	printReleases(&out, []string{"v3.5.0", "v3.4.2"}, outputFormatTerminal)
+
+	if out.String() != "v3.5.0\nv3.4.2\n" {
+		t.Fatalf("terminal output = %q, want one release per line", out.String())
+	}
+}
+
+func TestPrintReleasesWritesOneDocumentForAMachineFormat(t *testing.T) {
+	var out strings.Builder
+
+	printReleases(&out, []string{"v3.5.0", "v3.4.2"}, outputFormatJSON)
+
+	if out.String() != "[\"v3.5.0\",\"v3.4.2\"]\n" {
+		t.Fatalf("json output = %q, want a single JSON document", out.String())
+	}
+}
+
+// The headers and warnings are useful to a person and are noise in the middle
+// of a document, so a machine readable format moves them off stdout.
+func TestReleasesNotesKeepsStdoutOnlyForTheTerminalFormat(t *testing.T) {
+	if got := releasesNotes(outputFormatTerminal); got != os.Stdout {
+		t.Fatal("the terminal format stopped writing its notes to stdout")
+	}
+	for _, format := range []string{outputFormatJSON, outputFormatYAML} {
+		if got := releasesNotes(format); got != os.Stderr {
+			t.Fatalf("the %s format writes its notes to stdout, which corrupts the document", format)
+		}
+	}
+}
+
+// The provider branch is the one the Action returns from early, so it has its
+// own rendering path and its own chance to lose the format again.
+func TestPrintProviderReleasesRendersTheRequestedFormat(t *testing.T) {
+	var out, notes strings.Builder
+
+	if !printProviderReleases(&out, &notes, []string{"v3.5.0", "v3.4.2"}, outputFormatJSON) {
+		t.Fatal("expected printProviderReleases to report that it printed something")
+	}
+	if out.String() != "[\"v3.5.0\",\"v3.4.2\"]\n" {
+		t.Fatalf("stdout = %q, want only the JSON document", out.String())
+	}
+	if notes.String() != "Available releases from provider:\n" {
+		t.Fatalf("notes = %q, want only the header", notes.String())
+	}
+}
+
+// Every release the providers answer with has to be listed, and the header
+// belongs with the releases on a terminal.
+func TestPrintProviderReleasesListsEveryReleaseOnTheTerminal(t *testing.T) {
+	var out strings.Builder
+
+	if !printProviderReleases(&out, &out, []string{"v3.5.0", "v3.4.2", "v3.4.1"}, outputFormatTerminal) {
+		t.Fatal("expected printProviderReleases to report that it printed something")
+	}
+	if out.String() != "Available releases from provider:\nv3.5.0\nv3.4.2\nv3.4.1\n" {
+		t.Fatalf("terminal output = %q, want the header and every release", out.String())
+	}
+}
+
+func TestPrintProviderReleasesWithoutReleasesFallsThrough(t *testing.T) {
+	var out, notes strings.Builder
+
+	if printProviderReleases(&out, &notes, nil, outputFormatJSON) {
+		t.Fatal("expected printProviderReleases to report that it printed nothing")
+	}
+	if out.String() != "" || notes.String() != "" {
+		t.Fatalf("expected no output, got stdout %q and notes %q", out.String(), notes.String())
+	}
+}
+
 // `upgrade --dry-run` must be registered as a bool flag that defaults to off,
 // so a plain `upgrade` keeps running the real upgrade.
 func TestUpgradeRegistersDryRunFlag(t *testing.T) {
