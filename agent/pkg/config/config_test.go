@@ -157,7 +157,7 @@ var _ = Describe("Schema", func() {
 			}
 
 			got, err := yaml.Marshal(config)
-			Expect(Expect(err).NotTo(HaveOccurred()))
+			Expect(err).NotTo(HaveOccurred())
 
 			Expect(string(got)).To(Equal(wants))
 		})

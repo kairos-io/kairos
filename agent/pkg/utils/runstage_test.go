@@ -27,7 +27,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/cloudinit"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
-	"github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
