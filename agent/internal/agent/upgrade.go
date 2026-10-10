@@ -63,20 +63,34 @@ func Upgrade(
 	source string, strictValidations bool, dirs []string, upgradeEntry string, allowInsecureRegistries bool, dryRun bool, excludes ...string) error {
 	bus.Manager.Initialize()
 
-	fixedDirs := make([]string, len(dirs))
-	// Check and fix dirs if we are under k8s, so we read the actual running system configs instead of only
-	// the container configs
-	// we can run it blindly as it will return an empty string if not under k8s
-	hostdir := k8sutils.GetHostDirForK8s()
-	for _, dir := range dirs {
-		fixedDirs = append(fixedDirs, filepath.Join(hostdir, dir))
-	}
+	fixedDirs := hostConfigDirs(dirs)
 
 	if internalutils.UkiBootMode() == internalutils.UkiHDD {
 		return upgradeUki(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries, dryRun)
 	} else {
 		return upgrade(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries, dryRun, excludes...)
 	}
+}
+
+// hostConfigDirs maps the config directories the agent scans onto the running
+// system's filesystem. Under Kubernetes the upgrade runs in a pod with the host
+// root bind-mounted somewhere else (/host by default, HOST_DIR when it is set),
+// and without the prefix the upgrade would read the container's own configs
+// instead of the node's. GetHostDirForK8s returns "" outside Kubernetes, which
+// filepath.Join leaves the paths alone.
+//
+// The result holds exactly one entry per input. It is built with a zero length
+// and a reserved capacity on purpose: `make([]string, len(dirs))` followed by
+// append would prefix the real paths with len(dirs) empty strings, and the
+// collector drops an unreadable scan directory without a word, so those would
+// be scanned silently on every upgrade (kairos-io/kairos#5389).
+func hostConfigDirs(dirs []string) []string {
+	hostdir := k8sutils.GetHostDirForK8s()
+	fixedDirs := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		fixedDirs = append(fixedDirs, filepath.Join(hostdir, dir))
+	}
+	return fixedDirs
 }
 
 func upgrade(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, dryRun bool, excludes ...string) error {
