@@ -439,9 +439,21 @@ func parseFiles(dir []string, nologs bool) Configs {
 		}
 
 		var newConfig Config
-		err = yaml.Unmarshal(b, &newConfig.Values)
-		if err != nil && !nologs {
-			fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
+		// A file that does not parse contributes nothing: yaml leaves Values
+		// nil, so merging it is a no-op. Skip it rather than append it,
+		// because an appended config still carries Sources, and that is what
+		// Config.String() prints under "# Sources:". An operator reading
+		// `kairos-agent config` would see the broken file listed there and
+		// take it for one that was applied.
+		//
+		// Name the file for the same reason the oversize branch above does:
+		// the parse error says "line 4", and a scanned directory holds more
+		// than one config, so a line number on its own identifies nothing.
+		if err = yaml.Unmarshal(b, &newConfig.Values); err != nil {
+			if !nologs {
+				fmt.Printf("warning: skipping %s: it does not parse, so none of its settings were applied. %s\n", f, err.Error())
+			}
+			continue
 		}
 		newConfig.Sources = []string{f}
 
