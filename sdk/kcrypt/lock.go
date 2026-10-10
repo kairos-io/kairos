@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math/rand"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
+	strutils "github.com/kairos-io/kairos/v4/sdk/utils/strings"
 )
 
 const udevTimeout = 30 * time.Second
@@ -145,15 +145,15 @@ func createLuks(dev, password string, cryptsetupArgs ...string) error {
 	return nil
 }
 
-var seededRand = rand.New(rand.NewSource(time.Now().UnixNano()))
+// passphraseCharset is the alphabet the LUKS passphrase is drawn from.
+const passphraseCharset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
+// getRandomString returns a passphrase of length characters. It reads the
+// operating system's cryptographic generator, because the string it returns
+// is the key material a LUKS container is created with and it stays in the
+// header until the password slot is wiped.
 func getRandomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
-	}
-	return string(b)
+	return strutils.RandStringFromCharset(length, passphraseCharset)
 }
 
 // luksifyMeasurements takes a label and a list if public-keys and pcrs to bind and uses the measurements.
