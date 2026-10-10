@@ -17,10 +17,12 @@
 package elemental_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -31,6 +33,11 @@ import (
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/gofrs/uuid"
+	"github.com/google/go-containerregistry/pkg/crane"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
+	"github.com/google/go-containerregistry/pkg/v1/layout"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
@@ -535,7 +542,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			Expect(persistent).ToNot(BeNil())
 			persistentBytes := (persistent.End - persistent.Start + 1) * sectorSize
-			Expect(persistentBytes).To(Equal(1024 * mib),
+			Expect(persistentBytes).To(Equal(1024*mib),
 				"persistent should keep its configured 1024 MiB size")
 		})
 		It("Refuses config when persistent + extras exceed target disk size", func() {
@@ -865,27 +872,44 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(err).NotTo(BeNil())
 			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}}))
 		})
-		It("Unpacks a locally saved docker image file to target", Label("docker"), func() {
-			// Clear any previous commands
+		It("Unpacks a docker save archive to target", Label("docker"), func() {
 			runner.ClearCmds()
+			runner.SideEffect = realRunner
 
-			ociTarPath := "/tmp/oci-image.tar"
-			// Create a dummy OCI image tar file
-			err := fs.WriteFile(ociTarPath, []byte("dummy oci image content"), 0644)
-			Expect(err).To(BeNil())
+			archivePath := saveRootfsImage(GinkgoT().TempDir(), "docker")
+			target := GinkgoT().TempDir()
 
-			runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
-				fullCmd := fmt.Sprintf("Running command: %s %s", cmd, strings.Join(args, " "))
-				_, _ = GinkgoWriter.Write([]byte(fullCmd + "\n"))
-				if cmd == "tar" && len(args) >= 2 && args[0] == "-xf" {
-					_, _ = GinkgoWriter.Write([]byte("Simulating successful tar extraction\n"))
-					return []byte{}, nil
-				}
-				return []byte{}, nil
-			}
-			_, err = e.DumpSource(destDir, sdkImages.NewOCIFileSrc(ociTarPath))
+			_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
 			Expect(err).To(BeNil())
-			Expect(runner.IncludesCmds([][]string{{"tar", "-xf", ociTarPath}})).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+		})
+
+		It("Unpacks an OCI layout archive to target", Label("docker"), func() {
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			archivePath := saveRootfsImage(GinkgoT().TempDir(), "oci")
+			target := GinkgoT().TempDir()
+
+			_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+		})
+
+		It("Refuses an archive that holds no image, and leaves the target alone", Label("docker"), func() {
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			dir := GinkgoT().TempDir()
+			Expect(os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not an image"), 0644)).To(Succeed())
+			archivePath := filepath.Join(dir, "plain.tar")
+			Expect(exec.Command("tar", "-cf", archivePath, "-C", dir, "notes.txt").Run()).To(Succeed())
+
+			target := GinkgoT().TempDir()
+			_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(archivePath))
+			Expect(os.ReadDir(target)).To(BeEmpty())
 		})
 
 		It("Copies image file to target", func() {
@@ -1277,3 +1301,55 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		})
 	})
 })
+
+// realRunner lets a spec that needs a command to have actually run use the fake
+// runner for its bookkeeping and the host for the work.
+func realRunner(command string, args ...string) ([]byte, error) {
+	return exec.Command(command, args...).CombinedOutput()
+}
+
+// saveRootfsImage writes a one layer image carrying /etc/os-release into dir,
+// in the layout named by format, and returns the path of the archive.
+//
+//	"docker" is what `docker save` writes on an engine with its own image
+//	store: manifest.json at the root of the archive.
+//	"oci" is what it writes when the engine is backed by containerd:
+//	oci-layout, index.json and blobs/.
+func saveRootfsImage(dir, format string) string {
+	GinkgoHelper()
+
+	layerPath := filepath.Join(dir, "layer.tar")
+	layerFile, err := os.Create(layerPath)
+	Expect(err).ToNot(HaveOccurred())
+
+	writer := tar.NewWriter(layerFile)
+	body := []byte("NAME=\"Kairos\"\n")
+	Expect(writer.WriteHeader(&tar.Header{
+		Name: "etc/os-release", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg,
+		// The suite has to be able to restore this ownership without being root.
+		Uid: os.Getuid(), Gid: os.Getgid(),
+	})).To(Succeed())
+	_, err = writer.Write(body)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(writer.Close()).To(Succeed())
+	Expect(layerFile.Close()).To(Succeed())
+
+	layer, err := tarball.LayerFromFile(layerPath)
+	Expect(err).ToNot(HaveOccurred())
+	img, err := mutate.AppendLayers(empty.Image, layer)
+	Expect(err).ToNot(HaveOccurred())
+
+	archivePath := filepath.Join(dir, format+".tar")
+	if format == "docker" {
+		Expect(crane.Save(img, "kairos:test", archivePath)).To(Succeed())
+		return archivePath
+	}
+
+	layoutDir := filepath.Join(dir, "layout")
+	path, err := layout.Write(layoutDir, empty.Index)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(path.AppendImage(img)).To(Succeed())
+	Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
+
+	return archivePath
+}
