@@ -378,4 +378,78 @@ var _ = Describe("GetEfiPartition", func() {
 		Expect(err.Error()).To(ContainSubstring("could not find EFI partition"))
 		Expect(part).To(BeNil())
 	})
+
+	// Two disks can carry COS_GRUB at once: an installed system plus a second
+	// Kairos disk, or a Kairos raw image on a USB stick, which AuroraBoot
+	// labels the same way. kairos-io/kairos#3611 is what that costs when the
+	// wrong one is picked.
+	Context("when more than one disk carries the label", func() {
+		It("prefers the mounted one even when it is not the last disk scanned", func() {
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "sda", Partitions: []*sdkPartitions.Partition{
+				{Name: "sda1", FilesystemLabel: constants.EfiLabel, FS: "vfat", MountPoint: "/efi"},
+				{Name: "sda2", FilesystemLabel: "COS_STATE", FS: "ext4"},
+			}})
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "sdb", Partitions: []*sdkPartitions.Partition{
+				{Name: "sdb1", FilesystemLabel: constants.EfiLabel, FS: "vfat"},
+			}})
+			ghwTest.CreateDevices()
+
+			part, err := GetEfiPartition(&log)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(part).ToNot(BeNil())
+			Expect(part.Name).To(Equal("sda1"))
+			Expect(part.MountPoint).To(Equal("/efi"))
+		})
+
+		It("prefers the mounted one when it is the last disk scanned", func() {
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "sda", Partitions: []*sdkPartitions.Partition{
+				{Name: "sda1", FilesystemLabel: constants.EfiLabel, FS: "vfat"},
+			}})
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "sdb", Partitions: []*sdkPartitions.Partition{
+				{Name: "sdb1", FilesystemLabel: constants.EfiLabel, FS: "vfat", MountPoint: "/efi"},
+			}})
+			ghwTest.CreateDevices()
+
+			part, err := GetEfiPartition(&log)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(part).ToNot(BeNil())
+			Expect(part.Name).To(Equal("sdb1"))
+			Expect(part.MountPoint).To(Equal("/efi"))
+		})
+
+		// Nothing is mounted while installing, so the tie is broken by
+		// enumeration order. The point is that it is broken the same way every
+		// time, not that the first disk is special.
+		It("falls back to the first in enumeration order when none is mounted", func() {
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "sda", Partitions: []*sdkPartitions.Partition{
+				{Name: "sda1", FilesystemLabel: constants.EfiLabel, FS: "vfat"},
+			}})
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "sdb", Partitions: []*sdkPartitions.Partition{
+				{Name: "sdb1", FilesystemLabel: constants.EfiLabel, FS: "vfat"},
+			}})
+			ghwTest.CreateDevices()
+
+			part, err := GetEfiPartition(&log)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(part).ToNot(BeNil())
+			Expect(part.Name).To(Equal("sda1"))
+		})
+
+		It("names every candidate in the log so the ambiguity is visible", func() {
+			buf := &bytes.Buffer{}
+			log = logger.NewBufferLogger(buf)
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "sda", Partitions: []*sdkPartitions.Partition{
+				{Name: "sda1", FilesystemLabel: constants.EfiLabel, FS: "vfat", MountPoint: "/efi"},
+			}})
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "sdb", Partitions: []*sdkPartitions.Partition{
+				{Name: "sdb1", FilesystemLabel: constants.EfiLabel, FS: "vfat"},
+			}})
+			ghwTest.CreateDevices()
+
+			_, err := GetEfiPartition(&log)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(buf.String()).To(ContainSubstring("/dev/sda1"))
+			Expect(buf.String()).To(ContainSubstring("/dev/sdb1"))
+		})
+	})
 })
