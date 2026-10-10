@@ -51,7 +51,6 @@ type Config struct {
 	Arch                      string                          `yaml:"arch,omitempty" mapstructure:"arch"`
 	SquashFsCompressionConfig []string                        `yaml:"squash-compression,omitempty" mapstructure:"squash-compression"`
 	SquashFsNoCompression     bool                            `yaml:"squash-no-compression,omitempty" mapstructure:"squash-no-compression"`
-	UkiMaxEntries             int                             `yaml:"uki-max-entries,omitempty" mapstructure:"uki-max-entries"`
 	BindPCRs                  []string                        `yaml:"bind-pcrs,omitempty" mapstructure:"bind-pcrs"`
 	BindPublicPCRs            []string                        `yaml:"bind-public-pcrs,omitempty" mapstructure:"bind-public-pcrs"`
 	Logs                      *log.LogsConfig                 `yaml:"logs,omitempty"`

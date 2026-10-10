@@ -84,3 +84,33 @@ var _ = Describe("RootSchema top-level keys", func() {
 		}
 	})
 })
+
+// Decoding a key is not reading it. `uki-max-entries` satisfied the check
+// above for two years: it was declared here, decoded into Config and given a
+// default of 3 by the agent, and nothing read it after the UKI role layout
+// replaced the versioned-directory one that needed a cap. See
+// kairos-io/kairos#5378. The guard below is the one the removal needs, because
+// the key stays in configs that are already written.
+var _ = Describe("uki-max-entries, dropped in kairos-io/kairos#5378", func() {
+	It("is no longer advertised by the generated schema", func() {
+		raw, err := GenerateSchema(RootSchema{}, "")
+		Expect(err).ToNot(HaveOccurred())
+
+		var doc map[string]interface{}
+		Expect(json.Unmarshal([]byte(raw), &doc)).To(Succeed())
+		props, ok := doc["properties"].(map[string]interface{})
+		Expect(ok).To(BeTrue(), "generated schema has no properties object")
+
+		Expect(props).ToNot(HaveKey("uki-max-entries"))
+	})
+
+	It("still validates in a config written before it was dropped", func() {
+		config, err := NewConfigFromYAML(`#cloud-config
+uki-max-entries: 10
+install:
+  device: /dev/sda
+`, RootSchema{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(config.IsValid()).To(BeTrue(), "%v", config.ValidationError)
+	})
+})

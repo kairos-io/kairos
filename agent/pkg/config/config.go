@@ -51,7 +51,6 @@ func NewConfig(opts ...GenericOptions) *sdkConfig.Config {
 		ImageExtractor:            imageextractor.OCIImageExtractor{},
 		SquashFsNoCompression:     true,
 		Install:                   &install.Install{},
-		UkiMaxEntries:             constants.UkiMaxEntries,
 	}
 	for _, o := range opts {
 		o(c)
