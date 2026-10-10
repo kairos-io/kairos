@@ -429,8 +429,13 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(err).To(BeNil())
 			Expect(os.RemoveAll(filepath.Join(tmpDir, "/test.img"))).ToNot(HaveOccurred())
 			// at least 2Gb in size as state is set to 1G
-			_, err = fileBackend.CreateFromPath(filepath.Join(tmpDir, "/test.img"), 2*1024*1024*1024)
+			backing, err := fileBackend.CreateFromPath(filepath.Join(tmpDir, "/test.img"), 2*1024*1024*1024)
 			Expect(err).ToNot(HaveOccurred())
+			// CreateFromPath hands back an open handle on the backing file.
+			// Leaving it for the garbage collector to finalize means the process
+			// holds an fd on the install target for an unpredictable span, which
+			// the fd-leak spec below then counts as one of its own.
+			Expect(backing.Close()).To(Succeed())
 			config.Install.Device = filepath.Join(tmpDir, "/test.img")
 			install, err = agentConfig.NewInstallSpec(config)
 			Expect(err).ToNot(HaveOccurred())
@@ -482,8 +487,9 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			// persistent + a fixed extra partition.
 			imgPath := filepath.Join(tmpDir, "/test.img")
 			Expect(os.RemoveAll(imgPath)).ToNot(HaveOccurred())
-			_, err = fileBackend.CreateFromPath(imgPath, 8*1024*1024*1024)
+			backing, err := fileBackend.CreateFromPath(imgPath, 8*1024*1024*1024)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(backing.Close()).To(Succeed())
 
 			install.PartTable = sdkConstants.GPT
 			install.Firmware = sdkConstants.EFI
@@ -544,8 +550,9 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			// catch it before we go anywhere near the partitioner.
 			imgPath := filepath.Join(tmpDir, "/test.img")
 			Expect(os.RemoveAll(imgPath)).ToNot(HaveOccurred())
-			_, err = fileBackend.CreateFromPath(imgPath, 4*1024*1024*1024)
+			backing, err := fileBackend.CreateFromPath(imgPath, 4*1024*1024*1024)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(backing.Close()).To(Succeed())
 
 			install.PartTable = sdkConstants.GPT
 			install.Firmware = sdkConstants.EFI
@@ -595,8 +602,9 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			// on a disk that can actually hold everything.
 			imgPath := filepath.Join(tmpDir, "/test.img")
 			Expect(os.RemoveAll(imgPath)).ToNot(HaveOccurred())
-			_, err = fileBackend.CreateFromPath(imgPath, 12*1024*1024*1024)
+			backing, err := fileBackend.CreateFromPath(imgPath, 12*1024*1024*1024)
 			Expect(err).ToNot(HaveOccurred())
+			Expect(backing.Close()).To(Succeed())
 
 			install.PartTable = sdkConstants.GPT
 			install.Firmware = sdkConstants.EFI
