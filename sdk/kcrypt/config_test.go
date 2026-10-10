@@ -1,13 +1,17 @@
 package kcrypt
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
@@ -246,5 +250,127 @@ func TestRejectSystemPartitions(t *testing.T) {
 				t.Fatal("Reason is empty, want an explanation")
 			}
 		})
+	}
+}
+
+// scanPCRBindings writes body as a cloud-config, runs the real collector over
+// it, and reads the PCR bindings back the way GetEncryptor does.
+func scanPCRBindings(t *testing.T, body string) (bindPCRs, bindPublicPCRs []string, err error) {
+	t.Helper()
+
+	dir := t.TempDir()
+	if werr := os.WriteFile(filepath.Join(dir, "90_kcrypt.yaml"), []byte(body), 0644); werr != nil {
+		t.Fatal(werr)
+	}
+
+	o := &collector.Options{NoLogs: true}
+	if aerr := o.Apply(collector.Directories(dir)); aerr != nil {
+		t.Fatal(aerr)
+	}
+	c, serr := collector.Scan(o, func(b []byte) ([]byte, error) { return b, nil })
+	if serr != nil {
+		t.Fatal(serr)
+	}
+
+	return extractPCRBindingsFromCollector(*c, logger.NewBufferLogger(&bytes.Buffer{}))
+}
+
+// typedPCRBindings reads the same document through the typed config, which is
+// the other reader of these two keys.
+func typedPCRBindings(t *testing.T, body string) (*sdkConfig.Config, error) {
+	t.Helper()
+
+	var c sdkConfig.Config
+	err := yaml.Unmarshal([]byte(body), &c)
+	return &c, err
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestPCRBindingsAgreeWithTypedConfig is the invariant: a document the typed
+// config accepts has to reach systemd-cryptenroll with the same PCR indices.
+// bind-pcrs has no default, so a binding dropped here is a partition enrolled
+// with no PCR policy at all.
+func TestPCRBindingsAgreeWithTypedConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"quoted indices", "#cloud-config\nbind-pcrs:\n  - \"7\"\nbind-public-pcrs:\n  - \"11\"\n"},
+		{"bare numbers", "#cloud-config\nbind-pcrs:\n  - 7\nbind-public-pcrs:\n  - 11\n"},
+		{"inline numbers", "#cloud-config\nbind-pcrs: [7, 8]\n"},
+		{"mixed", "#cloud-config\nbind-pcrs: [7, \"8\"]\nbind-public-pcrs: [11]\n"},
+		{"neither key", "#cloud-config\ninstall:\n  device: /dev/sda\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			typed, terr := typedPCRBindings(t, tc.body)
+			if terr != nil {
+				t.Fatalf("the typed config rejected this document, so it is not a case this test can compare: %v", terr)
+			}
+
+			bindPCRs, bindPublicPCRs, err := scanPCRBindings(t, tc.body)
+			if err != nil {
+				t.Fatalf("kcrypt refused a document the typed config accepts: %v", err)
+			}
+
+			if !equalStrings(bindPCRs, typed.BindPCRs) {
+				t.Errorf("bind-pcrs: kcrypt read %#v, the typed config read %#v", bindPCRs, typed.BindPCRs)
+			}
+			if !equalStrings(bindPublicPCRs, typed.BindPublicPCRs) {
+				t.Errorf("bind-public-pcrs: kcrypt read %#v, the typed config read %#v", bindPublicPCRs, typed.BindPublicPCRs)
+			}
+		})
+	}
+}
+
+// TestPCRBindingsReportAnUnreadableValue pins the second half: a value that
+// cannot be read as a list of PCR indices is an error, not an empty list that
+// silently drops the policy.
+func TestPCRBindingsReportAnUnreadableValue(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"a scalar", "#cloud-config\nbind-pcrs: 7\n"},
+		{"a boolean", "#cloud-config\nbind-pcrs: true\n"},
+		{"a mapping", "#cloud-config\nbind-pcrs:\n  a: 1\n"},
+		{"a nested list", "#cloud-config\nbind-pcrs:\n  - [7]\n"},
+		{"a fractional index", "#cloud-config\nbind-pcrs: [7.5]\n"},
+		{"an unreadable public list", "#cloud-config\nbind-public-pcrs:\n  - a: 1\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bindPCRs, bindPublicPCRs, err := scanPCRBindings(t, tc.body)
+			if err == nil {
+				t.Fatalf("expected an error, got bind-pcrs=%#v bind-public-pcrs=%#v", bindPCRs, bindPublicPCRs)
+			}
+			if bindPCRs != nil || bindPublicPCRs != nil {
+				t.Errorf("an error has to come with no bindings, got %#v and %#v", bindPCRs, bindPublicPCRs)
+			}
+		})
+	}
+}
+
+// TestPCRBindingsBindWhatWasAsked states the user-visible outcome directly, so
+// the suite still fails if the agreement test above ever goes vacuous.
+func TestPCRBindingsBindWhatWasAsked(t *testing.T) {
+	bindPCRs, bindPublicPCRs, err := scanPCRBindings(t, "#cloud-config\nbind-pcrs:\n  - 7\nbind-public-pcrs:\n  - 11\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !equalStrings(bindPCRs, []string{"7"}) {
+		t.Errorf("bind-pcrs: got %#v, want [7]", bindPCRs)
+	}
+	if !equalStrings(bindPublicPCRs, []string{"11"}) {
+		t.Errorf("bind-public-pcrs: got %#v, want [11]", bindPublicPCRs)
 	}
 }

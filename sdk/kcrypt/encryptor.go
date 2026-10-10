@@ -286,9 +286,18 @@ type TPMWithPCREncryptor struct {
 	logger         sdkLogger.KairosLogger
 	bindPublicPCRs []string
 	bindPCRs       []string
+	// bindingErr is set when the PCR bindings in the configuration could not be
+	// read. Only Encrypt consumes the bindings, so the error waits here until a
+	// partition is about to be enrolled rather than failing the unlock paths
+	// that build this encryptor on every boot.
+	bindingErr error
 }
 
 func (e *TPMWithPCREncryptor) Encrypt(partitions []string) error {
+	if e.bindingErr != nil {
+		return e.bindingErr
+	}
+
 	e.logger.Logger.Info().Str("method", e.Name()).Strs("partitions", partitions).Msg("Encrypting partitions")
 
 	for _, partition := range partitions {
@@ -568,8 +577,20 @@ func GetEncryptorFromConfig(logger sdkLogger.KairosLogger, collectorConfig *coll
 	isUKI := detectUKIMode(logger)
 
 	var bindPCRs, bindPublicPCRs []string
+	var bindingErr error
 	if isUKI && collectorConfig != nil {
-		bindPCRs, bindPublicPCRs = extractPCRBindingsFromCollector(*collectorConfig, logger)
+		bindPCRs, bindPublicPCRs, bindingErr = extractPCRBindingsFromCollector(*collectorConfig, logger)
+		if bindingErr != nil {
+			// Enrolling with whatever is left of the bindings the user asked
+			// for, which for bind-pcrs is nothing at all, is not acceptable,
+			// so the error has to reach the caller. It cannot be raised here:
+			// the unlock paths build an encryptor on every boot and never read
+			// the bindings, so failing now would leave already-encrypted
+			// partitions locked over a configuration problem they do not
+			// depend on. TPMWithPCREncryptor carries it to Encrypt instead.
+			bindingErr = fmt.Errorf("reading the PCR bindings: %w", bindingErr)
+			logger.Logger.Warn().Err(bindingErr).Msg("PCR bindings will be rejected if an encryption is requested")
+		}
 	}
 
 	useRemoteKMS := kcryptConfig != nil && (kcryptConfig.ChallengerServer != "" || kcryptConfig.MDNS)
@@ -591,6 +612,7 @@ func GetEncryptorFromConfig(logger sdkLogger.KairosLogger, collectorConfig *coll
 			logger:         logger,
 			bindPublicPCRs: bindPublicPCRs,
 			bindPCRs:       bindPCRs,
+			bindingErr:     bindingErr,
 		}
 	} else {
 		logger.Logger.Info().Msg("Using local TPM NV passphrase for encryption")
