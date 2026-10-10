@@ -8,7 +8,9 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
@@ -374,4 +376,91 @@ func TestUpgradeRegistersDryRunFlag(t *testing.T) {
 		}
 	}
 	t.Fatal("upgrade does not register a --dry-run flag")
+}
+
+func phoneHomeCommand(t *testing.T) *cli.Command {
+	t.Helper()
+	for _, command := range cmds {
+		if command.Name == "phone-home" {
+			return command
+		}
+	}
+	t.Fatal("phone-home command not found")
+	return nil
+}
+
+func phoneHomeContext(t *testing.T, args ...string) *cli.Context {
+	t.Helper()
+	command := phoneHomeCommand(t)
+	set := flag.NewFlagSet(command.Name, flag.ContinueOnError)
+	for _, commandFlag := range command.Flags {
+		if err := commandFlag.Apply(set); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := set.Parse(args); err != nil {
+		t.Fatal(err)
+	}
+	return cli.NewContext(nil, set, nil)
+}
+
+// The unit the agent installs runs "kairos-agent phone-home" with no flags, so
+// a heartbeat-interval taken from the flag's default would overwrite the value
+// cloud-config carries and phonehome.heartbeat_interval would never reach the
+// client.
+func TestPhoneHomeKeepsTheConfiguredHeartbeatWhenTheFlagIsAbsent(t *testing.T) {
+	cfg := phonehome.Config{
+		URL:               "ws://configured.test",
+		RegistrationToken: "config-token",
+		Group:             "config-group",
+		HeartbeatInterval: 5 * time.Minute,
+		ReconnectBackoff:  time.Minute,
+	}
+
+	MergePhoneHomeFlags(phoneHomeContext(t), &cfg)
+
+	if cfg.HeartbeatInterval != 5*time.Minute {
+		t.Fatalf("heartbeat interval = %s, want the configured 5m", cfg.HeartbeatInterval)
+	}
+	if cfg.URL != "ws://configured.test" || cfg.RegistrationToken != "config-token" || cfg.Group != "config-group" {
+		t.Fatalf("string fields were overwritten: %+v", cfg)
+	}
+	if cfg.ReconnectBackoff != time.Minute {
+		t.Fatalf("reconnect backoff = %s, want the configured 1m", cfg.ReconnectBackoff)
+	}
+}
+
+func TestPhoneHomeFlagsOverrideTheConfiguredValues(t *testing.T) {
+	cfg := phonehome.Config{
+		URL:               "ws://configured.test",
+		RegistrationToken: "config-token",
+		Group:             "config-group",
+		HeartbeatInterval: 5 * time.Minute,
+	}
+
+	MergePhoneHomeFlags(phoneHomeContext(t,
+		"--url", "ws://flag.test",
+		"--token", "flag-token",
+		"--group", "flag-group",
+		"--heartbeat-interval", "90s",
+	), &cfg)
+
+	if cfg.URL != "ws://flag.test" || cfg.RegistrationToken != "flag-token" || cfg.Group != "flag-group" {
+		t.Fatalf("string flags did not win: %+v", cfg)
+	}
+	if cfg.HeartbeatInterval != 90*time.Second {
+		t.Fatalf("heartbeat interval = %s, want the 90s from the flag", cfg.HeartbeatInterval)
+	}
+}
+
+// With nothing on either side the client is the one that picks the default, so
+// the merge must leave the zero value in place rather than copy the flag's.
+func TestPhoneHomeLeavesTheHeartbeatZeroWhenNobodySetsIt(t *testing.T) {
+	cfg := phonehome.Config{URL: "ws://configured.test"}
+
+	MergePhoneHomeFlags(phoneHomeContext(t), &cfg)
+
+	if cfg.HeartbeatInterval != 0 {
+		t.Fatalf("heartbeat interval = %s, want zero so the client applies its default", cfg.HeartbeatInterval)
+	}
 }
