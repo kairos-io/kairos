@@ -1713,6 +1713,106 @@ name: Mario
 			})
 		})
 
+		Context("when a scanned file does not parse", func() {
+			var tmpDir string
+
+			BeforeEach(func() {
+				var err error
+				tmpDir, err = os.MkdirTemp("", "config_unparseable")
+				Expect(err).ToNot(HaveOccurred())
+				DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+				Expect(os.WriteFile(path.Join(tmpDir, "good.yaml"), []byte(`#cloud-config
+name: Mario
+`), os.ModePerm)).To(Succeed())
+
+				// Indentation that yaml rejects, reported as "line 4".
+				Expect(os.WriteFile(path.Join(tmpDir, "broken.yaml"), []byte(`#cloud-config
+install:
+  device: /dev/sda
+   auto: true
+`), os.ModePerm)).To(Succeed())
+			})
+
+			It("names the file in the warning and says nothing was applied", func() {
+				origStdout := os.Stdout
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				os.Stdout = w
+				defer func() { os.Stdout = origStdout }()
+
+				o := &Options{}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+
+				Expect(w.Close()).To(Succeed())
+				out, readErr := io.ReadAll(r)
+				Expect(readErr).ToNot(HaveOccurred())
+
+				Expect(scanErr).ToNot(HaveOccurred())
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+
+				Expect(string(out)).To(ContainSubstring("broken.yaml"))
+				Expect(string(out)).To(ContainSubstring("none of its settings were applied"))
+			})
+
+			It("does not list the unparseable file as a source of the merged config", func() {
+				o := &Options{NoLogs: true}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+				Expect(scanErr).ToNot(HaveOccurred())
+
+				Expect(c.Sources).To(ContainElement(path.Join(tmpDir, "good.yaml")))
+				Expect(c.Sources).ToNot(ContainElement(path.Join(tmpDir, "broken.yaml")))
+
+				s, err := c.String()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(s).ToNot(ContainSubstring("broken.yaml"))
+			})
+
+			// yaml.v3 reports a duplicate key as a *yaml.TypeError and still
+			// fills the map with everything else it decoded. Skipping that
+			// file would take `users:` off a node that boots today, so it is
+			// kept and the warning says it was only partly applied.
+			It("keeps the keys yaml did decode when a nested mapping has a duplicate key", func() {
+				Expect(os.WriteFile(path.Join(tmpDir, "dup.yaml"), []byte(`#cloud-config
+users:
+- name: kairos
+  ssh_authorized_keys:
+  - ssh-rsa AAAAkey
+install:
+  device: /dev/sda
+  device: /dev/sdb
+`), os.ModePerm)).To(Succeed())
+
+				origStdout := os.Stdout
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				os.Stdout = w
+				defer func() { os.Stdout = origStdout }()
+
+				o := &Options{}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+
+				Expect(w.Close()).To(Succeed())
+				out, readErr := io.ReadAll(r)
+				Expect(readErr).ToNot(HaveOccurred())
+
+				Expect(scanErr).ToNot(HaveOccurred())
+				Expect(c.Values).To(HaveKey("users"))
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(c.Sources).To(ContainElement(path.Join(tmpDir, "dup.yaml")))
+
+				Expect(string(out)).To(ContainSubstring("dup.yaml"))
+				Expect(string(out)).To(ContainSubstring("some of its settings were not applied"))
+				Expect(string(out)).ToNot(ContainSubstring("skipping " + path.Join(tmpDir, "dup.yaml")))
+			})
+		})
+
 		// A FIFO named like a config blocks os.ReadFile in open(2) until a
 		// writer shows up, which on a real boot is never: the agent parks in
 		// openat with wchan=wait_for_partner, holds a shutdown inhibitor, and
