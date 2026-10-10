@@ -57,16 +57,25 @@ func (c *multiErrorCIRunner) Run(stage string, args ...string) error {
 
 // argsRecordingCIRunner captures every args tuple passed to Run so specs can
 // assert on the values reaching the runner (in particular that a templated
-// cmdline URI was rendered before handoff).
+// cmdline URI was rendered before handoff). Analyze is recorded the same way:
+// the shared fake drops it, which is why analyze mode could point at the wrong
+// source for as long as it did.
 type argsRecordingCIRunner struct {
 	v1mock.FakeCloudInitRunner
-	Args [][]string
+	Args          [][]string
+	AnalyzeStages []string
+	AnalyzeArgs   [][]string
 }
 
 func (c *argsRecordingCIRunner) Run(stage string, args ...string) error {
 	c.ExecStages = append(c.ExecStages, stage)
 	c.Args = append(c.Args, append([]string{}, args...))
 	return nil
+}
+
+func (c *argsRecordingCIRunner) Analyze(stage string, args ...string) {
+	c.AnalyzeStages = append(c.AnalyzeStages, stage)
+	c.AnalyzeArgs = append(c.AnalyzeArgs, append([]string{}, args...))
 }
 
 var _ = Describe("run stage", Label("RunStage"), func() {
@@ -247,6 +256,36 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 			flat = append(flat, tuple...)
 		}
 		Expect(flat).To(ContainElement(plain))
+	})
+
+	It("analyzes every source it would run, not the cloud-init paths three times", func() {
+		// Regression: both cmdline arms of the analyze switch were copied
+		// from the file arm and kept its argument, so --analyze printed the
+		// cloud-init directory DAG once per source and never looked at the
+		// kernel cmdline. A node configured through kairos.config_url= read
+		// an empty DAG for a stage the same command would have run.
+		mock := &argsRecordingCIRunner{}
+		config.CloudInitRunner = mock
+
+		plain := "http://d/plain.yaml"
+		cmdline := fmt.Sprintf("root=LABEL=X kairos.config_url=%s quiet", plain)
+		Expect(writeCmdline(cmdline, fs)).To(Succeed())
+
+		Expect(utils.RunStageAnalyze(config, "padme")).To(BeNil())
+
+		// Analyze mode runs nothing.
+		Expect(mock.ExecStages).To(BeEmpty())
+		Expect(mock.AnalyzeStages).To(ContainElements("padme.before", "padme", "padme.after"))
+
+		flat := []string{}
+		for _, tuple := range mock.AnalyzeArgs {
+			flat = append(flat, tuple...)
+		}
+		// One element per source: the cloud-init directories, the URI the
+		// cmdline names, and the raw cmdline the dot-notation modifier reads.
+		Expect(flat).To(ContainElement("/system/oem"))
+		Expect(flat).To(ContainElement(plain))
+		Expect(flat).To(ContainElement(cmdline))
 	})
 
 	It("ignores kairos.config=key=value when resolving the URI", func() {
