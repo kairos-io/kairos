@@ -63,16 +63,22 @@ reason = "no-fix-available: golang.org/x/crypto. No fixed version published at a
 
 
 # ---------------------------------------------------------------------------
-# upstream-regression -- a fix exists upstream, but taking it breaks the
-# component. This is in the `edgevpn` binary, which ships in every Kairos
-# release from mudler/edgevpn.
+# upstream-fix-pending -- the fix is written and submitted upstream but not
+# merged, and no release carries it yet. This is in the `edgevpn` binary,
+# which ships in every Kairos release from mudler/edgevpn.
 #
-# Bisected against edgevpn's pkg/node suite, which exercises real peer-to-peer
-# connectivity: webtransport-go v0.11.1 makes the "nodes can write to the
-# ledger" spec time out at 240s where an unmodified checkout passes in
-# 10-13s. v0.11.1 pulls quic-go 0.59.1 -> 0.60.0, which alone reproduces it;
-# go-libp2p pins quic-go tightly, so this likely needs a go-libp2p bump
-# upstream first. See mudler/edgevpn#1075.
+# This entry was previously categorised `upstream-regression`, on a bisection
+# that said webtransport-go v0.11.1 made edgevpn's "nodes can write to the
+# ledger" spec time out at 240s where an unmodified checkout passed in 10-13s.
+# That did not survive the expiry re-look: the spec is flaky, so one run per
+# side does not discriminate. Sampled 10 times per variant on one host, with
+# the Eventually budget cut to 30s, unmodified edgevpn master failed 3/10 and
+# the bumped tree 2/10. Each dependency was also clean on its own against
+# master at the full 240s budget. There is no regression to wait out.
+#
+# mudler/edgevpn#1083 is the submitted fix (webtransport-go v0.11.1, and
+# x/net v0.60.0 for the HTTP/2 set). It needs a merge and an edgevpn release,
+# then a bump of kairos-init/EDGEVPN_VERSION here. Tracked in #5351.
 #
 # Note this is also present in provider-kairos, where it is already fixed
 # on main -- cutting a provider-kairos release clears it there, leaving only
@@ -81,5 +87,5 @@ reason = "no-fix-available: golang.org/x/crypto. No fixed version published at a
 
 [[IgnoredVulns]]
 id = "GHSA-g35j-m5xg-vh3q"
-ignoreUntil = 2026-10-11
-reason = "upstream-regression: CVE-2026-57497, webtransport-go in edgevpn. Fix v0.11.1 pulls quic-go 0.60.0, which breaks libp2p peer connectivity. Needs a go-libp2p bump upstream. See mudler/edgevpn#1075."
+ignoreUntil = 2026-11-10
+reason = "upstream-fix-pending: CVE-2026-57497, webtransport-go in edgevpn. Fixed by mudler/edgevpn#1083, which needs a merge and an edgevpn release. The earlier upstream-regression reason did not reproduce; see the comment above."
