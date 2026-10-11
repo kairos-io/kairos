@@ -93,6 +93,33 @@ var _ = Describe("Provider info event", func() {
 			Expect(info.Provider).To(Equal(K3s))
 		})
 
+		// kairos-init drops an answer that carries no version, so falling back
+		// to a provider whose version could not be read, when another one on
+		// the same image could, leaves the image with no software version.
+		It("prefers a readable version when falling back", func() {
+			supported := []providerBinary{
+				fakeProvider(K0s, "/usr/bin/k0s", ""),
+				fakeProvider(K3s, "/usr/bin/k3s", "v1.33.1+k3s1"),
+			}
+			info, found := installedProvider("", supported, l)
+			Expect(found).To(BeTrue())
+			Expect(info.Provider).To(Equal(K3s))
+			Expect(info.Version).To(Equal("v1.33.1+k3s1"))
+		})
+
+		// The provider that was asked about is the answer even when its
+		// version could not be read. No other provider can stand in for it.
+		It("does not substitute another provider for the one asked about", func() {
+			supported := []providerBinary{
+				fakeProvider(K0s, "/usr/bin/k0s", ""),
+				fakeProvider(K3s, "/usr/bin/k3s", "v1.33.1+k3s1"),
+			}
+			info, found := installedProvider(K0s, supported, l)
+			Expect(found).To(BeTrue())
+			Expect(info.Provider).To(Equal(K0s))
+			Expect(info.Version).To(BeEmpty())
+		})
+
 		It("reports nothing when nothing is installed", func() {
 			supported := []providerBinary{
 				fakeProvider(K0s, "", ""),

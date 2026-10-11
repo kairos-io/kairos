@@ -238,12 +238,22 @@ func supportedProviders() []providerBinary {
 }
 
 // installedProvider reports the installed version of the provider named in
-// requested. With no provider named it falls back to the first provider in
-// supported that is installed, so that an image which was not built with
-// --provider still reports the provider binary it inherited, and reports the
-// same one on every build rather than whichever check happens to run last.
+// requested, or nothing when that provider is not installed. An empty version
+// is still an answer here: the caller asked about this provider and no other
+// one can stand in for it.
+//
+// With no provider named it falls back to the providers that are installed, so
+// that an image which was not built with --provider still reports the provider
+// binary it inherited. One of them has to be chosen, and the choice is made
+// here rather than left to the order the binaries happen to be probed in: a
+// provider whose version could be read wins, because kairos-init drops an
+// answer that carries no version and the image would then ship with no
+// software version at all while another provider on it had one. Input order
+// decides the rest.
+//
 // The second return value says whether anything was found.
 func installedProvider(requested string, supported []providerBinary, l loggerpkg.KairosLogger) (bus.ProviderInstalledVersionPayload, bool) {
+	installed := make([]bus.ProviderInstalledVersionPayload, 0, len(supported))
 	for _, p := range supported {
 		if requested != "" && requested != p.name {
 			continue
@@ -251,10 +261,27 @@ func installedProvider(requested string, supported []providerBinary, l loggerpkg
 		if p.bin() == "" {
 			continue
 		}
-		return bus.ProviderInstalledVersionPayload{Provider: p.name, Version: p.version(l)}, true
+		installed = append(installed, bus.ProviderInstalledVersionPayload{Provider: p.name, Version: p.version(l)})
 	}
 
-	return bus.ProviderInstalledVersionPayload{}, false
+	if len(installed) == 0 {
+		return bus.ProviderInstalledVersionPayload{}, false
+	}
+	if len(installed) > 1 {
+		names := make([]string, 0, len(installed))
+		for _, c := range installed {
+			names = append(names, c.Provider)
+		}
+		l.Logger.Warn().Strs("installed", names).Msg("This image carries more than one provider and the event named none, so only one of them is reported")
+	}
+
+	for _, c := range installed {
+		if c.Version != "" {
+			return c, true
+		}
+	}
+
+	return installed[0], true
 }
 
 // k3sVersion retrieves the version of k3s installed on the system.
