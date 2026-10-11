@@ -104,8 +104,43 @@ func (kc *KConfig) validate() {
 		return
 	}
 
-	if err = sch.Validate(kc.parsed); err != nil {
+	if err = sch.Validate(withoutBlankKeys(kc.parsed)); err != nil {
 		kc.ValidationError = err
+	}
+}
+
+// withoutBlankKeys returns the document with every mapping entry that has no
+// value removed, so that `ssh_authorized_keys:` with its entries commented out
+// validates the same as a config that does not mention the key at all.
+//
+// YAML reads a key with nothing under it as an explicit null, and the generated
+// schema gives each optional key one concrete type, so null matches none of
+// them. No other reader of the config can tell the two apart: yaml.Unmarshal
+// gives the Go field its zero value either way. The validator was the only
+// place that did, and it rejected the shape the examples and the documentation
+// teach, where an optional list is shown as a key with commented-out entries.
+//
+// Entries of a sequence are left alone. A null list item is a real mistake, it
+// is not the same as writing a shorter list, so `users:\n  -\n` keeps failing.
+func withoutBlankKeys(v interface{}) interface{} {
+	switch t := v.(type) {
+	case map[string]interface{}:
+		pruned := make(map[string]interface{}, len(t))
+		for key, value := range t {
+			if value == nil {
+				continue
+			}
+			pruned[key] = withoutBlankKeys(value)
+		}
+		return pruned
+	case []interface{}:
+		pruned := make([]interface{}, len(t))
+		for i, value := range t {
+			pruned[i] = withoutBlankKeys(value)
+		}
+		return pruned
+	default:
+		return v
 	}
 }
 
