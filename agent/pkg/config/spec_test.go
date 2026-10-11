@@ -1018,6 +1018,41 @@ var _ = Describe("GetSourceSize", Label("GetSourceSize"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sizeAfter).To(Equal(sizeBefore))
 	})
+	It("resolves an absolute symlink inside the source, not on the running system", func() {
+		// The spec needs a path that exists outside the image and not inside
+		// it, so that the two answers can be told apart.
+		_, statErr := os.Stat("/etc/hosts")
+		Expect(statErr).ToNot(HaveOccurred(), "this spec needs /etc/hosts to exist on the machine running it")
+
+		// An image whose only entry is a symlink to /etc/hosts. Inside an
+		// image that names the image's own /etc/hosts, which is absent here,
+		// so nothing may be counted. Resolving it against the running system
+		// instead finds a real file and charges its size to the image.
+		imageDir := filepath.Join(tempDir, "abs-symlink-image")
+		Expect(os.Mkdir(imageDir, os.ModePerm)).ToNot(HaveOccurred())
+		Expect(os.Symlink("/etc/hosts", filepath.Join(imageDir, "hosts"))).ToNot(HaveOccurred())
+
+		size, err := config.GetSourceSize(conf, sdkImages.NewDirSrc(imageDir))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(size).To(BeZero())
+	})
+	It("counts an absolute symlink whose target is inside the source only once", func() {
+		imageDir := filepath.Join(tempDir, "abs-symlink-dedup")
+		Expect(os.MkdirAll(filepath.Join(imageDir, "data"), os.ModePerm)).ToNot(HaveOccurred())
+		Expect(createFileOfSizeInMB(filepath.Join(imageDir, "data", "payload"), 200)).ToNot(HaveOccurred())
+
+		sizeBefore, err := config.GetSourceSize(conf, sdkImages.NewDirSrc(imageDir))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sizeBefore).To(Equal(int64(200 + 100)))
+
+		// /data/payload is the file written above, named the way a symlink
+		// inside an image names it.
+		Expect(os.Symlink("/data/payload", filepath.Join(imageDir, "payload"))).ToNot(HaveOccurred())
+
+		sizeAfter, err := config.GetSourceSize(conf, sdkImages.NewDirSrc(imageDir))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sizeAfter).To(Equal(sizeBefore))
+	})
 	It("Skips the kubernetes host dir when calculating the sizes if set", func() {
 		sizeBefore, err := config.GetSourceSize(conf, imageSource)
 		Expect(err).To(BeNil())
