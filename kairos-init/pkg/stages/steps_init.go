@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
@@ -247,6 +248,9 @@ func getProviderInfo(logger logger.KairosLogger) (bus.ProviderInstalledVersionPa
 	// otherwise inherit the version of whichever provider answered before it,
 	// and a half decoded response would corrupt a good one.
 	reported := map[string]bus.ProviderInstalledVersionPayload{}
+	// The bus runs one handler goroutine per plugin and waits for all of them,
+	// so the writes below overlap.
+	var reportedMu sync.Mutex
 
 	manager.Response(bus.InitProviderInfo, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
 		logger.Logger.Debug().Str("at", p.Executable).Interface("resp", resp).Msg("Received info event from provider")
@@ -267,17 +271,45 @@ func getProviderInfo(logger logger.KairosLogger) (bus.ProviderInstalledVersionPa
 			logger.Logger.Warn().Str("at", p.Executable).Msg("Provider info event named no provider, skipping")
 			return
 		}
+		reportedMu.Lock()
 		reported[info.Provider] = info
+		reportedMu.Unlock()
 		if resp.State == bus.EventResponseSuccess {
 			logger.Logger.Info().Str("provider", info.Provider).Msg("Provider info event succeeded")
 		}
 	})
-	_, err := manager.Publish(bus.InitProviderInfo, nil)
-	if err != nil {
-		logger.Logger.Error().Msgf("Failed to publish provider info event: %s", err)
-		return versionInfo, err
+
+	for _, payload := range providerInfoRequests() {
+		if _, err := manager.Publish(bus.InitProviderInfo, payload); err != nil {
+			logger.Logger.Error().Msgf("Failed to publish provider info event: %s", err)
+			return versionInfo, err
+		}
 	}
+
 	return pickProviderInfo(reported, logger), nil
+}
+
+// providerInfoRequests returns one info event payload per configured provider,
+// the same way the install event is published once per provider. A broadcast
+// brings back one response per plugin, so a single untargeted event can only
+// ever report one provider even when the image carries several, and one plugin
+// serves both k3s and k0s. Naming the provider is what lets every one of them
+// answer.
+//
+// A build that configured no provider still asks once, with no provider named,
+// so that an image which inherited a provider binary keeps reporting it.
+func providerInfoRequests() []interface{} {
+	providers := config.DefaultConfig.Providers
+	if len(providers) == 0 {
+		return []interface{}{nil}
+	}
+
+	requests := make([]interface{}, 0, len(providers))
+	for _, provider := range providers {
+		requests = append(requests, bus.ProviderPayload{Provider: provider.Name})
+	}
+
+	return requests
 }
 
 // pickProviderInfo chooses the one provider that KAIROS_SOFTWARE_VERSION and
