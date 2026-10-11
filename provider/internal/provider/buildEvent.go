@@ -165,17 +165,26 @@ func InfoEvent(e *pluggable.Event) pluggable.EventResponse {
 	l.Logger.Info().Msg("Info event received")
 	l.Logger.Debug().Interface("event", e).Msg("Event details")
 
-	infoData := bus.ProviderInstalledVersionPayload{}
-
-	if k3s := utils.K3sBin(); k3s != "" {
-		infoData.Provider = K3s
-		infoData.Version = k3sVersion(l)
-
+	candidates := installedProviders(l)
+	if len(candidates) > 1 {
+		names := make([]string, 0, len(candidates))
+		for _, c := range candidates {
+			names = append(names, c.Provider)
+		}
+		l.Logger.Warn().Strs("installed", names).Msg("This image carries more than one provider, only one of them can be reported")
 	}
-	if k0s := utils.K0sBin(); k0s != "" {
-		infoData.Provider = K0s
-		infoData.Version = k0sVersion(l)
+
+	infoData, found := pickInstalledProvider(candidates)
+	// If no provider was found, we return an empty response with a not applicable state
+	if !found {
+		l.Logger.Info().Msg("No provider found, returning not applicable state")
+		return pluggable.EventResponse{
+			State: bus.EventResponseNotApplicable,
+			Data:  "",
+			Error: "",
+		}
 	}
+	l.Logger.Info().Str("provider", infoData.Provider).Str("version", infoData.Version).Msg("Reporting the installed provider")
 
 	// This is the returned data for the info event
 	jsondata, err := json.Marshal(infoData)
@@ -185,15 +194,6 @@ func InfoEvent(e *pluggable.Event) pluggable.EventResponse {
 			State: bus.EventResponseError,
 			Data:  "",
 			Error: err.Error(),
-		}
-	}
-	// If no provider was found, we return an empty response with a not applicable state
-	if infoData.Provider == "" {
-		l.Logger.Info().Msg("No provider found, returning not applicable state")
-		return pluggable.EventResponse{
-			State: bus.EventResponseNotApplicable,
-			Data:  "",
-			Error: "",
 		}
 	}
 	data := pluggable.EventResponse{
@@ -206,6 +206,43 @@ func InfoEvent(e *pluggable.Event) pluggable.EventResponse {
 	l.Logger.Debug().Interface("response", data).Msg("Response details")
 
 	return data
+}
+
+// installedProviders returns one candidate for every provider binary present
+// in the image, in a stable order. The two lookups read different paths, so an
+// image that was built for one provider and then layered with another carries
+// both binaries and produces two candidates.
+func installedProviders(l loggerpkg.KairosLogger) []bus.ProviderInstalledVersionPayload {
+	var found []bus.ProviderInstalledVersionPayload
+	if k3s := utils.K3sBin(); k3s != "" {
+		found = append(found, bus.ProviderInstalledVersionPayload{Provider: K3s, Version: k3sVersion(l)})
+	}
+	if k0s := utils.K0sBin(); k0s != "" {
+		found = append(found, bus.ProviderInstalledVersionPayload{Provider: K0s, Version: k0sVersion(l)})
+	}
+	return found
+}
+
+// pickInstalledProvider chooses which of the installed providers the info event
+// reports. The payload holds a single provider and version pair, so the choice
+// belongs here rather than in the order the binaries happen to be probed in.
+// A candidate whose version could be read wins over one whose version could
+// not, because kairos-init drops a response with an empty version and the
+// image would then ship with no software version at all, even when another
+// provider on the same image reported one. Candidates keep their input order
+// otherwise.
+func pickInstalledProvider(candidates []bus.ProviderInstalledVersionPayload) (bus.ProviderInstalledVersionPayload, bool) {
+	for _, c := range candidates {
+		if c.Provider != "" && c.Version != "" {
+			return c, true
+		}
+	}
+	for _, c := range candidates {
+		if c.Provider != "" {
+			return c, true
+		}
+	}
+	return bus.ProviderInstalledVersionPayload{}, false
 }
 
 // k3sVersion retrieves the version of k3s installed on the system.
