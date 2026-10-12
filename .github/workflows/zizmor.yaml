@@ -17,10 +17,12 @@ on:
     paths:
       - '.github/workflows/**'
       - '.github/actions/**'
+      - '.github/zizmor.yml'
   pull_request:
     paths:
       - '.github/workflows/**'
       - '.github/actions/**'
+      - '.github/zizmor.yml'
 
 permissions:
   contents: read

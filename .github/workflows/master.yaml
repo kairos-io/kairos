@@ -40,11 +40,9 @@ concurrency:
 jobs:
   unit-tests:
     uses: ./.github/workflows/_unit-tests.yaml
-    secrets: inherit
 
   lint:
     uses: ./.github/workflows/_lint.yaml
-    secrets: inherit
 
   # kairos-init pipe: gates build-iso + tests.
   #
@@ -72,14 +70,12 @@ jobs:
     uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: full
-    secrets: inherit
 
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
       matrix_scope: full
-    secrets: inherit
 
   # Flavor smoke matrix. Same shape as pr-full.yaml's build-flavors, with
   # matrix_scope: full so the riscv64 cells (ubuntu:24.04, debian:13,
@@ -91,7 +87,6 @@ jobs:
     uses: ./.github/workflows/_build-flavors.yaml
     with:
       matrix_scope: full
-    secrets: inherit
 
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
@@ -106,7 +101,6 @@ jobs:
       image_tag: master-scratch
       push: true
       registry_login: ghcr
-    secrets: inherit
 
   # kcrypt-challenger pipe: parallel to the kairos pipe. The encryption
   # cells of test-standard-encryption below consume its image; the
@@ -115,7 +109,6 @@ jobs:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:
       matrix_scope: ci
-    secrets: inherit
 
   build-image-kcrypt-challenger:
     needs: [build-kcrypt-challenger, unit-tests, lint]
@@ -128,7 +121,6 @@ jobs:
       image_tag: master-scratch
       push: true
       registry_login: ghcr
-    secrets: inherit
 
   # ISO matrix split so test-* unblock as soon as the amd64
   # cells they consume are ready. See pr-full.yaml for the rationale.
@@ -180,7 +172,6 @@ jobs:
       # cells do not set this and therefore ship no test extensions.
       test_sysext_overlay: true
       release: false
-    secrets: inherit
 
   build-iso-arm:
     needs: build-image-kairos-init
@@ -237,7 +228,9 @@ jobs:
       cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
       test_sysext_overlay: true
       release: false
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   test-core:
     needs: build-iso
@@ -278,7 +271,6 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       bundle_image_tag: master-scratch
       release-matcher: ${{ matrix.release-matcher || '' }}
-    secrets: inherit
 
   # FIPS smoke coverage (see pr-full.yaml for rationale).
   test-core-fips:
@@ -306,7 +298,6 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-    secrets: inherit
 
   # Ubuntu 20.04 smoke coverage (see pr-full.yaml for rationale).
   test-core-ubuntu-20:
@@ -331,7 +322,6 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-    secrets: inherit
 
   test-core-rocky-9:
     needs: build-iso
@@ -354,7 +344,6 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-    secrets: inherit
 
   test-core-leap:
     needs: build-iso
@@ -377,7 +366,6 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-    secrets: inherit
 
   test-standard:
     needs: build-iso
@@ -405,7 +393,6 @@ jobs:
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       release-matcher: ${{ matrix.release-matcher || '' }}
-    secrets: inherit
 
   # See pr-full.yaml for the rationale on splitting encryption cells out.
   test-standard-encryption:
@@ -444,7 +431,6 @@ jobs:
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:master-scratch
-    secrets: inherit
 
   test-uki:
     needs: build-iso
@@ -469,7 +455,6 @@ jobs:
       arch: 'amd64'
       model: 'generic'
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-    secrets: inherit
 
   # Copy the scratch manifests under :master only if the qemu suites
   # both pass. Uses `docker buildx imagetools create` because it
