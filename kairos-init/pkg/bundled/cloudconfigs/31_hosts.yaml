@@ -40,15 +40,22 @@ stages:
       commands:
         - rm -f /etc/hosts
         - ln -sf /usr/local/etc/hosts /etc/hosts
-    # Check that hostname is not already a symlink and the persistent file does not exist
+    # The symlink lives in the ephemeral overlay, so it is gone on every boot
+    # and has to be made again. This runs before the seed below, so that the
+    # seed writes through the link onto the persistent partition rather than
+    # onto the overlay.
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -L "/etc/hostname" ]'
       name: "Ensure persistent hostname"
-      files:
-        - path: "/usr/local/etc/hostname"
-          permissions: 0644
-          owner: 0
-          group: 0
       commands:
         - rm -f /etc/hostname
         - ln -sf /usr/local/etc/hostname /etc/hostname
+    # Only when the persistent partition has no name in it yet, so a first boot
+    # gets a usable one and every later boot keeps what is there. The init
+    # system puts that name back on the running kernel on a later boot, by
+    # reading /etc/hostname, which is the symlink made above.
+    # The guard tests for a non-empty file rather than for its presence,
+    # because a boot interrupted part way through the step this replaces left
+    # an empty file behind, and that is worth reseeding.
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s "/usr/local/etc/hostname" ]'
+      name: "Seed the persistent hostname"
       hostname: kairos-{{ trunc 4 .MachineID }}
