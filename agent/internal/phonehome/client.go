@@ -183,6 +183,39 @@ func (c *Client) Register(ctx context.Context) error {
 	return nil
 }
 
+// handshakeBodyLimit bounds how much of a refused upgrade's body reaches the
+// log line. The server's own refusals are a one-line JSON object; a proxy in
+// front of it can answer with a whole HTML page instead, and that belongs in
+// nobody's journal.
+const handshakeBodyLimit = 256
+
+// handshakeDetail renders what the server said about a refused WebSocket
+// upgrade, as a suffix to append to the dial error, or the empty string when
+// there was no response to read. "websocket: bad handshake" on its own is the
+// same sentence for a revoked API key, a deleted node and a gateway that is
+// down, so the status is the only thing that tells an operator which one they
+// have. Register reports both for the same reason.
+//
+// The caller keeps the error free of the dialled URL, which carries the node's
+// API key in its query. This takes nothing from the request.
+func handshakeDetail(resp *http.Response) string {
+	if resp == nil {
+		return ""
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	// On a refused upgrade gorilla/websocket has already closed the network
+	// connection and left the first kilobyte of the body in resp.Body, so
+	// this reads a buffer rather than the wire.
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, handshakeBodyLimit))
+	message := strings.Join(strings.Fields(string(body)), " ")
+	if message == "" {
+		return fmt.Sprintf(" (%s)", resp.Status)
+	}
+
+	return fmt.Sprintf(" (%s: %s)", resp.Status, message)
+}
+
 // Connect establishes a WebSocket connection to the server and handles messages.
 // It blocks until the connection is closed or the context is cancelled.
 func (c *Client) Connect(ctx context.Context) error {
@@ -204,9 +237,9 @@ func (c *Client) connect(ctx context.Context) (bool, error) {
 		return false, err
 	}
 
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), nil)
+	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), nil)
 	if err != nil {
-		return false, fmt.Errorf("websocket dial: %w", err)
+		return false, fmt.Errorf("websocket dial: %w%s", err, handshakeDetail(resp))
 	}
 
 	c.mu.Lock()
