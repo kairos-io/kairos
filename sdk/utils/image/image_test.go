@@ -2,6 +2,7 @@ package image_test
 
 import (
 	"crypto/tls"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -83,5 +84,41 @@ var _ = Describe("GetImage", func() {
 			_, err = img.Digest()
 			Expect(err).ToNot(HaveOccurred())
 		})
+	})
+})
+
+// refusingTransport fails every registry request with errRegistryRefused, so
+// the remote leg of GetImage fails for a reason the test can recognise.
+type refusingTransport struct{}
+
+var errRegistryRefused = errors.New("connection refused by the test transport")
+
+func (refusingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errRegistryRefused
+}
+
+var _ = Describe("GetImage when neither the daemon nor the registry can serve the image", func() {
+	// "upgrade-image" is the shape the UKI test workflow passes as
+	// docker:upgrade-image: a tag that only the local daemon can hold. It
+	// normalises to index.docker.io/library/upgrade-image:latest, so the
+	// registry leg asks Docker Hub for an image nobody published.
+	const localOnlyTag = "upgrade-image"
+
+	It("reports the daemon failure as well as the registry failure", func() {
+		_, err := image.GetImage(localOnlyTag, "", nil, refusingTransport{})
+		Expect(err).To(HaveOccurred())
+
+		// The reference being resolved, so the message is about the image the
+		// caller named rather than about a host they never mentioned.
+		Expect(err.Error()).To(ContainSubstring(localOnlyTag))
+
+		// The daemon leg was tried and its failure is reported. Without this
+		// the caller only ever saw the registry error.
+		Expect(err.Error()).To(ContainSubstring("local docker daemon"))
+
+		// The registry leg is still reported, and its cause is still
+		// inspectable by callers.
+		Expect(err.Error()).To(ContainSubstring("registry"))
+		Expect(errors.Is(err, errRegistryRefused)).To(BeTrue())
 	})
 })
