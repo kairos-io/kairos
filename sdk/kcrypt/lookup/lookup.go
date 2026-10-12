@@ -238,6 +238,54 @@ func FindByBlkid(partitionLabel string) (*partitions.Partition, error) {
 	return findByBlkid(partitionLabel, OuterLUKSLabel(partitionLabel), LegacyPartitionName(partitionLabel))
 }
 
+// LabelIsEncrypted reports whether the partition carrying the given
+// filesystem label is already a LUKS container, against an already-scanned
+// disk list. The answer typically feeds a luksFormat decision, so it never
+// guesses: a label found nowhere is an error, and so is a filesystem that
+// cannot be determined, because "probably plaintext" is not an acceptable
+// answer ahead of a destructive write. ghw's filesystem type mirrors the
+// udev database, which can lag or omit the type; when it does, the device
+// itself is asked.
+//
+// blkidLookup and fsProbe are the device probes (FindByBlkid and
+// FilesystemType in production); they are parameters so tests can stub them
+// on hosts without blkid or real devices, and so every consumer (immucore's
+// encrypt-pending step, the agent's kcrypt encrypt subcommand and reset
+// path) shares one classification instead of each drifting on the edge
+// cases (pre kairos-sdk#822 installs whose container only blkid's PARTLABEL
+// view finds, udev views with no filesystem type).
+func LabelIsEncrypted(
+	disks []*partitions.Disk,
+	label string,
+	blkidLookup func(string) (*partitions.Partition, error),
+	fsProbe func(string) (string, error),
+) (bool, error) {
+	if _, err := FindLUKSContainerOnDisks(disks, label); err == nil {
+		return true, nil
+	}
+
+	part, err := FindMapperOnDisks(disks, label)
+	if err != nil {
+		// Pre kairos-sdk#822 installs carry no filesystem label at all and
+		// only blkid's PARTLABEL view finds their LUKS container.
+		if part, err = blkidLookup(label); err != nil {
+			return false, fmt.Errorf("partition %s is configured for encryption but was not found", label)
+		}
+	}
+
+	fs := part.FS
+	if fs == "" || fs == ghw.UNKNOWN {
+		fs, _ = fsProbe(part.Path)
+	}
+	switch fs {
+	case constants.LUKSFs:
+		return true, nil
+	case "", ghw.UNKNOWN:
+		return false, fmt.Errorf("the filesystem on partition %s (%s) could not be determined; refusing to treat it as plaintext", label, part.Path)
+	}
+	return false, nil
+}
+
 // FilesystemType probes the filesystem type on a device with blkid
 // ("crypto_LUKS" for a LUKS container, "" when blkid cannot tell). ghw's FS
 // field mirrors the udev database, which can lag behind the device or omit

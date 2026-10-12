@@ -731,7 +731,6 @@ upgrade:
 strict: true
 install:
   device: /some/device
-  skip_copy_kcrypt_plugin: true
   grub-entry-name: "MyCustomOS"
   system:
     size: 666
@@ -803,7 +802,6 @@ cloud-init-paths:
 				installSpec, err := config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cfg.Strict).To(BeTrue())
-				Expect(cfg.Install.SkipEncryptCopyPlugins).To(BeTrue())
 				Expect(cfg.Install.Device).To(Equal("/some/device"))
 				Expect(installSpec.Target).To(Equal("/some/device"))
 				Expect(installSpec.GrubDefEntry).To(Equal("MyCustomOS"))

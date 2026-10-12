@@ -238,3 +238,149 @@ var _ = Describe("welcome page, advanced pairing", func() {
 		})
 	})
 })
+
+// recoveryWelcomePage is a loaded welcome page that also has a provider that
+// could answer a recovery challenge, so the Advanced section offers it.
+func recoveryWelcomePage(urls ...string) *welcomePage {
+	w := loadedWelcomePage(urls...)
+	w.recovery = true
+	return w
+}
+
+// withRecoveryCommand runs f with the recovery handover pointed at a harmless
+// command, and reports whether it was asked for.
+func withRecoveryCommand(f func(), called *bool) {
+	prev := recoveryCommand
+	defer func() { recoveryCommand = prev }()
+	recoveryCommand = func() *exec.Cmd {
+		*called = true
+		return exec.Command("true")
+	}
+	f()
+}
+
+var _ = Describe("welcome page, advanced remote recovery", func() {
+	BeforeEach(func() {
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		mainModel.log = &l
+	})
+
+	It("offers remote recovery when a provider can answer it", func() {
+		w := recoveryWelcomePage("http://192.168.1.10:8080")
+		withTermSize(100, 40, func() {
+			Expect(w.View()).To(ContainSubstring("Advanced"))
+			Expect(w.View()).To(ContainSubstring("kairos bridge"))
+		})
+		Expect(w.Help()).To(ContainSubstring("r: remote recovery"))
+	})
+
+	It("says nothing about recovery when no provider is installed", func() {
+		w := loadedWelcomePage("http://192.168.1.10:8080")
+		withTermSize(100, 40, func() {
+			Expect(w.View()).NotTo(ContainSubstring("kairos bridge"))
+		})
+		Expect(w.Help()).NotTo(ContainSubstring("recovery"))
+	})
+
+	It("hands the terminal to the agent on \"r\"", func() {
+		w := recoveryWelcomePage("http://192.168.1.10:8080")
+		called := false
+		withRecoveryCommand(func() {
+			_, cmd := w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+			Expect(cmd).NotTo(BeNil())
+			// tea.ExecProcess returns the program's internal handover message,
+			// which is how we know the TUI suspends rather than navigates.
+			Expect(fmt.Sprintf("%T", cmd())).To(Equal("tea.execMsg"))
+		}, &called)
+		Expect(called).To(BeTrue())
+	})
+
+	It("ignores \"r\" when there is no provider to recover through", func() {
+		w := loadedWelcomePage("http://192.168.1.10:8080")
+		_, cmd := w.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+		Expect(cmd).To(BeNil())
+	})
+
+	It("comes back to the welcome page when recovery is over, rather than quitting", func() {
+		w := recoveryWelcomePage("http://192.168.1.10:8080")
+		_, cmd := w.Update(recoveryFinishedMsg{})
+		Expect(cmd).To(BeNil())
+		withTermSize(100, 40, func() {
+			Expect(w.View()).To(ContainSubstring("Advanced"))
+		})
+	})
+
+	It("stays on the page and says why when recovery fails", func() {
+		w := recoveryWelcomePage("http://192.168.1.10:8080")
+		_, cmd := w.Update(recoveryFinishedMsg{err: errors.New("exit status 1")})
+		Expect(cmd).To(BeNil())
+		withTermSize(100, 40, func() {
+			Expect(w.View()).To(ContainSubstring("exit status 1"))
+		})
+	})
+
+	It("clears a previous failure once recovery comes back clean", func() {
+		w := recoveryWelcomePage("http://192.168.1.10:8080")
+		w.Update(recoveryFinishedMsg{err: errors.New("exit status 1")})
+		w.Update(recoveryFinishedMsg{})
+		withTermSize(100, 40, func() {
+			Expect(w.View()).NotTo(ContainSubstring("exit status 1"))
+		})
+	})
+
+	It("waits for the user when recovery is the only thing it has to offer", func() {
+		w := recoveryWelcomePage()
+		Expect(w.Init()).To(BeNil())
+		withTermSize(100, 40, func() {
+			Expect(w.View()).To(ContainSubstring("kairos bridge"))
+			Expect(w.View()).NotTo(ContainSubstring("Install from a browser"))
+		})
+	})
+
+	It("offers both remote flows under one Advanced heading", func() {
+		w := recoveryWelcomePage("http://192.168.1.10:8080")
+		w.pairing = true
+		withTermSize(100, 40, func() {
+			view := w.View()
+			Expect(strings.Count(view, "Advanced")).To(Equal(1))
+			Expect(view).To(ContainSubstring("kairosctl register"))
+			Expect(view).To(ContainSubstring("kairos bridge"))
+			Expect(strings.Count(view, "\n")).To(BeNumerically("<=", w.availableLines()))
+		})
+		Expect(w.Help()).To(ContainSubstring("a: pair"))
+		Expect(w.Help()).To(ContainSubstring("r: remote recovery"))
+	})
+})
+
+var _ = Describe("welcome page, Init wiring", func() {
+	BeforeEach(func() {
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		mainModel.log = &l
+	})
+
+	// withAvailability runs f with both handovers reporting the given answers,
+	// so Init is exercised without a provider or an agent on the box.
+	withAvailability := func(pair, rec bool, f func()) {
+		prevP, prevR := pairingAvailable, recoveryAvailable
+		defer func() { pairingAvailable, recoveryAvailable = prevP, prevR }()
+		pairingAvailable = func() bool { return pair }
+		recoveryAvailable = func() bool { return rec }
+		f()
+	}
+
+	It("asks recoveryAvailable whether to offer recovery", func() {
+		withAvailability(false, true, func() {
+			w := newWelcomePage()
+			Expect(w.Init()).To(BeNil())
+			Expect(w.recovery).To(BeTrue())
+			Expect(w.pairing).To(BeFalse())
+		})
+		withTermSize(100, 40, func() {
+			withAvailability(false, true, func() {
+				w := newWelcomePage()
+				w.Init()
+				Expect(w.View()).To(ContainSubstring("kairos bridge"))
+			})
+		})
+	})
+})

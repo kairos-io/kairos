@@ -255,3 +255,45 @@ func TestCollectDebugBundleReportsAFailure(t *testing.T) {
 		t.Fatal("a bundle failure should be a tool error")
 	}
 }
+
+// The MCP mutex covers MCP calls only. An install started from the terminal
+// UI or the browser is refused by agentrun's process-wide guard, and that is
+// a refusal rather than a failure: no agent ran, so there is nothing to fix
+// and the answer is to wait.
+func TestInstallReportsAnotherFrontendsInstallAsARefusal(t *testing.T) {
+	var installer *fakeInstaller
+	session, srv := testServer(t, func(s *Server) {
+		installer = &fakeInstaller{
+			agentBin: "/usr/bin/kairos-agent",
+			err:      agentrun.ErrInstallInProgress,
+		}
+		s.installer = installer
+	})
+
+	res := call(t, session, ToolInstall, installInput{Device: "/dev/sda", Confirm: true})
+	if !res.IsError {
+		t.Fatal("an install refused by the shared guard was reported as a success")
+	}
+
+	text := resultText(t, res)
+	if !strings.Contains(text, "refusing to install") {
+		t.Errorf("result %q does not read as a refusal", text)
+	}
+	if !strings.Contains(text, "another frontend") {
+		t.Errorf("result %q does not say which install is in the way", text)
+	}
+
+	out := decodeOutput[installOutput](t, res)
+	if out.Succeeded {
+		t.Error("succeeded is true on an install that never started")
+	}
+	if !strings.Contains(out.Error, agentrun.ErrInstallInProgress.Error()) {
+		t.Errorf("error = %q, want it to carry %q", out.Error, agentrun.ErrInstallInProgress)
+	}
+
+	// Nothing was installed, so this server has not spent its one install:
+	// the agent can call again once the other frontend is done.
+	if srv.installed {
+		t.Error("the server recorded an install that never ran")
+	}
+}

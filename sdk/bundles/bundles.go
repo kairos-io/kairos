@@ -152,23 +152,26 @@ func RunBundles(bundles ...[]BundleOption) error {
 	// - Make provider consume bundles when bins are not detected in the rootfs
 	// - Default bundles preset in case of no binaries detected and version specified via config.
 
+	// Every failure is collected and returned together. Bundles are
+	// independent of each other, so the caller wants to hear about all of
+	// them, not only about whichever one failed last.
 	var resErr error
 	for _, b := range bundles {
 		config := defaultConfig()
 		if err := config.Apply(b...); err != nil {
-			resErr = multierror.Append(err)
+			resErr = multierror.Append(resErr, err)
 			continue
 		}
 
 		installer, err := NewBundleInstaller(*config)
 		if err != nil {
-			resErr = multierror.Append(err)
+			resErr = multierror.Append(resErr, fmt.Errorf("bundle %q: %w", config.Target, err))
 			continue
 		}
 
 		err = installer.Install(config)
 		if err != nil {
-			resErr = multierror.Append(err)
+			resErr = multierror.Append(resErr, fmt.Errorf("bundle %q: %w", config.Target, err))
 			continue
 		}
 	}
@@ -239,7 +242,7 @@ type OCIImageRunner struct {
 }
 
 func (e OCIImageRunner) Install(config *BundleConfig) error {
-	tempDir, err := os.MkdirTemp("", "containerrunner")
+	tempDir, err := utils.MkdirExecTemp("containerrunner")
 	if err != nil {
 		return err
 	}
