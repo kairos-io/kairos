@@ -84,14 +84,29 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// removable/network media but must behave like an installed
 			// Active system, so they get uki_boot_mode, never
 			// uki_install_mode (which would fire the installer stages).
+			ukiInstallMedium := false
 			cmdline, err := os.ReadFile(internalUtils.GetHostProcCmdline())
 			if err != nil {
 				return fmt.Errorf("reading kernel cmdline: %w", err)
 			}
 			if strings.Contains(string(cmdline), "rd.immucore.uki") {
-				ukiSentinel := internalUtils.UkiSentinel(state.EfiBootFromInstall(internalUtils.KLog.Logger), s.InRAM)
+				bootedFromInstall := state.EfiBootFromInstall(internalUtils.KLog.Logger)
+				ukiSentinel := internalUtils.UkiSentinel(bootedFromInstall, s.InRAM)
 				internalUtils.KLog.Logger.Info().Str("to", ukiSentinel).Msg("Setting sentinel file")
 				if err := os.WriteFile(filepath.Join("/run/cos/", ukiSentinel), []byte("1"), os.ModePerm); err != nil {
+					return err
+				}
+				ukiInstallMedium = internalUtils.UkiInstallMedium(bootedFromInstall, s.InRAM)
+			}
+
+			// Translate this boot's install intent into sentinels too, so that
+			// the installer cloud-config gates on a file on every medium
+			// rather than grepping /proc/cmdline on the GRUB path and reading
+			// a file on Trusted Boot. See kairos-io/kairos#5459.
+			for _, sentinel := range state.InstallIntentSentinels(
+				string(cmdline), ukiInstallMedium, runtime.BootState == state.LiveCD) {
+				internalUtils.KLog.Logger.Info().Str("to", sentinel).Msg("Setting install intent sentinel file")
+				if err := os.WriteFile(filepath.Join("/run/cos/", sentinel), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 			}
