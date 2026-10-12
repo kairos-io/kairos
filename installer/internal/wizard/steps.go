@@ -3,6 +3,7 @@ package wizard
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	sdkBus "github.com/kairos-io/kairos/v4/sdk/bus"
 
@@ -16,8 +17,9 @@ type Env interface {
 	// the answer between two screens (#4260).
 	Disks() ([]disks.Disk, error)
 	// Extensions returns what the live media carries and the catalogs
-	// publish. A non-nil error means no catalog could be read; the returned
-	// choices are still valid, because an airgapped install has to work.
+	// publish, a live media image with "live media" as its Detail. A non-nil
+	// error means no catalog could be read; the returned choices are still
+	// valid, because an airgapped install has to work.
 	Extensions(ctx context.Context) ([]Choice, error)
 	Timezones() []string
 	Keymaps() []string
@@ -149,18 +151,36 @@ func choiceOrText(id, label, placeholder string, values []string) Field {
 
 // ExtensionsStep builds the extensions step on its own, so a frontend can
 // fetch the catalog when the step is shown rather than before anything is.
+//
+// The live media images are listed in the notice, not offered as choices:
+// the agent installs every image the live media carries whatever
+// install.extensions says, so a checkbox for one could not be unticked.
 func ExtensionsStep(ctx context.Context, env Env) Step {
 	s := Step{
 		ID: StepExtensions, Title: "System extensions", Optional: true,
 		Help: "Merged into the system on the first boot after install.",
 	}
-	choices, err := env.Extensions(ctx)
+	found, err := env.Extensions(ctx)
+	var choices []Choice
+	var live []string
+	for _, c := range found {
+		if c.Detail == originLiveMedia {
+			live = append(live, c.Label)
+			continue
+		}
+		choices = append(choices, c)
+	}
+	var notices []string
+	if len(live) > 0 {
+		notices = append(notices, fmt.Sprintf("Always installed from the live media: %s.", strings.Join(live, ", ")))
+	}
 	if err != nil {
-		s.Notice = "No catalog could be read, offering only what the live media carries."
+		notices = append(notices, "No catalog could be read.")
 	}
-	if len(choices) == 0 && err == nil {
-		s.Notice = "No extension was found on the live media or in the catalog."
+	if len(found) == 0 && err == nil {
+		notices = append(notices, "No extension was found on the live media or in the catalog.")
 	}
+	s.Notice = strings.Join(notices, " ")
 	s.Fields = []Field{{ID: FieldExtensions, Kind: KindMultiChoice, Label: "Extensions", Choices: choices}}
 	return s
 }

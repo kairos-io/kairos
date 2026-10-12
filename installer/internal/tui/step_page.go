@@ -277,9 +277,9 @@ func (p *stepPage) submit() tea.Cmd {
 	}
 	next := "customization"
 	if p.step.ID == wizard.StepDisk {
-		next = "install_options"
+		next = installOptionsPageID
 		if mainModel.quick {
-			next = "summary"
+			next = summaryPageID
 		}
 	}
 	return func() tea.Msg { return GoToPageMsg{PageID: next} }
