@@ -2,7 +2,6 @@ package action
 
 import (
 	"bytes"
-	"encoding/binary"
 	"os"
 	"path/filepath"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/internal/testartifacts"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -25,22 +25,11 @@ import (
 
 // TODO: Mock the syscall.StatFS to simulate and test RO/RW partitions and how it mounts it and unmounts it
 
-// sdBootImage returns the systemd-boot PE fixture the uki package carries, with
-// its MajorImageVersion set to major, so a spec can give the version probe a
-// binary to read instead of replacing the probe.
-//
-// MajorImageVersion sits at offset 44 of the PE optional header, which follows
-// the 4 byte PE signature and the 20 byte COFF header at the offset the DOS
-// header records at 0x3c. Offset 44 is the same for PE32 and PE32+, because the
-// fields that differ between them all come earlier.
+// sdBootImage returns a systemd-boot stand-in whose PE MajorImageVersion is
+// major, so a spec can give the version probe a binary to read instead of
+// replacing the probe.
 func sdBootImage(major uint16) []byte {
-	data, err := os.ReadFile(filepath.Join("..", "uki", "tests", "fbx64.efi"))
-	Expect(err).ToNot(HaveOccurred())
-
-	peOffset := int(binary.LittleEndian.Uint32(data[0x3c:]))
-	binary.LittleEndian.PutUint16(data[peOffset+4+20+44:], major)
-
-	return data
+	return testartifacts.MinimalPE(testartifacts.PEOptions{MajorImageVersion: major})
 }
 
 var _ = Describe("Bootentries tests", Label("bootentry"), func() {

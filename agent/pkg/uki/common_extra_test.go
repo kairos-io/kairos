@@ -534,7 +534,8 @@ var _ = Describe("Common helpers", func() {
 			// AuroraBoot's build-uki writes BOOTRISCV64.EFI on riscv64, not
 			// BOOTX64.EFI. Asking for the wrong one made the whole key
 			// migration a silent no-op on every riscv64 upgrade.
-			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTRISCV64.EFI"), 259)
+			img := testartifacts.MinimalPE(testartifacts.PEOptions{MajorImageVersion: 259})
+			Expect(os.WriteFile(filepath.Join(dir, "EFI/BOOT/BOOTRISCV64.EFI"), img, 0644)).To(Succeed())
 			entry := filepath.Join(entriesDir, "active.conf")
 			Expect(os.WriteFile(entry, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 
@@ -551,7 +552,8 @@ var _ = Describe("Common helpers", func() {
 			// BOOTX64.EFI is not a riscv64 ESP, and the entries must be left
 			// alone rather than migrated off a version read from the wrong
 			// bootloader.
-			patchPEMajorImageVersion(fixture, filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), 259)
+			img := testartifacts.MinimalPE(testartifacts.PEOptions{MajorImageVersion: 259})
+			Expect(os.WriteFile(filepath.Join(dir, "EFI/BOOT/BOOTX64.EFI"), img, 0644)).To(Succeed())
 			entry := filepath.Join(entriesDir, "active.conf")
 			Expect(os.WriteFile(entry, []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
 
