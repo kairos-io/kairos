@@ -24,7 +24,7 @@ type KubeVIPSchema struct {
 	EIP         string   `json:"eip,omitempty" example:"192.168.1.110"`
 	ManifestURL string   `json:"manifest_url,omitempty" description:"Specify a manifest URL for KubeVIP." default:""`
 	Enabled     bool     `json:"enabled,omitempty" description:"Enables KubeVIP"`
-	Enable      bool     `json:"enable,omitempty" description:"Deprecated spelling of kubevip.enabled. Still read, and refused when kubevip.enabled is set too"`
+	Enable      bool     `json:"enable,omitempty" description:"Deprecated spelling of kubevip.enabled. Still read, and refused only when kubevip.enabled is set to a different value"`
 	Interface   string   `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
 	StaticPod   bool     `json:"static_pod,omitempty" description:"Deploy KubeVIP as a static pod instead of a daemonset"`
 	Version     string   `json:"version,omitempty" description:"Tag of the KubeVIP image to deploy" example:"v0.8.0"`
@@ -36,12 +36,18 @@ type P2PNetworkExtended struct {
 }
 
 // P2PAutoDisabled is used to validate that when p2p.auto is disabled, then neither p2p.auto.ha not p2p.network_token can be set.
+// The deprecated `enable` spelling is optional here and pinned to the same
+// value, so that a config carrying both spellings in agreement validates, and
+// one carrying them in disagreement does not. That mirrors what the provider
+// does with the pair.
 type P2PAutoDisabled struct {
 	NetworkToken string `json:"network_token,omitempty" const:"" required:"true"`
 	Auto         struct {
 		Enabled bool `json:"enabled" const:"false" required:"true"`
+		Enable  bool `json:"enable,omitempty" const:"false"`
 		Ha      struct {
 			Enabled bool `json:"enabled" const:"false"`
+			Enable  bool `json:"enable,omitempty" const:"false"`
 		} `json:"ha"`
 	} `json:"auto"`
 }
@@ -50,13 +56,16 @@ type P2PAutoDisabled struct {
 // spelling. It is a branch of its own rather than a second optional key on
 // P2PAutoDisabled because that branch requires the key: one struct accepting
 // either spelling would have to require neither, which would make a bare
-// `p2p: {role: worker}` validate.
+// `p2p: {role: worker}` validate. `enabled` is optional here for the same
+// reason `enable` is optional on P2PAutoDisabled.
 type P2PAutoDisabledDeprecated struct {
 	NetworkToken string `json:"network_token,omitempty" const:"" required:"true"`
 	Auto         struct {
-		Enable bool `json:"enable" const:"false" required:"true"`
-		Ha     struct {
-			Enable bool `json:"enable" const:"false"`
+		Enable  bool `json:"enable" const:"false" required:"true"`
+		Enabled bool `json:"enabled,omitempty" const:"false"`
+		Ha      struct {
+			Enable  bool `json:"enable" const:"false"`
+			Enabled bool `json:"enabled,omitempty" const:"false"`
 		} `json:"ha"`
 	} `json:"auto"`
 }
@@ -78,10 +87,17 @@ type P2PAutoEnabled struct {
 	} `json:"auto,omitempty"`
 }
 
-var _ jsonschemago.OneOfExposer = P2PNetworkExtended{}
+var _ jsonschemago.AnyOfExposer = P2PNetworkExtended{}
 
-// JSONSchemaOneOf defines that different which are the different valid p2p network rules and states that one and only one of them needs to be validated for the entire schema to be valid.
-func (P2PNetworkExtended) JSONSchemaOneOf() []interface{} {
+// JSONSchemaAnyOf lists the valid p2p network rules. At least one of them has to
+// validate for the whole schema to be valid.
+//
+// This is `anyOf` rather than `oneOf` because the two disabled branches overlap
+// on purpose: a config that spells the key both ways, in agreement, matches both
+// of them, and `oneOf` would reject it. P2PAutoEnabled cannot overlap with
+// either, since it requires a non-empty p2p.network_token and both disabled
+// branches pin it to the empty string.
+func (P2PNetworkExtended) JSONSchemaAnyOf() []interface{} {
 	return []interface{}{
 		P2PAutoEnabled{}, P2PAutoDisabled{}, P2PAutoDisabledDeprecated{},
 	}

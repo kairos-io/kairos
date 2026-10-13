@@ -404,7 +404,7 @@ auto:
 		})
 	})
 
-	Context("With an empty network_token and both spellings of p2p.auto", func() {
+	Context("With an empty network_token and both spellings of p2p.auto agreeing", func() {
 		BeforeEach(func() {
 			yaml = `#cloud-config
 network_token: ""
@@ -413,8 +413,67 @@ auto:
   enable: false`
 		})
 
-		It("errors, because the two can disagree and the provider refuses them too", func() {
+		It("succeeds, because the provider accepts the pair when it agrees", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and both spellings of p2p.auto disagreeing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false
+  enable: true`
+		})
+
+		It("errors, because the provider refuses the pair when it disagrees", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and both spellings of p2p.auto.ha agreeing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false
+  ha:
+    enabled: false
+    enable: false`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and both spellings of p2p.auto.ha disagreeing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false
+  ha:
+    enabled: false
+    enable: true`
+		})
+
+		It("errors", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+		})
+	})
+
+	Context("With only the deprecated spelling of p2p.auto", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enable: false`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
 })
