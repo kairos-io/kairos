@@ -1,16 +1,20 @@
 package bundled_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/twpayne/go-vfs/v4/vfst"
 )
 
 // section returns the body of one ini section of a unit file, so an assertion
@@ -24,6 +28,21 @@ func section(unit, name string) string {
 	rest := unit[start+len(name)+2:]
 	if next := strings.Index(rest, "\n["); next >= 0 {
 		return rest[:next]
+	}
+	return rest
+}
+
+// menuentry returns the body of one grub menuentry block, selected by its
+// --id, so an assertion about what the recovery entry boots cannot be
+// satisfied by a line belonging to the entry above it.
+func menuentry(cfg, id string) string {
+	start := strings.Index(cfg, "--id "+id+" {")
+	if start < 0 {
+		return ""
+	}
+	rest := cfg[start:]
+	if end := strings.Index(rest, "\n}"); end >= 0 {
+		return rest[:end]
 	}
 	return rest
 }
@@ -112,6 +131,17 @@ var _ = Describe("SplashService", func() {
 		Expect(svc).To(ContainSubstring("TimeoutStartSec="))
 	})
 
+	// getty@.service ships Before=getty.target itself, so ordering the splash
+	// before the target only makes the two siblings of it: nothing keeps
+	// getty@tty1.service from starting while the splash still animates, and
+	// the login prompt is then drawn over it. The unit has to be ordered
+	// before the getty instance that owns the console it writes to.
+	It("is ordered before the getty on the console it writes to", func() {
+		u := section(unit(), "Unit")
+		Expect(section(unit(), "Service")).To(ContainSubstring("TTYPath=/dev/tty1"))
+		Expect(u).To(ContainSubstring("Before=getty@tty1.service"))
+	})
+
 	It("is a no-op when started a second time", func() {
 		Expect(section(unit(), "Service")).To(ContainSubstring("RemainAfterExit=yes"))
 	})
@@ -124,6 +154,16 @@ var _ = Describe("SplashService", func() {
 		Expect(u).To(ContainSubstring("ConditionPathExists=!/run/cos/live_mode"))
 		Expect(u).To(ContainSubstring("ConditionPathExists=!/run/cos/autoreset_mode"))
 		Expect(u).To(ContainSubstring("ConditionKernelCommandLine=splash"))
+	})
+
+	// Recovery is the boot a human takes to read what went wrong, so it is the
+	// one boot that must never have its console covered. The carve-out cannot
+	// be left to the command line: `splash` lives in BootArgsCfg's baseCmd,
+	// which is the part every menuentry shares, so the recovery entry asks for
+	// an animation just as the active entry does.
+	It("stays off a recovery boot", func() {
+		Expect(section(unit(), "Unit")).
+			To(ContainSubstring("ConditionPathExists=!/run/cos/recovery_mode"))
 	})
 
 	It("is installable into multi-user.target", func() {
@@ -364,5 +404,262 @@ var _ = Describe("BootArgsCfg", func() {
 	// feature is dead code.
 	It("asks for the splash on the shared part of the command line", func() {
 		Expect(bundled.BootArgsCfg).To(MatchRegexp(`set baseCmd="[^"]*\bsplash\b`))
+	})
+
+	// This is why SplashService needs a recovery_mode carve-out rather than a
+	// command line that simply leaves the token out. `splash` sits in baseCmd,
+	// documented as shared between all entries, and every menuentry sources
+	// bootargs.cfg and boots the one $kernelcmd it builds. So the recovery and
+	// state reset entries ask for an animation in exactly the same words the
+	// active entry uses, and no per-entry cmdline distinguishes them.
+	It("gives every menuentry the same splash token, recovery included", func() {
+		Expect(bundled.BootArgsCfg).To(MatchRegexp(`set baseCmd="[^"]*\bsplash\b`))
+
+		for _, id := range []string{"cos", "fallback", "recovery", "statereset"} {
+			entry := menuentry(bundled.GrubCfg, id)
+			Expect(entry).ToNot(BeEmpty(), "no menuentry --id %s", id)
+			Expect(entry).To(ContainSubstring("source (loop0)/etc/cos/bootargs.cfg"), id)
+			Expect(entry).To(ContainSubstring("$kernel $kernelcmd"), id)
+			Expect(entry).ToNot(ContainSubstring("kairos.splash=0"), id)
+		}
+	})
+})
+
+// kernelCmdlineAllows evaluates every ConditionKernelCommandLine= of a unit
+// section against a command line the way systemd does: a value with a "="
+// must equal a whole word, a value without one matches the bare word or any
+// word that assigns it, and a leading "!" negates. The conditions are ANDed.
+func kernelCmdlineAllows(unitSection, cmdline string) bool {
+	words := strings.Fields(cmdline)
+	for _, line := range strings.Split(unitSection, "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "ConditionKernelCommandLine=")
+		if !ok {
+			continue
+		}
+		// A triggering condition ("|") is ORed rather than ANDed. None of the
+		// units use one, and this evaluator would get it wrong.
+		Expect(value).ToNot(HavePrefix("|"), line)
+		value, negate := strings.CutPrefix(value, "!")
+		found := false
+		for _, w := range words {
+			if strings.Contains(value, "=") {
+				found = found || w == value
+			} else {
+				found = found || w == value || strings.HasPrefix(w, value+"=")
+			}
+		}
+		if found == negate {
+			return false
+		}
+	}
+	return true
+}
+
+// grubCmdline builds the kernel command line a GrubCfg menuentry boots, out
+// of the same pieces GRUB uses: the entry's own label and image, BootArgsCfg's
+// baseCmd and the baseRootCmd for that image, and whatever the entry appends
+// after the extra_*_cmdline variables. squashfs picks the recovery image
+// shipped as a squashfs (root=live:...) over the .img file.
+func grubCmdline(id string, squashfs bool) string {
+	entry := menuentry(bundled.GrubCfg, id)
+	Expect(entry).ToNot(BeEmpty(), "no menuentry --id %s", id)
+
+	vars := map[string]string{
+		"label": regexp.MustCompile(`set label=(\S+)`).FindStringSubmatch(entry)[1],
+	}
+	imgs := regexp.MustCompile(`set img=(\S+)`).FindAllStringSubmatch(entry, -1)
+	Expect(imgs).ToNot(BeEmpty(), id)
+	vars["img"] = imgs[len(imgs)-1][1]
+	rootCmd := regexp.MustCompile(`set baseRootCmd="(root=LABEL[^"]*)"`)
+	if squashfs {
+		Expect(entry).To(ContainSubstring("set recoverylabel="), id)
+		vars["img"] = imgs[0][1]
+		vars["recoverylabel"] = regexp.MustCompile(`set recoverylabel=(\S+)`).FindStringSubmatch(entry)[1]
+		rootCmd = regexp.MustCompile(`set baseRootCmd="(root=live:[^"]*)"`)
+	}
+
+	base := regexp.MustCompile(`set baseCmd="([^"]*)"`).FindStringSubmatch(bundled.BootArgsCfg)
+	Expect(base).ToNot(BeNil())
+	root := rootCmd.FindStringSubmatch(bundled.BootArgsCfg)
+	Expect(root).ToNot(BeNil())
+	tail := regexp.MustCompile(`\$kernelcmd \$\{extra_cmdline\} \$\{extra_\w+_cmdline\}(.*)`).
+		FindStringSubmatch(entry)
+	Expect(tail).ToNot(BeNil(), id)
+
+	cmdline := base[1] + " " + root[1] + tail[1]
+	for k, v := range vars {
+		cmdline = strings.ReplaceAll(cmdline, "$"+k, v)
+	}
+	Expect(cmdline).ToNot(ContainSubstring("$"), id)
+	return cmdline
+}
+
+// immucore decides what kind of boot this is from the command line and
+// writes /run/cos/recovery_mode or autoreset_mode, which is what keeps the
+// booted-system unit off those boots. The initramfs unit starts before that
+// file exists, so it has to reach the same answer from the command line on
+// its own. These specs boot every GRUB entry through both and require them to
+// agree: the splash runs exactly on the boots immucore calls active or
+// passive.
+var _ = Describe("SplashServiceDracut on each boot entry", func() {
+	unitSection := func() string { return section(bundled.SplashServiceDracut, "Unit") }
+
+	bootState := func(cmdline string) state.Boot {
+		fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/proc/cmdline": cmdline})
+		Expect(err).ToNot(HaveOccurred())
+		defer cleanup()
+		b, err := state.DetectBootWithVFS(fs)
+		Expect(err).ToNot(HaveOccurred())
+		return b
+	}
+
+	DescribeTable("animates only where immucore will not write recovery_mode or autoreset_mode",
+		func(id string, squashfs bool, extra string, want state.Boot) {
+			cmdline := grubCmdline(id, squashfs) + extra
+			Expect(bootState(cmdline)).To(Equal(want), cmdline)
+			Expect(kernelCmdlineAllows(unitSection(), cmdline)).To(
+				Equal(want == state.Active || want == state.Passive), cmdline)
+		},
+		Entry("active", "cos", false, "", state.Active),
+		Entry("fallback", "fallback", false, "", state.Passive),
+		Entry("recovery from recovery.img", "recovery", false, "", state.Recovery),
+		Entry("recovery from recovery.squashfs", "recovery", true, "", state.Recovery),
+		Entry("state reset from recovery.img", "statereset", false, "", state.AutoReset),
+		Entry("state reset from recovery.squashfs", "statereset", true, "", state.AutoReset),
+		// No shipped entry adds kairos.reset to an active root, but immucore
+		// reads it ahead of every other marker, so a custom grubmenu entry that
+		// does must not get an animation either.
+		Entry("an active root with kairos.reset", "cos", false, " kairos.reset", state.AutoReset),
+	)
+
+	It("still needs the splash word on an active boot", func() {
+		cmdline := strings.Replace(grubCmdline("cos", false), " splash ", " ", 1)
+		Expect(cmdline).ToNot(MatchRegexp(`\bsplash\b`))
+		Expect(kernelCmdlineAllows(unitSection(), cmdline)).To(BeFalse())
+	})
+})
+
+// grubToBash rewrites the subset of GRUB script BootArgsCfg uses into bash, so
+// that a test can run the real thing and read the command line it builds
+// rather than pattern-match its source.
+//
+// Three rewrites, and no others. Each one is a syntax difference, never a
+// behaviour one:
+//
+//  1. "(loop0)" is GRUB's name for the mounted system image. It becomes
+//     $LOOP0, a directory the test fills with os-release and kairos-release,
+//     so the "source" lines and the [ -f ] guard run for real.
+//  2. GRUB spells assignment "set var=value"; bash spells it "var=value".
+//  3. GRUB's test is a token-stream parser, so the "-o test" in setSelinux
+//     parses as "-o" followed by a one-argument test of the word "test",
+//     which is a non-empty string and therefore true, ANDed with the
+//     comparison that follows. bash's test rejects the extra word outright.
+//     Dropping it keeps GRUB's meaning.
+//
+// Anything else has to run as written. The caller asserts on an empty stderr,
+// which is what stops a construct this does not model from passing silently.
+func grubToBash(script string) string {
+	script = strings.ReplaceAll(script, "(loop0)", "${LOOP0}")
+	script = strings.ReplaceAll(script, " -o test ", " -o ")
+	script = strings.ReplaceAll(script, " -a test ", " -a ")
+
+	lines := strings.Split(script, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		indent := line[:len(line)-len(trimmed)]
+		if rest, ok := strings.CutPrefix(trimmed, "set "); ok && strings.Contains(rest, "=") {
+			lines[i] = indent + rest
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// entryLabel reads the "set label=" a menuentry assigns before it sources
+// bootargs.cfg. The quiet carve-out keys off that value, so the test takes it
+// from GrubCfg instead of restating it: moving an entry to a different label
+// has to show up here.
+func entryLabel(id string) string {
+	for _, line := range strings.Split(menuentry(bundled.GrubCfg, id), "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "set label="); ok {
+			return rest
+		}
+	}
+	return ""
+}
+
+var _ = Describe("BootArgsCfg quiet", func() {
+	var dir string
+
+	BeforeEach(func() {
+		dir = GinkgoT().TempDir()
+		Expect(os.MkdirAll(filepath.Join(dir, "loop0", "etc"), 0o755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "loop0", "etc", "os-release"),
+			[]byte("ID=alpine\n"), 0o644)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "loop0", "etc", "kairos-release"),
+			[]byte("KAIROS_FAMILY=alpine\nKAIROS_MODEL=generic\n"), 0o644)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "bootargs.sh"),
+			[]byte(grubToBash(bundled.BootArgsCfg)), 0o644)).To(Succeed())
+	})
+
+	// cmdline runs bootargs.cfg with the variables a menuentry has set by the
+	// time it sources the file, and returns the $kernelcmd it builds.
+	cmdline := func(label, recoverylabel, img string) string {
+		script := filepath.Join(dir, "bootargs.sh")
+		cmd := exec.Command("bash", "-c", "source "+script+"; printf '%s' \"$kernelcmd\"")
+		cmd.Env = append(os.Environ(),
+			"LOOP0="+filepath.Join(dir, "loop0"),
+			"label="+label,
+			"recoverylabel="+recoverylabel,
+			"img="+img,
+			"selinux_enabled=false",
+			"selinux_mode=permissive",
+		)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		Expect(err).ToNot(HaveOccurred(), stderr.String())
+		// An untranslated GRUB construct shows up here as a bash diagnostic,
+		// and a silently mis-evaluated branch is exactly the failure this
+		// whole helper would otherwise hide.
+		Expect(stderr.String()).To(BeEmpty())
+		Expect(string(out)).ToNot(BeEmpty())
+		return string(out)
+	}
+
+	// The splash cannot cover the text that is printed before it can draw:
+	// the kernel starts logging at its own loglevel long before PID 1, and
+	// the initramfs unit has to wait for udev to create /dev/tty1. quiet on
+	// the command line is what closes that window.
+	It("asks for quiet on the entries that animate", func() {
+		for _, id := range []string{"cos", "fallback"} {
+			label := entryLabel(id)
+			Expect(label).ToNot(BeEmpty(), "no label in menuentry %s", id)
+			Expect(cmdline(label, "", "/cOS/"+id+".img")).To(
+				MatchRegexp(`(^|\s)quiet(\s|$)`), id)
+		}
+	})
+
+	// Recovery and the state reset are where someone goes to read a boot that
+	// went wrong, and the booted-system animation is already refused there by
+	// SplashService's /run/cos sentinels. Both entries boot the recovery
+	// image, as a squashfs when there is one and as a .img when there is not,
+	// and only the squashfs case sets recoverylabel. The carve-out has to
+	// cover both.
+	It("leaves recovery and the state reset verbose", func() {
+		for _, id := range []string{"recovery", "statereset"} {
+			Expect(entryLabel(id)).To(Equal("COS_SYSTEM"), id)
+		}
+		for _, recoverylabel := range []string{"COS_RECOVERY", ""} {
+			Expect(cmdline("COS_SYSTEM", recoverylabel, "/cOS/recovery.img")).ToNot(
+				MatchRegexp(`(^|\s)quiet(\s|$)`), recoverylabel)
+		}
+	})
+
+	// quiet would be pointless on an entry that does not ask for the splash,
+	// and misleading on one that does not get it, so the two tokens have to
+	// keep travelling together on the animated entries.
+	It("keeps quiet and splash on the same entries", func() {
+		Expect(cmdline(entryLabel("cos"), "", "/cOS/active.img")).To(
+			MatchRegexp(`(^|\s)splash(\s|$)`))
 	})
 })

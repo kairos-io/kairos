@@ -9,6 +9,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
+
+	"github.com/kairos-io/kairos/v4/sdk/state"
 )
 
 type guardFile struct {
@@ -19,6 +21,7 @@ type guardStage struct {
 	Name               string      `yaml:"name"`
 	If                 string      `yaml:"if"`
 	OnlyServiceManager string      `yaml:"only_service_manager"`
+	OnlyOs             string      `yaml:"only_os"`
 	Commands           []string    `yaml:"commands"`
 	Files              []guardFile `yaml:"files"`
 }
@@ -70,28 +73,32 @@ func stageRunningFor(stages []guardStage, serviceManager, command string) guardS
 	return guardStage{}
 }
 
-// evalGuard runs a stage's `if` expression the way yip does, with sh -c, against
-// a synthetic /proc/cmdline. liveMode says whether /run/cos/live_mode exists.
-// The UKI sentinel is absent, so these specs describe the GRUB live ISO.
-// It reports whether the stage would run.
+// evalGuard describes a boot on the GRUB live ISO: not a UKI, with the given
+// cmdline, and liveMode saying whether immucore reported LiveCD. It reports
+// whether the stage would run on that boot, running the stage's `if` the way
+// yip does, with sh -c.
 func evalGuard(expr, cmdline string, liveMode bool) bool {
 	return evalGuardOn(expr, cmdline, liveMode, false)
 }
 
 // evalGuardUki is evalGuard for a Trusted Boot install medium. immucore
-// writes BOTH sentinels on that boot: uki_install_mode because the UKI did not
-// boot from an installed EFI entry, and live_mode because the same condition
-// makes getUKIBootState report LiveCD (see sdk/state/state.go and
-// immucore/pkg/state/steps_shared.go). A guard that wants to exclude Trusted
-// Boot therefore has to name uki_install_mode; requiring live_mode does not
-// narrow anything.
+// writes BOTH boot sentinels on that boot: uki_install_mode because the UKI
+// did not boot from an installed EFI entry, and live_mode because the same
+// condition makes getUKIBootState report LiveCD (see sdk/state/state.go and
+// immucore/pkg/state/steps_shared.go).
 func evalGuardUki(expr, cmdline string) bool {
 	return evalGuardOn(expr, cmdline, true, true)
 }
 
-// evalGuardOn runs the guard with each of the two sentinels present or absent
-// as asked, so a spec can describe a GRUB boot, a UKI boot, or an installed
-// system (neither sentinel).
+// evalGuardOn runs the guard with each of the two boot sentinels present or
+// absent as asked, so a spec can describe a GRUB boot, a UKI boot, or an
+// installed system (neither sentinel).
+//
+// The installer guards no longer read the cmdline: immucore turns it into
+// /run/cos/install_mode or /run/cos/install_mode_interactive and the stages
+// gate on those (kairos-io/kairos#5459). So the harness runs the real decision
+// here and writes what it returns, which keeps every spec below an end to end
+// statement about a cmdline on a medium rather than about a shell expression.
 func evalGuardOn(expr, cmdline string, liveMode, ukiInstallMode bool) bool {
 	root := GinkgoT().TempDir()
 
@@ -106,9 +113,25 @@ func evalGuardOn(expr, cmdline string, liveMode, ukiInstallMode bool) bool {
 		return path
 	}
 
+	intent := state.InstallIntentSentinels(cmdline, ukiInstallMode, liveMode)
+	wrote := func(name string) bool {
+		for _, s := range intent {
+			if s == name {
+				return true
+			}
+		}
+		return false
+	}
+
 	expr = strings.ReplaceAll(expr, "/proc/cmdline", cmdlinePath)
 	expr = strings.ReplaceAll(expr, "/run/cos/live_mode", sentinel("live_mode", liveMode))
 	expr = strings.ReplaceAll(expr, "/run/cos/uki_install_mode", sentinel("uki_install_mode", ukiInstallMode))
+	// The interactive name has the plain one as a prefix, so substitute it
+	// first or the plain replacement rewrites half of it.
+	expr = strings.ReplaceAll(expr, "/run/cos/"+state.InstallModeInteractiveSentinel,
+		sentinel(state.InstallModeInteractiveSentinel, wrote(state.InstallModeInteractiveSentinel)))
+	expr = strings.ReplaceAll(expr, "/run/cos/"+state.InstallModeSentinel,
+		sentinel(state.InstallModeSentinel, wrote(state.InstallModeSentinel)))
 
 	err := exec.Command("sh", "-c", expr).Run()
 	if err == nil {
@@ -131,6 +154,25 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 			stages := readStages("52_installer.yaml")
 			plain = stageEnabling(stages, "kairos-installer").If
 			interactive = stageEnabling(stages, "kairos-interactive").If
+		})
+
+		// The guards name the sentinel files by hand, in YAML, and immucore
+		// names them from Go constants. Nothing but this spec connects the
+		// two, and a rename on either side would quietly stop every installer
+		// from ever starting: the stage would gate on a file nobody writes,
+		// and no test that only exercises one side would notice.
+		It("gates on the sentinel files immucore actually writes", func() {
+			Expect(plain).To(ContainSubstring("/run/cos/" + state.InstallModeSentinel))
+			Expect(interactive).To(ContainSubstring("/run/cos/" + state.InstallModeInteractiveSentinel))
+
+			// And on nothing else. The point of kairos-io/kairos#5459 is that
+			// the install decision is made once, in immucore; a guard that
+			// reads the cmdline again is a second decision that a new medium
+			// can fall between, which is how pixiecore netboot ended up
+			// starting no installer at all (#5373).
+			for _, guard := range []string{plain, interactive} {
+				Expect(guard).NotTo(ContainSubstring("/proc/cmdline"))
+			}
 		})
 
 		It("starts the plain installer on install-mode", func() {

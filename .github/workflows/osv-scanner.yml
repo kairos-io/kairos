@@ -7,12 +7,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  # Require writing security events to upload SARIF file to security tab
-  security-events: write
-  # Only need to read contents
   contents: read
-  actions: read
 
 jobs:
   scan-pr:
+    permissions:
+      # Require writing security events to upload SARIF file to security tab
+      security-events: write
+      # Only need to read contents
+      contents: read
+      actions: read
     uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc" # v2.6.0

@@ -3,6 +3,7 @@ package webui
 import (
 	"context"
 	"embed"
+	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
@@ -12,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 	"github.com/kairos-io/kairos/v4/sdk/branding"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
@@ -20,11 +22,31 @@ import (
 )
 
 type FormData struct {
-	CloudConfig string `form:"cloud-config" json:"cloud-config" query:"cloud-config"`
+	CloudConfig string `form:"cloud-config" json:"cloud_config" query:"cloud-config"`
 	Reboot      string `form:"reboot" json:"reboot" query:"reboot"`
 
 	PowerOff           string `form:"power-off" json:"power-off" query:"power-off"`
-	InstallationDevice string `form:"installation-device" json:"installation-device" query:"installation-device"`
+	InstallationDevice string `form:"installation-device" json:"device" query:"installation-device"`
+	// FinishAction is the wizard's spelling of the two checkboxes above:
+	// "", "reboot" or "poweroff". When it is empty the checkboxes decide.
+	FinishAction string `form:"-" json:"finish_action" query:"-"`
+
+	// The JSON keys the web UI used before the wizard. A client written
+	// against them still installs its configuration; see withLegacyKeys.
+	LegacyCloudConfig string `form:"-" json:"cloud-config" query:"-"`
+	LegacyDevice      string `form:"-" json:"installation-device" query:"-"`
+}
+
+// withLegacyKeys fills the cloud-config and the device from the JSON keys
+// of the previous web UI when the current ones are empty, so the new keys
+// win when a client sends both.
+func (f *FormData) withLegacyKeys() {
+	if f.CloudConfig == "" {
+		f.CloudConfig = f.LegacyCloudConfig
+	}
+	if f.InstallationDevice == "" {
+		f.InstallationDevice = f.LegacyDevice
+	}
 }
 
 //go:embed public
@@ -199,6 +221,8 @@ type Options struct {
 	// http.Handler and not the MCP package itself so this server stays the
 	// one thing that decides what is reachable on its address.
 	MCP http.Handler
+	// Env answers the wizard's questions. Nil means the machine this runs on.
+	Env wizard.Env
 }
 
 // MCPPath is where Options.MCP is mounted. It is the path MCP clients assume.
@@ -306,6 +330,12 @@ func newServer(o Options) *echo.Echo {
 		ec.Any(MCPPath, echo.WrapHandler(o.MCP))
 	}
 
+	env := o.Env
+	if env == nil {
+		env = wizard.NewSystemEnv()
+	}
+	(&wizardAPI{env: env, source: o.Source}).register(ec)
+
 	ec.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
 
 	ec.POST("/validate", func(c *echo.Context) error {
@@ -313,6 +343,7 @@ func newServer(o Options) *echo.Echo {
 		if err := c.Bind(formData); err != nil {
 			return err
 		}
+		formData.withLegacyKeys()
 		cloudConfig := formData.CloudConfig
 
 		// Use the same validation approach as the rest of the codebase
@@ -333,6 +364,7 @@ func newServer(o Options) *echo.Echo {
 		if err := c.Bind(formData); err != nil {
 			return err
 		}
+		formData.withLegacyKeys()
 
 		// One lock for the whole decision. Reading s.run, starting the
 		// install and storing it have to be one step: two POSTs racing
@@ -363,8 +395,23 @@ func newServer(o Options) *echo.Echo {
 		// Report a failure to start back to the browser rather than
 		// exiting. This handler shares a process with the installer TUI, so
 		// bringing the process down here would take the TUI with it.
-		if err := startInstall(log, o.Source, formData.CloudConfig, formData.InstallationDevice,
-			finishAction(formData.Reboot, formData.PowerOff)); err != nil {
+		finish := formData.FinishAction
+		if finish == "" {
+			finish = finishAction(formData.Reboot, formData.PowerOff)
+		}
+		if finish != wizard.FinishReboot && finish != wizard.FinishPoweroff && finish != "" {
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{
+				"message": fmt.Sprintf("unknown finish action %q, expected reboot or poweroff", finish),
+				"type":    "danger",
+			})
+		}
+		rendered, err := wizard.Finalize(formData.CloudConfig, wizard.Overrides{
+			Device: formData.InstallationDevice, FinishAction: finish,
+		})
+		if err != nil {
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{"message": err.Error(), "type": "danger"})
+		}
+		if err := startInstall(log, o.Source, rendered, finish); err != nil {
 			// The run never started, so nothing will publish to it. Leave
 			// s.run as it was, so the form can be submitted again and no
 			// /ws connection can attach to a log nobody will write to.

@@ -85,6 +85,14 @@ func (r ResetAction) Run() (err error) {
 		}
 	*/
 
+	// Check every partition this reset formats before formatting any of
+	// them, so a reset that cannot end in the state the configuration
+	// demands stops while nothing has been destroyed.
+	err = PreflightResetFormats(r.cfg, r.spec.Partitions.Persistent, r.spec.Partitions.OEM, r.spec.FormatPersistent, r.spec.FormatOEM)
+	if err != nil {
+		return err
+	}
+
 	// Reformat persistent partition
 	if r.spec.FormatPersistent {
 		persistent := r.spec.Partitions.Persistent
@@ -108,6 +116,21 @@ func (r ResetAction) Run() (err error) {
 				return err
 			}
 
+			// The format above leaves persistent plaintext. When the
+			// configuration lists it as encrypted, encrypt it again now,
+			// while it is empty by construction, so a reset ends in the
+			// same state an install ends in (kairos-io/kairos#4556). Fail
+			// closed: a node whose configuration demands encryption must
+			// not come back from a reset plaintext. This must run before
+			// the audit trail is restored: encrypting LUKS-formats the
+			// partition, so anything written earlier is destroyed. After
+			// it the spec points at the unlocked mapper, which is where
+			// the restore lands.
+			err = ResetEncryptFn(r.cfg, persistent)
+			if err != nil {
+				return err
+			}
+
 			if rErr := RestoreAuditLog(r.cfg, persistent, stash); rErr != nil {
 				r.cfg.Logger.Warnf("could not restore %s after the reset: %s", cnst.AuditLogPath, rErr)
 			}
@@ -127,6 +150,18 @@ func (r ResetAction) Run() (err error) {
 			if err != nil {
 				return err
 			}
+
+			// Same as persistent above: the format leaves OEM plaintext
+			// and empty, so when the configuration lists it as encrypted
+			// (explicitly, or through the UKI default), encrypt it again
+			// now. On a node encrypted at install the format hit the
+			// unlocked mapper, the container survived, and this is a
+			// no-op.
+			err = ResetEncryptFn(r.cfg, oem)
+			if err != nil {
+				return err
+			}
+
 			// Mount it back, as oem is mounted during recovery, keep everything as is
 			err = e.MountPartition(oem)
 			if err != nil {

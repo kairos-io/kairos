@@ -55,6 +55,12 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			"kairos-reset",
 			"kairos-recovery",
 			"kairos-selinux-relabel",
+			// The boot splash owns tty1 before getty does, so when it
+			// misbehaves the symptom is a console nobody can read and the
+			// journal is the only account of it. Ordered Before=getty.target,
+			// it can also delay a boot, and TimeoutStartSec firing is only
+			// visible here.
+			"kairos-splash",
 			// Written and enabled by the agent rather than by a cloud-config,
 			// on any node whose merged config carries a phonehome url.
 			// Without it a bundle from such a node has no journal for the
