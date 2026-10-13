@@ -39,9 +39,8 @@ func RegisterUKI(s *state.State, g *herd.Graph) error {
 	// Mount cdrom under /run/initramfs/livecd and /run/rootfsbase for the efiboot.img contents
 	s.LogIfError(s.UKIMountLiveCd(g, herd.WithDeps(cnst.OpSentinel, cnst.OpUkiUdev)), "Mount LiveCD")
 
-	// Setup network for remote KMS access (needed before unlock)
-	// TODO: Implement this properly and enable. Until then, no KMS for UKI.
-	//s.LogIfError(s.UKISetupNetwork(g), "uki network setup")
+	// Setup network for remote KMS access. No-op unless this boot has one.
+	s.LogIfError(s.UKISetupNetwork(g), "uki network setup")
 
 	// In-RAM trusted boot: the UKI is PXE/ISO-served but OEM + persistent live
 	// on local disk. First boot may need to create them — and under trusted
@@ -54,11 +53,11 @@ func RegisterUKI(s *state.State, g *herd.Graph) error {
 		ukiUnlockDeps = append(ukiUnlockDeps, cnst.OpEnsurePartitions)
 	}
 
-	// Unlock partitions if needed with TPM
-	// TODO: Make it depend on network setup for remote KMS access, as soon as we
-	// fix the OpUkiNetwork step.
-	//s.LogIfError(s.UKIUnlock(g, herd.WithDeps(cnst.OpSentinel, cnst.OpUkiUdev, cnst.OpUkiNetwork)), "uki unlock")
-	s.LogIfError(s.UKIUnlock(g, herd.WithDeps(ukiUnlockDeps...)), "uki unlock")
+	// Unlock partitions if needed with TPM, or with a remote KMS over the
+	// network the step above brought up. That one is a weak dependency: a
+	// network that never came up must not skip the unlock, or the boot
+	// fails with a missing step instead of the real KMS error.
+	s.LogIfError(s.UKIUnlock(g, herd.WithDeps(ukiUnlockDeps...), herd.WithWeakDeps(cnst.OpUkiNetwork)), "uki unlock")
 
 	s.LogIfError(s.MountOemDagStep(g, herd.WithDeps(cnst.OpUkiKcrypt), herd.WeakDeps), "oem mount")
 

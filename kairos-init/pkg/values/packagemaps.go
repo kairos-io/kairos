@@ -490,6 +490,7 @@ var BasePackages = PackageMap{
 				"libldap-common",
 				"libnss-systemd",
 				"libpam-cap",
+				"libpam-pwquality", // pam_pwquality for CIS L1 5.4.1; its pam-auth-update profile wires it
 				"libsasl2-modules",
 				"mdadm",
 				"nbd-client",
@@ -667,6 +668,7 @@ var BasePackages = PackageMap{
 		ArchCommon: {
 			Common: {
 				"audit",                   // For audit support, check if needed?
+				"authselect",              // Manages the PAM stack; used to enable pam_faillock for CIS L1 5.4.2
 				"chrony",                  // RHEL family uses chronyd for time sync (not systemd-timesyncd)
 				"cracklib-dicts",          // Password dictionary support
 				"device-mapper",           // Device mapper support, needed for lvm and cryptsetup

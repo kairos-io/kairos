@@ -22,12 +22,15 @@ type RootSchema struct {
 	Install            InstallSchema     `json:"install,omitempty"`
 	Kcrypt             KcryptSchema      `json:"kcrypt,omitempty"`
 	Options            map[string]string `json:"options,omitempty" description:"Various options, as key/value pairs."`
+	Upgrade            UpgradeSchema     `json:"upgrade,omitempty"`
+	Reset              ResetSchema       `json:"reset,omitempty"`
 	// Users is not required. An admin user may instead be defined in a yip
 	// stage (stages.<stage>[].users) or waived with install.nousers, and the
 	// agent enforces that at install time (see CheckConfigForUsers in
 	// agent/pkg/config). An explicit empty list is still rejected.
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
+	KubeVIP                   KubeVIPSchema            `json:"kubevip,omitempty"`
 	Debug                     bool                     `json:"debug,omitempty" mapstructure:"debug"`
 	Strict                    bool                     `json:"strict,omitempty" mapstructure:"strict"`
 	CloudInitPaths            []string                 `json:"cloud-init-paths,omitempty" mapstructure:"cloud-init-paths"`
@@ -108,7 +111,7 @@ func (kc *KConfig) validate() {
 		return
 	}
 
-	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
+	sch, err := jsonschema.CompileString(InProcessSchemaID, string(generatedSchemaJSON))
 	if err != nil {
 		kc.ValidationError = err
 		return

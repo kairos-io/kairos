@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	"github.com/kairos-io/kairos/v4/sdk/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -249,9 +250,9 @@ func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
 	t.Cleanup(func() { autoInstallFn = original })
 
 	called := false
-	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error) {
+	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error, error) {
 		called = true
-		return false, nil, nil
+		return false, nil, nil, nil
 	}
 
 	err := command.Action(commandContext(t, command, "", "--"+skipAutoInstallFlag))
@@ -341,5 +342,114 @@ func TestStateRegistersGetAndNoApply(t *testing.T) {
 	}
 	if !names["get"] {
 		t.Errorf("state lost its get subcommand, subcommands %v", names)
+	}
+}
+
+// `upgrade --dry-run` must be registered as a bool flag that defaults to off,
+// so a plain `upgrade` keeps running the real upgrade.
+func TestUpgradeRegistersDryRunFlag(t *testing.T) {
+	var upgradeCmd *cli.Command
+	for _, c := range cmds {
+		if c.Name == "upgrade" {
+			upgradeCmd = c
+			break
+		}
+	}
+	if upgradeCmd == nil {
+		t.Fatal("no upgrade command registered")
+	}
+
+	for _, f := range upgradeCmd.Flags {
+		for _, name := range f.Names() {
+			if name != "dry-run" {
+				continue
+			}
+			bf, ok := f.(*cli.BoolFlag)
+			if !ok {
+				t.Fatalf("dry-run is a %T, want *cli.BoolFlag", f)
+			}
+			if bf.Value {
+				t.Fatal("dry-run defaults to true, a plain upgrade would not upgrade")
+			}
+			return
+		}
+	}
+	t.Fatal("upgrade does not register a --dry-run flag")
+}
+
+func installBundleCommand(t *testing.T) *cli.Command {
+	t.Helper()
+	for _, command := range cmds {
+		if command.Name == "install-bundle" {
+			return command
+		}
+	}
+	t.Fatal("install-bundle command not found")
+	return nil
+}
+
+func TestInstallBundleExamplesAreValidTargets(t *testing.T) {
+	command := installBundleCommand(t)
+	knownSchemes := map[string]bool{"container": true, "docker": true, "run": true, "package": true}
+
+	examples := 0
+	localFileExample := false
+	for _, line := range strings.Split(command.Description, "\n") {
+		_, example, found := strings.Cut(line, "kairos-agent install-bundle ")
+		if !found {
+			continue
+		}
+		examples++
+
+		ctx := commandContext(t, command, "", strings.Fields(example)...)
+		if ctx.Args().Len() != 1 {
+			t.Errorf("example %q leaves %d positional arguments, want 1", line, ctx.Args().Len())
+			continue
+		}
+		config := bundles.BundleConfig{Target: ctx.Args().First()}
+		scheme, err := config.TargetScheme()
+		if err != nil {
+			t.Errorf("example %q has an invalid target: %v", line, err)
+			continue
+		}
+		if !knownSchemes[scheme] {
+			t.Errorf("example %q uses scheme %q, want one of %v", line, scheme, knownSchemes)
+		}
+		if ctx.Bool("local-file") {
+			localFileExample = true
+		}
+	}
+
+	if examples == 0 {
+		t.Fatal("install-bundle description has no examples")
+	}
+	if !localFileExample {
+		t.Error("install-bundle description has no --local-file example")
+	}
+}
+
+func TestInstallBundleFlagsAfterTargetAreNotParsed(t *testing.T) {
+	command := installBundleCommand(t)
+
+	ctx := commandContext(t, command, "", "container:///absolute/path/mybundle.tar", "--local-file")
+	if ctx.Bool("local-file") {
+		t.Fatal("--local-file after the target was parsed as a flag, the help text says it is not")
+	}
+	if ctx.Args().Len() != 2 {
+		t.Fatalf("got %d positional arguments, want 2", ctx.Args().Len())
+	}
+}
+
+func TestInstallBundleFlagsHaveUsage(t *testing.T) {
+	command := installBundleCommand(t)
+
+	for _, commandFlag := range command.Flags {
+		docFlag, ok := commandFlag.(cli.DocGenerationFlag)
+		if !ok {
+			t.Fatalf("flag %v does not expose its usage text", commandFlag.Names())
+		}
+		if strings.TrimSpace(docFlag.GetUsage()) == "" {
+			t.Errorf("flag %v has no usage text", commandFlag.Names())
+		}
 	}
 }
