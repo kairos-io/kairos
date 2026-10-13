@@ -1,12 +1,10 @@
-FROM quay.io/kairos/kairos-init:v0.7.0-beta13 AS kairos-init
-
 FROM rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
 ARG VERSION=v0.0.1
 
-RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init \
     /kairos-init -l debug -s install --fips --version "${VERSION}"
 
-RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init \
     /kairos-init -l debug -s init --fips --version "${VERSION}"
 
 # Symlink kernel HMAC

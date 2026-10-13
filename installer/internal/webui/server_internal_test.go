@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"golang.org/x/net/websocket"
+	"gopkg.in/yaml.v3"
 
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 )
@@ -23,8 +24,7 @@ var _ = Describe("the install endpoint and its progress stream", func() {
 	var client *http.Client
 
 	BeforeEach(func() {
-		srv = httptest.NewServer(newServer(Options{}))
-		DeferCleanup(srv.Close)
+		srv = newTestServer(Options{})
 
 		// Do not follow the redirect to progress.html: the test is about
 		// what the endpoint decided, not about serving the page again.
@@ -95,6 +95,36 @@ exit 0
 		Expect(msgs[0].Type).To(Equal(MessageError))
 		Expect(msgs[0].Message).To(ContainSubstring("no installation has been started"))
 		Expect(msgs[1].Type).To(Equal(MessageDone))
+	})
+
+	It("writes the submitted device and finish action over the pasted YAML", func() {
+		seen := filepath.Join(GinkgoT().TempDir(), "config-seen.yaml")
+		GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent(`
+for a in "$@"; do cfg="$a"; done
+cp "$cfg" `+seen+`
+echo '{"event":"step","step":"done"}'
+exit 0
+`))
+
+		resp := postInstall(url.Values{
+			"cloud-config":        {"#cloud-config\ninstall:\n  device: /dev/vdb\n  poweroff: true\n"},
+			"installation-device": {"/dev/sda"},
+		})
+		Expect(resp.StatusCode).To(Equal(http.StatusSeeOther))
+
+		var raw []byte
+		Eventually(func() error {
+			var err error
+			raw, err = os.ReadFile(seen)
+			return err
+		}, "5s").Should(Succeed())
+
+		doc := map[string]any{}
+		Expect(yaml.Unmarshal(raw, &doc)).To(Succeed())
+		install, _ := doc["install"].(map[string]any)
+		Expect(install).To(HaveKeyWithValue("device", "/dev/sda"))
+		Expect(install).To(HaveKeyWithValue("poweroff", false))
+		Expect(install).To(HaveKeyWithValue("reboot", false))
 	})
 
 	It("does not start a second install while one is running", func() {
@@ -188,8 +218,7 @@ printf '%s\n' "$@" > `+argv+`
 echo '{"event":"step","step":"done"}'
 exit 0
 `))
-		srv := httptest.NewServer(newServer(Options{Source: "oci://foo:bar"}))
-		DeferCleanup(srv.Close)
+		srv := newTestServer(Options{Source: "oci://foo:bar"})
 
 		resp, err := noRedirect().PostForm(srv.URL+"/install", form)
 		Expect(err).ToNot(HaveOccurred())
@@ -213,8 +242,7 @@ sleep 1
 echo '{"event":"step","step":"done"}'
 exit 0
 `))
-		srv := httptest.NewServer(newServer(Options{}))
-		DeferCleanup(srv.Close)
+		srv := newTestServer(Options{})
 
 		const clients = 8
 		start := make(chan struct{})
@@ -245,13 +273,42 @@ exit 0
 		Consistently(countRuns, "2s").Should(Equal(1))
 	})
 
+	It("has the install guard back by the time a spec ends", func() {
+		// agentrun's install guard is process-wide and runAgent holds it for
+		// the whole life of the agent, on a goroutine nothing joins. A spec
+		// that returned while its agent was still running had the next
+		// spec's install refused with ErrInstallInProgress, so nothing
+		// started and that spec timed out against a count that could no
+		// longer change.
+		//
+		// What makes the wait sound is that the agent has exited by the time
+		// WaitForInstall returns: the run publishes its done message after
+		// cmd.Wait, which is after the guard's deferred unlock. This is the
+		// property newTestServer's cleanup relies on.
+		exited := filepath.Join(GinkgoT().TempDir(), "exited")
+		GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent(`
+echo '{"event":"step","step":"done"}'
+echo exited > `+exited+`
+exit 0
+`))
+		act := &Activity{}
+		srv := newTestServer(Options{Activity: act})
+
+		resp, err := noRedirect().PostForm(srv.URL+"/install", form)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resp.Body.Close()).To(Succeed())
+		Expect(resp.StatusCode).To(Equal(http.StatusSeeOther))
+
+		act.WaitForInstall()
+		Expect(exited).To(BeAnExistingFile())
+	})
+
 	It("does not echo markup from a cloud-config error back into the page", func() {
 		// yaml.v3 quotes the offending document in its error, so a bare
 		// scalar comes back through message.html. Rendering that with
 		// text/template put the operator's own input into the page unescaped.
 		GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent("exit 0\n"))
-		srv := httptest.NewServer(newServer(Options{}))
-		DeferCleanup(srv.Close)
+		srv := newTestServer(Options{})
 
 		resp, err := noRedirect().PostForm(srv.URL+"/install", url.Values{
 			"cloud-config":        {`<img src=x onerror=alert(1)>`},
@@ -266,7 +323,34 @@ exit 0
 		// The error still names what went wrong...
 		Expect(string(body)).To(ContainSubstring("not valid YAML"))
 		// ...but the operator's input reaches the page as text, not markup.
-		Expect(string(body)).ToNot(ContainSubstring("<img sr"))
-		Expect(string(body)).To(ContainSubstring("&lt;img sr"))
+		// yaml.v3 cuts the quote short, to "<img sr...". The page has an
+		// <img> of its own, the logo, so the check is on the quoted text.
+		Expect(string(body)).ToNot(ContainSubstring("<img sr..."))
+		Expect(string(body)).To(ContainSubstring("&lt;img sr..."))
 	})
 })
+
+// newTestServer starts a test server for the web UI and registers both its
+// shutdown and a wait for the install it started, so the spec does not return
+// while an agent of its own is still running.
+//
+// agentrun's install guard is process-wide, and runAgent holds it for the
+// whole life of the agent on a goroutine nothing joins. A spec that asserts on
+// a side effect of the agent returns as soon as that side effect lands, which
+// is before the agent has exited and the guard is released, so the install the
+// next spec posts is refused with ErrInstallInProgress and never starts.
+// Options.Activity is how the installer waits for a browser-driven install,
+// and it is what the specs need for the same reason.
+func newTestServer(o Options) *httptest.Server {
+	act := o.Activity
+	if act == nil {
+		act = &Activity{}
+		o.Activity = act
+	}
+	srv := httptest.NewServer(newServer(o))
+	DeferCleanup(func() {
+		act.WaitForInstall()
+		srv.Close()
+	})
+	return srv
+}
