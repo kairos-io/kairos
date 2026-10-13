@@ -1680,7 +1680,7 @@ jobs:
 
       - name: Upload ISO artifacts
         if: inputs.iso
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.iso.zip
           path: |
@@ -1693,7 +1693,7 @@ jobs:
         # keys of the build whose ISO it installs. They are throwaway keys,
         # kept for one day.
         if: inputs.generate_test_keys && inputs.iso
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.test-keys
           path: ${{ steps.test-artifacts.outputs.keys_dir }}
@@ -1702,7 +1702,7 @@ jobs:
 
       - name: Upload RAW artifacts
         if: inputs.raw
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.raw.zip
           path: |
