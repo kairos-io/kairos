@@ -271,6 +271,23 @@ var _ = Describe("OCIImageExtractor pull retries", func() {
 		err := image.OCIImageExtractor{Insecure: true}.ExtractImage(imageRef, destDir, "linux/amd64")
 		Expect(err).To(HaveOccurred())
 		Expect(blobGETs.attempts()).To(Equal(3))
+
+		// And says so. The per-attempt notice above is written to
+		// go-containerregistry's logs.Warn, which is an io.Discard nothing in
+		// this repository assigns, so the returned error is the only place the
+		// caller can learn that the pull was tried more than once.
+		Expect(err.Error()).To(ContainSubstring("failed after 3 attempts"))
+		Expect(err.Error()).To(ContainSubstring(imageRef))
+		// The cause stays reachable, so a caller can still classify it.
+		Expect(image.IsTransientNetworkError(err)).To(BeTrue())
+	})
+
+	It("does not claim a retry when the first attempt failed for good", func() {
+		// A reference the registry cannot even parse fails the same way every
+		// time, so it must be reported straight away and unadorned.
+		err := image.OCIImageExtractor{Insecure: true}.ExtractImage("Not A Valid Reference", destDir, "linux/amd64")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).ToNot(ContainSubstring("attempts"))
 	})
 })
 
