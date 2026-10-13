@@ -158,14 +158,27 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 			size = (end - start + 1) * uint64(sectorSize)
 		}
 
+		// The GUID is derived rather than random so it is predictable across
+		// installs. Every built-in partition carries a filesystem label, but
+		// an extra partition usually does not, and uuid.NewV5 over the empty
+		// string is a constant: two unlabelled extra partitions came out with
+		// the same PARTUUID on the same disk, and every machine got that same
+		// value. Fall back to the partition name, which the installer already
+		// requires for an extra partition.
+		guidSeed := part.FilesystemLabel
+		if guidSeed == "" {
+			guidSeed = part.Name
+		}
+		partGUID := uuid.NewV5(uuid.NamespaceURL, guidSeed).String()
+
 		if part.Name == sdkConstants.EfiPartName && part.FS == sdkConstants.EfiFs {
 			// EFI boot partition
 			partitions = append(partitions, &gpt.Partition{
 				Start:      start,
 				End:        end,
 				Type:       gpt.EFISystemPartition,
-				Size:       size,                                                         // partition size in bytes
-				GUID:       uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(), // set know predictable UUID
+				Size:       size, // partition size in bytes
+				GUID:       partGUID,
 				Name:       part.Name,
 				Index:      index + 1, // GPT partition indices are 1-based
 				Attributes: 0x1,       // system partition flag
@@ -176,8 +189,8 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 				Start:      start,
 				End:        end,
 				Type:       gpt.BIOSBoot,
-				Size:       size,                                                         // partition size in bytes
-				GUID:       uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(), // set know predictable UUID
+				Size:       size, // partition size in bytes
+				GUID:       partGUID,
 				Name:       part.Name,
 				Index:      index + 1, // GPT partition indices are 1-based
 				Attributes: 0x4,       // legacy bios bootable flag
@@ -189,7 +202,7 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 				End:   end,
 				Type:  gpt.LinuxFilesystem,
 				Size:  size,
-				GUID:  uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(),
+				GUID:  partGUID,
 				Name:  part.Name,
 				Index: index + 1, // GPT partition indices are 1-based
 			})

@@ -124,6 +124,8 @@ You can find us at:
 
 The [:handshake: community repository](https://github.com/kairos-io/community) contains information about how to get involved, Code of conduct, Maintainers, Contribution guidelines, including also links to our weekly meeting notes, roadmap, and more.
 
+The [kairos-community organization](https://github.com/kairos-community) holds community supported and experimental projects, kept apart from the maintained `kairos-io` ones: [bundles](https://github.com/kairos-community/bundles), [Helm charts](https://github.com/kairos-community/helm-charts), [meta-kairos](https://github.com/kairos-community/meta-kairos) for Yocto, [openamt](https://github.com/kairos-community/openamt) and [hadron-desktop](https://github.com/kairos-community/hadron-desktop). Anyone can contribute there.
+
 Looking for something to work on? Browse Kairos issues that need a hand on [CLOTributor](https://clotributor.dev/search?project=kairos&foundation=cncf).
 
 ## Governance

@@ -125,6 +125,11 @@ var rootCmd = &cobra.Command{
 		if runtime.GOARCH == "riscv64" && config.DefaultConfig.Fips {
 			return fmt.Errorf("FIPS is not supported on riscv64")
 		}
+		if config.DefaultConfig.Fips {
+			if missing := bundled.MissingFips(); len(missing) > 0 {
+				return fmt.Errorf("this kairos-init was built without FIPS binaries (empty: %s), so --fips is not supported", strings.Join(missing, ", "))
+			}
+		}
 		preRun(cmd, args)
 		if config.DefaultConfig.DryRun {
 			return nil

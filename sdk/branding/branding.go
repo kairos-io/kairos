@@ -8,6 +8,7 @@
 package branding
 
 import (
+	"crypto/subtle"
 	"os"
 	"path/filepath"
 
@@ -53,6 +54,36 @@ type Text struct {
 type WebUI struct {
 	Disable       bool   `yaml:"disable"`
 	ListenAddress string `yaml:"listen_address"`
+	// Token is the credential a request has to carry to reach the web UI or
+	// the MCP server. Empty, which is the default, leaves both open: an
+	// unbranded live ISO is expected to install the machine the user is
+	// standing at, and asking that user for a secret nobody set would only
+	// lock them out. An image or a cloud config sets it when the installer
+	// answers on a network where not everyone may install.
+	Token string `yaml:"token"`
+}
+
+// TokenParam is the query parameter a frontend accepts the token in, so a URL
+// printed on the console or encoded as a QR code is enough to get in.
+const TokenParam = "token"
+
+// HasToken reports whether the image asked for a credential.
+func (w WebUI) HasToken() bool {
+	return w.Token != ""
+}
+
+// TokenMatches reports whether got is the token the image set. It is false for
+// every got when no token was set, so a caller cannot accidentally authorize a
+// request by guessing the empty string: a frontend has to ask HasToken first
+// and skip the check entirely.
+//
+// The comparison is constant time, because the caller is comparing a secret
+// against a value an unauthenticated client chose.
+func (w WebUI) TokenMatches(got string) bool {
+	if w.Token == "" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(w.Token), []byte(got)) == 1
 }
 
 // HasAddress reports whether the image pinned a listen address, as opposed to
@@ -61,10 +92,22 @@ func (w WebUI) HasAddress() bool {
 	return w.ListenAddress != ""
 }
 
+// MCP configures the Model Context Protocol endpoint the installer serves, so
+// an agent can drive an install.
+//
+// There is no address here on purpose: the endpoint is a route on the web
+// installer's own server, so where it listens is webui.listen_address and
+// nothing else. Disable only decides whether the route is registered at all,
+// for an image that wants the browser installer without the agent one.
+type MCP struct {
+	Disable bool `yaml:"disable"`
+}
+
 // Config is the content of /etc/kairos/agent.yaml.
 type Config struct {
 	Fast     bool  `yaml:"fast,omitempty"`
 	WebUI    WebUI `yaml:"webui"`
+	MCP      MCP   `yaml:"mcp"`
 	Branding Text  `yaml:"branding"`
 }
 

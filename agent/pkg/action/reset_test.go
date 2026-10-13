@@ -243,6 +243,70 @@ var _ = Describe("Reset action tests", func() {
 				cloudInit.Error = true
 				Expect(reset.Run()).NotTo(BeNil())
 			})
+			Describe("re-encryption after the format", func() {
+				var encrypted []string
+				var encryptErr error
+				BeforeEach(func() {
+					encrypted, encryptErr = nil, nil
+					orig := action.ResetEncryptFn
+					DeferCleanup(func() { action.ResetEncryptFn = orig })
+					action.ResetEncryptFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition) error {
+						encrypted = append(encrypted, part.FilesystemLabel)
+						return encryptErr
+					}
+				})
+
+				It("runs for every formatted partition", func() {
+					spec.FormatPersistent = true
+					spec.FormatOEM = true
+					Expect(reset.Run()).To(BeNil())
+					Expect(encrypted).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+				})
+
+				It("does not run for partitions the reset does not format", func() {
+					spec.FormatPersistent = false
+					spec.FormatOEM = false
+					Expect(reset.Run()).To(BeNil())
+					Expect(encrypted).To(BeEmpty())
+				})
+
+				It("fails the reset when re-encrypting OEM fails", func() {
+					spec.FormatPersistent = false
+					spec.FormatOEM = true
+					encryptErr = errors.New("no TPM device")
+					Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+					Expect(encrypted).To(Equal([]string{constants.OEMLabel}))
+				})
+
+				It("formats nothing when the preflight refuses", func() {
+					spec.FormatPersistent = true
+					spec.FormatOEM = true
+					orig := action.ResetPreflightFn
+					DeferCleanup(func() { action.ResetPreflightFn = orig })
+					var checked []string
+					action.ResetPreflightFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition, _ bool) error {
+						checked = append(checked, part.FilesystemLabel)
+						if part.FilesystemLabel == constants.OEMLabel {
+							return errors.New("preflight refused")
+						}
+						return nil
+					}
+					Expect(reset.Run()).To(MatchError(ContainSubstring("preflight refused")))
+					Expect(checked).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+					Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(HaveOccurred(),
+						"a partition was formatted although the preflight of a later one refused")
+					Expect(encrypted).To(BeEmpty())
+				})
+
+				It("fails the reset when re-encrypting persistent fails", func() {
+					spec.FormatPersistent = true
+					spec.FormatOEM = true
+					encryptErr = errors.New("no TPM device")
+					Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+					Expect(encrypted).To(Equal([]string{constants.PersistentLabel}),
+						"the reset must stop at the first failed re-encryption")
+				})
+			})
 			It("Fails formatting the persistent partition", func() {
 				spec.FormatPersistent = true
 				cmdFail = "mkfs.ext4"

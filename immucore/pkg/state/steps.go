@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
@@ -20,11 +21,19 @@ import (
 func (s *State) MountTmpfsDagStep(g *herd.Graph) error {
 	return g.Add(cnst.OpMountTmpfs, TimedCallback(cnst.OpMountTmpfs,
 		func(_ context.Context) error {
-			fstab, err := op.MountOPWithFstab("tmpfs", "/tmp", "tmpfs", []string{"rw"}, 10*time.Second)
+			fstab, err := op.MountOPWithFstab("tmpfs", "/tmp", "tmpfs", cnst.TmpMountOptions, 10*time.Second)
 			for _, f := range fstab {
 				s.fstabs = append(s.fstabs, f)
 			}
-			return err
+			if err != nil {
+				return err
+			}
+			// Not fatal: a /dev/shm that keeps exec is a CIS finding, not a
+			// reason to stop the boot.
+			if e := syscall.Mount("", "/dev/shm", "", cnst.DevShmRemountFlags, ""); e != nil {
+				internalUtils.KLog.Logger.Warn().Err(e).Msg("remounting /dev/shm noexec")
+			}
+			return nil
 		},
 	))
 }
