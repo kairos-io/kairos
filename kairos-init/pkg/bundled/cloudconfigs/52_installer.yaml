@@ -1,39 +1,40 @@
 name: "Start installer on tty1"
 stages:
   initramfs:
-    # Start the plain installer on a boot that is asking to install. This is
-    # the GRUB live ISO path, and only that one.
+    # Start the plain installer on a boot that is asking to install.
+    #
+    # The decision is immucore's: it writes /run/cos/install_mode when the
+    # boot asked for the plain installer, and /run/cos/install_mode_interactive
+    # when it asked for the interactive one. Nothing here reads /proc/cmdline,
+    # which is what kairos-io/kairos#5459 is about: the intent reaches a boot
+    # differently on each medium, and collapsing that into one file is what
+    # lets a new medium be supported in immucore alone.
+    #
+    # How immucore decides, for reference (sdk/state.InstallIntentSentinels):
+    #
+    # On the GRUB live ISO the cmdline is per menu entry and unsigned, so the
+    # entry says which installer it wants with install-mode or
+    # install-mode-interactive, and a live boot that asks for neither gets
+    # neither. The keyword stays the input there, because a menu entry has no
+    # other way to express per-entry intent.
     #
     # On Trusted Boot the cmdline lives in a signed section of the UKI, and
     # AuroraBoot builds every entry from the same base, so install-mode is
     # present on every UKI boot: on the live medium and, because the installer
     # copies norole.efi byte for byte into active, passive, recovery and
-    # statereset, on every installed role too. The keyword therefore tells a
-    # live UKI boot and an installed one apart in neither direction, so it
-    # decides nothing there. What a UKI install medium gets instead is the
-    # interactive installer, unconditionally: see the stage below.
-    #
-    # /run/cos/uki_install_mode is the signal that does separate the two, and
-    # immucore writes /run/cos/live_mode next to it on the same boot (a UKI
-    # medium that did not boot from an installed EFI entry is LiveCD). So this
-    # guard has to refuse the UKI sentinel rather than merely not require it:
-    # live_mode alone would still be true on Trusted Boot.
+    # statereset, on every installed role too. It therefore decides nothing
+    # there, and what separates the two is having booted from an installed EFI
+    # entry. A UKI install medium gets the interactive installer,
+    # unconditionally.
     #
     # Nothing is lost by handing Trusted Boot to the interactive installer:
     # it runs AutoInstall first, so a config carrying install.auto: true still
     # installs with no prompt. See agent/docs/installer-contract.md.
     #
-    # On the GRUB live ISO the cmdline is per menu entry and unsigned, so the
-    # keyword is what separates "install" from a plain live boot, and it stays
-    # required there.
-    #
-    # install-mode is a prefix of install-mode-interactive, so the keyword is
-    # matched space-delimited to keep an interactive-only cmdline out. A
-    # cmdline with both keywords still lands here; the interactive stage below
-    # runs later and disables kairos-installer again.
+    # An entry naming both keywords yields both sentinels, so both stages run;
+    # the interactive stage comes later in this file and takes tty1 back.
     - if: |
-        [ ! -f /run/cos/uki_install_mode ] && [ -f /run/cos/live_mode ] && \
-        grep -qE "(^| )install-mode( |$)" /proc/cmdline
+        [ -f /run/cos/install_mode ]
       only_service_manager: "systemd"
       files:
         - path: /etc/systemd/system/kairos-installer.service
@@ -65,30 +66,28 @@ stages:
         - systemctl stop getty@tty1
         - systemctl mask getty@tty1
         - systemctl enable kairos-installer
-    # Starts installer on boot for openRC based systems. Same guard as the
-    # systemd stage above: the keyword on GRUB, never on Trusted Boot.
+    # Starts installer on boot for openRC based systems. Same sentinel as the
+    # systemd stage above.
     - if: |
-        [ ! -f /run/cos/uki_install_mode ] && [ -f /run/cos/live_mode ] && \
-        grep -qE "(^| )install-mode( |$)" /proc/cmdline
+        [ -f /run/cos/install_mode ]
       only_service_manager: "openrc"
       commands:
         - sed -i -e 's/tty1.*//g' /etc/inittab
         - echo "tty1::respawn:/usr/bin/kairos-agent install tty1" >> /etc/inittab
     # Starts the interactive installer. It is what a Trusted Boot install
     # medium always gets, and what a GRUB live ISO gets when the entry the
-    # user picked asks for it.
+    # user picked asks for it. immucore collapses both into
+    # /run/cos/install_mode_interactive; see the plain stage above.
     #
-    # A UKI entry cannot ask for anything: its cmdline is signed and shared by
-    # every entry AuroraBoot builds, so there is no per-entry keyword to read.
-    # /run/cos/uki_install_mode says "this is install media" and that is the
-    # whole decision. The interactive installer is the right default for it
-    # because it is the dispatcher, not just a terminal UI: it runs AutoInstall
-    # first, serves the WebUI in-process, and takes --shell.
+    # The interactive installer is the right default for a UKI medium because
+    # it is the dispatcher, not just a terminal UI: it runs AutoInstall first,
+    # serves the WebUI in-process, and takes --shell.
+    #
+    # The legacy interactive-install keyword is still accepted as an input on
+    # the GRUB cmdline, in immucore now rather than here.
     # TODO: Drop interactive-install keyword in Kairos 4.0.0
     - if: |
-        [ -f /run/cos/uki_install_mode ] || \
-        ([ -f /run/cos/live_mode ] && \
-         (grep -q "interactive-install" /proc/cmdline || grep -q "install-mode-interactive" /proc/cmdline))
+        [ -f /run/cos/install_mode_interactive ]
       only_service_manager: "systemd"
       files:
         - path: /etc/systemd/system/kairos-interactive.service
@@ -129,13 +128,10 @@ stages:
         - systemctl stop getty@tty1
         - systemctl mask getty@tty1
         - systemctl enable kairos-interactive
-    # Starts installer on boot for openRC based systems. Same guard as the
+    # Starts installer on boot for openRC based systems. Same sentinel as the
     # systemd stage above.
-    # TODO: Drop interactive-install keyword in Kairos 4.0.0
     - if: |
-        [ -f /run/cos/uki_install_mode ] || \
-        ([ -f /run/cos/live_mode ] && \
-         (grep -q "interactive-install" /proc/cmdline || grep -q "install-mode-interactive" /proc/cmdline))
+        [ -f /run/cos/install_mode_interactive ]
       only_service_manager: "openrc"
       commands:
         - sed -i -e 's/tty1.*//g' /etc/inittab
