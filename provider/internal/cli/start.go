@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/kairos-io/kairos/v4/internal/version"
+	"github.com/kairos-io/kairos/v4/provider/internal/cli/token"
 	"github.com/kairos-io/kairos/v4/provider/internal/provider"
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 
@@ -15,6 +16,13 @@ import (
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
 )
+
+// defaultRotateConfigDirs is where the rotate-token command looks for the
+// user's persistent config by default. It mirrors the writable subset of
+// constants.GetUserConfigDirs: read-only overlays like /run/initramfs/live
+// and baked-in /system/oem are left out because a rotation has to end up in
+// files the node itself can rewrite.
+var defaultRotateConfigDirs = []string{"/etc/kairos", "/oem"}
 
 var Author = "Ettore Di Giacinto"
 
@@ -36,10 +44,11 @@ var networkAPI = []cli.Flag{
 		Usage: "Edgevpn API endpoint. Accepts a TCP URL (e.g. http://127.0.0.1:8080) " +
 			"or a unix socket path with the 'unix://' prefix (e.g. unix:///run/edgevpn.sock). " +
 			"Defaults to whatever the local edgevpn daemon was configured to listen on, " +
+			"and to the address the bridge command serves when there is no local daemon, " +
 			"so it normally needs no setting.",
 		// Placeholder only. applyAPIDefault replaces this at startup with the
 		// address the local daemon was actually given, so the two ends cannot
-		// drift apart. It stands alone when there is no daemon configured yet.
+		// drift apart. Off a node it becomes the bridge's address instead.
 		Value:   provider.DefaultEdgeVPNAPIAddress,
 		EnvVars: []string{"EDGEVPN_API"},
 	},
@@ -71,6 +80,11 @@ func setAPIFlagDefault(address string) {
 // as soon as anything passes an explicit address to the agent at bootstrap, and
 // the failure is silent: the client queries an address nothing is listening on
 // and prints an empty answer.
+//
+// Where there is no daemon at all the address becomes the one the bridge
+// command serves, because these same commands are meant to be run from an
+// operator's machine once "bridge" has a tunnel up, and that machine has no
+// socket for them to talk to.
 //
 // This moves the default only. An explicit --api, or EDGEVPN_API in the
 // environment, still wins, because urfave/cli prefers both over a flag's value.
@@ -124,6 +138,61 @@ var GenerateTokenCMD = cli.Command{
 		}
 		fmt.Println(node.GenerateNewConnectionData(l).Base64())
 		return nil
+	},
+}
+
+var RotateTokenCMD = cli.Command{
+	Name:      "rotate-token",
+	UsageText: "rotate-token [--config-dir DIR ...] [--api URL] [--root-dir DIR] [--restart] NEW_TOKEN",
+	Usage:     "Rewrites the network token in the node's config and reconfigures edgevpn",
+	Description: `
+		Rewrites p2p.network_token in every config file under the given
+		directories that already has one, regenerates the edgevpn service
+		configuration against the merged config, and optionally restarts
+		the edgevpn service so the change takes effect immediately.
+
+		The token can also be supplied via the TOKEN environment variable.
+
+		By default it looks at /etc/kairos and /oem, which are the writable
+		locations the agent reads from. Pass --config-dir to override.
+		`,
+	ArgsUsage: "NEW_TOKEN (the base64 token to install; overrides --token/TOKEN)",
+	Flags: append([]cli.Flag{
+		&cli.StringSliceFlag{
+			Name:  "config-dir",
+			Usage: "Directory to scan for config files. May be repeated.",
+			Value: cli.NewStringSlice(defaultRotateConfigDirs...),
+		},
+		&cli.StringFlag{
+			Name:    "token",
+			Usage:   "New network token. Overridden by a positional argument.",
+			EnvVars: []string{"TOKEN"},
+		},
+		&cli.StringFlag{
+			Name:  "root-dir",
+			Usage: "Root directory the edgevpn service files are written under.",
+			Value: "/",
+		},
+		&cli.BoolFlag{
+			Name:  "restart",
+			Usage: "Restart the edgevpn service after writing the new config.",
+		},
+	}, networkAPI...),
+	Action: func(c *cli.Context) error {
+		newToken := c.String("token")
+		if c.Args().Present() {
+			newToken = c.Args().First()
+		}
+		if newToken == "" {
+			return fmt.Errorf("a new token is required (positional argument, --token or TOKEN)")
+		}
+		return token.RotateToken(
+			c.StringSlice("config-dir"),
+			newToken,
+			c.String(apiFlagName),
+			c.String("root-dir"),
+			c.Bool("restart"),
+		)
 	},
 }
 
@@ -193,43 +262,14 @@ For all the example cases, see: https://kairos.io/docs/
 		UsageText: ``,
 		Copyright: Author,
 		Commands: []*cli.Command{
-			{
-				Name:      "recovery-ssh-server",
-				UsageText: "recovery-ssh-server",
-				Usage:     "Starts SSH recovery service",
-				Description: `
-				Spawn up a simple standalone ssh server over p2p
-		`,
-				ArgsUsage: "Spawn up a simple standalone ssh server over p2p",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:    "token",
-						EnvVars: []string{"TOKEN"},
-					},
-					&cli.StringFlag{
-						Name:    "service",
-						EnvVars: []string{"SERVICE"},
-					},
-					&cli.StringFlag{
-						Name:    "password",
-						EnvVars: []string{"PASSWORD"},
-					},
-					&cli.StringFlag{
-						Name:    "listen",
-						EnvVars: []string{"LISTEN"},
-						Value:   recoveryAddr,
-					},
-				},
-				Action: func(c *cli.Context) error {
-					return StartRecoveryService(c)
-				},
-			},
+			RecoverySSHServerCMD(),
 			RegisterCMD(toolName),
 			BridgeCMD(toolName),
 			&GetKubeConfigCMD,
 			&RoleCMD,
 			&CreateConfigCMD,
 			&GenerateTokenCMD,
+			&RotateTokenCMD,
 			&ValidateSchemaCMD,
 			&VersionCMD,
 		},

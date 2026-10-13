@@ -65,7 +65,7 @@ type Config struct {
 // its own connection to the node. Having it on by default means operators can
 // cleanly decommission nodes without having to first push a cloud-config
 // update opting in to the teardown command.
-var DefaultAllowedCommands = []string{"upgrade", "upgrade-recovery", "reboot", "unregister"}
+var DefaultAllowedCommands = []string{commandUpgrade, commandUpgradeRecovery, commandReboot, commandUnregister}
 
 // IsAllowed reports whether the given command name is permitted by this config.
 // Matching is exact. A nil AllowedCommands falls back to DefaultAllowedCommands;
@@ -161,6 +161,10 @@ type HeartbeatData struct {
 	// has applied a templated hostname, and because a node can be renamed later
 	// in its life (kairos-io/kairos#4196).
 	Hostname string `json:"hostname,omitempty"`
+	// Metrics is a fresh live-usage sample (CPU, memory, disks, load, uptime,
+	// temperature). AuroraBoot keeps recent samples per node for its gauges; a
+	// server that does not know the field ignores it.
+	Metrics *NodeMetrics `json:"metrics,omitempty"`
 }
 
 // CommandData is received from the management server.

@@ -25,6 +25,11 @@ var _ = Describe("installer dispatch", func() {
 			cmd := installerCommand("/bin/installer", "")
 			Expect(cmd.Args).To(Equal([]string{"/bin/installer"}))
 		})
+
+		It("appends extra flags after the source", func() {
+			cmd := installerCommand("/bin/installer", "oci://foo:bar", "--no-tui")
+			Expect(cmd.Args).To(Equal([]string{"/bin/installer", "--source", "oci://foo:bar", "--no-tui"}))
+		})
 	})
 
 	Describe("runExternalInstaller", func() {

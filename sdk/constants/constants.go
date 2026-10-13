@@ -46,6 +46,28 @@ const (
 	BIOSFLAG   = "bios_grub" // bios_grub flag for BIOS partition
 	LinuxImgFs = "ext2"      // Default filesystem type for Linux IMAGES. Used for active/passive/recovery.img
 	LinuxFs    = "ext4"      // Default filesystem type for Linux PARTITIONS
+	// ExtDisabledFeatures is passed to mkfs as "-O <value>" for every ext
+	// filesystem Kairos creates.
+	//
+	// GRUB reads COS_OEM and COS_RECOVERY before a kernel exists, and its ext2
+	// driver refuses a filesystem carrying an INCOMPAT feature it does not
+	// know, rather than ignoring it. metadata_csum_seed is such a feature:
+	// upstream GRUB only learned to ignore it in 2.12, so the GRUB 2.04 and
+	// 2.06 builds that ship without the backport (Ubuntu 20.04, Ubuntu 22.04,
+	// Debian 12) cannot read the partition at all.
+	//
+	// e2fsprogs 1.47.0 added it to the ext4 defaults, which made readability
+	// depend on which e2fsprogs ran the mkfs. An install formats from inside
+	// the Kairos image, a raw disk build formats from inside the AuroraBoot
+	// container, and the two are not the same vintage. Turning the feature off
+	// here gives one answer everywhere.
+	//
+	// Nothing in Kairos needs it. It only allows changing the filesystem UUID
+	// without rewriting the metadata checksums, and Kairos only ever calls
+	// tune2fs -L. The feature name has been understood by mke2fs since
+	// e2fsprogs 1.43, so "-O ^metadata_csum_seed" is safe on the oldest
+	// e2fsprogs any supported base image ships.
+	ExtDisabledFeatures = "^metadata_csum_seed"
 	// LUKSFs is the filesystem type blkid and ghw report for a LUKS container,
 	// as opposed to the plaintext filesystem inside it. Matching on it is how
 	// callers tell the outer container from the inner ext4 when both carry the
@@ -75,4 +97,11 @@ const (
 	AgentBinName     = "kairos-agent"
 	AgentDefaultPath = "/usr/bin/kairos-agent"
 	AgentEnvVar      = "KAIROS_AGENT_BIN" // Env var override for dev/tests; must point at an existing binary
+)
+
+// Web UI install frontend. The address the installer's web UI listens on,
+// and which kairos-agent prints on the live console so a user knows where to
+// reach it. Shared so the two cannot drift.
+const (
+	DefaultWebUIListenAddress = ":8080"
 )

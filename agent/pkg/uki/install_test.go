@@ -290,6 +290,25 @@ var _ = Describe("Uki install action", func() {
 			Expect(exists).To(BeFalse(), "efi of the skipped entry")
 		})
 
+		It("refuses to install when the EFI partition can not hold a copy per role", func() {
+			// An unassigned set that does not fit in the free space, so the four
+			// role copies cannot fit either. Sparse, so it costs nothing to
+			// create.
+			writeBoth(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
+			Expect(fs.Truncate(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", tooBigFor(fs, efiDir))).To(Succeed())
+
+			err := installer.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not enough space on the EFI partition"))
+
+			// no role was written, so the partition is not left holding half
+			// an install
+			for _, role := range []string{"active", "passive", "recovery", "statereset"} {
+				exists, _ := fsutils.Exists(fs, efiDir+"/EFI/kairos/"+role+".efi")
+				Expect(exists).To(BeFalse(), role)
+			}
+		})
+
 		It("fails when the artifact set conf can not be rewritten for a role", func() {
 			// the copied conf only exists in the test fs, so rewriting its
 			// keys through the os based reader fails

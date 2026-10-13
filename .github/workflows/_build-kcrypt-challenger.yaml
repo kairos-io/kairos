@@ -14,7 +14,8 @@ on:
     inputs:
       matrix_scope:
         description: |
-          "ci" -> amd64 + arm64, both default and FIPS (PR + master).
+          "pr" -> amd64 default only (slim PR pipeline, compile check).
+          "ci" -> amd64 + arm64, both default and FIPS (pr-full + master).
           "release" -> full 5-cell matrix (amd64+arm64+riscv64 default
           plus amd64+arm64 FIPS). Keeps parity with _build-kairos.yaml
           so both pipes have matching FIPS coverage.
@@ -55,7 +56,9 @@ jobs:
         env:
           SCOPE: ${{ inputs.matrix_scope }}
         run: |
-          if [[ "$SCOPE" == "release" ]]; then
+          if [[ "$SCOPE" == "pr" ]]; then
+            echo 'matrix={"include":[{"arch":"amd64","variant":"default"}]}' >> "$GITHUB_OUTPUT"
+          elif [[ "$SCOPE" == "release" ]]; then
             echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"riscv64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
           else
             echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
@@ -74,23 +77,30 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version-file: go.mod
 
-      - name: Install cross-compiler (FIPS-arm64)
-        if: matrix.variant == 'fips' && matrix.arch == 'arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y crossbuild-essential-arm64
-
       - name: Build kcrypt-challenger
-        run: make kcrypt-challenger ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+        run: make kcrypt-challenger ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
+          MATRIX_VARIANT: ${{ matrix.variant }}
+
+      - name: Verify FIPS binaries
+        if: matrix.variant == 'fips'
+        run: make verify-fips ARCH="${MATRIX_ARCH}" VARIANT=fips
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
 
       - name: Package archives
-        run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+        run: make archives ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
+        env:
+          MATRIX_ARCH: ${{ matrix.arch }}
+          MATRIX_VARIANT: ${{ matrix.variant }}
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1

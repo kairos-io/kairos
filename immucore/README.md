@@ -310,6 +310,8 @@ You can also see the default config that we provide in https://github.com/kairos
 ----
 
 It starts pretty early in the boot process, just after `systemd-udev-settle.service` and before `dracut-initqueue.service`.
+The settle unit is ordered before Immucore but only pulled in with `Wants=`, so Immucore still starts when that unit is
+absent or times out. See [#1378](https://github.com/kairos-io/kairos/issues/1378).
 To see the full bootup process from dracut you can check [here](https://man7.org/linux/man-pages/man7/dracut.bootup.7.html).
 
 Just after starting, Immucore mounts `/proc` if it's not mounted, it does so in order to read the `/proc/cmdline` and obtains the different stanzas in order to configure itself.
@@ -361,7 +363,7 @@ There is also the `weak` value which indicates that this step has weak dependenc
 
  - `mount-state`: Will mount the `COS_STATE` partition under `/run/initramfs/cos-state`
  - `mount-tmpfs`: Will mount `/tmp` 
- - `create-sentinel`: Will create the sentinel file identifying the boot mode (`active_mode`, `passive_mode`, `recovery_mode` or `live_mode`) under `/run/cos/`
+ - `create-sentinel`: Will create the sentinel file identifying the boot mode (`active_mode`, `passive_mode`, `recovery_mode` or `live_mode`) under `/run/cos/`. It also writes the boot's install intent there, as `install_mode` or `install_mode_interactive`, so that a cloud config gates an installer on a file on every medium instead of grepping the cmdline on GRUB and reading a file on Trusted Boot. The intent comes from the per-entry cmdline keyword on a GRUB live ISO, and from being install media on Trusted Boot, whose cmdline is signed and identical on every entry. See `sdk/state.InstallIntentSentinels`
  - `mount-base-overlay`: Will mount the base overlay under `/run/overlay`
  - `discover-state`: Will find the correct image under `/run/initramfs/cos-state` and mount it as a loop device
  - `mount-root`: Will mount the `/dev/disk/by-label/$LABEL` device under the sysroot (Usually `/sysroot`). This label is set in grub depending on the selected entry, as part of the cmdline (i.e. `root=LABEL=COS_ACTIVE`) 
@@ -371,6 +373,7 @@ There is also the `weak` value which indicates that this step has weak dependenc
  - `overlay-mount`: This mounts the paths set in the config (`RW_PATHS`) under the `/run/overlay` dir, so they are RW
  - `custom-mount`: This mounts the paths set in the config (`VOLUMES`) or in cmdline `rd.cos.mount=` in the given path (`LABEL=COS_PERSISTENT:/usr/local`)
  - `mount-bind`: This mounts the paths set in the config (`PERSISTENT_STATE_PATHS` and `CUSTOM_BIND_MOUNTS`) as bind mounts under the `PERSISTENT_STATE_TARGET` which defaults to `/usr/local/.state`
+ - `quarantine-stale-units`: Moves unit symlinks in the persistent `/etc/systemd/system` that point at a target the current image does not ship, when the image does ship a real unit of the same name, into `/etc/systemd/kairos-stale-units`. Because `/etc/systemd` is a persistent state bind and the state sync never deletes, a symlink an earlier image enabled outlives it and shadows the packaged unit. Nothing is deleted: the symlink is only moved out of systemd's unit load path, so putting it back is one `mv`. Masks (targets pointing at `/dev/null`) and the enablement symlinks under `.wants/` and `.requires/` are left alone
  - `write-fstab`: Writes the final fstab with all the mounts into `/sysroot/fstab`
  - `initramfs-hook`: Runs the cloud config stage `initramfs`. Note that this is run under a chroot into what will be the final system (/sysroot).
  - `wait-for-sysroot`: Waits for the /sysroot and /sysroot/system dirs to be available, which means that they are mounted. Useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready.

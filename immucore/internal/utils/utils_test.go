@@ -397,3 +397,53 @@ var _ = Describe("mount utils", func() {
 		})
 	})
 })
+
+var _ = Describe("CreateDirIfNotExists", func() {
+	var root string
+
+	BeforeEach(func() {
+		root = GinkgoT().TempDir()
+	})
+
+	It("creates the directory with the mode it is given", func() {
+		path := filepath.Join(root, "audit")
+
+		Expect(utils.CreateDirIfNotExists(path, 0o700)).To(Succeed())
+
+		info, err := os.Stat(path)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
+	})
+
+	It("gets the mode past the umask", func() {
+		// MkdirAll alone would hand back 0775 under the usual umask, which for
+		// a directory that is meant to be 0770 is the whole point of the call.
+		path := filepath.Join(root, "group-only")
+
+		Expect(utils.CreateDirIfNotExists(path, 0o770)).To(Succeed())
+
+		info, err := os.Stat(path)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o770)))
+	})
+
+	It("creates the parents it needs", func() {
+		path := filepath.Join(root, "var/log/audit")
+
+		Expect(utils.CreateDirIfNotExists(path, 0o700)).To(Succeed())
+
+		Expect(path).To(BeADirectory())
+	})
+
+	It("leaves a directory that is already there alone", func() {
+		path := filepath.Join(root, "audit")
+		Expect(os.Mkdir(path, 0o755)).To(Succeed())
+		Expect(os.Chmod(path, 0o755)).To(Succeed())
+
+		Expect(utils.CreateDirIfNotExists(path, 0o700)).To(Succeed())
+
+		info, err := os.Stat(path)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o755)))
+	})
+})

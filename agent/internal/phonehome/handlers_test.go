@@ -75,6 +75,35 @@ var _ = Describe("artifact upgrade download", func() {
 		})}
 	}
 
+	It("sends the node API key as a bearer header, and keeps it out of the URL", func() {
+		var authHeader, requestURI string
+		// Mirrors AuroraBoot's ArtifactImageMiddleware: an admin password is
+		// honoured from either source, but a node API key counts only when it
+		// arrives in the Authorization header.
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader = r.Header.Get("Authorization")
+			requestURI = r.URL.RequestURI()
+			if authHeader != "Bearer node-api-key" {
+				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte("artifact image"))
+		}))
+		defer server.Close()
+
+		tarPath, err := downloadArtifact(
+			context.Background(), server.URL, "node-api-key", "artifact-123",
+			newMountedConfig(), 0, time.Millisecond,
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+		defer func() { _ = os.Remove(tarPath) }()
+		Expect(authHeader).To(Equal("Bearer node-api-key"))
+		// No query string at all, so the key cannot reach an access log.
+		Expect(requestURI).To(Equal("/api/v1/artifacts/artifact-123/image"))
+		Expect(os.ReadFile(tarPath)).To(Equal([]byte("artifact image")))
+	})
+
 	It("retries transient HTTP failures and succeeds", func() {
 		var attempts atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

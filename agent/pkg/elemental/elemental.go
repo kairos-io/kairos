@@ -74,6 +74,18 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 		return err
 	}
 
+	diskClosed := false
+	closeDisk := func() {
+		if diskClosed {
+			return
+		}
+		diskClosed = true
+		if err := disk.Close(); err != nil {
+			e.config.Logger.Errorf("Close disk: %s", err)
+		}
+	}
+	defer closeDisk()
+
 	e.config.Logger.Infof("Partitioning device...")
 	parts := i.GetPartitions()
 	err = disk.NewPartitionTable(i.GetPartTable(), parts.PartitionsByInstallOrder(i.GetExtraPartitions()))
@@ -83,20 +95,20 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 	}
 
 	// Try to make the kernel re-read the partition table a couple of times
-	for i := 0; i < 5; i++ {
+	const rereadAttempts = 5
+	for attempt := 0; attempt < rereadAttempts; attempt++ {
 		err = disk.ReReadPartitionTable()
 		if err == nil {
 			break
 		}
-		e.config.Logger.Debugf("Reread table attempt %d failed: %s", i+1, err)
-		if i < 5-1 {
-			e.config.Logger.Debugf("Waiting %d seconds before next attempt", 5)
+		e.config.Logger.Debugf("Reread table attempt %d failed: %s", attempt+1, err)
+		if attempt < rereadAttempts-1 {
+			// Back off a bit more on every attempt before retrying
+			wait := time.Duration(attempt+1) * time.Second
+			e.config.Logger.Debugf("Waiting %s before next attempt", wait)
+			time.Sleep(wait)
 		}
-		// Wait a bit before retrying
-		time.Sleep(time.Duration(i) * time.Second)
-
 	}
-	err = disk.ReReadPartitionTable()
 	if err != nil {
 		e.config.Logger.Errorf("Reread table: %s", err)
 		return err
@@ -107,10 +119,7 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 		e.config.Logger.Errorf("table: %s", err)
 		return err
 	}
-	err = disk.Close()
-	if err != nil {
-		e.config.Logger.Errorf("Close disk: %s", err)
-	}
+	closeDisk()
 	// Sync changes
 	syscall.Sync()
 	// Trigger udevadm to refresh devices
@@ -451,7 +460,6 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 		// Accounting for different image save conventions between tools, load the image from the tar file
 		// First attempt: Try to load without specifying a tag
 		img, err := tarball.ImageFromPath(imgSrc.Value(), nil)
-
 		// Second attempt: If that fails, try with a oci-image:latest tag convention
 		if err != nil {
 			e.config.Logger.Infof("Trying to load with explicit oci-image:latest tag: %v", err)
@@ -476,7 +484,7 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 
 				// Extract the tar file to the temporary directory
 				e.config.Logger.Infof("Extracting tar file to temporary directory: %s", tmpDir)
-				//TODO: update to use native golang tar
+				// TODO: update to use native golang tar
 				if out, err := e.config.Runner.Run("tar", "-xf", imgSrc.Value(), "-C", tmpDir); err != nil {
 					e.config.Logger.Errorf("Failed to extract tar file: %v\n%s", err, string(out))
 					return nil, fmt.Errorf("failed to extract tar file: %w", err)
@@ -588,11 +596,28 @@ func (e *Elemental) SelinuxRelabel(rootDir string, raiseError bool) error {
 		if err != nil && raiseError {
 			return err
 		}
+
 	} else {
 		e.config.Logger.Debugf("No files relabelling as SELinux utilities are not found")
 	}
 
 	return nil
+}
+
+// LabelStateImage applies the boot_t context to a state image file so
+// boot-time components (e.g. systemd-gpt-auto-generator) can access it.
+// It is a no-op when chcon is not available or the file does not exist.
+func (e *Elemental) LabelStateImage(imgFile string) {
+	if !utils.CommandExists("chcon") {
+		return
+	}
+	exists, _ := fsutils.Exists(e.config.Fs, imgFile)
+	if !exists {
+		return
+	}
+	if out, err := e.config.Runner.Run("chcon", "system_u:object_r:boot_t:s0", imgFile); err != nil {
+		e.config.Logger.Warnf("SELinux state image relabel failed for %s: %s", imgFile, out)
+	}
 }
 
 // CheckActiveDeployment returns true if at least one of the provided filesystem labels is found within the system
@@ -613,7 +638,7 @@ func (e *Elemental) CheckActiveDeployment(labels []string) bool {
 // download the iso into a temporary folder and mount the iso file as loop
 // in cnst.DownloadedIsoMnt
 func (e *Elemental) GetIso(iso string) (tmpDir string, err error) {
-	//TODO support ISO download in persistent storage?
+	// TODO support ISO download in persistent storage?
 	tmpDir, err = fsutils.TempDir(e.config.Fs, "", "elemental")
 	if err != nil {
 		return "", err

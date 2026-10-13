@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
@@ -52,37 +51,43 @@ func ListBootEntries(cfg *sdkConfig.Config) error {
 // This is needed because GRUB can't read the OEM partition before decryption. However, note that setting
 // next boot entry will NOT work reliably when OEM is encrypted because GRUB's grub.cfg
 // (https://raw.githubusercontent.com/kairos-io/packages/refs/heads/main/packages/static/grub-config/files/grub.cfg)
-// loads OEM env first (if available), then STATE env (which overwrites OEM). Even though
-// we write to both OEM and STATE grubenv when OEM is encrypted, GRUB loads STATE env after
-// OEM (which overwrites OEM), so if STATE grubenv has a stale value, it will overwrite the
+// loads OEM env first (if available), then STATE env, which overwrites OEM. We write only to
+// the STATE grubenv here, because it is the one GRUB reads last and the one it can read
+// without the OEM passphrase, but a stale value already in it would still win over the
 // next_entry we set. There are more pending TODOs around encrypted OEM support:
 // https://github.com/kairos-io/kairos-agent/blob/485d9f7ec23b84ccf5af5ba0e58569b10011ad08/internal/agent/hooks/gruboptions.go#L49-L51
-func writeStateGrubenvWhenOemEncrypted(cfg *sdkConfig.Config, vars map[string]string) {
-	cfg.Logger.Debugf("OEM is encrypted, also writing to STATE partition's grubenv")
+//
+// Every failure here is returned, because writing the variables is the whole point of the
+// call: a caller that swallowed the error would report a boot entry it never set.
+func writeStateGrubenvWhenOemEncrypted(cfg *sdkConfig.Config, vars map[string]string) error {
+	cfg.Logger.Debugf("OEM is encrypted, writing to STATE partition's grubenv")
 	// Mount STATE partition and remount as RW (it's typically mounted as RO)
 	stateDevice, err := utils.GetDeviceByLabel(cfg, cnst.StateLabel, 3)
 	if err != nil {
-		cfg.Logger.Debugf("Could not get STATE device by label: %s", err)
-		return
+		return fmt.Errorf("could not get the %s device by label: %w", cnst.StateLabel, err)
 	}
 	// Ensure STATE is mounted
 	_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{})
 	// Remount as RW
 	remountErr := cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "rw"})
 	if remountErr != nil {
+		// Not fatal on its own: the partition may already be writable. If it is not, the
+		// write below fails and that error is the one the caller gets.
 		cfg.Logger.Debugf("Could not remount STATE partition as RW: %s", remountErr)
 	}
+	// Remount STATE as RO whichever way the write goes, so a failure does not leave the
+	// partition writable for the rest of the boot.
+	defer func() {
+		_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "ro"})
+	}()
 
 	stateGrubenvPath := filepath.Join(cnst.StateDir, cnst.GrubEnv)
-	err = utils.SetPersistentVariables(stateGrubenvPath, vars, cfg)
-	if err != nil {
-		cfg.Logger.Warnf("Could not set default boot entry in STATE grubenv (non-critical): %s", err)
-	} else {
-		cfg.Logger.Debugf("Successfully set next_entry in STATE grubenv")
+	if err := utils.SetPersistentVariables(stateGrubenvPath, vars, cfg); err != nil {
+		return fmt.Errorf("could not write the STATE grubenv %s: %w", stateGrubenvPath, err)
 	}
+	cfg.Logger.Debugf("Successfully set next_entry in STATE grubenv")
 
-	// Remount STATE as RO
-	_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "ro"})
+	return nil
 }
 
 // selectBootEntryGrub sets the default boot entry to the selected entry by modifying /oem/grubenv
@@ -118,14 +123,14 @@ func selectBootEntryGrub(cfg *sdkConfig.Config, entry string) error {
 	// When OEM is not encrypted: only write to OEM partition (grubenv) to avoid having two grubenv files
 	// When OEM is encrypted: only write to STATE partition (grubenv) since GRUB can't read OEM before decryption
 	if oemEncrypted {
-		writeStateGrubenvWhenOemEncrypted(cfg, vars)
+		err = writeStateGrubenvWhenOemEncrypted(cfg, vars)
 	} else {
 		// Set the default entry to the selected entry on /oem/grubenv
 		err = utils.SetPersistentVariables("/oem/grubenv", vars, cfg)
-		if err != nil {
-			cfg.Logger.Errorf("could not set default boot entry: %s\n", err)
-			return err
-		}
+	}
+	if err != nil {
+		cfg.Logger.Errorf("could not set default boot entry: %s\n", err)
+		return err
 	}
 
 	cfg.Logger.Infof("Default boot entry set to %s", entry)
@@ -184,6 +189,58 @@ func findEntryWithAssessment(cfg *sdkConfig.Config, efiMountPoint, confBaseName 
 	return confBaseName, nil
 }
 
+// aliasSystemdEntry translates the names we still accept from users onto the
+// names listSystemdEntries produces. "active" is accepted alongside "cos" so we
+// can eventually drop the "cos" wording, and any extra-cmdline suffix on it is
+// carried over.
+func aliasSystemdEntry(name string) string {
+	if name == cnst.BootActive {
+		return "cos"
+	}
+	if suffix, found := strings.CutPrefix(name, cnst.BootActive+" "); found {
+		return "cos " + suffix
+	}
+
+	return name
+}
+
+// resolveSystemdEntry maps a requested boot entry name onto one of the entries
+// that exist on the ESP.
+//
+// An exact match always wins. Failing that, the name is treated as a bare role
+// and matched against the role of each entry, so that "recovery" still selects
+// "recovery install-mode_stylus.registration" on a system whose entries carry
+// an extra-cmdline suffix. That is what the install, reset and upgrade paths
+// pass, and what a user reading the docs types.
+//
+// A bare role that matches more than one entry is an error rather than an
+// arbitrary pick, and so is a name that matches nothing.
+func resolveSystemdEntry(entry string, entries []string) (string, error) {
+	name := aliasSystemdEntry(entry)
+
+	for _, e := range entries {
+		if e == name {
+			return e, nil
+		}
+	}
+
+	var matches []string
+	for _, e := range entries {
+		if strings.HasPrefix(e, name+" ") {
+			matches = append(matches, e)
+		}
+	}
+
+	switch len(matches) {
+	case 1:
+		return matches[0], nil
+	case 0:
+		return "", fmt.Errorf("entry %s does not exist", entry)
+	default:
+		return "", fmt.Errorf("entry %s is ambiguous, it matches %s", entry, strings.Join(matches, ", "))
+	}
+}
+
 // selectBootEntrySystemd sets the one shot boot entry to the selected entry by setting it in the LoaderEntryOneShot efivar
 func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 	cfg.Logger.Infof("Setting default boot entry to %s", entry)
@@ -199,16 +256,12 @@ func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 		return err
 
 	}
-	originalEntries := entries
-	// when there are only 4 entries, we can assume they are either cos (which will be replaced eventually), fallback, recovery or statereset
-	if len(entries) == len(cnst.UkiDefaultMenuEntries()) {
-		entries = cnst.UkiDefaultMenuEntries()
-	}
-
-	// Check that entry exists in the entries list
-	err = entryInList(cfg, entry, entries)
-	// we also accept cnst.BootActive as a selection so we can migrate eventually from cos
-	if err != nil && !strings.HasPrefix(entry, cnst.BootActive) {
+	// Resolve the requested name against the entries that are really on the ESP.
+	originalEntry := entry
+	entry, err = resolveSystemdEntry(entry, entries)
+	if err != nil {
+		cfg.Logger.Errorf("%s", err)
+		cfg.Logger.Debugf("entries: %v", entries)
 		return err
 	}
 
@@ -229,18 +282,6 @@ func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 		}("", efiPartition.MountPoint, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
 	}
 
-	originalEntry := entry
-	if !reflect.DeepEqual(originalEntries, entries) {
-		// since we temporarily allow also active, here we need to first set entry to "cos" so it will match with the originalEntries
-		if strings.HasPrefix(entry, cnst.BootActive) {
-			entry = "cos"
-		}
-		for _, e := range originalEntries {
-			if strings.HasPrefix(e, entry) {
-				entry = e
-			}
-		}
-	}
 	bootConfigName, err := bootNameToSystemdConf(entry)
 	if err != nil {
 		return err
