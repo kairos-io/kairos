@@ -4,12 +4,19 @@ import (
 	"archive/tar"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	ggcrregistry "github.com/google/go-containerregistry/pkg/registry"
@@ -138,7 +145,10 @@ var _ = Describe("OCIImageExtractor", func() {
 		})
 
 		It("ExtractImage fails when Insecure is false", func() {
+			start := time.Now()
 			err := image.OCIImageExtractor{}.ExtractImage(imageRef, destDir, "linux/amd64")
+			elapsed := time.Since(start)
+
 			Expect(err).To(HaveOccurred())
 			// Must fail on certificate verification, not because the image is missing.
 			Expect(strings.ToLower(err.Error())).To(Or(
@@ -146,6 +156,10 @@ var _ = Describe("OCIImageExtractor", func() {
 				ContainSubstring("tls"),
 				ContainSubstring("x509"),
 			))
+			// An untrusted certificate fails identically every time, so the pull
+			// must report it straight away rather than sit through the retry
+			// backoff. The first backoff wait alone is a second.
+			Expect(elapsed).To(BeNumerically("<", time.Second))
 		})
 
 		It("ExtractImage succeeds and unpacks files when Insecure is true", func() {
@@ -167,5 +181,243 @@ var _ = Describe("OCIImageExtractor", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(size).To(BeNumerically(">", 0))
 		})
+	})
+})
+
+var _ = Describe("OCIImageExtractor pull retries", func() {
+	var (
+		server   *httptest.Server
+		blobGETs *blobCounter
+		imageRef string
+		destDir  string
+	)
+
+	// truncateFirstBlob serves the registry normally except for the first
+	// download of each blob, which it cuts off half-way through and then drops
+	// the connection on. The client has been promised a Content-Length it will
+	// never receive, so the read fails part-way through the blob: the same
+	// shape of failure as a registry resetting the stream mid-download.
+	truncateFirstBlob := func(reg http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			isBlob := r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/blobs/")
+			if !isBlob || blobGETs.count(r.URL.Path) != 1 {
+				reg.ServeHTTP(w, r)
+				return
+			}
+
+			rec := httptest.NewRecorder()
+			reg.ServeHTTP(rec, r)
+			body := rec.Body.Bytes()
+
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(body[:len(body)/2])
+			// Flush before dropping the connection, so the client has the
+			// response head and half a body in hand and fails on the read
+			// rather than on the request. That is where the failure this
+			// guards against lands, and the only place a request-level retry
+			// cannot reach.
+			w.(http.Flusher).Flush()
+			panic(http.ErrAbortHandler)
+		})
+	}
+
+	BeforeEach(func() {
+		blobGETs = &blobCounter{}
+		server = httptest.NewTLSServer(truncateFirstBlob(ggcrregistry.New()))
+
+		u, err := url.Parse(server.URL)
+		Expect(err).ToNot(HaveOccurred())
+		imageRef = u.Host + "/test/retry:latest"
+
+		img, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+		ref, err := name.ParseReference(imageRef, name.Insecure)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(remote.Write(ref, img, remote.WithTransport(insecureTransport()))).To(Succeed())
+		// Only downloads are counted; the push above must not be.
+		blobGETs.reset()
+
+		destDir, err = os.MkdirTemp("", "sdk-retry-extractor-*")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		server.Close()
+		Expect(os.RemoveAll(destDir)).To(Succeed())
+	})
+
+	It("retries a pull that breaks part-way through a blob", func() {
+		start := time.Now()
+		Expect(image.OCIImageExtractor{Insecure: true}.ExtractImage(imageRef, destDir, "linux/amd64")).To(Succeed())
+		elapsed := time.Since(start)
+
+		// The first download of every blob was cut off, so the pull can only
+		// have succeeded by fetching one of them a second time.
+		Expect(blobGETs.max()).To(BeNumerically(">=", 2))
+		// And the second fetch came from the retry loop here, which waits,
+		// rather than from a retry somewhere below that does not.
+		Expect(elapsed).To(BeNumerically(">=", time.Second))
+
+		content, err := os.ReadFile(filepath.Join(destDir, "hello.txt"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(content)).To(Equal("hello from the insecure registry"))
+	})
+
+	It("gives up once the attempts are spent", func() {
+		// Every download of every blob is cut off, so no attempt can finish.
+		blobGETs.always = true
+
+		err := image.OCIImageExtractor{Insecure: true}.ExtractImage(imageRef, destDir, "linux/amd64")
+		Expect(err).To(HaveOccurred())
+		Expect(blobGETs.attempts()).To(Equal(3))
+	})
+})
+
+// blobCounter counts blob downloads per path, so a spec can tell a refetch
+// from the several distinct blobs a single pull reads.
+type blobCounter struct {
+	mu     sync.Mutex
+	counts map[string]int
+	always bool
+}
+
+// count records a download of path and returns how many times it has now been
+// asked for, or 1 every time when always is set.
+func (b *blobCounter) count(path string) int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.counts == nil {
+		b.counts = map[string]int{}
+	}
+	b.counts[path]++
+	if b.always {
+		return 1
+	}
+	return b.counts[path]
+}
+
+func (b *blobCounter) reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.counts = map[string]int{}
+}
+
+// max is the highest number of times any single blob was downloaded.
+func (b *blobCounter) max() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	most := 0
+	for _, n := range b.counts {
+		if n > most {
+			most = n
+		}
+	}
+	return most
+}
+
+// attempts is how many times the pull got as far as the blob it dies on, which
+// with always set is once per attempt.
+func (b *blobCounter) attempts() int {
+	return b.max()
+}
+
+var _ = Describe("transient network error classification", func() {
+	DescribeTable("retryable",
+		func(err error) {
+			Expect(image.IsTransientNetworkError(err)).To(BeTrue())
+		},
+		// The literal message that aborted an upgrade ten minutes into the
+		// pull in kairos-io/kairos#4491. net/http's bundled HTTP/2 stack keeps
+		// this type to itself, so nothing but the text is reachable from here.
+		Entry("an HTTP/2 stream reset from the registry",
+			errors.New("stream error: stream ID 3; PROTOCOL_ERROR; received from peer")),
+		Entry("a wrapped unexpected EOF", fmt.Errorf("reading layer: %w", io.ErrUnexpectedEOF)),
+		Entry("a reset connection", fmt.Errorf("read tcp: %w", syscall.ECONNRESET)),
+		Entry("a broken pipe", syscall.EPIPE),
+		Entry("a closed connection", net.ErrClosed),
+		Entry("a timeout", &net.OpError{Op: "read", Err: timeoutError{}}),
+		Entry("a GOAWAY", errors.New("http2: server sent GOAWAY and closed the connection")),
+	)
+
+	DescribeTable("not retryable",
+		func(err error) {
+			Expect(image.IsTransientNetworkError(err)).To(BeFalse())
+		},
+		Entry("no error at all", nil),
+		Entry("an untrusted certificate", errors.New("x509: certificate signed by unknown authority")),
+		Entry("a rejected pull", errors.New("UNAUTHORIZED: authentication required")),
+		Entry("a missing manifest", errors.New("MANIFEST_UNKNOWN: manifest unknown")),
+	)
+})
+
+type timeoutError struct{}
+
+func (timeoutError) Error() string { return "i/o timeout" }
+func (timeoutError) Timeout() bool { return true }
+
+// emptyLayer is a layer that decompresses to an empty tar stream while its
+// descriptor still declares the size of the real blob. It is the shape a
+// daemon read produced in kairos-io/kairos#4946: the image has layers, and
+// unpacking them writes nothing.
+type emptyLayer struct {
+	v1.Layer
+}
+
+func (emptyLayer) Uncompressed() (io.ReadCloser, error) {
+	var empty bytes.Buffer
+	tw := tar.NewWriter(&empty)
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+	return io.NopCloser(bytes.NewReader(empty.Bytes())), nil
+}
+
+var _ = Describe("ExtractOCIImage on an image that unpacks to nothing", func() {
+	var destDir string
+
+	BeforeEach(func() {
+		var err error
+		destDir, err = os.MkdirTemp("", "sdk-empty-extract-*")
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(os.RemoveAll, destDir)
+	})
+
+	It("fails when the image declares layers but they unpack to no entries", func() {
+		baseImage, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+		layers, err := baseImage.Layers()
+		Expect(err).ToNot(HaveOccurred())
+		img, err := mutate.AppendLayers(empty.Image, emptyLayer{Layer: layers[0]})
+		Expect(err).ToNot(HaveOccurred())
+
+		err = image.ExtractOCIImage(img, destDir)
+		Expect(err).To(MatchError(image.ErrEmptyExtraction))
+		Expect(err.Error()).To(ContainSubstring(destDir))
+
+		entries, readErr := os.ReadDir(destDir)
+		Expect(readErr).ToNot(HaveOccurred())
+		Expect(entries).To(BeEmpty())
+	})
+
+	It("fails when the image carries no layers at all", func() {
+		err := image.ExtractOCIImage(empty.Image, destDir)
+		Expect(err).To(MatchError(image.ErrEmptyExtraction))
+	})
+
+	It("still extracts an image that has content", func() {
+		img, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(image.ExtractOCIImage(img, destDir)).To(Succeed())
+		Expect(filepath.Join(destDir, "hello.txt")).To(BeAnExistingFile())
+	})
+
+	It("does not fail when the image has content and every entry is excluded", func() {
+		img, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(image.ExtractOCIImage(img, destDir, "hello.txt")).To(Succeed())
+		Expect(filepath.Join(destDir, "hello.txt")).ToNot(BeAnExistingFile())
 	})
 })

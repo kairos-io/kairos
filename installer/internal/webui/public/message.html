@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebUI System Installer</title>
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <div class="page">
+  <header class="topbar">
+    <a class="brand" href="index.html"><img src="/kairos-logo.svg" alt="Kairos"><span>Web Installer</span></a>
+    <div class="topbar-actions"><div data-theme-toggle></div></div>
+  </header>
+
+  <main class="container narrow">
+    {{if eq (index . "type") "danger" }}
+    <header class="page-header">
+      <div><h1>Installation failed</h1></div>
+    </header>
+    {{ end }}
+
+    <section class="card">
+      <div class="alert alert-{{index . "type"}}">
+        {{index . "message"}}
+      </div>
+
+      <p class="card-actions"><a href="index.html" class="btn">Go Back</a></p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>
+      <a href="https://github.com/kairos-io/kairos" target="_blank" rel="noopener noreferrer">GitHub</a>
+      <a href="https://kairos.io/docs" target="_blank" rel="noopener noreferrer">Documentation</a>
+    </p>
+    <p>Copyright &copy; Kairos authors 2022-2026</p>
+  </footer>
+  </div>
+</body>
+</html>

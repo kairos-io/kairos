@@ -278,6 +278,51 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 				Expect(ReadOneShotEfiVar(config)).To(Equal("active_install-mode_awesomeos.conf"))
 			})
 
+			// https://github.com/kairos-io/kairos/issues/4038
+			It("selects an extra-cmdline entry when the system has exactly four entries", func() {
+				// The layout reported in #4038: one entry per role, and the two
+				// install-mode roles carry an extra-cmdline suffix. Four entries in
+				// total, but not the four default names.
+				err := fs.WriteFile("/efi/loader/entries/active.conf", []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/entries/passive.conf", []byte("title Kairos (fallback)\nefi /EFI/kairos/passive.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/entries/recovery_install-mode_stylus.registration.conf", []byte("title Kairos recovery\nefi /EFI/kairos/recovery_install-mode_stylus.registration.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/entries/statereset_install-mode_stylus.registration.conf", []byte("title Kairos state reset\nefi /EFI/kairos/statereset_install-mode_stylus.registration.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/loader.conf", []byte("default active.conf"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				// The names listBootEntriesSystemd prints must be selectable.
+				entries, err := listSystemdEntries(config, &sdkPartitions.Partition{MountPoint: "/efi"})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(entries).To(ConsistOf("cos", "fallback", "recovery install-mode_stylus.registration", "statereset install-mode_stylus.registration"))
+
+				err = SelectBootEntry(config, "recovery install-mode_stylus.registration")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("recovery_install-mode_stylus.registration.conf"))
+
+				err = SelectBootEntry(config, "statereset install-mode_stylus.registration")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("statereset_install-mode_stylus.registration.conf"))
+
+				// The bare role names still resolve to the only entry that has them
+				// as a prefix, which is what the reset and upgrade paths rely on.
+				err = SelectBootEntry(config, "recovery")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("recovery_install-mode_stylus.registration.conf"))
+
+				err = SelectBootEntry(config, "cos")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("active.conf"))
+
+				// A name that is not on disk is still rejected.
+				err = SelectBootEntry(config, "registration")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("does not exist"))
+			})
+
 			It("selects the boot entry in a extra-cmdline installation", func() {
 				err := fs.WriteFile("/efi/loader/entries/active.conf", []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
@@ -348,6 +393,24 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(memLog.String()).To(ContainSubstring("Default boot entry set to active foobar"))
 				Expect(ReadOneShotEfiVar(config)).To(Equal("active_foobar.conf"))
+			})
+
+			It("refuses to guess when a bare role matches more than one entry", func() {
+				err := fs.WriteFile("/efi/loader/entries/recovery_one.conf", []byte("title Kairos recovery\nefi /EFI/kairos/recovery_one.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/entries/recovery_two.conf", []byte("title Kairos recovery\nefi /EFI/kairos/recovery_two.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/loader.conf", []byte("default recovery_one.conf"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = SelectBootEntry(config, "recovery")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("ambiguous"))
+
+				// Naming one of them exactly is unambiguous and still works.
+				err = SelectBootEntry(config, "recovery two")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("recovery_two.conf"))
 			})
 
 			It("fails when the EFI partition cannot be found", func() {
@@ -771,7 +834,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 
 					err := SelectBootEntry(config, "kairos")
 					Expect(err).ToNot(HaveOccurred())
-					Expect(memLog.String()).To(ContainSubstring("also writing to STATE partition's grubenv"))
+					Expect(memLog.String()).To(ContainSubstring("writing to STATE partition's grubenv"))
 					Expect(memLog.String()).To(ContainSubstring("Successfully set next_entry in STATE grubenv"))
 					variables, err := utils.ReadPersistentVariables(filepath.Join(cnst.StateDir, cnst.GrubEnv), config)
 					Expect(err).ToNot(HaveOccurred())
@@ -780,7 +843,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 					_, err = fs.Stat("/oem/grubenv")
 					Expect(err).To(HaveOccurred())
 				})
-				It("warns when the STATE grubenv cannot be written", func() {
+				It("fails when the STATE grubenv cannot be written", func() {
 					// Recreate the ghw mock with a COS_STATE partition so the device can be found
 					ghwTest.Clean()
 					ghwTest = ghwMock.GhwMock{}
@@ -798,14 +861,45 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 					// No StateDir in the fs, so writing the grubenv fails
 
 					err := SelectBootEntry(config, "kairos")
-					Expect(err).ToNot(HaveOccurred())
-					Expect(memLog.String()).To(ContainSubstring("Could not set default boot entry in STATE grubenv"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("STATE grubenv"))
+					// The caller must not be told the entry was set
+					Expect(memLog.String()).ToNot(ContainSubstring("Default boot entry set to kairos"))
 				})
-				It("does nothing when the STATE device cannot be found", func() {
+				It("puts the STATE partition back read only when the grubenv write fails", func() {
+					ghwTest.Clean()
+					ghwTest = ghwMock.GhwMock{}
+					ghwTest.AddDisk(sdkPartitions.Disk{
+						Name: "device",
+						Partitions: []*sdkPartitions.Partition{
+							{
+								Name:            "device2",
+								FilesystemLabel: "COS_STATE",
+								FS:              "ext4",
+							},
+						},
+					})
+					ghwTest.CreateDevices()
+					// No StateDir in the fs, so writing the grubenv fails
+
+					Expect(SelectBootEntry(config, "kairos")).ToNot(Succeed())
+
+					mounts, err := mounter.List()
+					Expect(err).ToNot(HaveOccurred())
+					var opts []string
+					for _, m := range mounts {
+						if m.Path == cnst.StateDir {
+							opts = m.Opts
+						}
+					}
+					Expect(opts).To(ContainElement("ro"))
+				})
+				It("fails when the STATE device cannot be found", func() {
 					// Default ghw mock has no COS_STATE partition
 					err := SelectBootEntry(config, "kairos")
-					Expect(err).ToNot(HaveOccurred())
-					Expect(memLog.String()).To(ContainSubstring("Could not get STATE device by label"))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("STATE"))
+					Expect(memLog.String()).ToNot(ContainSubstring("Default boot entry set to kairos"))
 				})
 				It("warns when the STATE partition cannot be remounted RW", func() {
 					// Recreate the ghw mock with a COS_STATE partition so the device can be found

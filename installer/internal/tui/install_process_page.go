@@ -62,7 +62,7 @@ func (p *installProcessPage) Init() tea.Cmd {
 			return
 		}
 
-		ccString, err := RenderCloudConfig(&mainModel)
+		ccString, err := currentCloudConfig()
 		if err != nil {
 			p.errorMsg = "Failed to generate install configuration: " + err.Error()
 			return
@@ -96,7 +96,7 @@ func (p *installProcessPage) Init() tea.Cmd {
 				transcript = lf
 			}
 
-			err := agentrun.RunWithOutput(agentBin, cfgPath, mainModel.source, mainModel.finishAction,
+			err := agentrun.RunWithOutput(agentBin, cfgPath, mainModel.answers.Source, mainModel.answers.FinishAction,
 				func(ev agentrun.ProgressEvent) {
 					switch ev.Event {
 					case agentrun.EventStep:
@@ -198,7 +198,7 @@ func (p *installProcessPage) View() string {
 		s += "\n" + warning
 	} else {
 		text := "Installation completed successfully!\n"
-		if mainModel.finishAction == "nothing" {
+		if normalizedFinishAction() == "nothing" {
 			text += "You can now reboot or shut down your system."
 		}
 		s += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF00")).Bold(true).Render(text)
@@ -210,10 +210,11 @@ func (p *installProcessPage) Title() string { return "Installing" }
 
 func (p *installProcessPage) Help() string {
 	if p.progress >= len(p.steps)-1 || p.errorMsg != "" {
-		if mainModel.finishAction == "nothing" {
+		action := normalizedFinishAction()
+		if action == "nothing" {
 			return "Press any key to exit"
 		}
-		return "System will " + mainModel.finishAction + " shortly"
+		return "System will " + action + " shortly"
 	}
 	return "Installation in progress - Use ctrl+c to abort"
 }

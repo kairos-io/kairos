@@ -6,6 +6,11 @@ set -ex
 # This is where sealed volumes are created.
 
 GINKGO_NODES="${GINKGO_NODES:-1}"
+# ginkgo's suite timeout, as a Go duration. Explicit for the same reason as in
+# reusable-qemu-test.yaml: ginkgo's own default of 1h is invisible in the log,
+# so a suite that runs out of clock gives no sign that 1h was the budget
+# (kairos-io/kairos#4489). The default matches that workflow's.
+GINKGO_SUITE_TIMEOUT="${GINKGO_SUITE_TIMEOUT:-60m}"
 # renovate: datasource=docker depName=rancher/k3s versioning=loose
 K3S_IMAGE="rancher/k3s:v1.33.4-k3s1"
 CERT_MANAGER_VERSION="v1.16.5"
@@ -22,6 +27,30 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# kubectl fails the whole command as soon as one API call fails, including the
+# discovery call it makes before it does any work of its own. A cluster k3d has
+# just reported as created still answers that call with "ServiceUnavailable" for
+# a few seconds, so a bare kubectl against a fresh cluster can exit non-zero in
+# under a second and its own --timeout never comes into play. Retry the command.
+retry() {
+  local attempts="$1" delay="$2"
+  shift 2
+
+  local attempt=1
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    if [ "$attempt" -ge "$attempts" ]; then
+      echo "'$*' still failing after $attempts attempts, giving up" >&2
+      return 1
+    fi
+    echo "'$*' failed on attempt $attempt of $attempts, retrying in ${delay}s" >&2
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+}
+
 # Create a cluster and bind ports 80 and 443 on the host
 # This will allow us to access challenger server on 10.0.2.2 which is the IP
 # on which qemu "sees" the host.
@@ -29,23 +58,34 @@ trap cleanup EXIT
 # (something like that). If you run k3d inside a k3s cluster (inside a Pod), DNS won't work
 # inside the k3d server container unless you use a different CIDR.
 # Here we are avoiding CIDR "10.43.x.x"
-k3d cluster create "$CLUSTER_NAME" --k3s-arg "--cluster-cidr=10.49.0.1/16@server:0" --k3s-arg "--service-cidr=10.48.0.1/16@server:0" -p '80:80@server:0' -p '443:443@server:0' --image "$K3S_IMAGE"
+# k3d rolls its own creation back when it fails ("Cluster creation FAILED,
+# all changes have been rolled back!"), so a retry starts from a clean slate.
+# It needs one: the runner's docker intermittently refuses to start the server
+# container, which fails the whole encryption cell before a spec runs.
+retry 3 10 k3d cluster create "$CLUSTER_NAME" --k3s-arg "--cluster-cidr=10.49.0.1/16@server:0" --k3s-arg "--service-cidr=10.48.0.1/16@server:0" -p '80:80@server:0' -p '443:443@server:0' --image "$K3S_IMAGE"
 k3d kubeconfig get "$CLUSTER_NAME" > "$KUBECONFIG"
 
-# Wait for cluster to be fully ready before proceeding
+# Wait for cluster to be fully ready before proceeding. "k3d cluster create"
+# returns once the containers are up, which is before the API server serves, so
+# ask the API server directly instead of taking k3d's word for it.
+echo "Waiting for the API server to serve requests..."
+retry 30 2 kubectl get --raw=/readyz
+
 echo "Waiting for cluster to be ready..."
-kubectl wait --for=condition=Ready nodes --all --timeout=2m
+retry 3 5 kubectl wait --for=condition=Ready nodes --all --timeout=2m
 
 # Import the image to the cluster
 #docker pull quay.io/kairos/kcrypt-challenger:latest
 #k3d image import -c "$CLUSTER_NAME" quay.io/kairos/kcrypt-challenger:latest
 
 # Install cert manager
-kubectl apply -f "https://github.com/jetstack/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
+retry 3 10 kubectl apply -f "https://github.com/jetstack/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
 
-# Wait for cert-manager deployments to become available
+# Wait for cert-manager deployments to become available. A retry also covers the
+# window where the namespace exists but the deployments are not registered yet,
+# which "--all" reports as "no matching resources found" rather than waiting.
 echo "Waiting for cert-manager deployments to be available..."
-kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
+retry 3 10 kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
 
 # Replace the CLUSTER_IP in the kustomize resource
 # Only needed for debugging so that we can access the server from the host
@@ -70,8 +110,8 @@ envsubst '${KCRYPT_CHALLENGER_IMAGE}' \
     > "$SCRIPT_DIR/../tests/assets/encryption/challenger-patch.yaml"
 
 # Install the challenger server kustomization
-kubectl apply -k "$SCRIPT_DIR/../tests/assets/encryption/"
-kubectl wait --for=condition=Available deployment/kcrypt-controller-controller-manager -n default --timeout=2m
+retry 3 10 kubectl apply -k "$SCRIPT_DIR/../tests/assets/encryption/"
+retry 3 10 kubectl wait --for=condition=Available deployment/kcrypt-controller-controller-manager -n default --timeout=2m
 
 # 10.0.2.2 is where the vm sees the host
 # https://stackoverflow.com/a/6752280
@@ -79,5 +119,5 @@ export KMS_ADDRESS="10.0.2.2.challenger.sslip.io"
 
 
 pushd "$SCRIPT_DIR/../tests/"
-go run github.com/onsi/ginkgo/v2/ginkgo -v --nodes "$GINKGO_NODES" --label-filter "$LABEL" --fail-fast -r ./...
+go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "$GINKGO_SUITE_TIMEOUT" --nodes "$GINKGO_NODES" --label-filter "$LABEL" --fail-fast -r ./...
 popd

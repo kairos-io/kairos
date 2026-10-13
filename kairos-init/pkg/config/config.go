@@ -21,6 +21,7 @@ type Config struct {
 	Extensions       bool
 	VersionOverrides VersionOverrides
 	SkipSteps        []string
+	DryRun           bool
 }
 
 type Provider struct {

@@ -613,6 +613,53 @@ upgrade:
 					Expect(c.ImageExtractor).To(Equal(imageextractor.OCIImageExtractor{Insecure: true}))
 				})
 
+				DescribeTable("selects the recovery entry from upgrade.recovery in any form the YAML parser produces",
+					func(block string, wantRecovery bool) {
+						cfg, err := config.ScanNoLogs(collector.Readers(strings.NewReader(
+							"#cloud-config\n" + block)))
+						Expect(err).ToNot(HaveOccurred())
+						c.Collector = cfg.Collector
+						spec, err := config.NewUpgradeSpec(c)
+						Expect(err).ShouldNot(HaveOccurred())
+						Expect(spec.RecoveryUpgrade()).To(Equal(wantRecovery))
+					},
+					Entry("bare true", "upgrade:\n  recovery: true\n", true),
+					Entry("quoted true", "upgrade:\n  recovery: \"true\"\n", true),
+					Entry("single quoted true", "upgrade:\n  recovery: 'true'\n", true),
+					Entry("capitalised True", "upgrade:\n  recovery: True\n", true),
+					Entry("the number one", "upgrade:\n  recovery: 1\n", true),
+					Entry("bare false", "upgrade:\n  recovery: false\n", false),
+					Entry("quoted false", "upgrade:\n  recovery: \"false\"\n", false),
+					Entry("the number zero", "upgrade:\n  recovery: 0\n", false),
+					Entry("an empty recovery key", "upgrade:\n  recovery:\n", false),
+					Entry("an empty upgrade block", "upgrade:\n", false),
+					Entry("no upgrade block at all", "install:\n  device: /some/device\n", false),
+				)
+
+				DescribeTable("names the key instead of panicking when the upgrade block has the wrong shape",
+					func(block string, wantInError []string) {
+						cfg, err := config.ScanNoLogs(collector.Readers(strings.NewReader(
+							"#cloud-config\n" + block)))
+						Expect(err).ToNot(HaveOccurred())
+						c.Collector = cfg.Collector
+						_, err = config.NewUpgradeSpec(c)
+						Expect(err).To(HaveOccurred())
+						for _, want := range wantInError {
+							Expect(err.Error()).To(ContainSubstring(want))
+						}
+					},
+					Entry("a string that is not a boolean",
+						"upgrade:\n  recovery: maybe\n", []string{"upgrade.recovery", "maybe"}),
+					Entry("a YAML 1.1 habit the parser reads as a string",
+						"upgrade:\n  recovery: yes\n", []string{"upgrade.recovery", "yes"}),
+					Entry("a mapping where a boolean belongs",
+						"upgrade:\n  recovery:\n    enabled: true\n", []string{"upgrade.recovery"}),
+					Entry("the whole upgrade block written as a scalar",
+						"upgrade: somestring\n", []string{"upgrade must be a mapping"}),
+					Entry("the whole upgrade block written as a list",
+						"upgrade:\n  - recovery\n", []string{"upgrade must be a mapping"}),
+				)
+
 				It("fails fast for uki upgrade when the container image cannot be resolved", func() {
 					fake := &v1mock.FakeImageExtractor{
 						Logger: logger,
@@ -643,9 +690,32 @@ upgrade:
 			var bootedFrom string
 			var dir string
 			var ghwTest ghwMock.GhwMock
+			var extractor *v1mock.FakeImageExtractor
+			var sizedImages []string
+
+			// The configs here come from a real Scan, so they carry the real
+			// implementations. Point them at the suite doubles instead. The
+			// image extractor matters most: sizing an OCI source calls out to
+			// the registry, which a unit test must never do.
+			useTestDoubles := func(cfg *sdkConfig.Config) {
+				cfg.Runner = runner
+				cfg.Fs = fs
+				cfg.Mounter = mounter
+				cfg.CloudInitRunner = ci
+				cfg.Logger = logger
+				cfg.ImageExtractor = extractor
+			}
 
 			BeforeEach(func() {
 				bootedFrom = ""
+				sizedImages = nil
+				extractor = &v1mock.FakeImageExtractor{
+					Logger: logger,
+					SizeSideEffect: func(imageRef, platformRef string) (int64, error) {
+						sizedImages = append(sizedImages, imageRef)
+						return 0, nil
+					},
+				}
 				runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
 					switch cmd {
 					case "cat":
@@ -661,7 +731,6 @@ upgrade:
 strict: true
 install:
   device: /some/device
-  skip_copy_kcrypt_plugin: true
   grub-entry-name: "MyCustomOS"
   system:
     size: 666
@@ -675,7 +744,7 @@ upgrade:
   system:
     source: oci:busybox
   recovery-system:
-    source: oci:busybox
+    source: oci:busybox-recovery
 cloud-init-paths:
 - /what
 `)
@@ -728,19 +797,11 @@ cloud-init-paths:
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{dir}...),
 					collector.NoLogs,
 				)
-				cfg.Fs = fs
-				cfg.Logger = logger
-
 				Expect(err).ToNot(HaveOccurred())
-				// Once we got the cfg override the fs to our test fs
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
+				useTestDoubles(cfg)
 				installSpec, err := config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cfg.Strict).To(BeTrue())
-				Expect(cfg.Install.SkipEncryptCopyPlugins).To(BeTrue())
 				Expect(cfg.Install.Device).To(Equal("/some/device"))
 				Expect(installSpec.Target).To(Equal("/some/device"))
 				Expect(installSpec.GrubDefEntry).To(Equal("MyCustomOS"))
@@ -771,11 +832,7 @@ cloud-init-paths:
 
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{autoDir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				installSpec, err := config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(installSpec.Target).To(Equal("/dev/sda"))
@@ -797,11 +854,7 @@ cloud-init-paths:
 
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{scriptDir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				installSpec, err := config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(installSpec.Target).To(Equal("/some/device"))
@@ -823,11 +876,7 @@ cloud-init-paths:
 
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{scriptDir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				_, err = config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("no disk available"))
@@ -837,11 +886,7 @@ cloud-init-paths:
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{dir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
 				// Override the config with our test params
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				spec, err := config.ReadSpecFromCloudConfig(cfg, "reset")
 				Expect(err).ToNot(HaveOccurred())
 				resetSpec := spec.(*v1.ResetSpec)
@@ -853,15 +898,15 @@ cloud-init-paths:
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{dir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
 				// Override the config with our test params
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				spec, err := config.ReadSpecFromCloudConfig(cfg, "upgrade")
 				Expect(err).ToNot(HaveOccurred())
 				upgradeSpec := spec.(*v1.UpgradeSpec)
 				Expect(upgradeSpec.RecoveryUpgrade()).To(BeTrue())
+				Expect(upgradeSpec.Recovery.Source.Value()).To(Equal("busybox-recovery:latest"))
+				// A recovery upgrade sizes the recovery source, and it does so
+				// through the extractor we injected, not over the network.
+				Expect(sizedImages).To(Equal([]string{"busybox-recovery:latest"}))
 			})
 			It("Fails when a wrong action is read", func() {
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{dir}...), collector.NoLogs)

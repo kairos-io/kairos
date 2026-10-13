@@ -22,6 +22,11 @@ import (
 // --unix-socket overrides.
 const edgevpnAPISocket = "/run/edgevpn-kairos.sock"
 
+// Every Eventually below is capped at 10 minutes or less: the suite budget is
+// 60 minutes, so a step allowed a large fraction of that hits the suite timeout
+// before its own assertion and takes the failure diagnostics with it (#4489).
+// The measured green run of this spec is 307s end to end, so 10 minutes leaves
+// every step at least 5x its cost.
 var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-decentralized-k8s"), func() {
 	var vms []VM
 	var configPath string
@@ -35,7 +40,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		token = generateToken()
 
 		vmForEach("waiting until ssh is possible", vms, func(vm VM) {
-			vm.EventuallyConnects(1200)
+			vm.EventuallyConnects(600)
 		})
 	})
 
@@ -69,7 +74,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				v, _ := vm.Sudo("kairos-agent state get boot")
 				return strings.TrimSpace(v)
-			}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("active_boot"))
+			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("active_boot"))
 		})
 
 		vmForEach("checking default services are on after first boot", vms, func(vm VM) {
@@ -107,7 +112,12 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				out, err = vm.Sudo("cat /tmp/mnt/STATE/grubmenu")
 				Expect(err).ToNot(HaveOccurred(), out)
 
-				Expect(out).To(ContainSubstring("--id remoterecovery"))
+				// Remote recovery is reached from the interactive installer
+				// now, not from a boot entry of its own
+				// (kairos-io/kairos#5064). The file is still copied to the
+				// state partition for user entries, so the cat above is what
+				// proves it arrived.
+				Expect(out).ToNot(ContainSubstring("--id remoterecovery"))
 
 				// No longer used. This is created to override the default entry but now the default entry is kairos already
 				// TODO: Create a test in acceptance to check for the creation of this file and if it has the correct override entry
@@ -161,13 +171,13 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				out, _ = vm.Sudo(providerKairos + " get-kubeconfig")
 				return out
-			}, 1500*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
+			}, 600*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
 
 			Eventually(func() string {
 				vm.Sudo(providerKairos + " get-kubeconfig > kubeconfig")
 				out, _ = vm.Sudo("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
+			}, 600*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
 		})
 
 		vmForEach("checking roles", vms, func(vm VM) {
@@ -178,7 +188,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				out, _ = vm.Sudo(providerKairos + " role list")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(And(
+			}, 600*time.Second, 10*time.Second).Should(And(
 				ContainSubstring(uuid),
 				ContainSubstring("worker"),
 				ContainSubstring("master"),
@@ -202,7 +212,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 					return fmt.Sprintf("querying the machines API failed: %v: %s", err, out)
 				}
 				return out
-			}, 900*time.Second, 10*time.Second).Should(And(
+			}, 600*time.Second, 10*time.Second).Should(And(
 				ContainSubstring("10.1.0.1"),
 				ContainSubstring("10.1.0.2"),
 			), out)
@@ -211,7 +221,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		// FIXUP: DNS needs reboot to take effect
 		vmForEach("rebooting the VMs", vms, func(vm VM) {
 			if !isFlavor(vm, "alpine") {
-				vm.Reboot(1200)
+				vm.Reboot(600)
 			}
 		})
 

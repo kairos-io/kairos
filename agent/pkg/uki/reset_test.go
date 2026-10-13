@@ -21,6 +21,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
@@ -170,11 +171,92 @@ var _ = Describe("Uki reset action", func() {
 		Expect(err.Error()).To(ContainSubstring("mount"))
 	})
 
+	// UKI nodes are dispatched to this reset implementation, not to
+	// agent/pkg/action.ResetAction, so the re-encryption wiring has to be
+	// checked here through Run, not only through the shared helper.
+	Describe("re-encryption after the format", func() {
+		var encrypted []string
+		var encryptErr error
+		BeforeEach(func() {
+			encrypted, encryptErr = nil, nil
+			orig := action.ResetEncryptFn
+			DeferCleanup(func() { action.ResetEncryptFn = orig })
+			action.ResetEncryptFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition) error {
+				encrypted = append(encrypted, part.FilesystemLabel)
+				return encryptErr
+			}
+		})
+
+		It("runs for every formatted partition, before OEM is mounted back", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			// Run fails later in this harness, after the format branches
+			// that are under test; make sure it is not an earlier failure.
+			err := reset.Run()
+			if err != nil {
+				Expect(err.Error()).ToNot(ContainSubstring("preflight"))
+				Expect(err.Error()).ToNot(ContainSubstring("format"))
+			}
+			Expect(encrypted).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+		})
+
+		It("formats nothing when the preflight refuses", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			orig := action.ResetPreflightFn
+			DeferCleanup(func() { action.ResetPreflightFn = orig })
+			var checked []string
+			action.ResetPreflightFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition, _ bool) error {
+				checked = append(checked, part.FilesystemLabel)
+				if part.FilesystemLabel == constants.OEMLabel {
+					return errors.New("preflight refused")
+				}
+				return nil
+			}
+			Expect(reset.Run()).To(MatchError(ContainSubstring("preflight refused")))
+			Expect(checked).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+			Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(HaveOccurred(),
+				"a partition was formatted although the preflight of a later one refused")
+			Expect(encrypted).To(BeEmpty())
+		})
+
+		It("fails the reset when re-encrypting persistent fails", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			encryptErr = errors.New("no TPM device")
+			Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+			Expect(encrypted).To(Equal([]string{constants.PersistentLabel}),
+				"the reset must stop at the first failed re-encryption, before the OEM branch")
+		})
+
+		It("fails the reset when re-encrypting OEM fails", func() {
+			spec.FormatPersistent = false
+			spec.FormatOEM = true
+			encryptErr = errors.New("no TPM device")
+			Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+			Expect(encrypted).To(Equal([]string{constants.OEMLabel}))
+		})
+	})
+
 	It("fails when formatting the persistent partition fails", func() {
 		spec.FormatPersistent = true
 		runner.ReturnError = errors.New("mkfs error")
 		err := reset.Run()
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("does not format the persistent partition while it is still mounted", func() {
+		// mkfs on a mounted device either refuses or corrupts, and the audit
+		// trail stash reads the persistent partition just before this, so the
+		// format has to be preceded by the unmount the non-UKI reset does.
+		spec.FormatPersistent = true
+		Expect(mounter.Mount("/dev/device3", "/usr/local", "ext4", []string{"rw"})).To(Succeed())
+		mounter.ErrorOnUnmount = true
+
+		err := reset.Run()
+		Expect(err).To(HaveOccurred())
+		Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(HaveOccurred(),
+			"the persistent partition was formatted although it could not be unmounted")
 	})
 
 	It("fails when copying recovery artifacts to active fails", func() {

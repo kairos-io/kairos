@@ -10,11 +10,14 @@ import (
 	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	implSpec "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
+	sdkBundles "github.com/kairos-io/kairos/v4/sdk/types/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkInstall "github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
@@ -171,6 +174,19 @@ var _ = Describe("Hooks", func() {
 			err = postInstall.Run(*cfg, nil)
 			Expect(err).ShouldNot(BeNil())
 		})
+		// The specs above are the negative control for this one: every other
+		// extension failure here is tolerated unless fail_on_bundles_errors
+		// is set. A declaration that does not parse is not, because the node
+		// would come up silently missing every extension the boot asked for,
+		// and no retry or later boot will fix a malformed command line.
+		It("errors on a command line declaration it cannot read, without strict set", func() {
+			Expect(fsutils.MkdirAll(fs, "/proc", os.ModeDir|os.ModePerm)).Should(BeNil())
+			Expect(fs.WriteFile("/proc/cmdline", []byte("kairos.extensions=fwupd@"), os.ModePerm)).Should(BeNil())
+			Expect(cfg.FailOnBundleErrors).To(BeFalse())
+			postInstall := hook.SysExtPostInstall{}
+			err = postInstall.Run(*cfg, nil)
+			Expect(err).To(MatchError(ContainSubstring("invalid extension declaration")))
+		})
 		It("doesn't error if it cant create the dirs", func() {
 			ROfs := vfs.NewReadOnlyFS(fs)
 			cfg.Fs = ROfs
@@ -187,5 +203,337 @@ var _ = Describe("Hooks", func() {
 			Expect(err).ShouldNot(BeNil())
 		})
 
+		// An install that did not boot from removable media has no live
+		// directory, which is not something to fail on. The sweep used to
+		// hand the stat error to the walk callback, so strict mode failed the
+		// whole hook over it.
+		It("doesn't error in strict mode when there is no live media", func() {
+			cfg.FailOnBundleErrors = true
+			_, err = fs.Stat(cnst.LiveDir)
+			Expect(os.IsNotExist(err)).To(BeTrue(), "the fixture is supposed to have no live media")
+
+			postInstall := hook.SysExtPostInstall{}
+			err = postInstall.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+		})
+
+	})
+
+	Context("FirstBootStage", func() {
+		BeforeEach(func() {
+			// An empty /proc/cmdline keeps RunStage's cmdline read from
+			// manufacturing an error of its own on every call, which would
+			// otherwise mask what the strict specs below assert on.
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{"/proc/cmdline": ""})
+			Expect(err).Should(BeNil())
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			cloudInit = &v1mock.FakeCloudInitRunner{}
+			cfg = config.NewConfig(
+				config.WithFs(fs),
+				config.WithLogger(logger),
+				config.WithCloudInitRunner(cloudInit),
+			)
+			cfg.Collector = collector.Config{}
+		})
+		AfterEach(func() {
+			cleanup()
+		})
+
+		It("drives the cloud-init runner through the first-boot stage family", func() {
+			stage := hook.FirstBootStage{}
+			err = stage.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+
+			// RunStage (already covered end-to-end in agent/pkg/utils) fans a
+			// single stage name out into before/main/after, and may revisit
+			// them again for the dot-notation cmdline pass. What belongs to
+			// this hook's own contract is: every stage name it produces is
+			// part of the first-boot family, and before/main/after each show
+			// up at least once -- i.e. FirstBootStage handed "first-boot",
+			// not some other stage name, to RunStage.
+			Expect(cloudInit.ExecStages).To(ContainElements(
+				cnst.FirstBootHook+".before",
+				cnst.FirstBootHook,
+				cnst.FirstBootHook+".after",
+			))
+			for _, s := range cloudInit.ExecStages {
+				Expect(s).To(HavePrefix(cnst.FirstBootHook))
+			}
+			Expect(memLog.String()).To(ContainSubstring("Running first-boot hook"))
+			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
+		})
+
+		It("logs a cloud-init failure in strict mode instead of failing the hook", func() {
+			cloudInit.Error = true
+			cfg.Strict = true
+			stage := hook.FirstBootStage{}
+			err = stage.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+			// Swallowing the error is what keeps
+			// machine.CreateSentinel("firstboot") reachable in agent.Run (not
+			// exercised by this suite), so the node is not stuck re-running the
+			// first boot block. The log line is the operator's only trace.
+			Expect(memLog.String()).To(ContainSubstring("continuing so the firstboot sentinel still gets written"))
+			Expect(memLog.String()).To(ContainSubstring("cloud init failure"))
+			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
+		})
+
+		It("does not fail the hook when strict mode is off, even if the runner errors", func() {
+			cloudInit.Error = true
+			cfg.Strict = false
+			stage := hook.FirstBootStage{}
+			err = stage.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+			// Non-strict runs never reach the hook's own error branch: RunStage
+			// absorbs the failure itself and hands back nil.
+			Expect(memLog.String()).ToNot(ContainSubstring("continuing so the firstboot sentinel still gets written"))
+			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
+		})
+
+		It("keeps the FirstBoot hook chain alive when the stage fails in strict mode", func() {
+			// This is the actual failure mode from the bug report: agent.Run
+			// walks hook.FirstBoot as a single chain and only reaches
+			// machine.CreateSentinel("firstboot") if that chain returns nil.
+			// The specs above only exercise FirstBootStage in isolation, so
+			// they can't tell us whether hook.Run -- which returns early on
+			// the first error, see hook.go -- still makes it past this stage
+			// when it's last in line and the node is strict. Drive the real
+			// chain to be sure nothing upstream of FirstBootStage regresses
+			// that guarantee.
+			cloudInit.Error = true
+			cfg.Strict = true
+			err = hook.Run(*cfg, nil, hook.FirstBoot...)
+			Expect(err).Should(BeNil())
+			Expect(cloudInit.ExecStages).To(ContainElement(cnst.FirstBootHook))
+			Expect(memLog.String()).To(ContainSubstring("continuing so the firstboot sentinel still gets written"))
+		})
+
+		It("runs last in the FirstBoot hook list, after bundles and grub options", func() {
+			Expect(hook.FirstBoot).To(HaveLen(3))
+			Expect(hook.FirstBoot[0]).To(BeAssignableToTypeOf(&hook.BundleFirstBoot{}))
+			Expect(hook.FirstBoot[1]).To(BeAssignableToTypeOf(&hook.GrubFirstBootOptions{}))
+			Expect(hook.FirstBoot[2]).To(BeAssignableToTypeOf(&hook.FirstBootStage{}))
+		})
+
+		It("names the stage first-boot", func() {
+			Expect(cnst.FirstBootHook).To(Equal("first-boot"))
+		})
+	})
+
+	// The SysExtPostInstall specs cover the UKI half of the same rule. This
+	// one covers the GRUB half, where the tolerance lives in Finish rather
+	// than in the hook, so asserting on ExtensionsPostInstall alone would
+	// say nothing about what the install actually does.
+	Context("Finish", func() {
+		BeforeEach(func() {
+			runner = v1mock.NewFakeRunner()
+			mounter = v1mock.NewErrorMounter()
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			Expect(fsutils.MkdirAll(fs, "/proc", os.ModeDir|os.ModePerm)).Should(BeNil())
+			cfg = config.NewConfig(
+				config.WithFs(fs),
+				config.WithRunner(runner),
+				config.WithLogger(logger),
+				config.WithMounter(mounter),
+			)
+			cfg.Collector = collector.Config{}
+		})
+		AfterEach(func() { cleanup() })
+
+		It("fails the install on a command line declaration it cannot read, without strict set", func() {
+			Expect(fs.WriteFile("/proc/cmdline", []byte("kairos.extensions=fwupd@"), os.ModePerm)).Should(BeNil())
+			Expect(cfg.FailOnBundleErrors).To(BeFalse())
+			Expect(hook.Finish{}.Run(*cfg, nil)).To(MatchError(ContainSubstring("invalid extension declaration")))
+		})
+
+		// The negative control: without a declaration to misread, the same
+		// run reaches the end and reports nothing. Otherwise the spec above
+		// would pass on any error Finish happened to surface.
+		It("finishes when the command line declares nothing", func() {
+			Expect(fs.WriteFile("/proc/cmdline", []byte("console=tty1 quiet"), os.ModePerm)).Should(BeNil())
+			Expect(hook.Finish{}.Run(*cfg, nil)).To(Succeed())
+		})
+	})
+
+	Context("BundleFirstBoot", func() {
+		var bundleRoot string
+
+		// A container bundle read from a local tarball that is not there
+		// fails inside tarball.ImageFromPath, so these specs exercise the
+		// hook's error handling without reaching a registry.
+		missingBundles := func(root string, names ...string) sdkBundles.Bundles {
+			b := sdkBundles.Bundle{Rootfs: root, LocalFile: true}
+			for _, n := range names {
+				b.Targets = append(b.Targets, "container://"+filepath.Join(root, n))
+			}
+			return sdkBundles.Bundles{b}
+		}
+
+		BeforeEach(func() {
+			bundleRoot = GinkgoT().TempDir()
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			cfg = config.NewConfig(config.WithLogger(logger))
+		})
+
+		It("does nothing when no bundles are configured", func() {
+			Expect(hook.BundleFirstBoot{}.Run(*cfg, nil)).To(Succeed())
+			Expect(memLog.String()).ToNot(ContainSubstring("could not install the bundles"))
+		})
+
+		It("logs the failure even though it does not fail the hook", func() {
+			// fail_on_bundles_errors decides whether the install aborts, not
+			// whether the operator is told. Without the log line a bundle that
+			// cannot be pulled left no trace anywhere.
+			cfg.Bundles = missingBundles(bundleRoot, "missing.tar")
+			cfg.FailOnBundleErrors = false
+
+			Expect(hook.BundleFirstBoot{}.Run(*cfg, nil)).To(Succeed())
+			Expect(memLog.String()).To(ContainSubstring("could not install the bundles"))
+			Expect(memLog.String()).To(ContainSubstring("missing.tar"))
+			Expect(memLog.String()).To(ContainSubstring("Finish BundleFirstBoot hook"))
+		})
+
+		It("fails the hook when fail_on_bundles_errors is set", func() {
+			cfg.Bundles = missingBundles(bundleRoot, "missing.tar")
+			cfg.FailOnBundleErrors = true
+
+			err = hook.BundleFirstBoot{}.Run(*cfg, nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing.tar"))
+		})
+
+		It("names every bundle that failed, not only the last one", func() {
+			cfg.Bundles = missingBundles(bundleRoot, "first.tar", "second.tar")
+			cfg.FailOnBundleErrors = true
+
+			err = hook.BundleFirstBoot{}.Run(*cfg, nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("first.tar"))
+			Expect(err.Error()).To(ContainSubstring("second.tar"))
+		})
+	})
+
+	Context("OEMFiles", func() {
+		var installSpec *implSpec.InstallSpec
+
+		BeforeEach(func() {
+			runner = v1mock.NewFakeRunner()
+			syscallMock = &v1mock.FakeSyscall{}
+			mounter = v1mock.NewErrorMounter()
+			client = &v1mock.FakeHTTPClient{}
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+
+			cloudInit = &v1mock.FakeCloudInitRunner{}
+			cfg = config.NewConfig(
+				config.WithFs(fs),
+				config.WithRunner(runner),
+				config.WithLogger(logger),
+				config.WithMounter(mounter),
+				config.WithSyscall(syscallMock),
+				config.WithClient(client),
+				config.WithCloudInitRunner(cloudInit),
+			)
+			cfg.Collector = collector.Config{}
+			cfg.Install = &sdkInstall.Install{}
+
+			// The state the installer is in when it runs the PostInstall
+			// hooks: every partition of the spec is mounted, OEM included.
+			installSpec = &implSpec.InstallSpec{
+				Partitions: sdkPartitions.ElementalPartitions{
+					OEM: &sdkPartitions.Partition{
+						FilesystemLabel: cnst.OEMLabel,
+						Path:            "/dev/device1",
+						MountPoint:      cnst.OEMDir,
+					},
+				},
+			}
+			err = fsutils.MkdirAll(fs, cnst.OEMDir, os.ModeDir|os.ModePerm)
+			Expect(err).Should(BeNil())
+			err = mounter.Mount("/dev/device1", cnst.OEMDir, "auto", []string{})
+			Expect(err).Should(BeNil())
+		})
+		AfterEach(func() {
+			cleanup()
+		})
+
+		It("does nothing when install.oem_files is empty", func() {
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).Should(BeNil())
+		})
+
+		It("writes the configured files into the mounted OEM partition", func() {
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
+				{Name: "foo", Content: "#cloud-config\nfoo: bar\n"},
+				{Name: "bar.yaml", Content: "#cloud-config\nbar: baz\n"},
+			}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).Should(BeNil())
+
+			content, err := fs.ReadFile(filepath.Join(cnst.OEMDir, "foo.yaml"))
+			Expect(err).Should(BeNil())
+			Expect(string(content)).Should(Equal("#cloud-config\nfoo: bar\n"))
+
+			info, err := fs.Stat(filepath.Join(cnst.OEMDir, "foo.yaml"))
+			Expect(err).Should(BeNil())
+			Expect(info.Mode().Perm()).Should(Equal(os.FileMode(0400)))
+
+			content, err = fs.ReadFile(filepath.Join(cnst.OEMDir, "bar.yaml"))
+			Expect(err).Should(BeNil())
+			Expect(string(content)).Should(Equal("#cloud-config\nbar: baz\n"))
+		})
+
+		It("errors instead of writing anywhere else when OEM is not mounted", func() {
+			err = mounter.Unmount(cnst.OEMDir)
+			Expect(err).Should(BeNil())
+			err = fsutils.MkdirAll(fs, "/usr/local/cloud-config", os.ModeDir|os.ModePerm)
+			Expect(err).Should(BeNil())
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).ShouldNot(BeNil())
+
+			_, err = fs.Stat(filepath.Join(cnst.OEMDir, "foo.yaml"))
+			Expect(err).ShouldNot(BeNil())
+			_, err = fs.Stat("/usr/local/cloud-config/foo.yaml")
+			Expect(err).ShouldNot(BeNil())
+		})
+
+		It("errors when the spec has no OEM partition to write to", func() {
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, &implSpec.InstallSpec{})
+			Expect(err).ShouldNot(BeNil())
+		})
+
+		It("rejects a bad name before writing anything, leaving earlier entries unwritten", func() {
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
+				{Name: "good", Content: "hello"},
+				{Name: "../evil", Content: "hello"},
+			}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).ShouldNot(BeNil())
+
+			_, err = fs.Stat(filepath.Join(cnst.OEMDir, "good.yaml"))
+			Expect(err).ShouldNot(BeNil())
+		})
 	})
 })

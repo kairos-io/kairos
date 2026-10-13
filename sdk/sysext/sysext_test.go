@@ -1,16 +1,17 @@
 package sysext
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
 
-	"github.com/moby/moby/client"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -21,6 +22,7 @@ import (
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	imageUtils "github.com/kairos-io/kairos/v4/sdk/utils/image"
+	"github.com/moby/moby/client"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -113,6 +115,102 @@ var _ = Describe("sysext", Label("sysext"), Ordered, func() {
 	})
 })
 
+var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
+	var parent, dest string
+	var log sdkLogger.KairosLogger
+
+	BeforeEach(func() {
+		var err error
+		parent, err = os.MkdirTemp("", "")
+		Expect(err).ToNot(HaveOccurred())
+		dest = filepath.Join(parent, "dest")
+		Expect(os.Mkdir(dest, 0o755)).To(Succeed())
+		log = sdkLogger.NewBufferLogger(&bytes.Buffer{})
+	})
+
+	AfterEach(func() {
+		Expect(os.RemoveAll(parent)).To(Succeed())
+	})
+
+	It("refuses to write through a symlink that points outside the destination", func() {
+		outside := filepath.Join(parent, "outside")
+		Expect(os.Mkdir(outside, 0o755)).To(Succeed())
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/", Mode: 0o755},
+			tar.Header{Typeflag: tar.TypeSymlink, Name: "usr/escape", Linkname: outside},
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/escape/escaped", Mode: 0o644},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).ToNot(Succeed())
+		Expect(filepath.Join(outside, "escaped")).ToNot(BeAnExistingFile())
+	})
+
+	It("refuses an entry that climbs out of the destination", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "../escaped", Mode: 0o644},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, regexp.MustCompile(`.*`))).ToNot(Succeed())
+		Expect(filepath.Join(parent, "escaped")).ToNot(BeAnExistingFile())
+	})
+
+	It("creates the parent directories a layer does not list", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/lib/extension-release.d/extension-release.test", Mode: 0o644},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		Expect(filepath.Join(dest, "usr/lib/extension-release.d/extension-release.test")).To(BeAnExistingFile())
+	})
+
+	It("preserves the setuid bit on an extracted file", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/tool", Mode: 0o4755},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		info, err := os.Stat(filepath.Join(dest, "usr/bin/tool"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode() & os.ModeSetuid).ToNot(BeZero())
+	})
+
+	It("truncates an existing file instead of leaving stale trailing bytes", func() {
+		target := filepath.Join(dest, "usr", "data")
+		Expect(os.MkdirAll(filepath.Dir(target), 0o755)).To(Succeed())
+		Expect(os.WriteFile(target, []byte("the old content is longer"), 0o644)).To(Succeed())
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/data", Mode: 0o644},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		content, err := os.ReadFile(target)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(content).To(BeEmpty())
+	})
+
+	It("keeps absolute symlinks, which resolve against the merged system", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/", Mode: 0o755},
+			tar.Header{Typeflag: tar.TypeSymlink, Name: "usr/link", Linkname: "/usr/lib/real"},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		Expect(os.Readlink(filepath.Join(dest, "usr/link"))).To(Equal("/usr/lib/real"))
+	})
+})
+
+// imageWithLayer returns an in-memory image whose only layer holds the given
+// entries, each regular file empty.
+func imageWithLayer(entries ...tar.Header) v1.Image {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for i := range entries {
+		Expect(tw.WriteHeader(&entries[i])).To(Succeed())
+	}
+	Expect(tw.Close()).To(Succeed())
+	layer, err := tarball.LayerFromOpener(func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
+	})
+	Expect(err).ToNot(HaveOccurred())
+	image, err := mutate.AppendLayers(empty.Image, layer)
+	Expect(err).ToNot(HaveOccurred())
+	return image
+}
+
 func createEmptyDockerImage() string {
 	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
@@ -154,7 +252,7 @@ func createTestDockerImage() string {
 		"/etc/another": []byte("world"),
 	})
 
-	secondLayer, err := tarball.LayerFromFile("testdata/test.tar")
+	secondLayer, err := sysextLayer()
 	Expect(err).ToNot(HaveOccurred())
 	img, err := mutate.AppendLayers(empty.Image, fistLayer, secondLayer)
 	Expect(err).ToNot(HaveOccurred())
@@ -173,4 +271,28 @@ func createTestDockerImage() string {
 	Expect(err).ToNot(HaveOccurred())
 
 	return tag.String()
+}
+
+// sysextLayer returns a layer with an empty file in each of /usr and /etc,
+// which are sysext hierarchies, and in each of /var and /opt, which are not.
+// Every directory has its own entry, as in a layer built by docker.
+func sysextLayer() (v1.Layer, error) {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	for _, dir := range []string{"usr", "etc", "var", "opt"} {
+		if err := tw.WriteHeader(&tar.Header{Typeflag: tar.TypeDir, Name: "./" + dir + "/", Mode: 0o755}); err != nil {
+			return nil, err
+		}
+	}
+	for _, file := range []string{"usr/yes", "etc/yes", "var/nope", "opt/nope"} {
+		if err := tw.WriteHeader(&tar.Header{Typeflag: tar.TypeReg, Name: "./" + file, Mode: 0o644}); err != nil {
+			return nil, err
+		}
+	}
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+	return tarball.LayerFromOpener(func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
+	})
 }

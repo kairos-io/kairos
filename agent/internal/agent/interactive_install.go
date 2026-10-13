@@ -1,10 +1,6 @@
 package agent
 
 import (
-	"fmt"
-
-	"github.com/kairos-io/kairos/v4/sdk/constants"
-	"github.com/kairos-io/kairos/v4/sdk/installer"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
@@ -14,10 +10,9 @@ import (
 // - spawnShell: if true, spawn a shell after the installer exits.
 // - source: installation source, forwarded to the installer.
 func InteractiveInstall(spawnShell bool, source string, logger sdkLogger.KairosLogger) error {
-	path := installer.Resolve("/")
-	if path == "" {
-		return fmt.Errorf("no interactive installer found (looked for %s, %s; or set %s)",
-			constants.InstallerOverridePath, constants.InstallerDefaultPath, constants.InstallerEnvVar)
+	path, err := resolveInstaller()
+	if err != nil {
+		return err
 	}
 
 	logger.Infof("Delegating interactive installation to %s", path)

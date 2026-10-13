@@ -56,8 +56,11 @@ Configuration:
       challenger:
         challenger_server: "https://my-server.com:8082"  # Server URL
         mdns: true                                       # Enable mDNS discovery
-        certificate: "/path/to/server-cert.pem"         # Server certificate
-        tpm_device: "/dev/tpmrm0"                        # TPM device path`,
+        certificate: |                                   # Server certificate, PEM text
+          -----BEGIN CERTIFICATE-----
+          ...
+          -----END CERTIFICATE-----
+      tpm_device: "/dev/tpmrm0"                          # TPM device path`,
 	Example: `  # Get TPM hash for this device (default)
   kcrypt-discovery-challenger
 
@@ -165,7 +168,7 @@ can override specific settings:
 	cmd.Flags().IntVar(&flags.Attempts, "attempts", 30, "Number of attempts to get the passphrase")
 	cmd.Flags().StringVar(&flags.ChallengerServer, "challenger-server", "", "URL of the challenger server (overrides config)")
 	cmd.Flags().BoolVar(&flags.EnableMDNS, "mdns", false, "Enable mDNS discovery (overrides config)")
-	cmd.Flags().StringVar(&flags.ServerCertificate, "certificate", "", "Server certificate for verification (overrides config)")
+	cmd.Flags().StringVar(&flags.ServerCertificate, "certificate", "", "Server certificate for verification, as PEM text (overrides config)")
 
 	// Add shared TPM device flag
 	addSharedTPMDeviceFlag(cmd, &flags.TPMDevice)

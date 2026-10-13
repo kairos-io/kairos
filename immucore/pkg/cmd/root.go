@@ -96,6 +96,10 @@ func NewApp() *cli.App {
 
 		utils.KLog.Logger.Info().Msg(st.WriteDAG(g))
 
+		if steps := utils.BreakpointSteps(); len(steps) > 0 {
+			utils.KLog.Logger.Info().Strs("steps", steps).Msg("Breakpoints requested via rd.immucore.break; a name that is not a step listed above is ignored")
+		}
+
 		// Once we print the dag we can exit already
 		if c.Bool("dry-run") {
 			return nil

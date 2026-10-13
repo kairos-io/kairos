@@ -3,6 +3,7 @@ package collector_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -295,6 +296,97 @@ info:
 				Expect(info["girlfriend"]).To(Equal("princess"))
 
 				Expect(originalConfig.Values).To(HaveLen(4))
+			})
+		})
+
+		Context("when the config_url cannot be used", func() {
+			var warnings *bytes.Buffer
+
+			BeforeEach(func() {
+				warnings = &bytes.Buffer{}
+				DeferCleanup(SetWarnOutForTest(warnings))
+			})
+
+			It("warns and keeps booting when every fetch attempt fails", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml",
+					"name":       "Mario",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring(server.URL + "/config.yaml"))
+			})
+
+			It("warns when the remote config has no valid header", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = w.Write([]byte("just_a_key: not_a_cloud_config\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/config.yaml"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("has no valid header"))
+			})
+
+			It("keeps the query string out of the warning so tokens are not leaked", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml?token=supersecret",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).To(ContainSubstring("<redacted>"))
+			})
+
+			It("keeps the query string out of the wrapped transport error too", func() {
+				// A transport failure, unlike a bad status code, is a *url.Error that
+				// stringifies the whole URL. Closing the server first gives a
+				// connection refused on a port nothing is listening on.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				unreachable := server.URL
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": unreachable + "/config.yaml?token=supersecret&machine=abc123",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).ToNot(ContainSubstring("abc123"))
+			})
+
+			It("masks a basic auth password carried in the config_url userinfo", func() {
+				// net/http lifts URL.User into an Authorization header, so
+				// user:pass@host in config_url is a working setup and the password
+				// must not reach the console.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				host := strings.TrimPrefix(server.URL, "http://")
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": "http://user:hunter2@" + host + "/config.yaml",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				// Pin what the warning does say, so this does not pass vacuously
+				// if the URL stops being named at all.
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring("http://user:xxxxx@" + host + "/config.yaml"))
+				Expect(warnings.String()).ToNot(ContainSubstring("hunter2"))
 			})
 		})
 
@@ -625,6 +717,98 @@ info:
 					"slice":  []interface{}{},
 					"map":    map[string]interface{}{},
 				}))
+			})
+		})
+
+		Context("nil map on one side (e.g. an empty config file)", func() {
+			var a ConfigValues // nil, as produced by yaml.Unmarshal on an empty document
+			b := ConfigValues{"key": "value"}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"key": "value"}))
+			})
+		})
+
+		Context("both sources set the same key to null", func() {
+			// Both sides recurse into DeepMerge(nil, nil) for "outer". The old
+			// guard (`a == nil && b != nil`) skipped the early return here,
+			// falling through to reflect.TypeOf(nil).Kind(), which panics on
+			// a nil Type.
+			a := ConfigValues{"outer": nil}
+			b := ConfigValues{"outer": nil}
+
+			It("merges without panicking, keeping the key null", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"outer": nil}))
+			})
+		})
+
+		Context("nested value decoded as plain map[string]interface{} on both sides", func() {
+			// yaml.Unmarshal recreates ConfigValues at every nesting level, but
+			// parseReaders' json.Unmarshal fallback -- and any other caller that
+			// hands DeepMerge a value straight out of encoding/json -- only ever
+			// produces plain map[string]interface{}. A merge of two such nested
+			// maps used to panic with a failed type assertion to ConfigValues.
+			a := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner": 1,
+				},
+			}
+			b := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner2": 2,
+				},
+			}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{
+					"outer": ConfigValues{
+						"inner":  1,
+						"inner2": 2,
+					},
+				}))
+			})
+		})
+
+		Context("nested map with a non-string key (e.g. `1: a` under a yaml key)", func() {
+			// yaml.Unmarshal decodes this to map[interface{}]interface{}.
+			// asConfigValues used to stringify every key with fmt.Sprint,
+			// which would silently collide the integer key 1 with a string
+			// key "1" from another source instead of erroring.
+			a := ConfigValues{
+				"outer": map[interface{}]interface{}{
+					1: "a",
+				},
+			}
+			b := ConfigValues{
+				"outer": map[interface{}]interface{}{
+					2: "b",
+				},
+			}
+
+			It("errors instead of silently coercing the key to a string", func() {
+				_, err := DeepMerge(a, b)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("non-string map keys"))
+			})
+		})
+
+		Context("slices whose items are themselves slices", func() {
+			// mergeSlices compared items with ==, which panics at runtime on
+			// uncomparable dynamic types. A yaml document like "a:\n- - 1\n"
+			// decodes the item into []interface{}, which is uncomparable.
+			a := []interface{}{[]interface{}{1}}
+			b := []interface{}{[]interface{}{2}}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal([]interface{}{[]interface{}{1}, []interface{}{2}}))
 			})
 		})
 	})
@@ -1320,6 +1504,172 @@ local_key_2: local_value_2
 				v, ok = c.Values["local_key_2"].(string)
 				Expect(ok).To(BeTrue())
 				Expect(v).To(Equal("local_value_2"))
+			})
+		})
+		Context("when a config file is over the size limit (issue kairos-io/kairos#1275)", func() {
+			var tmpDir string
+
+			// The collector skips a candidate config once it reaches this
+			// size. Anything at or above it must be reported, because the
+			// alternative is a machine that installs with none of the
+			// settings the user wrote and no explanation on the console.
+			const overTheLimit = (2 * 1024 * 1024) + 1
+			const atTheLimit = 2 * 1024 * 1024
+			const underTheLimit = (2 * 1024 * 1024) - 1
+
+			// captureStderr swaps os.Stderr for the duration of f and returns
+			// everything written to it. The collector reports dropped configs
+			// there rather than on stdout, so that `kairos-agent config` stays
+			// pipeable.
+			captureStderr := func(f func()) string {
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				orig := os.Stderr
+				os.Stderr = w
+				defer func() { os.Stderr = orig }()
+
+				f()
+
+				Expect(w.Close()).To(Succeed())
+				out, err := io.ReadAll(r)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(r.Close()).To(Succeed())
+				return string(out)
+			}
+
+			writeFile := func(name string, contents []byte) string {
+				p := path.Join(tmpDir, name)
+				Expect(os.WriteFile(p, contents, os.ModePerm)).To(Succeed())
+				return p
+			}
+
+			padTo := func(prefix string, size int) []byte {
+				b := make([]byte, size)
+				copy(b, prefix)
+				for i := len(prefix); i < size; i++ {
+					b[i] = 'a'
+				}
+				return b
+			}
+
+			BeforeEach(func() {
+				var err error
+				tmpDir, err = os.MkdirTemp("", "config-size")
+				Expect(err).ToNot(HaveOccurred())
+				DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+				writeFile("small.yaml", []byte("#cloud-config\nsmall_key: small_value\n"))
+			})
+
+			It("reports the file it dropped even under NoLogs", func() {
+				big := writeFile("big.yaml", padTo("#cloud-config\nbig_key: ", overTheLimit))
+
+				var c *Config
+				out := captureStderr(func() {
+					o := &Options{}
+					Expect(o.Apply(Directories(tmpDir), NoLogs)).To(Succeed())
+
+					var err error
+					c, err = Scan(o, FilterKeysTest)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Expect(out).To(ContainSubstring(big))
+				Expect(out).To(ContainSubstring("the limit for a single config file"))
+
+				// The rest of the directory is still collected.
+				Expect(c.Values["small_key"]).To(Equal("small_value"))
+			})
+
+			It("says nothing about oversized files that were never configs", func() {
+				writeFile("grub.efi", padTo("MZ", overTheLimit))
+
+				out := captureStderr(func() {
+					o := &Options{}
+					Expect(o.Apply(Directories(tmpDir), NoLogs)).To(Succeed())
+
+					_, err := Scan(o, FilterKeysTest)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Expect(out).To(BeEmpty())
+			})
+
+			// 2MiB exactly is the only size where the >= comparison differs
+			// from >, and it is the boundary the old truncating arithmetic
+			// skipped from: 2097152 bytes gave 2048 kilobytes gave 2.0
+			// megabytes, which is > 1.0, while 2097151 gave 1.0, which is not.
+			It("reports a config of exactly the limit", func() {
+				atLimit := writeFile("at_limit.yaml", padTo("#cloud-config\nat_limit_key: ", atTheLimit))
+
+				var c *Config
+				out := captureStderr(func() {
+					o := &Options{}
+					Expect(o.Apply(Directories(tmpDir), NoLogs)).To(Succeed())
+
+					var err error
+					c, err = Scan(o, FilterKeysTest)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Expect(out).To(ContainSubstring(atLimit))
+				Expect(c.Values["at_limit_key"]).To(BeNil())
+			})
+
+			It("collects a config that is just under the limit", func() {
+				writeFile("just_under.yaml", padTo("#cloud-config\nunder_key: ", underTheLimit))
+
+				o := &Options{}
+				Expect(o.Apply(Directories(tmpDir), NoLogs)).To(Succeed())
+
+				c, err := Scan(o, FilterKeysTest)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c.Values["under_key"]).ToNot(BeNil())
+			})
+		})
+
+		Context("when the scanned directory holds non-yaml files (issue kairos-io/kairos#2064)", func() {
+			var tmpDir string
+
+			BeforeEach(func() {
+				var err error
+				tmpDir, err = os.MkdirTemp("", "config_mixed")
+				Expect(err).ToNot(HaveOccurred())
+				DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+				Expect(os.WriteFile(path.Join(tmpDir, "local_config.yaml"), []byte(`#cloud-config
+name: Mario
+`), os.ModePerm)).To(Succeed())
+
+				Expect(os.WriteFile(path.Join(tmpDir, "no_header.yaml"), []byte(`name: Luigi
+`), os.ModePerm)).To(Succeed())
+
+				for _, name := range []string{"grub.cfg", "bootx64.efi", "unicode.pf2", "acpi.mod"} {
+					Expect(os.WriteFile(path.Join(tmpDir, name), []byte("x"), os.ModePerm)).To(Succeed())
+				}
+			})
+
+			It("silently skips non-yaml files and keeps the header warning for yaml siblings", func() {
+				origStdout := os.Stdout
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				os.Stdout = w
+				defer func() { os.Stdout = origStdout }()
+
+				o := &Options{}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+
+				Expect(w.Close()).To(Succeed())
+				out, readErr := io.ReadAll(r)
+				Expect(readErr).ToNot(HaveOccurred())
+
+				Expect(scanErr).ToNot(HaveOccurred())
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+
+				Expect(string(out)).ToNot(ContainSubstring("(extension)"))
+				Expect(string(out)).To(ContainSubstring("no_header.yaml because it has no valid header"))
 			})
 		})
 	})

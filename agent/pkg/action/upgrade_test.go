@@ -195,10 +195,15 @@ var _ = Describe("Upgrade Actions test", func() {
 
 				err = fs.WriteFile(
 					filepath.Join(spec.Active.MountPoint, "etc", "kairos-release"),
-					[]byte("GRUB_ENTRY_NAME=TESTOS"),
+					[]byte("GRUB_ENTRY_NAME=TESTOS\nKAIROS_INIT_VERSION=\"v4.3.0\"\n"),
 					constants.FilePerm,
 				)
 				Expect(err).ShouldNot(HaveOccurred())
+				// KAIROS_INIT_VERSION on the running system's kairos-release
+				// so the downgrade gate in UpgradeAction.runFinalizeStep can
+				// compare "target >= current". Same version as target = pass.
+				Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
 
 				spec.Active.Size = 10
 				spec.Passive.Size = 10
@@ -243,14 +248,30 @@ var _ = Describe("Upgrade Actions test", func() {
 				// Make sure is a cloud init error!
 				Expect(err.Error()).To(ContainSubstring("cloud init"))
 			})
+			It("Successfully upgrades a machine with no recovery partition", Label("docker"), func() {
+				// A system upgrade never writes to the recovery partition, so
+				// a machine that has none has to upgrade like any other. Only
+				// a --recovery upgrade needs it, and Sanitize rejects that
+				// case separately.
+				spec.Partitions.Recovery = nil
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				Expect(upgrade.Run()).ToNot(HaveOccurred())
+
+				info, err := fs.Stat(activeImg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(info.Size()).To(BeNumerically("==", int64(spec.Active.Size*1024*1024)))
+
+				f, _ := fs.ReadFile(passiveImg)
+				Expect(f).To(ContainSubstring("active"))
+			})
 			It("Successfully upgrades from docker image", Label("docker"), func() {
 				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
 				upgrade = action.NewUpgradeAction(config, spec)
 				err := upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"), memLog.String())
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"), memLog.String())
 
 				// This should be the new image
 				info, err := fs.Stat(activeImg)
@@ -281,8 +302,7 @@ var _ = Describe("Upgrade Actions test", func() {
 				err := upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 				By("Checking the log")
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"))
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"))
 
 				By("checking active image")
 				// This should be the new image
@@ -315,8 +335,7 @@ var _ = Describe("Upgrade Actions test", func() {
 				err := upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"))
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"))
 
 				// This should be the new image
 				info, err := fs.Stat(activeImg)
@@ -391,16 +410,6 @@ var _ = Describe("Upgrade Actions test", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(memLog.String()).To(ContainSubstring("Failed to move"))
 			})
-			It("Fails on the after-upgrade-chroot hook when strict", Label("docker"), func() {
-				config.Strict = true
-				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterUpgradeChrootHook}
-				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
-				upgrade = action.NewUpgradeAction(config, spec)
-				err := upgrade.Run()
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(constants.AfterUpgradeChrootHook))
-				Expect(memLog.String()).To(ContainSubstring("Error running hook after-upgrade-chroot"))
-			})
 			It("Fails on the after-upgrade hook when strict", Label("docker"), func() {
 				config.Strict = true
 				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterUpgradeHook}
@@ -416,15 +425,6 @@ var _ = Describe("Upgrade Actions test", func() {
 				upgrade = action.NewUpgradeAction(config, spec)
 				err := upgrade.Run()
 				Expect(err).To(HaveOccurred())
-			})
-			It("Warns but does not fail when the rebranding fails", Label("docker"), func() {
-				// Make the grub env file a directory so writing the default entry fails
-				Expect(fsutils.MkdirAll(fs, filepath.Join(constants.RunningStateDir, constants.GrubOEMEnv), constants.DirPerm)).ToNot(HaveOccurred())
-				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
-				upgrade = action.NewUpgradeAction(config, spec)
-				err := upgrade.Run()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(memLog.String()).To(ContainSubstring("failure while rebranding GRUB default entry"))
 			})
 			It("Warns but does not fail when cleanup fails", Label("docker"), func() {
 				config.Syscall = &failingMountSyscall{FakeSyscall: syscall}
@@ -475,8 +475,7 @@ var _ = Describe("Upgrade Actions test", func() {
 				err = upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"))
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"))
 
 				// Not much that we can create here as the dir copy was done on the real os, but we do the rest of the ops on a mem one
 				// This should be the new image
@@ -527,10 +526,12 @@ var _ = Describe("Upgrade Actions test", func() {
 
 				err = fs.WriteFile(
 					filepath.Join(spec.Active.MountPoint, "etc", "kairos-release"),
-					[]byte("GRUB_ENTRY_NAME=TESTOS"),
+					[]byte("GRUB_ENTRY_NAME=TESTOS\nKAIROS_INIT_VERSION=\"v4.3.0\"\n"),
 					constants.FilePerm,
 				)
 				Expect(err).ShouldNot(HaveOccurred())
+				Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
 
 				err = fsutils.MkdirAll(config.Fs, "/proc", constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
@@ -576,8 +577,7 @@ var _ = Describe("Upgrade Actions test", func() {
 				err := upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"))
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"))
 
 				// This should be the new image
 				info, err := fs.Stat(activeImg)
@@ -641,6 +641,18 @@ var _ = Describe("Upgrade Actions test", func() {
 					spec.Passive.Size = 10
 					spec.Recovery.Size = 10
 					spec.Entry = constants.BootEntryRecovery
+
+					// KAIROS_INIT_VERSION setup for the downgrade gate. For the
+					// squashfs recovery flow spec.Recovery.MountPoint is
+					// empty; the finalize gate then reads /etc/kairos-release
+					// on the same fs for both sides of the compare, so the
+					// running-system file above is enough.
+					Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+					Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					if mp := spec.Recovery.MountPoint; mp != "" {
+						Expect(fsutils.MkdirAll(fs, filepath.Join(mp, "etc"), constants.DirPerm)).To(Succeed())
+						Expect(fs.WriteFile(filepath.Join(mp, "etc", "kairos-release"), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					}
 
 					err = fsutils.MkdirAll(config.Fs, "/proc", constants.DirPerm)
 					Expect(err).ShouldNot(HaveOccurred())
@@ -733,6 +745,14 @@ var _ = Describe("Upgrade Actions test", func() {
 					spec.Passive.Size = 10
 					spec.Recovery.Size = 10
 					spec.Entry = constants.BootEntryRecovery
+
+					// KAIROS_INIT_VERSION setup for the downgrade gate.
+					Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+					Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					if mp := spec.Recovery.MountPoint; mp != "" {
+						Expect(fsutils.MkdirAll(fs, filepath.Join(mp, "etc"), constants.DirPerm)).To(Succeed())
+						Expect(fs.WriteFile(filepath.Join(mp, "etc", "kairos-release"), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					}
 
 					err = fsutils.MkdirAll(config.Fs, "/proc", constants.DirPerm)
 					Expect(err).ShouldNot(HaveOccurred())

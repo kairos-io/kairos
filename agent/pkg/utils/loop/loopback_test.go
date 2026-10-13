@@ -157,7 +157,7 @@ var _ = Describe("Loopback", Label("loop"), func() {
 		It("fails if the loop device cannot be opened", func() {
 			err := loop.Unloop("/dev/loop99", config)
 			Expect(err).To(HaveOccurred())
-			Expect(memLog.String()).To(ContainSubstring("failed to set open loop device"))
+			Expect(memLog.String()).To(ContainSubstring("failed to open loop device"))
 		})
 
 		It("fails if clearing the loop device returns an error", func() {
@@ -169,7 +169,7 @@ var _ = Describe("Loopback", Label("loop"), func() {
 			}
 			err := loop.Unloop(fmt.Sprintf("/dev/loop%d", devLoopInt), config)
 			Expect(err).To(HaveOccurred())
-			Expect(memLog.String()).To(ContainSubstring("failed to set loop device status"))
+			Expect(memLog.String()).To(ContainSubstring("failed to clear loop device"))
 		})
 	})
 })

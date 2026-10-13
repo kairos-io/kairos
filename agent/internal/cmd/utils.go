@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kairos-io/kairos/v4/agent/internal/kairos"
-
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/pterm/pterm"
 )
@@ -20,7 +19,7 @@ func ClearScreen() {
 }
 
 func PrintBranding(b []byte) {
-	brandingFile := kairos.BrandingFile("banner")
+	brandingFile := branding.File("banner")
 	if _, err := os.Stat(brandingFile); err == nil {
 		f, err := os.ReadFile(brandingFile)
 		if err == nil {

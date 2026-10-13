@@ -115,15 +115,81 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 	})
 
 	Describe("Getting extensions", func() {
-		It("should fail with an invalid regex", func() {
+		It("should fail on a name that is not installed", func() {
 			err = config.Fs.WriteFile("/var/lib/kairos/extensions/valid.raw", []byte("valid"), 0644)
 			Expect(err).ToNot(HaveOccurred())
 			_, err := action.GetExtension(config, "[invalid", "", "sysext")
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError("extension [invalid not found"))
 		})
 		It("should fail when listing the extensions fails", func() {
 			_, err := action.GetExtension(config, "valid.raw", "", "invalid")
 			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Describe("Resolving an extension by name", func() {
+		// Two extensions whose names share a prefix, which is the shape the
+		// fleet server produces: an "Install extension" command names
+		// "tailscale" while "tailscale-agent" is also installed.
+		BeforeEach(func() {
+			for _, name := range []string{"tailscale.raw", "tailscale-agent.raw"} {
+				Expect(config.Fs.WriteFile("/var/lib/kairos/extensions/"+name, []byte(name), 0644)).To(Succeed())
+			}
+		})
+
+		It("resolves a bare name to its own image, not to a longer one", func() {
+			ext, err := action.GetExtension(config, "tailscale", "", "sysext")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ext.Name).To(Equal("tailscale.raw"))
+		})
+
+		It("removes only the extension that was named", func() {
+			Expect(action.RemoveExtension(config, "tailscale", "sysext", false)).To(Succeed())
+			_, err := config.Fs.Stat("/var/lib/kairos/extensions/tailscale-agent.raw")
+			Expect(err).ToNot(HaveOccurred(), "tailscale-agent.raw must survive removing tailscale")
+			_, err = config.Fs.Stat("/var/lib/kairos/extensions/tailscale.raw")
+			Expect(os.IsNotExist(err)).To(BeTrue(), "tailscale.raw should be gone")
+		})
+
+		It("resolves a name that holds a regular expression metacharacter", func() {
+			Expect(config.Fs.WriteFile("/var/lib/kairos/extensions/nvidia+cuda.raw", []byte("x"), 0644)).To(Succeed())
+			ext, err := action.GetExtension(config, "nvidia+cuda", "", "sysext")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ext.Name).To(Equal("nvidia+cuda.raw"))
+		})
+
+		It("does not resolve a name that is only a substring of an image", func() {
+			_, err := action.GetExtension(config, "scale", "", "sysext")
+			Expect(err).To(MatchError("extension scale not found"))
+		})
+
+		// The catalog and `auroraboot sysext` name their images
+		// "<name>.sysext.raw", which is what `sysext install` writes and
+		// what the fleet server then asks to enable by its bare name.
+		Describe("On an image with the two-part catalog suffix", func() {
+			BeforeEach(func() {
+				Expect(config.Fs.WriteFile("/var/lib/kairos/extensions/fwupd.sysext.raw", []byte("x"), 0644)).To(Succeed())
+			})
+
+			It("resolves the bare name", func() {
+				ext, err := action.GetExtension(config, "fwupd", "", "sysext")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ext.Name).To(Equal("fwupd.sysext.raw"))
+			})
+
+			It("enables the bare name the fleet server sends", func() {
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink("/var/lib/kairos/extensions/active/fwupd.sysext.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(target).To(ContainSubstring("fwupd.sysext.raw"))
+			})
+
+			It("does not resolve a name that does not end on a dot boundary", func() {
+				_, err := action.GetExtension(config, "wupd", "", "sysext")
+				Expect(err).To(MatchError("extension wupd not found"))
+				_, err = action.GetExtension(config, "fwupd.sys", "", "sysext")
+				Expect(err).To(MatchError("extension fwupd.sys not found"))
+			})
 		})
 	})
 
@@ -565,7 +631,7 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 			It("should install a extension", func() {
 				err = action.InstallExtension(config, "docker://quay.io/valid:v1.0.0", "sysext")
 				Expect(err).ToNot(HaveOccurred(), memLog.String())
-				expectedCall := v1mock.ExtractCall{ImageRef: "quay.io/valid:v1.0.0", Destination: "/var/lib/kairos/extensions/", PlatformRef: ""}
+				expectedCall := v1mock.ExtractCall{ImageRef: "quay.io/valid:v1.0.0", Destination: "/var/lib/kairos/extensions", PlatformRef: ""}
 				Expect(extractor.WasCalledWithExtractCall(expectedCall)).To(BeTrue())
 			})
 			It("should fail to install a missing extension", func() {
@@ -574,7 +640,7 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 				}
 				err = action.InstallExtension(config, "docker://quay.io/invalid:v1.0.0", "sysext")
 				Expect(err).To(HaveOccurred(), memLog.String())
-				expectedCall := v1mock.ExtractCall{ImageRef: "quay.io/invalid:v1.0.0", Destination: "/var/lib/kairos/extensions/", PlatformRef: ""}
+				expectedCall := v1mock.ExtractCall{ImageRef: "quay.io/invalid:v1.0.0", Destination: "/var/lib/kairos/extensions", PlatformRef: ""}
 				Expect(extractor.WasCalledWithExtractCall(expectedCall)).To(BeTrue())
 			})
 		})
@@ -905,7 +971,7 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 		It("should append the latest tag to name-only image references", func() {
 			err = action.InstallExtension(config, "oci://test/valid", "sysext")
 			Expect(err).ToNot(HaveOccurred())
-			expectedCall := v1mock.ExtractCall{ImageRef: "test/valid:latest", Destination: "/var/lib/kairos/extensions/", PlatformRef: ""}
+			expectedCall := v1mock.ExtractCall{ImageRef: "test/valid:latest", Destination: "/var/lib/kairos/extensions", PlatformRef: ""}
 			Expect(extractor.WasCalledWithExtractCall(expectedCall)).To(BeTrue())
 		})
 		It("should create the target dir if it does not exist", func() {
@@ -999,6 +1065,48 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 			err = action.EnableExtension(config, "valid.raw", "active", "sysext", true)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to create symlink"))
+		})
+	})
+	Describe("Installing extensions on a node that has none yet", func() {
+		BeforeEach(func() {
+			// A node that has never had an extension installed has no
+			// /var/lib/kairos/extensions directory at all.
+			Expect(config.Fs.RemoveAll("/var/lib/kairos")).ToNot(HaveOccurred())
+			Expect(config.Fs.WriteFile("/first.raw", []byte("valid"), 0644)).ToNot(HaveOccurred())
+		})
+
+		It("creates the sysext dir on the first install", func() {
+			Expect(action.InstallExtension(config, "file:///first.raw", "sysext")).To(Succeed(), memLog.String())
+			extensions, err := action.ListExtensions(config, "", "sysext")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(extensions).To(Equal([]action.Extension{
+				{Name: "first.raw", Location: "/var/lib/kairos/extensions/first.raw"},
+			}))
+		})
+
+		It("creates the confext dir on the first install", func() {
+			Expect(action.InstallExtension(config, "file:///first.raw", "confext")).To(Succeed(), memLog.String())
+			extensions, err := action.ListExtensions(config, "", "confext")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(extensions).To(Equal([]action.Extension{
+				{Name: "first.raw", Location: "/var/lib/kairos/confexts/first.raw"},
+			}))
+		})
+
+		It("creates the boot-state dir on the first install", func() {
+			Expect(action.InstallExtension(config, "file:///first.raw", "sysext")).To(Succeed(), memLog.String())
+			Expect(action.EnableExtension(config, "first.raw", "active", "sysext", false)).To(Succeed(), memLog.String())
+			extensions, err := action.ListExtensions(config, "active", "sysext")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(extensions).To(Equal([]action.Extension{
+				{Name: "first.raw", Location: "/var/lib/kairos/extensions/active/first.raw"},
+			}))
+		})
+
+		It("lists no extensions rather than failing", func() {
+			extensions, err := action.ListExtensions(config, "", "sysext")
+			Expect(err).ToNot(HaveOccurred(), memLog.String())
+			Expect(extensions).To(BeEmpty())
 		})
 	})
 })

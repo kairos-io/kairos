@@ -1,6 +1,14 @@
 package phonehome
 
-import "github.com/kairos-io/kairos/v4/sdk/state"
+import (
+	"os"
+
+	"github.com/kairos-io/kairos/v4/sdk/state"
+)
+
+// hostnameFn is the seam over os.Hostname so specs can pin what a heartbeat
+// reports without renaming the machine running them.
+var hostnameFn = os.Hostname
 
 // gatherAddresses collects the node's routable network addresses plus its
 // hostname and maps them to the AuroraBoot NodeAddress wire type
@@ -28,4 +36,22 @@ func toNodeAddresses(addrs []state.MachineAddress) []NodeAddress {
 		out = append(out, NodeAddress{Type: a.Type, Address: a.Address})
 	}
 	return out
+}
+
+// gatherHostname returns the node's current hostname, or "" when it cannot be
+// read. Empty is the right answer for a failure: the server treats a missing
+// hostname as "nothing to report" and keeps the value it already has, so a
+// transient read error cannot blank a good record.
+//
+// Like gatherAddresses and unlike gatherSystemInfo this is NOT cached. Caching
+// it is the bug: a node whose cloud-config sets
+// `hostname: kairos-{{ trunc 4 .MachineID }}` can phone home before cloud-init
+// has applied that name, so the value read once at startup is the image default
+// (kairos-io/kairos#4196).
+func gatherHostname() string {
+	h, err := hostnameFn()
+	if err != nil {
+		return ""
+	}
+	return h
 }

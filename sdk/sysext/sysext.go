@@ -41,6 +41,17 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 		_ = layerReader.Close()
 	}(layerReader)
 	tr := tar.NewReader(layerReader)
+	// Every write goes through root, which confines extraction to dst: it
+	// refuses any path, "..", or symlink that resolves outside it. This
+	// keeps a malformed or hand-crafted layer from writing elsewhere on the
+	// build host, and creates parent directories a layer omits.
+	root, err := os.OpenRoot(dst)
+	if err != nil {
+		return fmt.Errorf("open destination: %w", err)
+	}
+	defer func() {
+		_ = root.Close()
+	}()
 	// TODO: Support whiteout? https://github.com/opencontainers/image-spec/blob/79b036d80240ae530a8de15e1d21c7ab9292c693/layer.md#whiteouts
 	for {
 		header, err := tr.Next()
@@ -52,46 +63,76 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 		}
 
 		header.Name = filepath.Clean(header.Name)
-
-		path := filepath.Join(dst, header.Name)
-		fi := header.FileInfo()
-		mask := fi.Mode()
 		if !allowList.MatchString(header.Name) {
 			log.Debug("Skipping ", header.Name)
 			continue
 		}
 
+		// Layer paths are relative to the image root, with or without a
+		// leading slash.
+		name := strings.TrimPrefix(header.Name, "/")
+		if !filepath.IsLocal(name) {
+			return fmt.Errorf("%s: path is outside the destination", header.Name)
+		}
+		mode := header.FileInfo().Mode()
+
 		switch header.Typeflag {
 		case tar.TypeDir:
 			log.Debugf("%s is a directory", header.Name)
-			if fi, err := os.Lstat(path); err != nil || !fi.IsDir() {
-				if err := os.MkdirAll(path, mask); err != nil {
-					return fmt.Errorf("mkdir: %w", err)
-				}
+			if err := root.MkdirAll(name, mode.Perm()); err != nil {
+				return fmt.Errorf("mkdir: %w", err)
+			}
+			if err := restoreSpecialBits(root, name, mode); err != nil {
+				return err
 			}
 		case tar.TypeReg:
 			log.Debugf("%s is a file", header.Name)
-			file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, mask)
+			if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+				return fmt.Errorf("mkdir: %w", err)
+			}
+			file, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode.Perm())
 			if err != nil {
 				return fmt.Errorf("open: %w", err)
 			}
 			if _, err := io.Copy(file, tr); err != nil {
-				file.Close()
+				_ = file.Close()
 				return fmt.Errorf("copy: %w", err)
 			}
-			file.Close()
+			if err := file.Close(); err != nil {
+				return fmt.Errorf("close: %w", err)
+			}
+			if err := restoreSpecialBits(root, name, mode); err != nil {
+				return err
+			}
 		case tar.TypeSymlink:
 			log.Debugf("%s is a symlink", header.Name)
-			targetPath := filepath.Join(filepath.Dir(path), header.Linkname)
-			if !strings.HasPrefix(targetPath, dst) {
-				return fmt.Errorf("symlink: %w", err)
+			// The target is stored as is: an absolute target resolves against
+			// the merged system at runtime, and root refuses to follow it
+			// out of dst during extraction.
+			if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+				return fmt.Errorf("mkdir: %w", err)
 			}
-			if err := os.Symlink(header.Linkname, path); err != nil {
+			if err := root.Symlink(header.Linkname, name); err != nil {
 				return fmt.Errorf("symlink: %w", err)
 			}
 		default:
 			return fmt.Errorf("unsupported type: %d", header.Typeflag)
 		}
+	}
+	return nil
+}
+
+// restoreSpecialBits reapplies the setuid, setgid and sticky bits a packaged
+// binary or directory may carry. root.MkdirAll and root.OpenFile accept only
+// the permission bits in their mode argument, so these are set with a
+// follow-up chmod.
+func restoreSpecialBits(root *os.Root, name string, mode os.FileMode) error {
+	special := mode & (os.ModeSetuid | os.ModeSetgid | os.ModeSticky)
+	if special == 0 {
+		return nil
+	}
+	if err := root.Chmod(name, mode.Perm()|special); err != nil {
+		return fmt.Errorf("chmod: %w", err)
 	}
 	return nil
 }

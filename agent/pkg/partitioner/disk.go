@@ -56,6 +56,22 @@ func gptBackupTailSectors(sectorSize int64) uint64 {
 	return partArraySectors + 1
 }
 
+// gptLastDataSector returns the highest sector a partition may end on, that is
+// the sector before the backup GPT structures at the tail of the disk. The
+// second return value is false when the geometry is unknown or too small to
+// hold a GPT at all.
+func gptLastDataSector(diskSize, sectorSize int64) (uint64, bool) {
+	if diskSize <= 0 || sectorSize <= 0 {
+		return 0, false
+	}
+	diskSectors := uint64(diskSize / sectorSize)
+	tail := gptBackupTailSectors(sectorSize)
+	if diskSectors <= tail+1 {
+		return 0, false
+	}
+	return diskSectors - tail - 1, true
+}
+
 // validateGPTPartitionsFit refuses layouts whose last partition would land on
 // or past the sectors go-diskfs reserves for the backup GPT structures.
 // Without this the partitioner happily writes a table where the last partition
@@ -66,12 +82,10 @@ func validateGPTPartitionsFit(parts []*gpt.Partition, diskSize, sectorSize int64
 	if diskSize <= 0 || sectorSize <= 0 {
 		return nil
 	}
-	diskSectors := uint64(diskSize / sectorSize)
-	tail := gptBackupTailSectors(sectorSize)
-	if diskSectors <= tail+1 {
+	lastDataSector, ok := gptLastDataSector(diskSize, sectorSize)
+	if !ok {
 		return fmt.Errorf("target disk is too small to hold a GPT partition table")
 	}
-	lastDataSector := diskSectors - tail - 1
 	for _, p := range parts {
 		if p == nil {
 			continue
@@ -118,18 +132,44 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 			}
 			size = uint64(diskSize) - sizeUsed - tailReserveBytes
 		} else {
-			// Change it to bytes. If it is the last partition, trim the
-			// backup-GPT tail off its requested size so the write stays
-			// inside lastDataSector.
-			if index == len(parts)-1 {
-				size = uint64(part.Size*1024*1024) - tailReserveBytes
-			} else {
-				size = uint64(part.Size * 1024 * 1024)
-			}
-
+			// Change it to bytes
+			size = uint64(part.Size) * 1024 * 1024
 		}
 
 		end = getSectorEndFromSize(start, size, sectorSize)
+
+		// The backup GPT header and partition array sit in the last
+		// gptBackupTailSectors of the disk, so a partition whose end
+		// lands on them has to give those sectors back. Only a
+		// partition that actually reaches them, though: this used to
+		// come off every last partition unconditionally, and a
+		// fixed-size one that ended nowhere near the tail came out
+		// short of the size it asked for.
+		//
+		// The <=tail bound is what distinguishes a partition kissing
+		// the backup GPT from one that runs past the end of the disk
+		// entirely. That second case is a layout that does not fit,
+		// and we want the user to hear about it, so we leave end
+		// alone and let validateGPTPartitionsFit reject it below
+		// instead of silently truncating the partition here.
+		if lastDataSector, ok := gptLastDataSector(diskSize, sectorSize); ok &&
+			end > lastDataSector && end-lastDataSector <= gptBackupTailSectors(sectorSize) {
+			end = lastDataSector
+			size = (end - start + 1) * uint64(sectorSize)
+		}
+
+		// The GUID is derived rather than random so it is predictable across
+		// installs. Every built-in partition carries a filesystem label, but
+		// an extra partition usually does not, and uuid.NewV5 over the empty
+		// string is a constant: two unlabelled extra partitions came out with
+		// the same PARTUUID on the same disk, and every machine got that same
+		// value. Fall back to the partition name, which the installer already
+		// requires for an extra partition.
+		guidSeed := part.FilesystemLabel
+		if guidSeed == "" {
+			guidSeed = part.Name
+		}
+		partGUID := uuid.NewV5(uuid.NamespaceURL, guidSeed).String()
 
 		if part.Name == sdkConstants.EfiPartName && part.FS == sdkConstants.EfiFs {
 			// EFI boot partition
@@ -137,8 +177,8 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 				Start:      start,
 				End:        end,
 				Type:       gpt.EFISystemPartition,
-				Size:       size,                                                         // partition size in bytes
-				GUID:       uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(), // set know predictable UUID
+				Size:       size, // partition size in bytes
+				GUID:       partGUID,
 				Name:       part.Name,
 				Index:      index + 1, // GPT partition indices are 1-based
 				Attributes: 0x1,       // system partition flag
@@ -149,8 +189,8 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 				Start:      start,
 				End:        end,
 				Type:       gpt.BIOSBoot,
-				Size:       size,                                                         // partition size in bytes
-				GUID:       uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(), // set know predictable UUID
+				Size:       size, // partition size in bytes
+				GUID:       partGUID,
 				Name:       part.Name,
 				Index:      index + 1, // GPT partition indices are 1-based
 				Attributes: 0x4,       // legacy bios bootable flag
@@ -162,7 +202,7 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 				End:   end,
 				Type:  gpt.LinuxFilesystem,
 				Size:  size,
-				GUID:  uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(),
+				GUID:  partGUID,
 				Name:  part.Name,
 				Index: index + 1, // GPT partition indices are 1-based
 			})

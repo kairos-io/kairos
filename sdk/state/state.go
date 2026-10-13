@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/foxboron/go-uefi/efi"
@@ -407,7 +408,27 @@ func detectSystem(r *Runtime) {
 	var si sysinfo.SysInfo
 
 	si.GetSysInfo()
+	si.OS.Architecture = resolveArch(si.OS.Architecture, goruntime.GOARCH)
 	r.System = si
+}
+
+// resolveArch fills in the OS architecture when sysinfo could not name it.
+// sysinfo reads it off the glibc loader path, so it only resolves on x86
+// glibc: it stays empty on every arm64 and riscv64 image, and on every musl
+// image whatever the arch, which includes all of Hadron. The agent is built
+// for the userland it runs in, so its own GOARCH is the answer sysinfo was
+// reaching for. "386" is spelled the way sysinfo spells it, so a machine
+// reports the same string whether or not the probe found an answer; every
+// other GOARCH keeps its Go name, which is also the one KAIROS_ARCH uses.
+func resolveArch(detected, goarch string) string {
+	if detected != "" {
+		return detected
+	}
+	if goarch == "386" {
+		return "i386"
+	}
+
+	return goarch
 }
 
 func detectKairos(r *Runtime) {

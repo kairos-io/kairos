@@ -45,6 +45,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
@@ -52,4 +53,13 @@ jobs:
           go-version-file: go.mod
 
       - name: Unit tests
+        env:
+          # agent/pkg/github/releases_test.go probes the live GitHub API.
+          # Unauthenticated is 60/hr per runner IP and shared IPs regularly
+          # exhaust that on their own; passing the workflow token lifts the
+          # cap to 5000/hr.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The race detector needs cgo, which the runner has. It is off in
+          # the Makefile so that `make test` works without a C compiler.
+          GOFLAGS: -race
         run: make test

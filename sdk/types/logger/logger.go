@@ -51,7 +51,7 @@ func newKairosLogger(name, level string, quiet bool, dirs ...string) KairosLogge
 		logName := fmt.Sprintf("%s.log", name)
 		_ = os.MkdirAll("/var/log/kairos/", os.ModeDir|os.ModePerm)
 		logFileName := filepath.Join("/var/log/kairos/", logName)
-		logfile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		logfile, err := openLogFile(logFileName)
 		if err == nil {
 			fds = append(fds, int(logfile.Fd()))
 			loggers = append(loggers, zerolog.ConsoleWriter{Out: logfile, TimeFormat: time.RFC3339, NoColor: true, FieldsExclude: []string{syslogIdentifierKey}})
@@ -63,7 +63,7 @@ func newKairosLogger(name, level string, quiet bool, dirs ...string) KairosLogge
 		logName := fmt.Sprintf("%s.log", name)
 		_ = os.MkdirAll(dir, os.ModeDir|os.ModePerm)
 		logFileName := filepath.Join(dir, logName)
-		logfile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		logfile, err := openLogFile(logFileName)
 		if err == nil {
 			fds = append(fds, int(logfile.Fd()))
 			loggers = append(loggers, zerolog.ConsoleWriter{Out: logfile, TimeFormat: time.RFC3339, NoColor: true, FieldsExclude: []string{syslogIdentifierKey}})
@@ -248,4 +248,15 @@ func (m KairosLogger) Trace(args ...interface{}) {
 		args = append([]interface{}{fmt.Sprintf("[%v] ", os.Getpid())}, args...)
 	}
 	m.Logger.Trace().Msg(fmt.Sprint(args...))
+}
+
+// openLogFile opens a log file for appending. Logs are not readable by other
+// (CIS 4.2.3), and a file left behind with a laxer mode is tightened as well.
+func openLogFile(path string) (*os.File, error) {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o640)
+	if err != nil {
+		return nil, err
+	}
+	_ = f.Chmod(0o640)
+	return f, nil
 }

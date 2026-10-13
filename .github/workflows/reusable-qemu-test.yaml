@@ -78,12 +78,13 @@ on:
           which produces ghcr.io/kairos-io/kairos/hadron for the hadron
           base image and ghcr.io/kairos-io/kairos/ubuntu for ubuntu.
 
-          Default matches the pre-monorepo image-pr.yaml / release.yaml
-          shape, which puts every flavor in one ci-temp-images repo and
-          disambiguates via the tag.
+          Default matches the per-flavor GHCR layout every real caller
+          already passes explicitly; kept as a sane fallback rather than
+          a legacy quay ci-temp-images target that no longer exists in
+          the test path.
         required: false
         type: string
-        default: 'quay.io/kairos/ci-temp-images'
+        default: 'ghcr.io/kairos-io/kairos/${flavor}'
       kcrypt_challenger_image:
         description: |
           Fully-qualified image reference for the kcrypt-challenger
@@ -94,29 +95,57 @@ on:
         required: false
         type: string
         default: ''
-
-    secrets:
-      QUAY_USERNAME:
+      bundle_image_tag:
         description: |
-          Registry user for quay.io/kairos/ci-temp-images. Needs WRITE, not just
-          read: this workflow pulls the image under test and also pushes a
-          bundles-test image back to the same repository.
-        required: true
-      QUAY_PASSWORD:
-        description: "Registry token matching QUAY_USERNAME. Same write scope."
-        required: true
+          Docker-safe tag for the bundles test image, such as pr-<number>
+          or master-scratch. Normalize branch/ref names before passing them
+          (e.g. replace / with -); raw branch names may not be valid tags.
+        required: false
+        type: string
+        default: ''
+      suite_timeout:
+        description: |
+          ginkgo's suite timeout, as a Go duration.
+
+          Passed to ginkgo as --timeout. Without it ginkgo applies its own
+          default of 1h, which is invisible in the log and in this file: a
+          suite that ran out of clock reports "A suite timeout occurred" with
+          no hint that 1h was ever the budget, and any per-step Eventually
+          ceiling near that size can never fail on its own assertion
+          (kairos-io/kairos#4489).
+
+          The default keeps today's effective budget, now stated. Raise it for
+          a caller only alongside per-step ceilings that still fit inside it.
+        required: false
+        type: string
+        default: '60m'
+
+permissions:
+  contents: read
 
 jobs:
-  test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
-    runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
+  test:
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-24.04
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
+    # Backstop only. ginkgo's own --timeout below should always fire first,
+    # because it stops the suite with a progress report naming the step,
+    # whereas this kills the runner and leaves nothing to read. This exists so
+    # that anything ginkgo cannot interrupt -- a wedged qemu, an ssh call
+    # hanging in AfterEach while it gathers logs -- is bounded by minutes
+    # rather than by GitHub's 6h default.
+    timeout-minutes: 120
+    env:
+      BUNDLE_IMAGE_REPO: ghcr.io/kairos-io/kairos/bundles-test
     steps:
       - name: Split base image
         id: split
         run: |
           # Split base image for tag generation
-          BASE_IMAGE=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
-          BASE_TAG=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          BASE_IMAGE=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 2 || echo 'latest')
           # Handle special cases for base images with slashes
           # Handle base images with slashes (registry paths)
           # Examples:
@@ -157,27 +186,32 @@ jobs:
           echo "Flavor: $FLAVOR"
           echo "Flavor Release: $FLAVOR_RELEASE"
           echo "Flavor Release Latest: $FLAVOR_RELEASE_LATEST"
+        env:
+          INPUTS_BASE_IMAGE: ${{ inputs.base_image }}
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
-          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
+          # zizmor flags a cache that release runs read. This one only holds
+          # the test suite's Go modules, and nothing built here ships.
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}  # zizmor: ignore[cache-poisoning]
       - name: Set up Docker Buildx for public runners
         if: runner.environment == 'github-hosted'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
         with:
           driver-opts: network=host
       - name: Set up Docker Buildx for custom runners
         if: runner.environment == 'self-hosted'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
         with:
           driver-opts: network=host
           buildkitd-config-inline: |
@@ -186,22 +220,22 @@ jobs:
             [registry."registry.docker-mirror.svc.cluster.local:5000"]
               insecure = true
               http = true
-      - name: Login to Quay Registry
-        # Only the bundles test actually pushes to quay -- it builds
-        # a per-run bundles-test image and pushes it to
-        # quay.io/kairos/ci-temp-images:bundles-test (see "Prepare
-        # test bundle" step below). Every other cell either pulls
-        # nothing at CI level or reaches public quay repos
-        # (luet's quay.io/kairos/packages) which need no login. The
-        # OS image lives at ghcr.io/kairos-io/kairos/${flavor} now,
-        # not at ci-temp-images, so IMAGE_NAME pulls from ghcr
-        # inside the VM and needs no CI-level quay creds either.
+      - name: Login to GitHub Container Registry
         if: inputs.test == 'bundles'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate test bundle image tag
+        if: inputs.test == 'bundles'
+        env:
+          BUNDLE_IMAGE_TAG: ${{ inputs.bundle_image_tag }}
+        run: |
+          if [[ ! "$BUNDLE_IMAGE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "::error::bundle_image_tag must be a valid, non-empty container tag"
+            exit 1
+          fi
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         if: runner.environment == 'self-hosted'
         run: |
@@ -211,7 +245,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf curl
-          sudo setfacl -m u:runner:rwx /dev/kvm
+          # setfacl on its own is not enough. Installing the qemu/libvirt stack
+          # triggers udev, and udevadm trigger is asynchronous, so /dev/kvm can be
+          # re-created with the packaged root:kvm 0660 seconds after this step has
+          # already run setfacl and returned 0. Install a rule that outranks the
+          # packaged one, drain the udev queue, and only then fall back to the ACL.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules || true
+          sudo udevadm trigger --name-match=kvm || true
+          sudo udevadm settle || true
+          sudo setfacl -m u:runner:rwx /dev/kvm || true
+          # Fail here rather than 20 minutes into the suite with an aborted VM.
+          test -w /dev/kvm
       - name: Encryption deps
         if: ${{ startsWith(inputs.test, 'encryption-') }}
         run: |
@@ -221,15 +266,16 @@ jobs:
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
           LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
-      - name: Install cinc-auditor and openssh-client for the DevSec ssh-baseline profile
+      - name: Install cinc-auditor and openssh-client for the InSpec profile tests
         # cinc-auditor is a FOSS drop-in for chef/inspec (InSpec >= 5 is no
         # longer under an OSS licence). It runs the profile from
         # https://github.com/dev-sec/ssh-baseline against the booted VM over
         # SSH; nothing gets installed inside the image. openssh-client
         # gives us ssh-keygen (for the ephemeral test key) and ssh (for
         # the post-install readiness probe) — the self-hosted runners
-        # don't ship it by default.
-        if: ${{ inputs.test == 'ssh-hardening' }}
+        # don't ship it by default. The cis test runs
+        # https://github.com/dev-sec/cis-dil-benchmark the same way.
+        if: ${{ inputs.test == 'ssh-hardening' || inputs.test == 'cis' }}
         run: |
           sudo apt-get install -y openssh-client
           curl -L https://omnitruck.cinc.sh/install.sh | sudo bash -s -- -P cinc-auditor
@@ -262,13 +308,29 @@ jobs:
           VARIANT: ${{ inputs.variant }}
           ARCH: ${{ inputs.arch }}
           MODEL: ${{ inputs.model }}
-          SHA: ${{ github.sha }}
+          KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
         run: |
+          # Match _build-iso.yaml's custom_tag_format:
+          # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
+          # Reusable-qemu-test only tests non-UKI, non-per-k8s-version cells
+          # today, so $K8S is derived from what factory-action would produce
+          # for the same kubernetes_distro/version inputs and $UKI stays empty.
+          # $VERSION uses the same `git describe --tags --dirty --always`
+          # rule factory-action's setup step uses so both sides land on the
+          # same tag.
+          VERSION=$(git describe --tags --dirty --always)
+          if [[ "$VERSION" =~ ^[a-f0-9]+$ ]]; then
+            VERSION="v0.0.0-$VERSION"
+          fi
+          # Currently no caller passes kubernetes_version to this reusable,
+          # so K8S stays empty; keep the placeholder wired so future callers
+          # can flip it on without a second edit here.
+          K8S=""
           # Expand the literal `${flavor}` token in the caller-provided
           # prefix. Callers that don't use the token (or take the
           # default) pass through unchanged.
           PREFIX="${PREFIX_TEMPLATE//\$\{flavor\}/$FLAVOR}"
-          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}-${SHA}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}${K8S}-${VERSION}" >> "$GITHUB_ENV"
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest-with-cli' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -292,34 +354,46 @@ jobs:
           out-file-path: ""
       - name: Prepare test bundle
         if: ${{ inputs.test == 'bundles' }}
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        id: bundle
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: examples/bundle/Dockerfile
           platforms: linux/${{ inputs.arch }}
           push: true
-          tags: quay.io/kairos/ci-temp-images:bundles-test
-          # https://docs.redhat.com/en/documentation/red_hat_quay/3.4/html/use_red_hat_quay/working_with_tags#tag-expiration
-          labels: |
-            quay.expires-after=6h
+          tags: ${{ env.BUNDLE_IMAGE_REPO }}:${{ inputs.bundle_image_tag }}
+      - name: Export test bundle digest
+        if: ${{ inputs.test == 'bundles' }}
+        env:
+          BUNDLE_DIGEST: ${{ steps.bundle.outputs.digest }}
+        run: |
+          if [[ ! "$BUNDLE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Build did not return a valid bundle digest"
+            exit 1
+          fi
+          printf 'BUNDLE_IMAGE=%s@%s\n' \
+            "$BUNDLE_IMAGE_REPO" "$BUNDLE_DIGEST" >> "$GITHUB_ENV"
       - name: Run tests
         if: ${{ !startsWith(inputs.test, 'encryption-') }}
         env:
           MEMORY: 5000
           DRIVE_SIZE: 50000
-          CPUS: 4
+          CPUS: 2
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
           USE_BRIDGE_NETWORK: ${{ inputs.use_bridge_network && '1' || '' }}
+          STEPS_FIND_OVMF_OUTPUTS_FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
+          INPUTS_SUITE_TIMEOUT: ${{ inputs.suite_timeout }}
+          INPUTS_TEST: ${{ inputs.test }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
-            export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
+            export FIRMWARE="${STEPS_FIND_OVMF_OUTPUTS_FIRMWARE}"
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
           fi
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           echo "ISO is: $ISO"
           pushd tests
           go mod download
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./...
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "${INPUTS_SUITE_TIMEOUT}" --label-filter "${INPUTS_TEST}" --fail-fast -r ./...
           popd
       - name: Run encryption tests
         if: ${{ startsWith(inputs.test, 'encryption-') }}
@@ -330,6 +404,7 @@ jobs:
           DRIVE_SIZE: 50000
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
           KCRYPT_CHALLENGER_IMAGE: ${{ inputs.kcrypt_challenger_image }}
+          GINKGO_SUITE_TIMEOUT: ${{ inputs.suite_timeout }}
         run: |
           # Pick a k3s image
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | grep k3s | head -1 )

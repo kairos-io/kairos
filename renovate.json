@@ -29,16 +29,46 @@
         "action"
       ],
       "pinDigests": true
+    },
+    {
+      "description": "The v2 line of bubbles and bubbletea is published as charm.land/bubbles/v2 and charm.land/bubbletea/v2, so github.com/charmbracelet/<pkg>/v2 does not resolve. See #4472 and #4473.",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchDepNames": [
+        "github.com/charmbracelet/bubbles",
+        "github.com/charmbracelet/bubbletea"
+      ],
+      "allowedVersions": "<2.0.0"
+    },
+    {
+      "description": "edgevpn v0.35.4 added api/spa.go with a //go:embed of react-ui/dist, which is gitignored upstream and absent from the published module zip, so every version from v0.35.4 on fails to compile for consumers. See #4464 and mudler/edgevpn#1080.",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchDepNames": [
+        "github.com/mudler/edgevpn"
+      ],
+      "allowedVersions": "<0.35.4"
+    },
+    {
+      "description": "kubo v0.41.0 pulls cockroachdb/swiss, which go:linknames into runtime internals that Go 1.27 removed. The pin and its reason live in the Dockerfile. See #4509.",
+      "matchFileNames": [
+        "examples/bundle/Dockerfile"
+      ],
+      "enabled": false
     }
   ],
   "customManagers": [
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/.github/workflows/.*.ya?ml/"
+        "/.github/workflows/.*.ya?ml/",
+        "/internal/testartifacts/.*\\.go$/"
       ],
       "matchStrings": [
         "quay.io/kairos/auroraboot:(?<currentValue>[a-zA-Z0-9_.-]+)",
+        "AuroraBootVersion = \\\"(?<currentValue>[a-zA-Z0-9_.-]+)\\\"",
         "auroraboot_version:\\s*[\\\"']?(?<currentValue>[a-zA-Z0-9_.-]+)[\\\"']?"
       ],
       "depNameTemplate": "quay.io/kairos/auroraboot",
@@ -64,6 +94,31 @@
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "kube-vip/kube-vip",
       "versioningTemplate": "semver"
+    },
+    {
+      "description": "zizmor-action runs whichever zizmor release it is given, and a new release can bring new audits, so the version is pinned in the workflow.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/zizmor\\.yaml$/"
+      ],
+      "matchStrings": [
+        "ZIZMOR_VERSION:\\s*'(?<currentValue>[0-9.]+)'"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "zizmorcore/zizmor",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "description": "kairos-init/README.md's Quick example pins the image in a fenced code block, so the dockerfile manager (which only scans files literally named Dockerfile/Containerfile) never sees it.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^kairos-init/README\\.md$/"
+      ],
+      "matchStrings": [
+        "quay.io/kairos/kairos-init:(?<currentValue>[a-zA-Z0-9_.-]+)"
+      ],
+      "depNameTemplate": "quay.io/kairos/kairos-init",
+      "datasourceTemplate": "docker"
     }
   ]
 }
