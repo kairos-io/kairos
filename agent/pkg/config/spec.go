@@ -193,6 +193,20 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 		return nil, err
 	}
 
+	// install.partitions decodes a name, a label and a filesystem onto every
+	// system partition, and the call below rebuilds those partitions from
+	// Kairos constants, reading only the size. Refuse a value that would be
+	// dropped rather than installing something other than what was asked for.
+	if err := checkSystemPartitions([]systemPartition{
+		{key: "install.partitions.efi", name: sdkConstants.EfiPartName, label: sdkConstants.EfiLabel, fs: sdkConstants.EfiFs, got: spec.Partitions.EFI},
+		{key: "install.partitions.oem", name: sdkConstants.OEMPartName, label: sdkConstants.OEMLabel, fs: sdkConstants.LinuxFs, got: spec.Partitions.OEM},
+		{key: "install.partitions.recovery", name: sdkConstants.RecoveryPartName, label: sdkConstants.RecoveryLabel, fs: sdkConstants.LinuxFs, got: spec.Partitions.Recovery},
+		{key: "install.partitions.state", name: sdkConstants.StatePartName, label: sdkConstants.StateLabel, fs: sdkConstants.LinuxFs, got: spec.Partitions.State},
+		{key: "install.partitions.persistent", name: sdkConstants.PersistentPartName, label: sdkConstants.PersistentLabel, fs: sdkConstants.LinuxFs, got: spec.Partitions.Persistent},
+	}); err != nil {
+		return nil, err
+	}
+
 	// Calculate the partitions afterwards so they use the image sizes for the final partition sizes
 	spec.Partitions = NewInstallElementalPartitions(cfg.Logger, spec)
 
@@ -1276,7 +1290,7 @@ func DetectPreConfiguredDevice(logger sdkLogger.KairosLogger) (string, error) {
 // aliased on purpose: a user who wrote the old key got nothing, and quietly
 // turning it on now would change what an existing config does.
 var deprecatedKeys = map[string]map[string]string{
-	"install": {"no_format": "no-format"},
+	"install": {"no_format": "no-format", "image": "source"},
 }
 
 // warnDeprecatedKeys tells the user when a block carries a key that is parsed

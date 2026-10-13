@@ -106,13 +106,14 @@ func (m Mount) Mount(target string) error {
 		return fmt.Errorf("mounting %q at %q: %w", m.Source, target, err)
 	}
 
-	// A bind mount cannot be made read-only in one call: mount(2) ignores
-	// MS_RDONLY when MS_BIND is set, and the mount silently comes up writable.
-	// A second MS_REMOUNT pass is what applies it.
-	const readOnlyBind = unix.MS_BIND | unix.MS_RDONLY
-	if flags&readOnlyBind == readOnlyBind {
+	// A bind mount cannot take per-mount flags in one call: mount(2) ignores
+	// MS_RDONLY, MS_NODEV, MS_NOSUID and MS_NOEXEC when MS_BIND is set, and the
+	// mount silently comes up without them. A second MS_REMOUNT pass is what
+	// applies them.
+	const perMountFlags = unix.MS_RDONLY | unix.MS_NODEV | unix.MS_NOSUID | unix.MS_NOEXEC
+	if flags&unix.MS_BIND != 0 && flags&perMountFlags != 0 {
 		if err := mountSyscall("", target, "", flags|unix.MS_REMOUNT, ""); err != nil {
-			return fmt.Errorf("remounting %q read-only: %w", target, err)
+			return fmt.Errorf("remounting bind %q with its flags: %w", target, err)
 		}
 	}
 

@@ -21,6 +21,8 @@ type RootSchema struct {
 	GrubOptionsSchema  `json:"grub_options,omitempty"`
 	Install            InstallSchema `json:"install,omitempty"`
 	Kcrypt             KcryptSchema  `json:"kcrypt,omitempty"`
+	Upgrade            UpgradeSchema `json:"upgrade,omitempty"`
+	Reset              ResetSchema   `json:"reset,omitempty"`
 	Options            []interface{} `json:"options,omitempty" description:"Various options."`
 	// Users is not required. An admin user may instead be defined in a yip
 	// stage (stages.<stage>[].users) or waived with install.nousers, and the
