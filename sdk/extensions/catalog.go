@@ -79,6 +79,13 @@ func (catalog Catalog) Resolve(name, version, architecture string) (Resolved, er
 
 			artifact, found := tag.Sysext[architecture]
 			if !found {
+				// A layer can be published as a base image only, with its
+				// system extension build switched off on purpose. Saying the
+				// architecture is unavailable sends the reader looking for a
+				// node of another architecture, and there is none to find.
+				if len(tag.Sysext) == 0 {
+					return Resolved{}, fmt.Errorf("layer %q version %q publishes no system extension image", name, resolvedVersion)
+				}
 				return Resolved{}, fmt.Errorf("architecture %q is not available for layer %q version %q", architecture, name, resolvedVersion)
 			}
 			if !immutableOCIReference.MatchString(artifact.OCI) {
