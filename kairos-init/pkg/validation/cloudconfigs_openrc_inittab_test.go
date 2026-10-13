@@ -9,6 +9,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
+
+	"github.com/kairos-io/kairos/v4/sdk/state"
 )
 
 // inittabStep is the subset of a bundled cloud-config step this spec needs: the
@@ -71,6 +73,13 @@ func replayOpenRCInittab(liveMode bool, cmdline string) string {
 	Expect(os.MkdirAll(runCos, 0o700)).To(Succeed())
 	if liveMode {
 		Expect(os.WriteFile(filepath.Join(runCos, "live_mode"), nil, 0o600)).To(Succeed())
+	}
+	// The installer stages gate on the install intent sentinels immucore
+	// writes, not on the cmdline (kairos-io/kairos#5459), so run the real
+	// decision and plant what it returns. ukiInstallMedium is false: this
+	// harness replays OpenRC, which Trusted Boot does not use.
+	for _, sentinel := range state.InstallIntentSentinels(cmdline, false, liveMode) {
+		Expect(os.WriteFile(filepath.Join(runCos, sentinel), nil, 0o600)).To(Succeed())
 	}
 
 	// The steps name absolute paths that cannot be written here, so point each
