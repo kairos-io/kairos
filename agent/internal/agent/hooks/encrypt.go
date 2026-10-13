@@ -77,6 +77,14 @@ func Encrypt(c sdkConfig.Config) error {
 
 // Helper methods for unified encryption flow
 
+// DefaultUKIEncryptionTargets is the partition list a UKI install encrypts
+// when install.encrypted_partitions is empty. The reset path
+// (agent/pkg/action) re-encrypts against the same list, so it lives in one
+// place and cannot drift between install and reset.
+func DefaultUKIEncryptionTargets() []string {
+	return []string{constants.OEMLabel, constants.PersistentLabel}
+}
+
 // determinePartitionsToEncrypt returns the list of partitions to encrypt based on mode
 func determinePartitionsToEncrypt(c sdkConfig.Config) []string {
 	// If user has specified partitions, respect their preference
@@ -86,8 +94,7 @@ func determinePartitionsToEncrypt(c sdkConfig.Config) []string {
 
 	// No user-specified partitions
 	if internalutils.IsUki() {
-		// UKI mode: encrypt OEM and PERSISTENT by default
-		return []string{constants.OEMLabel, constants.PersistentLabel}
+		return DefaultUKIEncryptionTargets()
 	}
 
 	// Non-UKI mode with no user-specified partitions: don't encrypt anything

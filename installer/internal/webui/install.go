@@ -15,7 +15,7 @@ import (
 // shown to the operator, so it names the two ways to fix it.
 var errNoAgent = errors.New("kairos-agent not found (set KAIROS_AGENT_BIN or add it to PATH)")
 
-// startInstall writes the cloud-config to a temporary file and runs
+// startInstall writes the finalized cloud-config to a temporary file and runs
 // kairos-agent against it, publishing the agent's progress to log.
 //
 // source is the install source the installer itself was started with, and
@@ -29,7 +29,7 @@ var errNoAgent = errors.New("kairos-agent not found (set KAIROS_AGENT_BIN or add
 // the ones that happen before the agent is running, which are the only ones
 // there is still a form to report them on; everything after that arrives as an
 // error message on the progress stream.
-func startInstall(log *progressLog, source, cloudConfig, device, finish string) error {
+func startInstall(log *progressLog, source, cloudConfig, finish string) error {
 	// Resolve the agent before writing the config: it carries the operator's
 	// password hash, so it must not be left on disk when nothing is going to
 	// read it.
@@ -38,18 +38,13 @@ func startInstall(log *progressLog, source, cloudConfig, device, finish string) 
 		return errNoAgent
 	}
 
-	rendered, err := renderCloudConfig(cloudConfig, device)
-	if err != nil {
-		return err
-	}
-
 	f, err := os.CreateTemp("", "install-webui-*.yaml")
 	if err != nil {
 		return err
 	}
 	cfgPath := f.Name()
 	_ = f.Close()
-	if err := os.WriteFile(cfgPath, []byte(rendered), 0600); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(cloudConfig), 0600); err != nil {
 		_ = os.Remove(cfgPath)
 		return err
 	}
@@ -119,4 +114,30 @@ func openAgentTranscript() (*os.File, error) {
 		return nil, err
 	}
 	return os.OpenFile(debugbundle.AgentOutputLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+}
+
+// finishAction maps the two form checkboxes onto the single agentrun finish
+// action. Reboot wins when both are ticked, because that is what the agent
+// does with both flags set: hooks.Lifecycle checks ShouldReboot before
+// ShouldShutdown and reboots before it can reach the power-off branch.
+// Resolving it here keeps the browser and the agent naming the same outcome.
+func finishAction(reboot, powerOff string) string {
+	if checked(reboot) {
+		return "reboot"
+	}
+	if checked(powerOff) {
+		return "poweroff"
+	}
+	return ""
+}
+
+// checked reports whether an HTML checkbox came back ticked. A browser sends
+// "on" for a box with no explicit value and omits the field entirely when it
+// is clear, but the endpoint also takes JSON, so "true" and "1" are accepted.
+func checked(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "on", "true", "1", "yes":
+		return true
+	}
+	return false
 }
