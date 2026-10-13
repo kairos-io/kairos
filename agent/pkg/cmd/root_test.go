@@ -4,12 +4,17 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	"github.com/kairos-io/kairos/v4/sdk/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -249,9 +254,9 @@ func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
 	t.Cleanup(func() { autoInstallFn = original })
 
 	called := false
-	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error) {
+	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error, error) {
 		called = true
-		return false, nil, nil
+		return false, nil, nil, nil
 	}
 
 	err := command.Action(commandContext(t, command, "", "--"+skipAutoInstallFlag))
@@ -341,5 +346,309 @@ func TestStateRegistersGetAndNoApply(t *testing.T) {
 	}
 	if !names["get"] {
 		t.Errorf("state lost its get subcommand, subcommands %v", names)
+	}
+}
+
+// TestKcryptNVIndexFlagLeavesRoomForTheConfig guards the precedence the three
+// kcrypt NV subcommands document, "explicit flag > config > default", at the
+// entry point that decides it. The flag used to carry
+// kcrypt.DefaultLocalPassphraseNVIndex as its Value, so c.String("nv-index")
+// was never empty and action.resolveNVIndexAndDevice could never reach its
+// config branch: a node setting kcrypt.nv_index had checknv, readnv and
+// cleanupnv silently operate on 0x1500000. The default is applied by the
+// resolver instead, which is the only place that can see the config.
+// See kairos-io/kairos#5183.
+func TestKcryptNVIndexFlagLeavesRoomForTheConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "unset", args: []string{"kairos-agent"}, want: ""},
+		{name: "given", args: []string{"kairos-agent", "--nv-index", "0x1500001"}, want: "0x1500001"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got string
+			app := &cli.App{
+				Flags:  []cli.Flag{&kcryptNVIndexFlag},
+				Action: func(c *cli.Context) error { got = c.String("nv-index"); return nil },
+			}
+			if err := app.Run(tc.args); err != nil {
+				t.Fatalf("running the app: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("c.String(%q) = %q, want %q", "nv-index", got, tc.want)
+			}
+		})
+	}
+}
+
+// `upgrade --dry-run` must be registered as a bool flag that defaults to off,
+// so a plain `upgrade` keeps running the real upgrade.
+func TestUpgradeRegistersDryRunFlag(t *testing.T) {
+	var upgradeCmd *cli.Command
+	for _, c := range cmds {
+		if c.Name == "upgrade" {
+			upgradeCmd = c
+			break
+		}
+	}
+	if upgradeCmd == nil {
+		t.Fatal("no upgrade command registered")
+	}
+
+	for _, f := range upgradeCmd.Flags {
+		for _, name := range f.Names() {
+			if name != "dry-run" {
+				continue
+			}
+			bf, ok := f.(*cli.BoolFlag)
+			if !ok {
+				t.Fatalf("dry-run is a %T, want *cli.BoolFlag", f)
+			}
+			if bf.Value {
+				t.Fatal("dry-run defaults to true, a plain upgrade would not upgrade")
+			}
+			return
+		}
+	}
+	t.Fatal("upgrade does not register a --dry-run flag")
+}
+
+func TestPrintProviderReleasesPrintsEveryRelease(t *testing.T) {
+	var out strings.Builder
+
+	if printed := printProviderReleases(&out, []string{"v3.5.0", "v3.4.2", "v3.4.1"}); !printed {
+		t.Fatal("expected printProviderReleases to report that it printed something")
+	}
+
+	want := "Available releases from provider:\nv3.5.0\nv3.4.2\nv3.4.1\n"
+	if out.String() != want {
+		t.Fatalf("expected every release to be listed, got:\n%s", out.String())
+	}
+}
+
+func TestPrintProviderReleasesWithoutReleases(t *testing.T) {
+	var out strings.Builder
+
+	if printed := printProviderReleases(&out, nil); printed {
+		t.Fatal("expected printProviderReleases to report that it printed nothing")
+	}
+
+	if out.String() != "" {
+		t.Fatalf("expected no output, got:\n%s", out.String())
+	}
+}
+
+func TestReleaseCollectorKeepsEveryProvidersReleases(t *testing.T) {
+	rc := &releaseCollector{}
+	rc.collect(`["v3.5.0","v3.4.2"]`)
+	rc.collect(`["v3.3.1"]`)
+
+	got := rc.releases()
+	want := []string{"v3.5.0", "v3.4.2", "v3.3.1"}
+	if len(got) != len(want) {
+		t.Fatalf("expected %v, got %v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected %v, got %v", want, got)
+		}
+	}
+}
+
+func TestReleaseCollectorSkipsEmptyAndUnreadableResponses(t *testing.T) {
+	rc := &releaseCollector{}
+	rc.collect("")
+	rc.collect("not json")
+	rc.collect(`["v3.5.0"]`)
+
+	got := rc.releases()
+	if len(got) != 1 || got[0] != "v3.5.0" {
+		t.Fatalf("expected only the readable response to be kept, got %v", got)
+	}
+}
+
+// Providers answer from their own goroutines, so the collector has to be safe
+// to call concurrently. Run with -race for this to mean anything.
+func TestReleaseCollectorIsSafeForConcurrentProviders(t *testing.T) {
+	rc := &releaseCollector{}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			rc.collect(fmt.Sprintf(`["v3.%d.0","v3.%d.1"]`, i, i))
+		}(i)
+	}
+	wg.Wait()
+
+	if got := rc.releases(); len(got) != 16 {
+		t.Fatalf("expected the releases of all 8 providers, got %d: %v", len(got), got)
+	}
+}
+
+func phoneHomeCommand(t *testing.T) *cli.Command {
+	t.Helper()
+	for _, command := range cmds {
+		if command.Name == "phone-home" {
+			return command
+		}
+	}
+	t.Fatal("phone-home command not found")
+	return nil
+}
+
+func phoneHomeContext(t *testing.T, args ...string) *cli.Context {
+	t.Helper()
+	command := phoneHomeCommand(t)
+	set := flag.NewFlagSet(command.Name, flag.ContinueOnError)
+	for _, commandFlag := range command.Flags {
+		if err := commandFlag.Apply(set); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := set.Parse(args); err != nil {
+		t.Fatal(err)
+	}
+	return cli.NewContext(nil, set, nil)
+}
+
+// The unit the agent installs runs "kairos-agent phone-home" with no flags, so
+// a heartbeat-interval taken from the flag's default would overwrite the value
+// cloud-config carries and phonehome.heartbeat_interval would never reach the
+// client.
+func TestPhoneHomeKeepsTheConfiguredHeartbeatWhenTheFlagIsAbsent(t *testing.T) {
+	cfg := phonehome.Config{
+		URL:               "ws://configured.test",
+		RegistrationToken: "config-token",
+		Group:             "config-group",
+		HeartbeatInterval: 5 * time.Minute,
+		ReconnectBackoff:  time.Minute,
+	}
+
+	MergePhoneHomeFlags(phoneHomeContext(t), &cfg)
+
+	if cfg.HeartbeatInterval != 5*time.Minute {
+		t.Fatalf("heartbeat interval = %s, want the configured 5m", cfg.HeartbeatInterval)
+	}
+	if cfg.URL != "ws://configured.test" || cfg.RegistrationToken != "config-token" || cfg.Group != "config-group" {
+		t.Fatalf("string fields were overwritten: %+v", cfg)
+	}
+	if cfg.ReconnectBackoff != time.Minute {
+		t.Fatalf("reconnect backoff = %s, want the configured 1m", cfg.ReconnectBackoff)
+	}
+}
+
+func TestPhoneHomeFlagsOverrideTheConfiguredValues(t *testing.T) {
+	cfg := phonehome.Config{
+		URL:               "ws://configured.test",
+		RegistrationToken: "config-token",
+		Group:             "config-group",
+		HeartbeatInterval: 5 * time.Minute,
+	}
+
+	MergePhoneHomeFlags(phoneHomeContext(t,
+		"--url", "ws://flag.test",
+		"--token", "flag-token",
+		"--group", "flag-group",
+		"--heartbeat-interval", "90s",
+	), &cfg)
+
+	if cfg.URL != "ws://flag.test" || cfg.RegistrationToken != "flag-token" || cfg.Group != "flag-group" {
+		t.Fatalf("string flags did not win: %+v", cfg)
+	}
+	if cfg.HeartbeatInterval != 90*time.Second {
+		t.Fatalf("heartbeat interval = %s, want the 90s from the flag", cfg.HeartbeatInterval)
+	}
+}
+
+// With nothing on either side the client is the one that picks the default, so
+// the merge must leave the zero value in place rather than copy the flag's.
+func TestPhoneHomeLeavesTheHeartbeatZeroWhenNobodySetsIt(t *testing.T) {
+	cfg := phonehome.Config{URL: "ws://configured.test"}
+
+	MergePhoneHomeFlags(phoneHomeContext(t), &cfg)
+
+	if cfg.HeartbeatInterval != 0 {
+		t.Fatalf("heartbeat interval = %s, want zero so the client applies its default", cfg.HeartbeatInterval)
+	}
+}
+
+func installBundleCommand(t *testing.T) *cli.Command {
+	t.Helper()
+	for _, command := range cmds {
+		if command.Name == "install-bundle" {
+			return command
+		}
+	}
+	t.Fatal("install-bundle command not found")
+	return nil
+}
+
+func TestInstallBundleExamplesAreValidTargets(t *testing.T) {
+	command := installBundleCommand(t)
+	knownSchemes := map[string]bool{"container": true, "docker": true, "run": true, "package": true}
+
+	examples := 0
+	localFileExample := false
+	for _, line := range strings.Split(command.Description, "\n") {
+		_, example, found := strings.Cut(line, "kairos-agent install-bundle ")
+		if !found {
+			continue
+		}
+		examples++
+
+		ctx := commandContext(t, command, "", strings.Fields(example)...)
+		if ctx.Args().Len() != 1 {
+			t.Errorf("example %q leaves %d positional arguments, want 1", line, ctx.Args().Len())
+			continue
+		}
+		config := bundles.BundleConfig{Target: ctx.Args().First()}
+		scheme, err := config.TargetScheme()
+		if err != nil {
+			t.Errorf("example %q has an invalid target: %v", line, err)
+			continue
+		}
+		if !knownSchemes[scheme] {
+			t.Errorf("example %q uses scheme %q, want one of %v", line, scheme, knownSchemes)
+		}
+		if ctx.Bool("local-file") {
+			localFileExample = true
+		}
+	}
+
+	if examples == 0 {
+		t.Fatal("install-bundle description has no examples")
+	}
+	if !localFileExample {
+		t.Error("install-bundle description has no --local-file example")
+	}
+}
+
+func TestInstallBundleFlagsAfterTargetAreNotParsed(t *testing.T) {
+	command := installBundleCommand(t)
+
+	ctx := commandContext(t, command, "", "container:///absolute/path/mybundle.tar", "--local-file")
+	if ctx.Bool("local-file") {
+		t.Fatal("--local-file after the target was parsed as a flag, the help text says it is not")
+	}
+	if ctx.Args().Len() != 2 {
+		t.Fatalf("got %d positional arguments, want 2", ctx.Args().Len())
+	}
+}
+
+func TestInstallBundleFlagsHaveUsage(t *testing.T) {
+	command := installBundleCommand(t)
+
+	for _, commandFlag := range command.Flags {
+		docFlag, ok := commandFlag.(cli.DocGenerationFlag)
+		if !ok {
+			t.Fatalf("flag %v does not expose its usage text", commandFlag.Names())
+		}
+		if strings.TrimSpace(docFlag.GetUsage()) == "" {
+			t.Errorf("flag %v has no usage text", commandFlag.Names())
+		}
 	}
 }

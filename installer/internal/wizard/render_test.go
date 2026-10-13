@@ -91,6 +91,54 @@ var _ = Describe("Redact", func() {
 	It("returns a placeholder instead of the text when the YAML does not parse", func() {
 		Expect(wizard.Redact("users: [unterminated\n  passwd: leak")).ToNot(ContainSubstring("leak"))
 	})
+
+	// The interactive installer asks for this one itself, and autogenerates a
+	// token when the operator leaves it empty, so it is in the configuration
+	// of every mesh install whether or not anyone typed it.
+	It("redacts the p2p network token", func() {
+		out := wizard.Redact("p2p:\n  auto:\n    enable: true\n  network_token: b3RwOmRodDpTRUNSRVQ=\n")
+		Expect(out).ToNot(ContainSubstring("b3RwOmRodDpTRUNSRVQ="))
+		Expect(out).To(ContainSubstring(wizard.Redacted))
+		// Everything around it is why the configuration is in the bundle.
+		Expect(out).To(ContainSubstring("enable: true"))
+	})
+
+	It("redacts a join token nested in an env block, whatever its case", func() {
+		out := wizard.Redact("k3s:\n  enabled: true\n  env:\n    K3S_TOKEN: K10abc::server:deadbeef\n")
+		Expect(out).ToNot(ContainSubstring("K10abc::server:deadbeef"))
+		Expect(out).To(ContainSubstring("enabled: true"))
+	})
+
+	It("redacts a secret whose value is a mapping, not only a scalar", func() {
+		out := wizard.Redact("registries:\n  auth:\n    username: USERVALUE\n    password: PASSVALUE\n  token:\n    id: IDVALUE\n")
+		Expect(out).ToNot(ContainSubstring("PASSVALUE"))
+		Expect(out).ToNot(ContainSubstring("USERVALUE"))
+		Expect(out).ToNot(ContainSubstring("IDVALUE"))
+	})
+
+	// A frontend tells the operator the bundle holds the install config. A
+	// redaction that eats the public keys, the keymap or the hostname leaves
+	// nothing worth collecting, and "key" appears in all three.
+	It("keeps the public SSH keys, the keymap and the hostname", func() {
+		in := "hostname: edge-01\nusers:\n  - name: kairos\n    ssh_authorized_keys:\n      - ssh-ed25519 AAAAPUBLIC\nstages:\n  initramfs:\n    - commands:\n        - localectl set-keymap us\n"
+		out := wizard.Redact(in)
+		Expect(out).To(ContainSubstring("ssh-ed25519 AAAAPUBLIC"))
+		Expect(out).To(ContainSubstring("edge-01"))
+		Expect(out).To(ContainSubstring("set-keymap us"))
+	})
+
+	// cosign-key is CosignPubKey: a verification key, published on purpose.
+	It("keeps a key the configuration declares public", func() {
+		out := wizard.Redact("cosign-key: |\n  -----BEGIN PUBLIC KEY-----\n  AAAA\npublic_key: pubvalue\n")
+		Expect(out).To(ContainSubstring("BEGIN PUBLIC KEY"))
+		Expect(out).To(ContainSubstring("pubvalue"))
+	})
+
+	It("redacts an edgevpn connection key at any depth", func() {
+		out := wizard.Redact("p2p:\n  otp:\n    dht:\n      key: DHTSECRET\n      interval: 9000\n")
+		Expect(out).ToNot(ContainSubstring("DHTSECRET"))
+		Expect(out).To(ContainSubstring("interval: 9000"))
+	})
 })
 
 var _ = Describe("Render, the settings added with the wizard", func() {
