@@ -50,11 +50,9 @@ concurrency:
 jobs:
   unit-tests:
     uses: ./.github/workflows/_unit-tests.yaml
-    secrets: inherit
 
   lint:
     uses: ./.github/workflows/_lint.yaml
-    secrets: inherit
 
   vulnerability-scan:
     uses: ./.github/workflows/release-scan.yml
@@ -131,14 +129,12 @@ jobs:
     uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: full
-    secrets: inherit
 
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
       matrix_scope: full
-    secrets: inherit
 
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
@@ -152,7 +148,9 @@ jobs:
       image_extra_tag: latest
       push: true
       registry_login: quay
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   # kcrypt-challenger pipe: parallel to the kairos pipe. Its image is
   # published for downstream consumers (the encryption story), not for
@@ -161,7 +159,6 @@ jobs:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:
       matrix_scope: release
-    secrets: inherit
 
   build-image-kcrypt-challenger:
     needs: [build-kcrypt-challenger, unit-tests, lint]
@@ -175,16 +172,18 @@ jobs:
       image_extra_tag: latest
       push: true
       registry_login: quay
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
-  # Hadron core plus the new UKI+FIPS cell. amd64-standard (unpinned
-  # k3s), amd64-core-fips, the no-fips UKI cells, and
-  # amd64-core-ubuntu-20.04 all exist in master.yaml/pr-full.yaml to feed
-  # qemu tests and are omitted from the release matrix -- v4.2.0
-  # released none of them. amd64-core-fips-uki is shipped because
-  # hadron v0.5.3 is the first tag to publish hadron-fips-trusted, so
-  # this is the release cut that first exposes a signed FIPS UKI to
-  # downstream consumers.
+  # Only the Hadron core cell here. amd64-standard (unpinned k3s),
+  # amd64-core-fips, the UKI cells, and amd64-core-ubuntu-20.04 all
+  # exist in master.yaml/pr-full.yaml to feed qemu tests and are omitted
+  # from the release matrix -- v4.2.0 released none of them. No
+  # trusted boot cell is released at all: CI signs UKIs with the test
+  # keys in tests/assets/keys, whose private halves are public, so a
+  # released UKI would prove nothing about who built it. Users build
+  # trusted boot images with keys they control.
   build-iso:
     needs: [build-image-kairos-init, vulnerability-scan]
     strategy:
@@ -192,7 +191,6 @@ jobs:
       matrix:
         include:
           - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'amd64-core-fips-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips-trusted:v0.5.3', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: true}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     permissions:
@@ -222,7 +220,9 @@ jobs:
       # CI-only sysext test extensions onto a shipped ISO.
       test_sysext_overlay: false
       release: true
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   build-iso-arm:
     needs: [build-image-kairos-init, vulnerability-scan]
@@ -291,7 +291,9 @@ jobs:
       # CI-only sysext test extensions onto a shipped ISO.
       test_sysext_overlay: false
       release: true
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   # Per-k8s-version standard ISOs. Both matrices are dynamic:
   # kubernetes_version is fed by the get-*-versions job's output.
@@ -330,7 +332,9 @@ jobs:
       # CI-only sysext test extensions onto a shipped ISO.
       test_sysext_overlay: false
       release: true
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   # arm64 mirror of build-iso-k3s. v4.2.0 shipped standard-arm64-generic
   # and standard-arm64-rpi4 for each of the top-3 k3s minors. k0s was
@@ -372,7 +376,9 @@ jobs:
       # CI-only sysext test extensions onto a shipped ISO.
       test_sysext_overlay: false
       release: true
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   build-iso-k0s:
     needs: [build-image-kairos-init, vulnerability-scan, get-k0s-versions]
@@ -406,7 +412,9 @@ jobs:
       # CI-only sysext test extensions onto a shipped ISO.
       test_sysext_overlay: false
       release: true
-    secrets: inherit
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   upload-release:
     # Uploads every tarball to the GitHub Release. Waits on the full
@@ -426,4 +434,4 @@ jobs:
     uses: ./.github/workflows/_upload-release.yaml
     permissions:
       contents: write
-    secrets: inherit
+      id-token: write
