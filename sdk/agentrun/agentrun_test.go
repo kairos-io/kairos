@@ -198,6 +198,91 @@ var _ = Describe("agentrun", func() {
 			Expect(err).To(HaveOccurred())
 		})
 	})
+
+	// One installer process serves the TUI, the web UI and the MCP server at
+	// the same time. Each of them guards its own entry point and none can see
+	// the other two, so this is the guard that stops two agents reaching one
+	// disk.
+	Describe("one install at a time", func() {
+		// blockingAgent writes startedPath and then waits for releasePath to
+		// appear, so a spec can hold one install open while it tries to start
+		// another. The wait is bounded so a broken spec fails rather than
+		// hanging the suite.
+		blockingAgent := func(dir, startedPath, releasePath string) string {
+			bin := filepath.Join(dir, "kairos-agent")
+			script := "#!/bin/sh\n" +
+				"touch " + startedPath + "\n" +
+				"i=0\n" +
+				"while [ ! -f " + releasePath + " ] && [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done\n" +
+				`echo '{"event":"step","step":"done"}'` + "\n" +
+				"exit 0\n"
+			Expect(os.WriteFile(bin, []byte(script), 0o755)).To(Succeed())
+			return bin
+		}
+
+		It("refuses a second install while one is running, and takes one after it ends", func() {
+			dir := GinkgoT().TempDir()
+			started := filepath.Join(dir, "started")
+			release := filepath.Join(dir, "release")
+			bin := blockingAgent(dir, started, release)
+
+			first := make(chan error, 1)
+			go func() {
+				defer GinkgoRecover()
+				first <- agentrun.Run(bin, "/tmp/cc.yaml", "", "nothing",
+					func(agentrun.ProgressEvent) {}, func(string) {})
+			}()
+
+			// Wait for the first agent to be running, so what follows races a
+			// guard that is actually held rather than one nobody took yet.
+			Eventually(func() bool {
+				_, err := os.Stat(started)
+				return err == nil
+			}, "30s", "10ms").Should(BeTrue())
+
+			Expect(agentrun.Run(bin, "/tmp/cc.yaml", "", "nothing",
+				func(agentrun.ProgressEvent) {}, func(string) {})).
+				To(MatchError(agentrun.ErrInstallInProgress))
+
+			// The same guard, through the entry point the three frontends
+			// actually call.
+			var out strings.Builder
+			Expect(agentrun.RunWithOutput(bin, "/tmp/cc.yaml", "", "nothing",
+				func(agentrun.ProgressEvent) {}, func(string) {}, &out)).
+				To(MatchError(agentrun.ErrInstallInProgress))
+
+			// Refused, not attempted: no agent ran, so no transcript.
+			Expect(out.String()).To(BeEmpty())
+
+			Expect(os.WriteFile(release, nil, 0o644)).To(Succeed())
+			var firstErr error
+			Eventually(first, "30s").Should(Receive(&firstErr))
+			Expect(firstErr).ToNot(HaveOccurred())
+
+			// A refusal is for the install that is running, not for the rest
+			// of the boot: the guard goes with the run that held it.
+			quick := filepath.Join(dir, "quick-agent")
+			Expect(os.WriteFile(quick, []byte("#!/bin/sh\nexit 0\n"), 0o755)).To(Succeed())
+			Expect(agentrun.Run(quick, "/tmp/cc.yaml", "", "nothing",
+				func(agentrun.ProgressEvent) {}, func(string) {})).To(Succeed())
+		})
+
+		It("releases the guard when the agent fails", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "kairos-agent")
+			Expect(os.WriteFile(bin, []byte("#!/bin/sh\nexit 5\n"), 0o755)).To(Succeed())
+
+			Expect(agentrun.Run(bin, "/tmp/cc.yaml", "", "nothing",
+				func(agentrun.ProgressEvent) {}, func(string) {})).To(HaveOccurred())
+
+			// A failed install is a retryable one. If the guard were leaked
+			// here, the first bad disk would end every install of the boot.
+			err := agentrun.Run(bin, "/tmp/cc.yaml", "", "nothing",
+				func(agentrun.ProgressEvent) {}, func(string) {})
+			Expect(err).To(HaveOccurred())
+			Expect(err).ToNot(MatchError(agentrun.ErrInstallInProgress))
+		})
+	})
 })
 
 var _ = Describe("contract constants", func() {
@@ -216,5 +301,41 @@ var _ = Describe("contract constants", func() {
 		Expect(constants.AgentBinName).To(Equal("kairos-agent"))
 		Expect(constants.AgentDefaultPath).To(Equal("/usr/bin/kairos-agent"))
 		Expect(agentrun.EnvAgentBin).To(Equal(constants.AgentEnvVar))
+	})
+})
+
+var _ = Describe("PairingCommand", func() {
+	It("runs the agent's pairing install", func() {
+		cmd := agentrun.PairingCommand("/usr/bin/kairos-agent", "")
+		Expect(cmd.Path).To(Equal("/usr/bin/kairos-agent"))
+		Expect(cmd.Args).To(Equal([]string{"/usr/bin/kairos-agent", "install"}))
+	})
+
+	It("installs from the source the installer was given", func() {
+		cmd := agentrun.PairingCommand("/usr/bin/kairos-agent", "oci:quay.io/kairos/test:latest")
+		Expect(cmd.Args).To(Equal([]string{"/usr/bin/kairos-agent", "install", "--source", "oci:quay.io/kairos/test:latest"}))
+	})
+
+	It("does not ask for progress events, which would replace the QR code output", func() {
+		cmd := agentrun.PairingCommand("/usr/bin/kairos-agent", "")
+		Expect(cmd.Env).To(BeNil())
+	})
+})
+
+var _ = Describe("RecoveryCommand", func() {
+	It("runs the agent's remote recovery", func() {
+		cmd := agentrun.RecoveryCommand("/usr/bin/kairos-agent")
+		Expect(cmd.Path).To(Equal("/usr/bin/kairos-agent"))
+		Expect(cmd.Args).To(Equal([]string{"/usr/bin/kairos-agent", "recovery"}))
+	})
+
+	It("does not take a source, because recovery installs nothing", func() {
+		cmd := agentrun.RecoveryCommand("/usr/bin/kairos-agent")
+		Expect(cmd.Args).NotTo(ContainElement("--source"))
+	})
+
+	It("does not ask for progress events, which would replace the QR code output", func() {
+		cmd := agentrun.RecoveryCommand("/usr/bin/kairos-agent")
+		Expect(cmd.Env).To(BeNil())
 	})
 })

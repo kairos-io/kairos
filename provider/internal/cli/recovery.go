@@ -19,6 +19,50 @@ import (
 	cliV2 "github.com/urfave/cli/v2"
 )
 
+// RecoverySSHServerCMD builds the command that serves the recovery SSH
+// session over p2p.
+//
+// The flags it declares of its own are the three the agent needs to describe
+// the session: the service UUID the operator dials, the one-time password and
+// the local address the SSH server binds. Everything else comes from
+// cmd.CommonFlags, because startRecoveryService hands its context to
+// cmd.ConfigFromContext, and that reads the whole EdgeVPN flag set by name:
+// the network token, log-level, and the discovery switches that default to on.
+// A name it cannot find reads as the zero value, and Context.Set on one
+// returns an error, so leaving those flags out stops the command before it
+// opens a socket. The other end of the same session, bridge, appends
+// CommonFlags for the same reason.
+func RecoverySSHServerCMD() *cliV2.Command {
+	flags := []cliV2.Flag{
+		&cliV2.StringFlag{
+			Name:    "service",
+			EnvVars: []string{"SERVICE"},
+		},
+		&cliV2.StringFlag{
+			Name:    "password",
+			EnvVars: []string{"PASSWORD"},
+		},
+		&cliV2.StringFlag{
+			Name:    "listen",
+			EnvVars: []string{"LISTEN"},
+			Value:   recoveryAddr,
+		},
+	}
+	flags = append(flags, cmd.CommonFlags...)
+
+	return &cliV2.Command{
+		Name:      "recovery-ssh-server",
+		UsageText: "recovery-ssh-server",
+		Usage:     "Starts SSH recovery service",
+		Description: `
+				Spawn up a simple standalone ssh server over p2p
+		`,
+		ArgsUsage: "Spawn up a simple standalone ssh server over p2p",
+		Flags:     flags,
+		Action:    StartRecoveryService,
+	}
+}
+
 func startRecoveryService(ctx context.Context, loglevel string, c *cliV2.Context) error {
 	err := c.Set("log-level", loglevel)
 	if err != nil {

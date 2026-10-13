@@ -74,6 +74,14 @@ const (
 	ErrorPrefix           = "ERROR:"
 )
 
+// Navigation IDs of the two pages the model itself has to reason about. The
+// other pages return their literal from ID(); these are named because goBack
+// compares against them.
+const (
+	installOptionsPageID = "install_options"
+	summaryPageID        = "summary"
+)
+
 // DebugBundlePageID is the navigation ID of the debug bundle page.
 const DebugBundlePageID = "debug_bundle"
 
@@ -105,3 +113,7 @@ const (
 	AgentStartLifecycle   = "Running Lifecycle hook"
 	AgentCompleteLog      = "Finish Lifecycle hook" // This is the last step before completion so can make it the complete part
 )
+
+// visibleRows is the number of rows reserved by Model.View for page content
+// (height minus this value gives the usable content area).
+const visibleRows = 10

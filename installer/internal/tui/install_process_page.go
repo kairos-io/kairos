@@ -62,7 +62,7 @@ func (p *installProcessPage) Init() tea.Cmd {
 			return
 		}
 
-		ccString, err := RenderCloudConfig(&mainModel)
+		ccString, err := currentCloudConfig()
 		if err != nil {
 			p.errorMsg = "Failed to generate install configuration: " + err.Error()
 			return
@@ -96,7 +96,7 @@ func (p *installProcessPage) Init() tea.Cmd {
 				transcript = lf
 			}
 
-			err := agentrun.RunWithOutput(agentBin, cfgPath, mainModel.source, mainModel.finishAction,
+			err := agentrun.RunWithOutput(agentBin, cfgPath, mainModel.answers.Source, mainModel.answers.FinishAction,
 				func(ev agentrun.ProgressEvent) {
 					switch ev.Event {
 					case agentrun.EventStep:
