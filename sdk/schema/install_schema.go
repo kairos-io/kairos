@@ -19,7 +19,9 @@ type InstallSchema struct {
 	Extensions          []ExtensionSchema `json:"extensions,omitempty" description:"System extensions to install onto the node."`
 	GrubOptionsSchema   `json:"grub_options,omitempty"`
 	SelinuxOptions      `json:"selinux,omitempty"`
-	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
+	Source              string `json:"source,omitempty" description:"Container image to install the system from, e.g. oci://quay.io/kairos/opensuse:latest. This is the key the installer reads."`
+	ImageDeprecated     string `json:"image,omitempty" deprecated:"true" description:"Deprecated and ignored: it was never read by the installer. Use source instead"`
+	NoUsers             bool   `json:"nousers,omitempty" description:"Skip the check that the config declares at least one administrative user. Intended for images that provision users by other means."`
 	PowerManagement
 	Partitions      ElementalPartitions `json:"partitions,omitempty"`
 	GrubDefEntry    string              `json:"grub-entry-name,omitempty"`
@@ -27,14 +29,27 @@ type InstallSchema struct {
 	Force           bool                `json:"force,omitempty"`
 	ExtraDirsRootfs []string            `json:"extra-dirs-rootfs,omitempty"`
 	SSHHardening    bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
+	OEMFiles        []OEMFileSchema     `json:"oem_files,omitempty" description:"Cloud-config files to write into the OEM partition of the installed system, which it reads as /oem, so they are applied on its first boot. The install fails if the target has no mounted OEM partition."`
 	Active          Image               `json:"system,omitempty"`
 	Recovery        Image               `json:"recovery-system,omitempty"`
 	Passive         Image               `json:"passive,omitempty"`
 }
 
+// OEMFileSchema represents one entry of the install.oem_files block. The file
+// lands as <name>.yaml, so name has to be a plain file name.
+type OEMFileSchema struct {
+	Name    string `json:"name,omitempty" required:"true" pattern:"^[^/]+$" description:"File name, without the yaml extension" examples:"[\"foo\"]"`
+	Content string `json:"content,omitempty" required:"true" description:"Content of the file, a cloud-config document"`
+}
+
+// Image describes one of the install block's image slots (system,
+// recovery-system, passive). Mirrors sdk/types/images.Image, which is what the
+// runtime decodes these into: there, URI is marked "deprecated, use Source
+// instead", so `source` is the key to offer and `uri` the one to retire.
 type Image struct {
-	Size   uint   `json:"size,omitempty"`
-	Source string `json:"uri,omitempty"`
+	Size          uint   `json:"size,omitempty"`
+	Source        string `json:"source,omitempty" description:"Container image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest"`
+	URIDeprecated string `json:"uri,omitempty" deprecated:"true" description:"Deprecated: use source instead. Still honoured on system and recovery-system, ignored on passive"`
 }
 
 type Partition struct {

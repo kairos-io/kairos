@@ -1,0 +1,6 @@
+rules:
+  # The self-repository form (`uses: $/...`) is rejected by actionlint,
+  # which also stops checking the inputs a caller passes to a reusable
+  # workflow. Turn this back on once actionlint understands it.
+  self-repository:
+    disable: true
