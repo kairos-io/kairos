@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	"github.com/kairos-io/kairos/v4/sdk/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -374,4 +375,81 @@ func TestUpgradeRegistersDryRunFlag(t *testing.T) {
 		}
 	}
 	t.Fatal("upgrade does not register a --dry-run flag")
+}
+
+func installBundleCommand(t *testing.T) *cli.Command {
+	t.Helper()
+	for _, command := range cmds {
+		if command.Name == "install-bundle" {
+			return command
+		}
+	}
+	t.Fatal("install-bundle command not found")
+	return nil
+}
+
+func TestInstallBundleExamplesAreValidTargets(t *testing.T) {
+	command := installBundleCommand(t)
+	knownSchemes := map[string]bool{"container": true, "docker": true, "run": true, "package": true}
+
+	examples := 0
+	localFileExample := false
+	for _, line := range strings.Split(command.Description, "\n") {
+		_, example, found := strings.Cut(line, "kairos-agent install-bundle ")
+		if !found {
+			continue
+		}
+		examples++
+
+		ctx := commandContext(t, command, "", strings.Fields(example)...)
+		if ctx.Args().Len() != 1 {
+			t.Errorf("example %q leaves %d positional arguments, want 1", line, ctx.Args().Len())
+			continue
+		}
+		config := bundles.BundleConfig{Target: ctx.Args().First()}
+		scheme, err := config.TargetScheme()
+		if err != nil {
+			t.Errorf("example %q has an invalid target: %v", line, err)
+			continue
+		}
+		if !knownSchemes[scheme] {
+			t.Errorf("example %q uses scheme %q, want one of %v", line, scheme, knownSchemes)
+		}
+		if ctx.Bool("local-file") {
+			localFileExample = true
+		}
+	}
+
+	if examples == 0 {
+		t.Fatal("install-bundle description has no examples")
+	}
+	if !localFileExample {
+		t.Error("install-bundle description has no --local-file example")
+	}
+}
+
+func TestInstallBundleFlagsAfterTargetAreNotParsed(t *testing.T) {
+	command := installBundleCommand(t)
+
+	ctx := commandContext(t, command, "", "container:///absolute/path/mybundle.tar", "--local-file")
+	if ctx.Bool("local-file") {
+		t.Fatal("--local-file after the target was parsed as a flag, the help text says it is not")
+	}
+	if ctx.Args().Len() != 2 {
+		t.Fatalf("got %d positional arguments, want 2", ctx.Args().Len())
+	}
+}
+
+func TestInstallBundleFlagsHaveUsage(t *testing.T) {
+	command := installBundleCommand(t)
+
+	for _, commandFlag := range command.Flags {
+		docFlag, ok := commandFlag.(cli.DocGenerationFlag)
+		if !ok {
+			t.Fatalf("flag %v does not expose its usage text", commandFlag.Names())
+		}
+		if strings.TrimSpace(docFlag.GetUsage()) == "" {
+			t.Errorf("flag %v has no usage text", commandFlag.Names())
+		}
+	}
 }
