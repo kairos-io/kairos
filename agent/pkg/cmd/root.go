@@ -109,6 +109,7 @@ var cmds = []*cli.Command{
 			&cli.BoolFlag{Name: constants.BootRecovery, Usage: "Upgrade recovery"},
 			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
 			&allowInsecureRegistriesFlag,
+			&cli.BoolFlag{Name: "dry-run", Usage: "Resolve the upgrade and print a summary of what would be done, without changing the system"},
 		},
 		Description: `
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
@@ -119,6 +120,8 @@ as a value for the --source flag.
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
 To pull from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate, pass the --allow-insecure-registries flag (or set "upgrade.allow-insecure-registries: true" in the cloud config).
+
+To check what an upgrade would do before running it, pass the --dry-run flag. It resolves the source (including the cloud config), the image size and where the transition image would be written, checks that the image manifest can be fetched from the registry, prints a summary and exits without changing the system.
 
 To retrieve all the available versions, use "kairos upgrade list-releases". Use the --registry flag to specify a custom registry to retrieve the versions from, otherwise it will default to quay.io/kairos.
 
@@ -248,7 +251,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			}
 
 			return agent.Upgrade(source, c.Bool("strict-validation"), constants.GetUserConfigDirs(),
-				upgradeEntry, c.Bool("allow-insecure-registries"), c.StringSlice("exclude-path")...,
+				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.StringSlice("exclude-path")...,
 			)
 		},
 	},
@@ -369,12 +372,20 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 	{
 		Name:  "install-bundle",
 		Usage: "Installs a kairos bundle",
-		Description: `
+		Description: `Manually installs a kairos bundle.
 
-Manually installs a kairos bundle.
+The target has the form SCHEME://REFERENCE. Supported schemes:
 
-E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
+  container:// or docker://  extract the image into --root-path
+  run://                     extract the image to a temporary directory and run its run.sh
+  package://                 install a luet package from --repository into --root-path
 
+Flags must come before the target, anything after the target is not read as a flag.
+
+Examples:
+
+  kairos-agent install-bundle container://quay.io/myorg/mybundle:latest
+  kairos-agent install-bundle --local-file container:///absolute/path/mybundle.tar
 `,
 		Aliases: []string{},
 		Flags: []cli.Flag{
@@ -382,17 +393,20 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 				Name:    "repository",
 				EnvVars: []string{"REPOSITORY"},
 				Value:   "docker://quay.io/kairos/packages",
+				Usage:   "Luet repository as TYPE://URL, only used by package:// targets",
 			},
 			&cli.StringFlag{
 				Name:  "root-path",
 				Value: "/",
+				Usage: "Directory the bundle is installed into, not used by run:// targets",
 			},
 			&cli.BoolFlag{
 				Name:    "local-file",
 				EnvVars: []string{"LOCAL_FILE"},
+				Usage:   "Read the container, docker or run target from an image tarball on disk instead of pulling it from a registry",
 			},
 		},
-		UsageText: "Install a bundle manually in the node",
+		UsageText: "install-bundle [--local-file] [--repository TYPE://URL] [--root-path PATH] SCHEME://REFERENCE",
 		Before: func(c *cli.Context) error {
 			return checkRoot()
 		},
@@ -581,7 +595,7 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 			// whose datasource says "install me".
 			if skipAutoInstall(c) {
 				log.Infof("--%s was given, so install.auto is ignored and the installer runs", skipAutoInstallFlag)
-			} else if installed, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
+			} else if installed, _, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
 				// --shell asks for a shell instead of the installer TUI. No
 				// installer was launched here, so say so rather than dropping
 				// the flag without a word.
@@ -667,14 +681,15 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 
 			// An unattended config installs and returns; only when there is a
 			// decision left for a human does the provider flow run.
-			installed, cc, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
+			installed, cc, scanErr, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
 			if installed || err != nil {
 				return err
 			}
 
 			// cc is the config AutoInstall already scanned; handing it over
 			// keeps a remote config_url from being fetched twice per boot.
-			return agent.Install(cc, source, insecure, constants.GetUserConfigDirs()...)
+			// scanErr goes along so Install can show it on the screen it draws.
+			return agent.Install(cc, scanErr, source, insecure, constants.GetUserConfigDirs()...)
 		},
 	},
 	{
