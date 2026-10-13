@@ -23,13 +23,17 @@ type DeprecatedKey struct {
 // `enabled` one. The two blocks that already shipped `enabled`, k3s and k0s,
 // are what makes `enable` the odd one out. See kairos-io/kairos#1016.
 //
-// Both spellings at once is refused rather than resolved: their values can
-// disagree, and picking one silently decides whether a cluster comes up.
+// Both spellings at once is accepted while they agree. `enabled` was ignored
+// in these blocks before this change, so a config that writes both already
+// boots a cluster today, and the collector produces one whenever it merges an
+// older file with a newer one. Only a disagreement is refused: there the value
+// picked decides whether the cluster comes up, and the config does not say
+// which the author meant.
 func resolveEnabled(block string, enabled, deprecated *bool) (*bool, error) {
-	if enabled != nil && deprecated != nil {
+	if enabled != nil && deprecated != nil && *enabled != *deprecated {
 		return nil, fmt.Errorf(
-			"%[1]s.enabled and %[1]s.enable are both set; %[1]s.enable is deprecated, keep only %[1]s.enabled",
-			block)
+			"%[1]s.enabled is %[2]t and the deprecated %[1]s.enable is %[3]t; they disagree, so remove %[1]s.enable and keep %[1]s.enabled",
+			block, *enabled, *deprecated)
 	}
 	if enabled != nil {
 		return enabled, nil

@@ -37,10 +37,20 @@ var _ = Describe("enable and enabled", func() {
 			))
 		})
 
-		It("refuses both spellings at once", func() {
+		It("refuses both spellings when they disagree", func() {
 			_, err := decode("p2p:\n  auto:\n    enabled: true\n    enable: false\n")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("p2p.auto.enabled and p2p.auto.enable are both set"))
+			Expect(err.Error()).To(ContainSubstring(
+				"p2p.auto.enabled is true and the deprecated p2p.auto.enable is false"))
+		})
+
+		It("takes both spellings when they agree, and still reports the deprecated one", func() {
+			cfg, err := decode("p2p:\n  auto:\n    enabled: false\n    enable: false\n")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.P2P.Auto.IsEnabled()).To(BeFalse())
+			Expect(cfg.DeprecatedKeys()).To(ConsistOf(
+				config.DeprecatedKey{Key: "p2p.auto.enable", Replacement: "p2p.auto.enabled"},
+			))
 		})
 
 		It("defaults to enabled when neither is written", func() {
@@ -67,10 +77,20 @@ var _ = Describe("enable and enabled", func() {
 			))
 		})
 
-		It("refuses both spellings at once", func() {
+		It("refuses both spellings when they disagree", func() {
 			_, err := decode("p2p:\n  auto:\n    ha:\n      enabled: true\n      enable: false\n")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("p2p.auto.ha.enabled and p2p.auto.ha.enable are both set"))
+			Expect(err.Error()).To(ContainSubstring(
+				"p2p.auto.ha.enabled is true and the deprecated p2p.auto.ha.enable is false"))
+		})
+
+		It("takes both spellings when they agree, and still reports the deprecated one", func() {
+			cfg, err := decode("p2p:\n  auto:\n    ha:\n      enabled: true\n      enable: true\n")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.P2P.Auto.HA.IsEnabled()).To(BeTrue())
+			Expect(cfg.DeprecatedKeys()).To(ConsistOf(
+				config.DeprecatedKey{Key: "p2p.auto.ha.enable", Replacement: "p2p.auto.ha.enabled"},
+			))
 		})
 	})
 
@@ -97,10 +117,23 @@ var _ = Describe("enable and enabled", func() {
 			Expect(cfg.KubeVIP.IsEnabled()).To(BeFalse())
 		})
 
-		It("refuses both spellings at once", func() {
-			_, err := decode("kubevip:\n  enabled: true\n  enable: true\n")
+		It("refuses both spellings when they disagree", func() {
+			_, err := decode("kubevip:\n  enabled: true\n  enable: false\n")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("kubevip.enabled and kubevip.enable are both set"))
+			Expect(err.Error()).To(ContainSubstring(
+				"kubevip.enabled is true and the deprecated kubevip.enable is false"))
+		})
+
+		// A config that writes both spellings at the same value bootstraps on
+		// master, because `enabled` is ignored there. Refusing it would stop a
+		// cluster that comes up today.
+		It("takes both spellings when they agree, and still reports the deprecated one", func() {
+			cfg, err := decode("kubevip:\n  enabled: true\n  enable: true\n")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg.KubeVIP.IsEnabled()).To(BeTrue())
+			Expect(cfg.DeprecatedKeys()).To(ConsistOf(
+				config.DeprecatedKey{Key: "kubevip.enable", Replacement: "kubevip.enabled"},
+			))
 		})
 
 		// KubeVIP now decodes through an UnmarshalYAML of its own, so the
