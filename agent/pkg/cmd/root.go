@@ -81,7 +81,6 @@ var allowInsecureRegistriesFlag = cli.BoolFlag{
 
 var kcryptNVIndexFlag = cli.StringFlag{
 	Name:  "nv-index",
-	Value: kcrypt.DefaultLocalPassphraseNVIndex,
 	Usage: "NV index to operate on (defaults to configured index or 0x1500000)",
 }
 
@@ -372,12 +371,20 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 	{
 		Name:  "install-bundle",
 		Usage: "Installs a kairos bundle",
-		Description: `
+		Description: `Manually installs a kairos bundle.
 
-Manually installs a kairos bundle.
+The target has the form SCHEME://REFERENCE. Supported schemes:
 
-E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
+  container:// or docker://  extract the image into --root-path
+  run://                     extract the image to a temporary directory and run its run.sh
+  package://                 install a luet package from --repository into --root-path
 
+Flags must come before the target, anything after the target is not read as a flag.
+
+Examples:
+
+  kairos-agent install-bundle container://quay.io/myorg/mybundle:latest
+  kairos-agent install-bundle --local-file container:///absolute/path/mybundle.tar
 `,
 		Aliases: []string{},
 		Flags: []cli.Flag{
@@ -385,17 +392,20 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 				Name:    "repository",
 				EnvVars: []string{"REPOSITORY"},
 				Value:   "docker://quay.io/kairos/packages",
+				Usage:   "Luet repository as TYPE://URL, only used by package:// targets",
 			},
 			&cli.StringFlag{
 				Name:  "root-path",
 				Value: "/",
+				Usage: "Directory the bundle is installed into, not used by run:// targets",
 			},
 			&cli.BoolFlag{
 				Name:    "local-file",
 				EnvVars: []string{"LOCAL_FILE"},
+				Usage:   "Read the container, docker or run target from an image tarball on disk instead of pulling it from a registry",
 			},
 		},
-		UsageText: "Install a bundle manually in the node",
+		UsageText: "install-bundle [--local-file] [--repository TYPE://URL] [--root-path PATH] SCHEME://REFERENCE",
 		Before: func(c *cli.Context) error {
 			return checkRoot()
 		},
@@ -1306,11 +1316,6 @@ with 'kairos-agent kcrypt unlock-all'.`,
 			},
 		},
 		Action: func(c *cli.Context) error {
-			url := c.String("url")
-			token := c.String("token")
-			group := c.String("group")
-			heartbeat := c.Duration("heartbeat-interval")
-
 			// Pull phonehome defaults from cloud-config via the shared Collector.
 			// CLI flags still win: they override anything from the merged config.
 			var cfg phonehome.Config
@@ -1330,16 +1335,7 @@ with 'kairos-agent kcrypt unlock-all'.`,
 				}
 			}
 
-			if url != "" {
-				cfg.URL = url
-			}
-			if token != "" {
-				cfg.RegistrationToken = token
-			}
-			if group != "" {
-				cfg.Group = group
-			}
-			cfg.HeartbeatInterval = heartbeat
+			MergePhoneHomeFlags(c, &cfg)
 
 			if cfg.URL == "" {
 				return fmt.Errorf("phonehome URL required (use --url, PHONEHOME_URL env, or a phonehome: section in cloud-config)")
@@ -1369,6 +1365,36 @@ with 'kairos-agent kcrypt unlock-all'.`,
 			return client.Run(ctx)
 		},
 	},
+}
+
+// MergePhoneHomeFlags overlays the phone-home command line on top of the
+// configuration the Collector read from cloud-config. A flag wins only when
+// the user actually passed it.
+//
+// The three string flags carry no default, so an empty value already means
+// "not given". heartbeat-interval carries a non-zero default, so its value
+// alone cannot say that, and asking the parser is the only way to tell a user
+// writing --heartbeat-interval=30s apart from a user writing nothing. The unit
+// the agent installs runs "kairos-agent phone-home" with no flags, so without
+// that question the default would overwrite phonehome.heartbeat_interval on
+// every node and the config key would do nothing.
+//
+// When neither side sets the interval, cfg.HeartbeatInterval stays zero and
+// the client falls back to phonehome.DefaultHeartbeatInterval, which is the
+// same 30 seconds the flag advertises.
+func MergePhoneHomeFlags(c *cli.Context, cfg *phonehome.Config) {
+	if v := c.String("url"); v != "" {
+		cfg.URL = v
+	}
+	if v := c.String("token"); v != "" {
+		cfg.RegistrationToken = v
+	}
+	if v := c.String("group"); v != "" {
+		cfg.Group = v
+	}
+	if c.IsSet("heartbeat-interval") {
+		cfg.HeartbeatInterval = c.Duration("heartbeat-interval")
+	}
 }
 
 // nolint:gocyclo // urfave/cli command builder: the subcommand definitions (list, list-installed, enable, disable, install, remove) live in-line so the whole sysext/confext CLI shape is grep-friendly; splitting them into per-subcommand functions would only move the complexity, not reduce it.
