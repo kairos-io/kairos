@@ -63,11 +63,12 @@ func (b SysExtPostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		}
 	}
 
-	// Extensions declared in the cloud config, which have to be downloaded.
+	// Extensions declared in the cloud config or on the kernel command line,
+	// which have to be downloaded.
 	declared, err := installDeclaredExtensionsToEFI(c, activeDir, passiveDir)
 	if err != nil {
 		c.Logger.Errorf("failed to install the declared extensions: %s", err)
-		if c.FailOnBundleErrors {
+		if c.FailOnBundleErrors || IsInvalidDeclaration(err) {
 			return err
 		}
 	}
