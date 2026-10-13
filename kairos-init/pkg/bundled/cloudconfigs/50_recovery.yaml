@@ -49,9 +49,18 @@ stages:
       hostname: "cos-recovery"
       commands:
         - |
-          . /etc/os-release
+          # The Kairos version lives in /etc/kairos-release, whose keys are all
+          # KAIROS_ prefixed. os-release carries the base image's own version,
+          # which is not what a reset restores, and Hadron and Alpine do not set
+          # VERSION there at all.
+          KAIROS_VERSION=""
           [ -f "/etc/kairos-release" ] && . /etc/kairos-release
+          if [ -n "$KAIROS_VERSION" ]; then
+            RESET_LINE="You are booting from recovery mode. Run 'kairos-agent reset' to reset the system to $KAIROS_VERSION"
+          else
+            RESET_LINE="You are booting from recovery mode. Run 'kairos-agent reset' to reset the system"
+          fi
           echo >> /etc/issue
-          echo "You are booting from recovery mode. Run 'kairos-agent reset' to reset the system to $VERSION" >> /etc/issue
+          echo "$RESET_LINE" >> /etc/issue
           echo " or 'kairos-agent upgrade' to upgrade the active partition" >> /etc/issue
           echo >> /etc/issue

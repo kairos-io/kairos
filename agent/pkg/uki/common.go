@@ -52,6 +52,14 @@ func copyArtifact(fs sdkFs.KairosFS, source, oldRole, newRole string) (string, e
 
 func removeArtifactSetWithRole(fs sdkFs.KairosFS, artifactDir, role string) error {
 	return fsutils.WalkDirFs(fs, artifactDir, func(path string, info os.DirEntry, err error) error {
+		// WalkDirFs passes a nil entry when it cannot stat the root, so this
+		// has to come before info is read, as it does in the other walkers
+		// here. Without it an unreadable EFI partition panics instead of
+		// reporting itself.
+		if err != nil {
+			return err
+		}
+
 		if !info.IsDir() && strings.HasPrefix(info.Name(), role) {
 			return os.Remove(path)
 		}
