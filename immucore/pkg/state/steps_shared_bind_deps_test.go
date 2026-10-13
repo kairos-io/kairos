@@ -3,6 +3,7 @@ package state_test
 import (
 	"context"
 	"errors"
+	"sync"
 
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
@@ -31,13 +32,19 @@ func entry(g *herd.Graph, name string) herd.GraphEntry {
 var _ = Describe("MountCustomBindsDagStep dependencies", func() {
 	var g *herd.Graph
 	var order []string
+	// herd runs the steps that do not depend on each other on their own
+	// goroutines, so recording into order is a concurrent write.
+	var orderMu sync.Mutex
 
 	// stub stands in for one of the mount steps OpMountBind is wired to. Each
 	// one records that it ran, so the specs can assert the ordering the weak
 	// edges have to keep.
 	stub := func(name string, err error, deps ...string) {
 		opts := []herd.OpOption{herd.WithCallback(func(_ context.Context) error {
+			orderMu.Lock()
 			order = append(order, name)
+			orderMu.Unlock()
+
 			return err
 		})}
 		if len(deps) > 0 {
