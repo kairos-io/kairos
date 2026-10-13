@@ -110,7 +110,7 @@ func contextGroup(r Runner, c Context) group {
 			b.WriteString(e + "\n")
 		}
 	}
-	b.WriteString("\n===== rendered cloud-config (password redacted) =====\n")
+	b.WriteString("\n===== rendered cloud-config (credentials redacted) =====\n")
 	b.WriteString(c.CloudConfigRedacted + "\n\n")
 
 	b.WriteString(section(r, "ip addr", "ip", "a"))
