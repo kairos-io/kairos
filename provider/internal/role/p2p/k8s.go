@@ -36,7 +36,6 @@ type K8sNode interface {
 	RoleConfig() *service.RoleConfig
 	GenerateEnv() map[string]string
 	Service() (machine.Service, error)
-	EnvUnit() string
 	GenArgs() ([]string, error)
 	DeployKubeVIP() error
 	Token() (string, error)
@@ -47,7 +46,6 @@ type K8sNode interface {
 	ServiceName() string
 	Env() map[string]string
 	Args() []string
-	EnvFile() string
 	SetRole(role string)
 	SetIP(ip string)
 	GuessInterface()
