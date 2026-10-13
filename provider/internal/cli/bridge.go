@@ -8,6 +8,7 @@ import (
 
 	"github.com/ipfs/go-log/v2"
 	qr "github.com/kairos-io/go-nodepair/qrcode"
+	"github.com/kairos-io/kairos/v4/provider/internal/provider"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/mudler/edgevpn/api"
 	"github.com/mudler/edgevpn/cmd"
@@ -65,9 +66,11 @@ func BridgeCMD(toolName string) *cli.Command {
 		},
 		// Bridge serves its own API rather than talking to one, so this is an
 		// address to listen on and it keeps its own default. See apiFlagName.
+		// The other commands fall back to this same address when they run on a
+		// machine with no daemon of its own, so the two have to stay together.
 		&cli.StringFlag{
 			Name:  apiFlagName,
-			Value: "127.0.0.1:8080",
+			Value: provider.DefaultBridgeAPIListen,
 			Usage: "Listening API url",
 		},
 		&cli.BoolFlag{

@@ -2,7 +2,7 @@ name: "Kcrypt"
 stages:
   after-upgrade:
     - name: "Update plugins"
-      if: "[ $(kairos-agent state get oem.found) == 'true' ]"
+      if: '[ "$(kairos-agent state get oem.found)" = "true" ]'
       commands:
         - |
             STATEDIR=/tmp/mnt/OEM
