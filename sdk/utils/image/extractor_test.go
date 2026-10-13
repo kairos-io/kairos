@@ -355,3 +355,69 @@ type timeoutError struct{}
 
 func (timeoutError) Error() string { return "i/o timeout" }
 func (timeoutError) Timeout() bool { return true }
+
+// emptyLayer is a layer that decompresses to an empty tar stream while its
+// descriptor still declares the size of the real blob. It is the shape a
+// daemon read produced in kairos-io/kairos#4946: the image has layers, and
+// unpacking them writes nothing.
+type emptyLayer struct {
+	v1.Layer
+}
+
+func (emptyLayer) Uncompressed() (io.ReadCloser, error) {
+	var empty bytes.Buffer
+	tw := tar.NewWriter(&empty)
+	if err := tw.Close(); err != nil {
+		return nil, err
+	}
+	return io.NopCloser(bytes.NewReader(empty.Bytes())), nil
+}
+
+var _ = Describe("ExtractOCIImage on an image that unpacks to nothing", func() {
+	var destDir string
+
+	BeforeEach(func() {
+		var err error
+		destDir, err = os.MkdirTemp("", "sdk-empty-extract-*")
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(os.RemoveAll, destDir)
+	})
+
+	It("fails when the image declares layers but they unpack to no entries", func() {
+		baseImage, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+		layers, err := baseImage.Layers()
+		Expect(err).ToNot(HaveOccurred())
+		img, err := mutate.AppendLayers(empty.Image, emptyLayer{Layer: layers[0]})
+		Expect(err).ToNot(HaveOccurred())
+
+		err = image.ExtractOCIImage(img, destDir)
+		Expect(err).To(MatchError(image.ErrEmptyExtraction))
+		Expect(err.Error()).To(ContainSubstring(destDir))
+
+		entries, readErr := os.ReadDir(destDir)
+		Expect(readErr).ToNot(HaveOccurred())
+		Expect(entries).To(BeEmpty())
+	})
+
+	It("fails when the image carries no layers at all", func() {
+		err := image.ExtractOCIImage(empty.Image, destDir)
+		Expect(err).To(MatchError(image.ErrEmptyExtraction))
+	})
+
+	It("still extracts an image that has content", func() {
+		img, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(image.ExtractOCIImage(img, destDir)).To(Succeed())
+		Expect(filepath.Join(destDir, "hello.txt")).To(BeAnExistingFile())
+	})
+
+	It("does not fail when the image has content and every entry is excluded", func() {
+		img, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(image.ExtractOCIImage(img, destDir, "hello.txt")).To(Succeed())
+		Expect(filepath.Join(destDir, "hello.txt")).ToNot(BeAnExistingFile())
+	})
+})

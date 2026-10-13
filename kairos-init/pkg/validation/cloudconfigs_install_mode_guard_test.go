@@ -9,13 +9,21 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
+
+	"github.com/kairos-io/kairos/v4/sdk/state"
 )
 
+type guardFile struct {
+	Path string `yaml:"path"`
+}
+
 type guardStage struct {
-	Name               string   `yaml:"name"`
-	If                 string   `yaml:"if"`
-	OnlyServiceManager string   `yaml:"only_service_manager"`
-	Commands           []string `yaml:"commands"`
+	Name               string      `yaml:"name"`
+	If                 string      `yaml:"if"`
+	OnlyServiceManager string      `yaml:"only_service_manager"`
+	OnlyOs             string      `yaml:"only_os"`
+	Commands           []string    `yaml:"commands"`
+	Files              []guardFile `yaml:"files"`
 }
 
 type guardConfig struct {
@@ -45,8 +53,14 @@ func stageEnabling(stages []guardStage, service string) guardStage {
 
 // stageRunning returns the systemd stage that runs command verbatim.
 func stageRunning(stages []guardStage, command string) guardStage {
+	return stageRunningFor(stages, "systemd", command)
+}
+
+// stageRunningFor returns the stage for the given service manager that runs
+// command verbatim.
+func stageRunningFor(stages []guardStage, serviceManager, command string) guardStage {
 	for _, s := range stages {
-		if s.OnlyServiceManager != "systemd" {
+		if s.OnlyServiceManager != serviceManager {
 			continue
 		}
 		for _, c := range s.Commands {
@@ -55,28 +69,69 @@ func stageRunning(stages []guardStage, command string) guardStage {
 			}
 		}
 	}
-	Fail("no systemd stage runs " + command)
+	Fail("no " + serviceManager + " stage runs " + command)
 	return guardStage{}
 }
 
-// evalGuard runs a stage's `if` expression the way yip does, with sh -c, against
-// a synthetic /proc/cmdline. liveMode says whether /run/cos/live_mode exists.
-// It reports whether the stage would run.
+// evalGuard describes a boot on the GRUB live ISO: not a UKI, with the given
+// cmdline, and liveMode saying whether immucore reported LiveCD. It reports
+// whether the stage would run on that boot, running the stage's `if` the way
+// yip does, with sh -c.
 func evalGuard(expr, cmdline string, liveMode bool) bool {
+	return evalGuardOn(expr, cmdline, liveMode, false)
+}
+
+// evalGuardUki is evalGuard for a Trusted Boot install medium. immucore
+// writes BOTH boot sentinels on that boot: uki_install_mode because the UKI
+// did not boot from an installed EFI entry, and live_mode because the same
+// condition makes getUKIBootState report LiveCD (see sdk/state/state.go and
+// immucore/pkg/state/steps_shared.go).
+func evalGuardUki(expr, cmdline string) bool {
+	return evalGuardOn(expr, cmdline, true, true)
+}
+
+// evalGuardOn runs the guard with each of the two boot sentinels present or
+// absent as asked, so a spec can describe a GRUB boot, a UKI boot, or an
+// installed system (neither sentinel).
+//
+// The installer guards no longer read the cmdline: immucore turns it into
+// /run/cos/install_mode or /run/cos/install_mode_interactive and the stages
+// gate on those (kairos-io/kairos#5459). So the harness runs the real decision
+// here and writes what it returns, which keeps every spec below an end to end
+// statement about a cmdline on a medium rather than about a shell expression.
+func evalGuardOn(expr, cmdline string, liveMode, ukiInstallMode bool) bool {
 	root := GinkgoT().TempDir()
 
 	cmdlinePath := filepath.Join(root, "cmdline")
 	Expect(os.WriteFile(cmdlinePath, []byte(cmdline+"\n"), 0644)).To(Succeed())
 
-	livePath := filepath.Join(root, "live_mode")
-	if liveMode {
-		Expect(os.WriteFile(livePath, nil, 0644)).To(Succeed())
+	sentinel := func(name string, present bool) string {
+		path := filepath.Join(root, name)
+		if present {
+			Expect(os.WriteFile(path, nil, 0644)).To(Succeed())
+		}
+		return path
+	}
+
+	intent := state.InstallIntentSentinels(cmdline, ukiInstallMode, liveMode)
+	wrote := func(name string) bool {
+		for _, s := range intent {
+			if s == name {
+				return true
+			}
+		}
+		return false
 	}
 
 	expr = strings.ReplaceAll(expr, "/proc/cmdline", cmdlinePath)
-	expr = strings.ReplaceAll(expr, "/run/cos/live_mode", livePath)
-	// Never present: these specs cover the live ISO, not a UKI install medium.
-	expr = strings.ReplaceAll(expr, "/run/cos/uki_install_mode", filepath.Join(root, "absent"))
+	expr = strings.ReplaceAll(expr, "/run/cos/live_mode", sentinel("live_mode", liveMode))
+	expr = strings.ReplaceAll(expr, "/run/cos/uki_install_mode", sentinel("uki_install_mode", ukiInstallMode))
+	// The interactive name has the plain one as a prefix, so substitute it
+	// first or the plain replacement rewrites half of it.
+	expr = strings.ReplaceAll(expr, "/run/cos/"+state.InstallModeInteractiveSentinel,
+		sentinel(state.InstallModeInteractiveSentinel, wrote(state.InstallModeInteractiveSentinel)))
+	expr = strings.ReplaceAll(expr, "/run/cos/"+state.InstallModeSentinel,
+		sentinel(state.InstallModeSentinel, wrote(state.InstallModeSentinel)))
 
 	err := exec.Command("sh", "-c", expr).Run()
 	if err == nil {
@@ -101,6 +156,25 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 			interactive = stageEnabling(stages, "kairos-interactive").If
 		})
 
+		// The guards name the sentinel files by hand, in YAML, and immucore
+		// names them from Go constants. Nothing but this spec connects the
+		// two, and a rename on either side would quietly stop every installer
+		// from ever starting: the stage would gate on a file nobody writes,
+		// and no test that only exercises one side would notice.
+		It("gates on the sentinel files immucore actually writes", func() {
+			Expect(plain).To(ContainSubstring("/run/cos/" + state.InstallModeSentinel))
+			Expect(interactive).To(ContainSubstring("/run/cos/" + state.InstallModeInteractiveSentinel))
+
+			// And on nothing else. The point of kairos-io/kairos#5459 is that
+			// the install decision is made once, in immucore; a guard that
+			// reads the cmdline again is a second decision that a new medium
+			// can fall between, which is how pixiecore netboot ended up
+			// starting no installer at all (#5373).
+			for _, guard := range []string{plain, interactive} {
+				Expect(guard).NotTo(ContainSubstring("/proc/cmdline"))
+			}
+		})
+
 		It("starts the plain installer on install-mode", func() {
 			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel install-mode", true)).To(BeTrue())
 			Expect(evalGuard(interactive, "BOOT_IMAGE=/boot/kernel install-mode", true)).To(BeFalse())
@@ -118,8 +192,91 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 			Expect(evalGuard(plain, cmdline, true)).To(BeFalse())
 		})
 
-		It("still honours the legacy nodepair.enable keyword", func() {
-			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel nodepair.enable", true)).To(BeTrue())
+		// On Trusted Boot every UKI entry AuroraBoot builds carries
+		// install-mode, because they all extend the same base cmdline, and the
+		// installer copies norole.efi verbatim into each installed role. The
+		// cmdline is signed, so no entry can carry a keyword of its own and
+		// there is nothing there to read. A UKI install medium therefore gets
+		// the interactive installer, which is the dispatcher: it runs
+		// AutoInstall first, so install.auto: true still installs unattended.
+		It("starts the interactive installer on a UKI medium whatever the cmdline says", func() {
+			for _, cmdline := range []string{
+				"BOOT_IMAGE=/boot/kernel install-mode",
+				"BOOT_IMAGE=/boot/kernel install-mode-interactive",
+				"BOOT_IMAGE=/boot/kernel",
+			} {
+				Expect(evalGuardUki(interactive, cmdline)).To(BeTrue(), "cmdline %q", cmdline)
+				Expect(evalGuardUki(plain, cmdline)).To(BeFalse(), "cmdline %q", cmdline)
+			}
+		})
+
+		// The point of kairos-io/kairos#5000: an installed Trusted Boot system
+		// boots with install-mode on its cmdline for the life of the machine.
+		// Neither sentinel exists there, and no installer stage may fire.
+		It("starts nothing on an installed system that inherited install-mode", func() {
+			const cmdline = "BOOT_IMAGE=/boot/kernel install-mode rd.immucore.uki"
+			Expect(evalGuardOn(plain, cmdline, false, false)).To(BeFalse())
+			Expect(evalGuardOn(interactive, cmdline, false, false)).To(BeFalse())
+		})
+
+		// The openrc stage starts the same installer from /etc/inittab. It is
+		// a separate `if` in the same file, so it can be narrowed or widened
+		// on its own; pin the two to the same answer rather than the same text.
+		It("guards the openrc installer exactly as the systemd one", func() {
+			openrc := stageRunningFor(readStages("52_installer.yaml"), "openrc",
+				`echo "tty1::respawn:/usr/bin/kairos-agent install tty1" >> /etc/inittab`).If
+
+			for _, tc := range []struct {
+				cmdline        string
+				live, ukiMedia bool
+			}{
+				{"BOOT_IMAGE=/boot/kernel install-mode", true, false},
+				{"BOOT_IMAGE=/boot/kernel", true, false},
+				{"BOOT_IMAGE=/boot/kernel nodepair.enable", true, false},
+				{"BOOT_IMAGE=/boot/kernel install-mode-interactive", true, false},
+				{"BOOT_IMAGE=/boot/kernel install-mode", true, true},
+				{"BOOT_IMAGE=/boot/kernel", true, true},
+				{"BOOT_IMAGE=/boot/kernel install-mode", false, false},
+			} {
+				Expect(evalGuardOn(openrc, tc.cmdline, tc.live, tc.ukiMedia)).
+					To(Equal(evalGuardOn(plain, tc.cmdline, tc.live, tc.ukiMedia)),
+						"cmdline %q live=%v uki=%v", tc.cmdline, tc.live, tc.ukiMedia)
+			}
+		})
+
+		// The GRUB live ISO keeps deciding by keyword: its cmdline is per menu
+		// entry and unsigned, so the entry can still say which installer it
+		// wants, and a live boot that asks for neither gets neither.
+		It("still decides by keyword on the GRUB live ISO", func() {
+			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel install-mode", true)).To(BeTrue())
+			Expect(evalGuard(interactive, "BOOT_IMAGE=/boot/kernel install-mode", true)).To(BeFalse())
+			Expect(evalGuard(interactive, "BOOT_IMAGE=/boot/kernel install-mode-interactive", true)).To(BeTrue())
+			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel", true)).To(BeFalse())
+			Expect(evalGuard(interactive, "BOOT_IMAGE=/boot/kernel", true)).To(BeFalse())
+		})
+
+		// The openrc interactive stage is a separate `if`, same as the plain
+		// pair below. Pin it to the same answers rather than the same text.
+		It("guards the openrc interactive installer exactly as the systemd one", func() {
+			openrc := stageRunningFor(readStages("52_installer.yaml"), "openrc",
+				`echo "tty1::respawn:/usr/bin/kairos-agent interactive-install --shell tty1" >> /etc/inittab`).If
+
+			for _, tc := range []struct {
+				cmdline        string
+				live, ukiMedia bool
+			}{
+				{"BOOT_IMAGE=/boot/kernel install-mode-interactive", true, false},
+				{"BOOT_IMAGE=/boot/kernel interactive-install", true, false},
+				{"BOOT_IMAGE=/boot/kernel install-mode", true, false},
+				{"BOOT_IMAGE=/boot/kernel", true, false},
+				{"BOOT_IMAGE=/boot/kernel install-mode", true, true},
+				{"BOOT_IMAGE=/boot/kernel", true, true},
+				{"BOOT_IMAGE=/boot/kernel install-mode-interactive", false, false},
+			} {
+				Expect(evalGuardOn(openrc, tc.cmdline, tc.live, tc.ukiMedia)).
+					To(Equal(evalGuardOn(interactive, tc.cmdline, tc.live, tc.ukiMedia)),
+						"cmdline %q live=%v uki=%v", tc.cmdline, tc.live, tc.ukiMedia)
+			}
 		})
 
 		It("starts nothing on a plain boot, or outside live mode", func() {
@@ -128,23 +285,51 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel install-mode", false)).To(BeFalse())
 		})
 
-		// Narrowing the install-mode guard took the WebUI's `systemctl enable`
-		// off the interactive path, since that enable sits in the install-mode
-		// stage. The boot stage runs on every live boot, so it has to enable
-		// the unit and not only start it, or the WebUI does not come back after
-		// a restart on an interactive boot.
-		It("enables the webui on every live boot, not only an install-mode one", func() {
-			boot := stageRunning(readStage("52_installer.yaml", "boot"), "systemctl enable --now kairos-webui")
+		// nodepair.enable used to start the plain installer, back when the
+		// live medium's job was to show the pairing QR code. The medium boots
+		// the front-facing installer now, and install-mode is the one keyword
+		// that asks for the plain one, so the legacy keyword decides nothing.
+		It("no longer starts an installer on the legacy nodepair.enable keyword", func() {
+			const cmdline = "BOOT_IMAGE=/boot/kernel nodepair.enable"
+			Expect(evalGuard(plain, cmdline, true)).To(BeFalse())
+			Expect(evalGuard(interactive, cmdline, true)).To(BeFalse())
+		})
+	})
 
-			for _, cmdline := range []string{
-				"BOOT_IMAGE=/boot/kernel install-mode",
-				"BOOT_IMAGE=/boot/kernel install-mode-interactive",
-				"BOOT_IMAGE=/boot/kernel interactive-install",
-				"BOOT_IMAGE=/boot/kernel",
-			} {
-				Expect(evalGuard(boot.If, cmdline, true)).To(BeTrue(), "cmdline %q", cmdline)
+	// The web UI is a frontend of the installer, served in the installer's own
+	// process on every boot that runs it. A kairos-webui service beside it is
+	// a second process going for the same listen address, which is why the
+	// guards keeping the two apart kept growing terms. There is no service any
+	// more: no unit, no init script, and no stage that starts or enables one.
+	Describe("the retired kairos-webui service", func() {
+		It("is not written or started by any bundled cloudconfig", func() {
+			entries, err := os.ReadDir(filepath.Join("..", "bundled", "cloudconfigs"))
+			Expect(err).NotTo(HaveOccurred())
+
+			for _, e := range entries {
+				if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
+					continue
+				}
+
+				content, err := os.ReadFile(filepath.Join("..", "bundled", "cloudconfigs", e.Name()))
+				Expect(err).NotTo(HaveOccurred(), "read cloudconfig %s", e.Name())
+
+				var cfg guardConfig
+				Expect(yaml.Unmarshal(content, &cfg)).To(Succeed(), "parse cloudconfig %s", e.Name())
+
+				for stage, stages := range cfg.Stages {
+					for _, s := range stages {
+						for _, f := range s.Files {
+							Expect(f.Path).NotTo(ContainSubstring("kairos-webui"),
+								"%s stage %q writes %s", e.Name(), stage, f.Path)
+						}
+						for _, c := range s.Commands {
+							Expect(c).NotTo(ContainSubstring("kairos-webui"),
+								"%s stage %q runs %q", e.Name(), stage, c)
+						}
+					}
+				}
 			}
-			Expect(evalGuard(boot.If, "BOOT_IMAGE=/boot/kernel install-mode", false)).To(BeFalse())
 		})
 	})
 

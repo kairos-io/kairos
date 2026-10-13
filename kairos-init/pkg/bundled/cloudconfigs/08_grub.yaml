@@ -79,7 +79,7 @@ stages:
       - path: "/tmp/mnt/STATE/grub_boot_assessment"
         owner: 0
         group: 0
-        permsisions: 0600
+        permissions: 0600
         content: |
             set boot_assessment="/boot_assessment"
             search --no-floppy --file --set=boot_assessment_blk "${boot_assessment}"

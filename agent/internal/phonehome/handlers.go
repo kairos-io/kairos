@@ -110,7 +110,7 @@ func DefaultCommandHandler(serverURL string, apiKey func() string, isAllowed fun
 			return string(out), err
 
 		case commandUpgrade, commandUpgradeRecovery:
-			return handleUpgrade(ctx, cmd, serverURL, apiKey(), systemConfig, retries, retryInterval)
+			return handleUpgrade(ctx, cmd, serverURL, apiKey(), systemConfig, retries, retryInterval, isAllowed)
 
 		case commandReset:
 			return handleReset(cmd, systemConfig)
@@ -173,10 +173,30 @@ func handleUnregister(stop func()) (string, error) {
 }
 
 // handleUpgrade downloads the image (if artifact-based) and runs kairos-agent upgrade.
-func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKey string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {
+//
+// isAllowed is the same policy predicate the dispatcher applied to cmd.Command.
+// It is consulted a second time here because an upgrade carrying an
+// `extensions` argument performs the work of the separately named `extension`
+// command, which is not one of the safe defaults.
+func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKey string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration, isAllowed func(string) bool) (string, error) {
 	source := cmd.Args[argSource]
 	if source == "" {
 		return "", fmt.Errorf("upgrade requires 'source' arg")
+	}
+
+	// Read and vet the bundle before anything is downloaded, so a command that
+	// is going to be refused costs the node no network and no disk.
+	bundled, err := parseBundledExtensions(cmd.Args[argExtensions])
+	if err != nil {
+		return "", err
+	}
+	// Installing an extension ships code to the node, which is why `extension`
+	// is opt-in rather than one of the safe defaults. Riding along with an
+	// upgrade does not change what it does, so it needs the same grant.
+	// Without this, the default policy, which permits `upgrade`, installs and
+	// enables whatever extension the server names.
+	if len(bundled) > 0 && (isAllowed == nil || !isAllowed(commandExtension)) {
+		return "", fmt.Errorf("this %s carries bundled extensions, and command %q is not permitted by the phonehome policy; add it to phonehome.allowed_commands in cloud-config to opt in", cmd.Command, commandExtension)
 	}
 
 	// If source is "artifact:<id>", download the container image tar from the server.
@@ -199,20 +219,18 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 		source = "oci:" + source
 	}
 
+	recovery := isRecoveryUpgrade(cmd)
+
 	args := []string{"upgrade", "--source", source}
-	if cmd.Command == commandUpgradeRecovery || cmd.Args[argRecovery] == argTrue {
+	if recovery {
 		args = append(args, "--recovery")
 	}
 
 	// Install bundled extensions before the OS upgrade. Each install overwrites
 	// the .raw in place, so retrying the same compound command after a partial
 	// failure is safe.
-	bundled, err := parseBundledExtensions(cmd.Args[argExtensions])
-	if err != nil {
-		return "", err
-	}
 	scope := constants.BootActive
-	if cmd.Command == commandUpgradeRecovery {
+	if recovery {
 		scope = constants.BootRecovery
 	}
 	for _, e := range bundled {
@@ -231,18 +249,31 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 	}
 	Logger.Infof("kairos-agent upgrade completed: %s", string(out))
 
-	// Reboot after successful upgrade so the new image takes effect.
-	// Do NOT reboot for recovery upgrades (recovery doesn't need reboot).
-	if cmd.Command != commandUpgradeRecovery {
-		rebootScheduler()
+	// Reboot after successful upgrade so the new image takes effect. A recovery
+	// upgrade does not touch the running system, so it needs no reboot.
+	if recovery {
+		return string(out) + "\nRecovery image upgraded. No reboot needed.", nil
 	}
+
+	rebootScheduler()
 
 	return string(out) + "\nUpgrade complete. Rebooting in 10s...", nil
 }
 
+// isRecoveryUpgrade reports whether an upgrade command targets the recovery
+// image. Two encodings reach us: the dedicated `upgrade-recovery` command, and
+// an `upgrade` carrying `recovery: "true"`. Every decision that follows from
+// the answer has to read it from here, or the two encodings behave differently.
+func isRecoveryUpgrade(cmd CommandData) bool {
+	return cmd.Command == commandUpgradeRecovery || cmd.Args[argRecovery] == argTrue
+}
+
 func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {
-	imageURL := fmt.Sprintf("%s/api/v1/artifacts/%s/image?token=%s",
-		strings.TrimRight(serverURL, "/"), artifactID, apiKey)
+	// The node API key travels in the Authorization header, never in the query
+	// string: the server accepts a node credential from the header only, since a
+	// key in a URL leaks through access logs, proxies and Referer headers.
+	imageURL := fmt.Sprintf("%s/api/v1/artifacts/%s/image",
+		strings.TrimRight(serverURL, "/"), artifactID)
 	attempts := retries + 1
 	if attempts < 1 {
 		attempts = 1
@@ -251,7 +282,7 @@ func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string,
 	var finalErr error
 	backoff := retryInterval
 	for attempt := 1; attempt <= attempts; attempt++ {
-		tarPath, transient, err := downloadArtifactAttempt(ctx, imageURL, artifactID, systemConfig)
+		tarPath, transient, err := downloadArtifactAttempt(ctx, imageURL, apiKey, artifactID, systemConfig)
 		if err == nil {
 			return tarPath, nil
 		}
@@ -283,11 +314,14 @@ func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string,
 	return "", fmt.Errorf("downloading artifact image after %d attempts: %w", attempts, finalErr)
 }
 
-func downloadArtifactAttempt(ctx context.Context, imageURL, artifactID string, systemConfig *sdkConfig.Config) (string, bool, error) {
+func downloadArtifactAttempt(ctx context.Context, imageURL, apiKey, artifactID string, systemConfig *sdkConfig.Config) (string, bool, error) {
 	// serverURL is operator-configured via cloud-config, not user input.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil) //nosec G107 -- URL derived from operator cloud-config
 	if err != nil {
 		return "", false, fmt.Errorf("building request: %w", err)
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

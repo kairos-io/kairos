@@ -4,6 +4,48 @@ kairos-agent owns partitioning/configuration/install. The interactive **UX**
 is owned by a separate `kairos-installer` binary. This document is the stable
 contract between them.
 
+## Unattended installs come first
+
+Both live boot entrypoints, `install` and `interactive-install`, call
+`agent.AutoInstall` before they show anything. If the config says
+`install.auto: true`, that call performs the installation and the command
+returns: a config that says "install me without asking" leaves nothing to ask,
+and the live CD must not stop at a prompt with nobody there to answer it.
+
+An installer is therefore resolved and launched only when there is a decision
+left for a human to make. `interactive-install` itself does not read the
+config; the switch is at the call site, not inside the installer path.
+
+### Opting out: `--skip-auto-install`
+
+An operator who boots the media to look at a machine rather than to install it
+needs the installer even on a node whose datasource says `install.auto: true`.
+`interactive-install` takes `--skip-auto-install` for that: the `install.auto`
+check is not made at all and the installer runs, which is what the command did
+before it learned to read the config.
+
+It is off by default, and it stays off by default: unattended installs are the
+case with nobody at the console, so they win unless someone present says
+otherwise. There are three ways to say so, in this order:
+
+1. `kairos-agent interactive-install --skip-auto-install`
+2. `KAIROS_SKIP_AUTO_INSTALL=true` in the environment
+3. `kairos.skip-auto-install` on the kernel command line (also `=true` / `=1`)
+
+The third exists because the first two cannot be reached from a booted ISO: the
+`kairos-interactive` unit's `ExecStart` is fixed at
+`/usr/bin/kairos-agent interactive-install --shell`, so editing the GRUB entry
+is what an operator at the console can actually do.
+
+`install` has no such flag. It has always honoured `install.auto`, so there is
+no previous behaviour to preserve there.
+
+`--shell` spawns a shell after the installer exits, so it applies only when an
+installer was launched. On the unattended path none was, and the flag has
+nothing to run after; `interactive-install` logs that it ignored it rather than
+dropping it without a word. `--skip-auto-install` is what gets both the
+installer and the shell on such a node.
+
 ## Discovery & launch
 
 `kairos-agent interactive-install` resolves an installer binary in this order

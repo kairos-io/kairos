@@ -19,12 +19,16 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
+// Every wait below is capped at 10 minutes, so the spec cannot outlast the
+// 60 minute suite budget however it fails (#4489). A green run of this spec
+// costs 303s end to end, and its slowest step, the pairing handshake, costs
+// 191s, so 10 minutes leaves every step at least 3x its measured cost.
 var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-install"), func() {
 	var vm VM
 
 	BeforeEach(func() {
 		_, vm = startVM()
-		vm.EventuallyConnects(1200)
+		vm.EventuallyConnects(600)
 	})
 
 	AfterEach(func() {
@@ -69,7 +73,7 @@ var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-in
 		Eventually(func() string {
 			v, _ := vm.Sudo("kairos-agent state get boot")
 			return strings.TrimSpace(v)
-		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("active_boot"))
+		}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("active_boot"))
 
 		Eventually(func() string {
 			v, _ := vm.Sudo("cat /proc/cmdline")

@@ -15,11 +15,9 @@ You only need to run this once inside a Dockerfile to have a system that has all
 Create a Dockerfile with your desired base image, mount the kairos-init binary from the kairos-init image and run it:
 
 ```Dockerfile
-FROM quay.io/kairos/kairos-init:latest AS kairos-init
-
 FROM ubuntu:24.04
 ARG VERSION=1.0.0
-RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init /kairos-init --version "${VERSION}"
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init /kairos-init --version "${VERSION}"
 ```
 
 Then build it:
@@ -45,6 +43,56 @@ kairos-init --dry-run --version 1.0.0 --stage init | yip -
 The output is a full `schema.YipConfig` (commands, files, packages,
 services, etc.). Nothing is written to `/etc/kairos` and no binary copy,
 `yip` execution, or provider hook runs during a dry run.
+
+## CIS L1 Hardening
+
+kairos-init applies the CIS Distribution Independent Linux v2.0.0 L1 controls
+that fit an immutable image to every image it builds. `tests/cis_test.go` runs
+the [cis-dil-benchmark](https://github.com/dev-sec/cis-dil-benchmark) profile
+against an installed Hadron system in CI; the controls that do not apply, or
+were left out on purpose, are listed with the reason in
+`tests/assets/cis-dil-waivers.yaml`.
+
+What the `cisHardening` step sets:
+
+- `/etc/modprobe.d/cis-blocklist.conf` gets an `install <mod> /bin/false` line
+  for cramfs, freevxfs, jffs2, hfs, hfsplus and udf (1.1.1.x). `modprobe` of
+  those filesystems fails, so volumes that need them no longer mount.
+- `/etc/issue.net` is replaced with a generic pre-authentication warning that
+  names no distribution, release or kernel (1.7). Wiring sshd to print it
+  (`Banner /etc/issue.net`) is not done here.
+- No core dumps: `* hard core 0` in `/etc/security/limits.d/50-kairos-cis.conf`
+  and `fs.suid_dumpable = 0` (1.5.1).
+- Network sysctls in `/etc/sysctl.d/99-kairos-cis.conf`: ASLR, loose
+  `rp_filter`, SYN cookies, no source routes, no (secure) redirects, no IPv6
+  router advertisements (section 3).
+- auditd enabled with the baseline rules in `/etc/audit/rules.d/50-kairos.rules`
+  (4.1).
+- journald compresses and keeps its journal on disk (4.2.2.2, 4.2.2.3), and
+  files under `/var/log` lose group write and every bit for other (4.2.3).
+- cron and at paths are tightened on bases that ship them (5.1).
+- `pwquality.conf` and `faillock.conf`, wired into PAM per distro (5.4.1,
+  5.4.2). Hadron ships no `pam_pwquality.so`, so the password quality policy
+  does nothing there yet. On Hadron, `pam_unix` remembers the last 5
+  passwords (5.3.3).
+- `/etc/login.defs` aging and `UMASK` are only ever tightened, and the shell
+  startup files get a matching `umask` (5.4.4).
+- `su` is limited to the `wheel` group (5.6). Root and `sudo` are not affected.
+- `/etc/gshadow` and the `-` backups are created if missing, and the account
+  databases get their modes tightened (6.1). The dbus launch helper gets its
+  `messagebus` group when the base ships it ungrouped (6.1.12).
+- `/system/oem/35_cis_boot.yaml` runs at every boot: it creates
+  `/usr/local/sbin` (6.2.6, `/usr/local` is the persistent partition) and
+  closes home directories to other users (6.2.8).
+
+immucore mounts `/tmp` nodev,nosuid,noexec, remounts `/dev/shm` noexec and
+mounts the `/home` bind nodev (1.1.3-1.1.5, 1.1.14, 1.1.17).
+
+Not covered: SELinux enforcing, firewall policy, password aging on users
+provisioned from cloud-config, a GRUB password, and blocking usb-storage.
+
+Pass `--skip-step cisHardening` to turn off the kairos-init part. The immucore
+mount options always apply.
 
 ## NVIDIA / Jetson
 
