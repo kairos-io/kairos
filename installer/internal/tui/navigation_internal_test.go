@@ -327,3 +327,114 @@ var _ = Describe("the extensions on the summary", func() {
 		Expect(view).ToNot(ContainSubstring("tools.sysext.raw (latest)"))
 	})
 })
+
+// customization returns the customization menu page.
+func customization() *customizationPage {
+	for _, p := range mainModel.pages {
+		if c, ok := p.(*customizationPage); ok {
+			return c
+		}
+	}
+	Fail("no customization page")
+	return nil
+}
+
+// chooseFromMenu puts the customization menu's cursor on the entry leading to
+// pageID and presses enter, the way an operator picks it off the list.
+func chooseFromMenu(pageID string) {
+	c := customization()
+	Expect(mainModel.currentPageID).To(Equal(c.ID()))
+	for i, id := range c.ids {
+		if id == pageID {
+			c.cursor = i
+			drive(tea.KeyMsg{Type: tea.KeyEnter})
+			return
+		}
+	}
+	Fail("the customization menu has no entry for " + pageID)
+}
+
+var _ = Describe("esc from the summary, after a detour through the customization menu", func() {
+	// walk drives the real pages from the install options page to the summary
+	// the way an operator reaches it: Customize Further, two steps filled in
+	// from the menu, then Finish Customization.
+	walk := func() {
+		useFakeWizardEnv(newFakeWizardEnv())
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		mainModel = InitialModel(&l, "")
+		mainModel.answers.Disk = "/dev/vda"
+		mainModel.navigationStack = []string{wizard.StepDisk}
+		mainModel.currentPageID = installOptionsPageID
+
+		drive(tea.KeyMsg{Type: tea.KeyDown}) // Customize Further
+		drive(tea.KeyMsg{Type: tea.KeyEnter})
+		Expect(mainModel.currentPageID).To(Equal("customization"))
+
+		chooseFromMenu(wizard.StepHostname)
+		Expect(mainModel.currentPageID).To(Equal(wizard.StepHostname))
+		drive(runes("edge-01"))
+		drive(tea.KeyMsg{Type: tea.KeyEnter})
+		Expect(mainModel.currentPageID).To(Equal("customization"), "a submitted step returns to the menu")
+
+		chooseFromMenu(wizard.StepLocale)
+		Expect(mainModel.currentPageID).To(Equal(wizard.StepLocale))
+		drive(tea.KeyMsg{Type: tea.KeyEnter}) // timezone
+		drive(tea.KeyMsg{Type: tea.KeyEnter}) // keymap, and submit
+		Expect(mainModel.currentPageID).To(Equal("customization"))
+
+		chooseFromMenu(summaryPageID) // Finish Customization
+		Expect(mainModel.currentPageID).To(Equal(summaryPageID))
+	}
+
+	It("reaches the summary with the whole detour on the stack", func() {
+		walk()
+		// One entry per visit, so the menu is on the stack once for every step
+		// entered from it and once more for Finish Customization. That is what
+		// made esc cost a press per screen.
+		Expect(mainModel.navigationStack).To(Equal([]string{
+			wizard.StepDisk, installOptionsPageID,
+			"customization", wizard.StepHostname,
+			"customization", wizard.StepLocale,
+			"customization",
+		}))
+	})
+
+	It("returns to the install options in one press", func() {
+		walk()
+		drive(tea.KeyMsg{Type: tea.KeyEsc})
+		Expect(mainModel.currentPageID).To(Equal(installOptionsPageID))
+		Expect(mainModel.navigationStack).To(Equal([]string{wizard.StepDisk}))
+	})
+
+	It("keeps the answers the detour collected", func() {
+		walk()
+		drive(tea.KeyMsg{Type: tea.KeyEsc})
+		Expect(mainModel.answers.Hostname).To(Equal("edge-01"))
+		Expect(mainModel.answers.Disk).To(Equal("/dev/vda"))
+	})
+
+	It("leaves esc one page at a time inside the detour", func() {
+		walk()
+		mainModel.currentPageID = wizard.StepLocale
+		mainModel.navigationStack = []string{wizard.StepDisk, installOptionsPageID, "customization"}
+		drive(tea.KeyMsg{Type: tea.KeyEsc})
+		Expect(mainModel.currentPageID).To(Equal("customization"))
+		Expect(mainModel.navigationStack).To(Equal([]string{wizard.StepDisk, installOptionsPageID}))
+	})
+
+	It("goes back one page when the summary was reached without the install options", func() {
+		// The quick install mode sends the disk step straight to the summary,
+		// so there is no detour to unwind.
+		useFakeWizardEnv(newFakeWizardEnv())
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		mainModel = InitialModel(&l, "")
+		mainModel.answers.Disk = "/dev/vda"
+		mainModel.quick = true
+		mainModel.navigationStack = []string{installModePageID, wizard.StepDisk}
+		mainModel.currentPageID = summaryPageID
+
+		drive(tea.KeyMsg{Type: tea.KeyEsc})
+		Expect(mainModel.currentPageID).To(Equal(wizard.StepDisk))
+		Expect(mainModel.navigationStack).To(Equal([]string{installModePageID}))
+	})
+})

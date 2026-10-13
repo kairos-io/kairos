@@ -73,10 +73,10 @@ func (p *debugBundlePage) Init() tea.Cmd {
 	return func() tea.Msg { return CheckBundleMsg{} }
 }
 
-// bundledCloudConfig is the install's configuration with every password
+// bundledCloudConfig is the install's configuration with every credential
 // redacted. A configuration that cannot be produced, such as hand-edited text
 // that does not parse, is replaced whole by a redacted placeholder: there is
-// no way to know where a password is in it.
+// no way to know where a secret is in it.
 func bundledCloudConfig() string {
 	cfg, err := currentCloudConfig()
 	if err != nil {
@@ -241,12 +241,13 @@ func failureBanner() string {
 }
 
 // sensitiveDataWarning reminds the user to vet the bundle before sharing: it
-// contains the logs, the rendered cloud-config (password redacted, but other
-// fields are not), and system info that may include secrets we can't know about.
+// contains the logs, the rendered cloud-config (credentials redacted by key
+// name, which cannot catch one inside free text), and system info that may
+// include secrets we cannot know about.
 func sensitiveDataWarning() string {
 	amber := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAF00")).Bold(true)
 	return amber.Render("[!] Review the bundle before sharing it.") + "\n" +
-		"It contains your logs, the install config (password redacted) and system info,\n" +
+		"It contains your logs, the install config (credentials redacted) and system info,\n" +
 		"which may include other sensitive data. Inspect it before sending to third parties.\n"
 }
 
