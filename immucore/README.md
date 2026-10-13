@@ -363,7 +363,7 @@ There is also the `weak` value which indicates that this step has weak dependenc
 
  - `mount-state`: Will mount the `COS_STATE` partition under `/run/initramfs/cos-state`
  - `mount-tmpfs`: Will mount `/tmp` 
- - `create-sentinel`: Will create the sentinel file identifying the boot mode (`active_mode`, `passive_mode`, `recovery_mode` or `live_mode`) under `/run/cos/`
+ - `create-sentinel`: Will create the sentinel file identifying the boot mode (`active_mode`, `passive_mode`, `recovery_mode` or `live_mode`) under `/run/cos/`. It also writes the boot's install intent there, as `install_mode` or `install_mode_interactive`, so that a cloud config gates an installer on a file on every medium instead of grepping the cmdline on GRUB and reading a file on Trusted Boot. The intent comes from the per-entry cmdline keyword on a GRUB live ISO, and from being install media on Trusted Boot, whose cmdline is signed and identical on every entry. See `sdk/state.InstallIntentSentinels`
  - `mount-base-overlay`: Will mount the base overlay under `/run/overlay`
  - `discover-state`: Will find the correct image under `/run/initramfs/cos-state` and mount it as a loop device
  - `mount-root`: Will mount the `/dev/disk/by-label/$LABEL` device under the sysroot (Usually `/sysroot`). This label is set in grub depending on the selected entry, as part of the cmdline (i.e. `root=LABEL=COS_ACTIVE`) 

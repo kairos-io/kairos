@@ -43,9 +43,14 @@ var _ = Describe("GetSSHHardeningStage", func() {
 			Expect(f.Group).To(BeZero())
 		})
 
-		It("disables root login and X11 forwarding in the drop-in", func() {
+		It("restricts root login to key-only and disables X11 forwarding in the drop-in", func() {
+			// prohibit-password matches the Hadron STIG value so hadron
+			// acceptance tests keep passing without hadron carrying its
+			// own drop-in. Password login into root is still refused;
+			// only key-based root login is possible, which is what CIS
+			// L1 5.2.10 asks for.
 			content := result[0].Files[0].Content
-			Expect(content).To(ContainSubstring("PermitRootLogin no"))
+			Expect(content).To(ContainSubstring("PermitRootLogin prohibit-password"))
 			Expect(content).To(ContainSubstring("X11Forwarding no"))
 		})
 

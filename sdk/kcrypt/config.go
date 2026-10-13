@@ -1,7 +1,11 @@
 package kcrypt
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
@@ -9,27 +13,42 @@ import (
 // DefaultConfigDirs are the default directories to scan for Kairos configuration.
 var DefaultConfigDirs = []string{"/oem", "/sysroot/oem", "/run/cos/oem"}
 
-// ScanKcryptConfig scans for Kairos configuration in the given directories (or defaults),
-// merges with cmdline, and extracts the kcrypt configuration.
-// Returns nil if no kcrypt config is found.
-func ScanKcryptConfig(logger sdkLogger.KairosLogger, dirs ...string) *bus.KcryptConfig {
+// ScanCollectorConfig scans the Kairos configuration in the given directories
+// (or DefaultConfigDirs), merged with the kernel cmdline, and returns the raw
+// collector config. Every kcrypt config consumer (ScanKcryptConfig,
+// ScanEncryptOnBootPolicy, GetEncryptor) goes through this one scan so their
+// view of the options cannot drift apart. A nil config with a nil error means
+// no configuration exists; an error means the scan itself failed and the
+// caller cannot know what the configuration says.
+func ScanCollectorConfig(logger sdkLogger.KairosLogger, dirs ...string) (*collector.Config, error) {
 	if len(dirs) == 0 {
 		dirs = DefaultConfigDirs
 	}
 
-	logger.Debugf("ScanKcryptConfig: scanning directories: %v", dirs)
+	logger.Debugf("ScanCollectorConfig: scanning directories: %v", dirs)
 
 	o := &collector.Options{NoLogs: true, MergeBootCMDLine: true}
 	if err := o.Apply(collector.Directories(dirs...)); err != nil {
-		logger.Debugf("ScanKcryptConfig: error applying collector options: %v", err)
-		return nil
+		return nil, fmt.Errorf("applying collector options: %w", err)
 	}
 
 	collectorConfig, err := collector.Scan(o, func(d []byte) ([]byte, error) {
 		return d, nil
 	})
 	if err != nil {
-		logger.Debugf("ScanKcryptConfig: error scanning for config: %v", err)
+		return nil, fmt.Errorf("scanning configuration: %w", err)
+	}
+
+	return collectorConfig, nil
+}
+
+// ScanKcryptConfig scans for Kairos configuration in the given directories (or defaults),
+// merges with cmdline, and extracts the kcrypt configuration.
+// Returns nil if no kcrypt config is found.
+func ScanKcryptConfig(logger sdkLogger.KairosLogger, dirs ...string) *bus.KcryptConfig {
+	collectorConfig, err := ScanCollectorConfig(logger, dirs...)
+	if err != nil {
+		logger.Debugf("ScanKcryptConfig: %v", err)
 		return nil
 	}
 
@@ -39,20 +58,196 @@ func ScanKcryptConfig(logger sdkLogger.KairosLogger, dirs ...string) *bus.Kcrypt
 	}
 
 	logger.Debugf("ScanKcryptConfig: collector found config with %d keys", len(collectorConfig.Values))
-	if len(collectorConfig.Values) > 0 {
-		// Log the top-level keys
-		keys := make([]string, 0, len(collectorConfig.Values))
-		for k := range collectorConfig.Values {
-			keys = append(keys, k)
-		}
-		logger.Debugf("ScanKcryptConfig: top-level keys: %v", keys)
-	}
-	logger.Debugf("ScanKcryptConfig: struct is: %#v", collectorConfig.Values)
 
 	result := extractKcryptConfigFromCollector(*collectorConfig, logger)
 	logger.Debugf("ScanKcryptConfig: extracted kcrypt config =%s", result)
 
 	return result
+}
+
+// EncryptOnBootPolicy is the boot time encryption policy read on every boot:
+// whether partitions listed in install.encrypted_partitions that are still
+// plaintext should be encrypted before they are mounted
+// (kcrypt.encrypt_on_boot, default false). Both keys are non secret policy,
+// so a golden image or template can carry them while the LUKS material is
+// created on the first boot of each clone, against that clone's own TPM.
+// See kairos-io/kairos#4556.
+type EncryptOnBootPolicy struct {
+	Enabled    bool
+	Partitions []string
+}
+
+// ProtectedPartitionError reports that the boot time encryption policy lists
+// a partition the running system depends on, which must never be encrypted
+// while that system is up. Label is the offending entry from
+// install.encrypted_partitions and Reason says why it is refused, so a caller
+// can name both on whatever screen or log it fails with.
+type ProtectedPartitionError struct {
+	Label  string
+	Reason string
+}
+
+func (e *ProtectedPartitionError) Error() string {
+	return fmt.Sprintf("boot time encryption of %s is not supported: %s", e.Label, e.Reason)
+}
+
+// RejectSystemPartitions returns a *ProtectedPartitionError when the policy
+// lists a partition the running boot depends on: OEM (the mounted
+// configuration source the policy is read from), state and recovery (they
+// hold the images of the system that is booting) and EFI (the firmware reads
+// it to start the boot). Encrypting any of them from a running system would
+// destroy that system, so every consumer of the policy (immucore's
+// encrypt-pending step today, the agent subcommand and the reset path later)
+// must call this before acting on Partitions, whether or not the partition
+// still looks pending: a refused label is refused for what it is, not for
+// what state it happens to be in.
+//
+// effectiveOEMLabel is the OEM label after any rename (the rd.cos.oemlabel=
+// and rd.immucore.oemlabel= cmdline overrides); pass the empty string when
+// there is none. The constant OEM label is always refused as well.
+func (p EncryptOnBootPolicy) RejectSystemPartitions(effectiveOEMLabel string) error {
+	const oemReason = "it is the mounted configuration source this policy was read from"
+	protected := map[string]string{
+		constants.OEMLabel:      oemReason,
+		constants.StateLabel:    "it holds the root image of the system that is booting",
+		constants.RecoveryLabel: "it holds the recovery system",
+		constants.EfiLabel:      "the firmware reads it to start the boot",
+	}
+	if effectiveOEMLabel != "" {
+		protected[effectiveOEMLabel] = oemReason
+	}
+
+	for _, label := range p.Partitions {
+		if reason, ok := protected[label]; ok {
+			return &ProtectedPartitionError{Label: label, Reason: reason}
+		}
+	}
+	return nil
+}
+
+// ScanEncryptOnBootPolicy scans the Kairos configuration in the given
+// directories (or DefaultConfigDirs), merged with the kernel cmdline, and
+// extracts the boot time encryption policy. It returns an error when the
+// configuration could not be read at all: the caller cannot tell an absent
+// opt-in from an unreadable one, so a failed scan must never pass for a
+// disabled policy.
+func ScanEncryptOnBootPolicy(logger sdkLogger.KairosLogger, dirs ...string) (EncryptOnBootPolicy, error) {
+	collectorConfig, err := ScanCollectorConfig(logger, dirs...)
+	if err != nil {
+		return EncryptOnBootPolicy{}, err
+	}
+
+	return EncryptOnBootPolicyFromConfig(collectorConfig, logger), nil
+}
+
+// EncryptOnBootPolicyFromConfig extracts the boot time encryption policy from
+// an already-scanned collector config, so a caller that needs both the policy
+// and the rest of the configuration (immucore's encrypt-pending step, which
+// also hands the config to GetEncryptorFromConfig) scans once. A nil config
+// means no configuration exists: a disabled policy.
+func EncryptOnBootPolicyFromConfig(collectorConfig *collector.Config, log sdkLogger.KairosLogger) EncryptOnBootPolicy {
+	if collectorConfig == nil {
+		return EncryptOnBootPolicy{}
+	}
+
+	return extractEncryptOnBootPolicy(*collectorConfig, log)
+}
+
+// extractEncryptOnBootPolicy extracts the boot time encryption policy from a
+// collector.Config. The flag lives under kcrypt so it sits next to the rest
+// of the encryption configuration; the partition list is the same
+// install.encrypted_partitions the install time hook consumes.
+func extractEncryptOnBootPolicy(collectorConfig collector.Config, log sdkLogger.KairosLogger) EncryptOnBootPolicy {
+	policy := EncryptOnBootPolicy{}
+
+	if collectorConfig.Values == nil {
+		log.Debugf("extractEncryptOnBootPolicy: no values found")
+		return policy
+	}
+
+	if kcryptMap, ok := asConfigValues(collectorConfig.Values["kcrypt"]); ok {
+		policy.Enabled = enabledFlag(kcryptMap["encrypt_on_boot"])
+	}
+
+	if installMap, ok := asConfigValues(collectorConfig.Values["install"]); ok {
+		switch v := installMap["encrypted_partitions"].(type) {
+		case []string:
+			policy.Partitions = v
+		case []interface{}:
+			for _, item := range v {
+				if str, ok := item.(string); ok {
+					policy.Partitions = append(policy.Partitions, str)
+				}
+			}
+		case string:
+			// The cmdline route delivers the list as one comma separated
+			// string (install.encrypted_partitions=COS_PERSISTENT,MYAPP_DATA).
+			for _, item := range strings.Split(v, ",") {
+				if item = strings.TrimSpace(item); item != "" {
+					policy.Partitions = append(policy.Partitions, item)
+				}
+			}
+		}
+	}
+
+	log.Debugf("extractEncryptOnBootPolicy: enabled=%t partitions=%v", policy.Enabled, policy.Partitions)
+	return policy
+}
+
+// enabledFlag interprets the encrypt_on_boot value across the shapes the
+// collector can deliver it in: a YAML bool, the numbers a YAML `1` parses to,
+// and the strings a kernel cmdline carries. A bare kcrypt.encrypt_on_boot
+// token reaches the collector as the string "true", and spellings like
+// kcrypt.encrypt_on_boot=1 or =yes arrive verbatim, so the common truthy
+// forms are accepted rather than the single literal "true". Everything else,
+// "false", "no" and "0" included, is disabled.
+func enabledFlag(v interface{}) bool {
+	switch val := v.(type) {
+	case bool:
+		return val
+	case int:
+		return val == 1
+	case int64:
+		return val == 1
+	case float64:
+		return val == 1
+	case string:
+		switch strings.ToLower(strings.TrimSpace(val)) {
+		case "true", "1", "yes", "y", "on":
+			return true
+		}
+	}
+	return false
+}
+
+// asConfigValues unwraps a nested collector value to its map form. The
+// collector hands nested blocks back as collector.ConfigValues, but a value
+// that went through a plain YAML unmarshal is a map[string]interface{}, so
+// accept both.
+func asConfigValues(v interface{}) (collector.ConfigValues, bool) {
+	switch m := v.(type) {
+	case collector.ConfigValues:
+		return m, true
+	case map[string]interface{}:
+		return collector.ConfigValues(m), true
+	}
+	return nil, false
+}
+
+// KcryptConfigFromCollector extracts the kcrypt configuration from an
+// already-scanned collector config, for a caller that holds one (the agent's
+// kcrypt subcommands, which scan the configuration before they run). It is the
+// same reader GetEncryptorFromConfig uses, so what the subcommands report and
+// what the encryptor acts on cannot drift: a node whose config sets
+// kcrypt.nv_index must have `kairos-agent kcrypt readnv` look at that index and
+// not at the default one. A nil config means no configuration exists and
+// yields an empty, non-nil result.
+func KcryptConfigFromCollector(collectorConfig *collector.Config, log sdkLogger.KairosLogger) *bus.KcryptConfig {
+	if collectorConfig == nil {
+		return &bus.KcryptConfig{}
+	}
+
+	return extractKcryptConfigFromCollector(*collectorConfig, log)
 }
 
 // extractKcryptConfigFromCollector extracts kcrypt configuration from a collector.Config.
@@ -70,15 +265,19 @@ func extractKcryptConfigFromCollector(collectorConfig collector.Config, log sdkL
 		return config
 	}
 
-	kcryptMap, ok := kcryptVal.(collector.ConfigValues)
+	// asConfigValues rather than a bare type assertion: the collector hands a
+	// scanned YAML block back as collector.ConfigValues, but a config that
+	// reached it through the JSON reader fallback is a plain
+	// map[string]interface{}. Asserting only one of the two shapes
+	// drops the whole block for the other, silently.
+	kcryptMap, ok := asConfigValues(kcryptVal)
 	if !ok {
-		log.Debugf("extractKcryptConfigFromCollector: kcrypt value is not ConfigValues, it's %T", kcryptVal)
+		log.Debugf("extractKcryptConfigFromCollector: kcrypt value is not a map, it's %T", kcryptVal)
 		return config
 	}
 
 	// Extract from challenger block if present (for remote KMS)
-	challengerVal := kcryptMap["challenger"]
-	if challengerMap, ok := challengerVal.(collector.ConfigValues); ok {
+	if challengerMap, ok := asConfigValues(kcryptMap["challenger"]); ok {
 		if server, ok := challengerMap["challenger_server"].(string); ok {
 			config.ChallengerServer = server
 		}

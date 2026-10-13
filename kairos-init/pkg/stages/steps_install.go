@@ -596,7 +596,66 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 		return err
 	}
 
+	if err := installSplashBinary(l, "/usr/bin/kairos", bundled.SplashBinaryPath); err != nil {
+		l.Logger.Error().Err(err).Msg("Failed to install the boot splash binary")
+		return err
+	}
+
 	return nil
+}
+
+// installSplashBinary points bundled.SplashBinaryPath at the multi-call
+// binary, whose "kairos-splash" argv[0] alias dispatches to `kairos splash`.
+//
+// It is not one of the `binaries` entries above because it is never
+// downloaded: there is no kairos-splash release to pin, the splash only ever
+// rides the multi-call binary.
+//
+// Two things make this the seam a downstream replaces the animation at rather
+// than a second name for the same file:
+//
+//   - an existing entry at the path is left alone. An OCI image that dropped
+//     its own executable there, or a rebuild of an image kairos-init already
+//     ran against, keeps what it has. Both splash units and the dracut module
+//     name only this path, so that is the whole of the override: no unit to
+//     edit, no dracut module to fork.
+//   - it runs in the install stage, and the initramfs is rebuilt in the init
+//     stage, so a replacement dropped in before `kairos-init` is re-run lands
+//     in the initramfs half too.
+//
+// A missing multi-call binary is not an error. Every binary pinned through
+// VersionOverrides means /usr/bin/kairos was never written, and a symlink to
+// a file that is not there would be a dangling ExecStart. The dracut module's
+// check() and both units' ConditionPathExists= then see nothing at this path
+// and the splash is simply absent.
+//
+// The paths are arguments so a test can exercise this against a temporary
+// tree; the caller passes the real ones.
+func installSplashBinary(l logger.KairosLogger, kairosPath, splashPath string) error {
+	// Lstat, not Stat: a dangling symlink left by an earlier layout is still
+	// an entry we must not silently replace, and Stat would follow it and
+	// report the path as free.
+	if _, err := os.Lstat(splashPath); err == nil {
+		l.Logger.Info().Str("path", splashPath).
+			Msg("Boot splash binary already present, leaving it alone")
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if _, err := os.Stat(kairosPath); err != nil {
+		if os.IsNotExist(err) {
+			l.Logger.Info().Str("path", kairosPath).
+				Msg("No multi-call binary, skipping the boot splash symlink")
+			return nil
+		}
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(splashPath), 0755); err != nil {
+		return err
+	}
+	return os.Symlink(kairosPath, splashPath)
 }
 
 // GetInstallProviderBinaries installs the provider and edgevpn binaries

@@ -543,16 +543,33 @@ func (e *LocalTPMNVEncryptor) Validate() error {
 // 2. Else if UKI mode -> TPM + PCR policy (requires systemd >= 252 and TPM 2.0)
 // 3. Else (non-UKI, no remote) -> Local TPM NV passphrase.
 func GetEncryptor(logger sdkLogger.KairosLogger) (PartitionEncryptor, error) {
-	kcryptConfig := ScanKcryptConfig(logger)
+	collectorConfig, err := ScanCollectorConfig(logger)
+	if err != nil {
+		// Selecting an encryptor is not destructive, so a failed scan keeps
+		// the historical behaviour and falls back to the no-config default
+		// rather than failing the unlock paths that run this on every boot.
+		logger.Debugf("GetEncryptor: %v", err)
+		collectorConfig = nil
+	}
+
+	return GetEncryptorFromConfig(logger, collectorConfig)
+}
+
+// GetEncryptorFromConfig is GetEncryptor for a caller that has already
+// scanned the configuration (immucore's encrypt-pending step), so the boot
+// path does not walk the config directories once per consumer. A nil config
+// selects the local TPM default.
+func GetEncryptorFromConfig(logger sdkLogger.KairosLogger, collectorConfig *collector.Config) (PartitionEncryptor, error) {
+	var kcryptConfig *bus.KcryptConfig
+	if collectorConfig != nil {
+		kcryptConfig = extractKcryptConfigFromCollector(*collectorConfig, logger)
+	}
 
 	isUKI := detectUKIMode(logger)
 
 	var bindPCRs, bindPublicPCRs []string
-	if isUKI {
-		collectorConfig := scanCollectorConfig(logger)
-		if collectorConfig != nil {
-			bindPCRs, bindPublicPCRs = extractPCRBindingsFromCollector(*collectorConfig, logger)
-		}
+	if isUKI && collectorConfig != nil {
+		bindPCRs, bindPublicPCRs = extractPCRBindingsFromCollector(*collectorConfig, logger)
 	}
 
 	useRemoteKMS := kcryptConfig != nil && (kcryptConfig.ChallengerServer != "" || kcryptConfig.MDNS)
@@ -588,25 +605,6 @@ func GetEncryptor(logger sdkLogger.KairosLogger) (PartitionEncryptor, error) {
 	}
 
 	return encryptor, nil
-}
-
-// scanCollectorConfig scans for configuration and returns the collector config.
-func scanCollectorConfig(logger sdkLogger.KairosLogger) *collector.Config {
-	o := &collector.Options{NoLogs: true, MergeBootCMDLine: true}
-	if err := o.Apply(collector.Directories(DefaultConfigDirs...)); err != nil {
-		logger.Debugf("scanCollectorConfig: error applying collector options: %v", err)
-		return nil
-	}
-
-	collectorConfig, err := collector.Scan(o, func(d []byte) ([]byte, error) {
-		return d, nil
-	})
-	if err != nil {
-		logger.Debugf("scanCollectorConfig: error scanning for config: %v", err)
-		return nil
-	}
-
-	return collectorConfig
 }
 
 // detectUKIMode detects if the system is running in UKI mode
