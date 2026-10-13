@@ -183,21 +183,63 @@ func (c *Client) Register(ctx context.Context) error {
 	return nil
 }
 
+// handshakeBodyLimit bounds how much of a refused upgrade's body reaches the
+// log line. The server's own refusals are a one-line JSON object; a proxy in
+// front of it can answer with a whole HTML page instead, and that belongs in
+// nobody's journal.
+const handshakeBodyLimit = 256
+
+// handshakeDetail renders what the server said about a refused WebSocket
+// upgrade, as a suffix to append to the dial error, or the empty string when
+// there was no response to read. "websocket: bad handshake" on its own is the
+// same sentence for a revoked API key, a deleted node and a gateway that is
+// down, so the status is the only thing that tells an operator which one they
+// have. Register reports both for the same reason.
+//
+// The caller keeps the error free of the dialled URL, which carries the node's
+// API key in its query. This takes nothing from the request.
+func handshakeDetail(resp *http.Response) string {
+	if resp == nil {
+		return ""
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	// On a refused upgrade gorilla/websocket has already closed the network
+	// connection and left the first kilobyte of the body in resp.Body, so
+	// this reads a buffer rather than the wire.
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, handshakeBodyLimit))
+	message := strings.Join(strings.Fields(string(body)), " ")
+	if message == "" {
+		return fmt.Sprintf(" (%s)", resp.Status)
+	}
+
+	return fmt.Sprintf(" (%s: %s)", resp.Status, message)
+}
+
 // Connect establishes a WebSocket connection to the server and handles messages.
 // It blocks until the connection is closed or the context is cancelled.
 func (c *Client) Connect(ctx context.Context) error {
+	_, err := c.connect(ctx)
+	return err
+}
+
+// connect is Connect, and additionally reports whether the WebSocket was
+// established before the session ended. Run needs that to tell a server it
+// could not reach from a session the server ended, which are the same error
+// to everyone else.
+func (c *Client) connect(ctx context.Context) (bool, error) {
 	if c.credentials == nil {
-		return fmt.Errorf("not registered")
+		return false, fmt.Errorf("not registered")
 	}
 
 	wsURL, err := c.buildWSURL()
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, nil)
+	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), nil)
 	if err != nil {
-		return fmt.Errorf("websocket dial: %w", err)
+		return false, fmt.Errorf("websocket dial: %w%s", err, handshakeDetail(resp))
 	}
 
 	c.mu.Lock()
@@ -211,7 +253,7 @@ func (c *Client) Connect(ctx context.Context) error {
 		c.mu.Unlock()
 	}()
 
-	c.logger.Infof("connected to %s", wsURL)
+	c.logger.Infof("connected to %s", logSafeURL(wsURL))
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -245,12 +287,12 @@ func (c *Client) Connect(ctx context.Context) error {
 			cancel()
 			wg.Wait()
 			if ctx.Err() != nil {
-				return nil // clean shutdown
+				return true, nil // clean shutdown
 			}
 			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-				return nil
+				return true, nil
 			}
-			return fmt.Errorf("websocket read: %w", err)
+			return true, fmt.Errorf("websocket read: %w", err)
 		}
 
 		var msg WSMessage
@@ -308,10 +350,25 @@ func (c *Client) Run(ctx context.Context) error {
 
 	backoff := c.cfg.ReconnectBackoff
 	for {
-		err := c.Connect(ctx)
+		start := time.Now()
+		established, err := c.connect(ctx)
 		if ctx.Err() != nil {
 			return nil // context cancelled, clean shutdown
 		}
+
+		// A session that came up and stayed up for at least one heartbeat
+		// interval says the server is reachable, so the next attempt starts
+		// from the base delay again. Only an attempt that never got a working
+		// session keeps doubling it. Without the reset the delay only ever
+		// grows, and a node that lives through one outage then waits
+		// MaxReconnectBackoff for every later reconnect, for the life of the
+		// process, including the reconnects after a server restart that the
+		// server closed cleanly and that cost it nothing.
+		worked := established && time.Since(start) >= c.cfg.HeartbeatInterval
+		if worked {
+			backoff = c.cfg.ReconnectBackoff
+		}
+
 		if err != nil {
 			c.logger.Warnf("disconnected: %v, reconnecting in %s", err, backoff)
 		}
@@ -320,6 +377,10 @@ func (c *Client) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-time.After(backoff):
+		}
+
+		if worked {
+			continue
 		}
 
 		// Exponential backoff
@@ -408,10 +469,43 @@ func (c *Client) sendCommandStatus(conn *websocket.Conn, id, phase, result strin
 	}
 }
 
-func (c *Client) buildWSURL() (string, error) {
+// secretQueryParams names the query parameters whose value is a credential.
+// The WebSocket upgrade is authenticated from ?token=, so unlike the artifact
+// download, which carries the key in an Authorization header, the value has to
+// travel in the URL. It must not travel anywhere else.
+var secretQueryParams = map[string]bool{"token": true}
+
+// redactedQueryValue stands in for a credential in a URL rendered for a human.
+// Letters only, so url.Values.Encode leaves it alone and the line stays
+// readable.
+const redactedQueryValue = "REDACTED"
+
+// logSafeURL renders a URL for a log line with the value of every credential
+// in its query replaced. It takes the parsed URL rather than the dial string
+// so that there is no second parse to get wrong: the caller cannot hand it a
+// value it fails to redact. Redacted, not String, so a password written into
+// the configured url goes the same way as the query token.
+func logSafeURL(u *url.URL) string {
+	q := u.Query()
+	redacted := false
+	for name := range q {
+		if secretQueryParams[strings.ToLower(name)] {
+			q.Set(name, redactedQueryValue)
+			redacted = true
+		}
+	}
+	if !redacted {
+		return u.Redacted()
+	}
+	safe := *u
+	safe.RawQuery = q.Encode()
+	return safe.Redacted()
+}
+
+func (c *Client) buildWSURL() (*url.URL, error) {
 	u, err := url.Parse(c.cfg.URL)
 	if err != nil {
-		return "", fmt.Errorf("parse URL: %w", err)
+		return nil, fmt.Errorf("parse URL: %w", err)
 	}
 
 	switch u.Scheme {
@@ -426,7 +520,7 @@ func (c *Client) buildWSURL() (string, error) {
 	q.Set("token", c.credentials.APIKey)
 	u.RawQuery = q.Encode()
 
-	return u.String(), nil
+	return u, nil
 }
 
 func (c *Client) loadCredentials() (*Credentials, error) {

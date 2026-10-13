@@ -1014,3 +1014,213 @@ password    required      pam_deny.so
 		})
 	})
 })
+
+// runScoped runs every command of a stage with path swapped for a scratch
+// copy, the way the login.defs tests do, and returns nothing: callers read
+// the scratch files back.
+func runScoped(cmds []string, swaps map[string]string) {
+	for _, cmd := range cmds {
+		scoped := cmd
+		for from, to := range swaps {
+			scoped = strings.ReplaceAll(scoped, from, to)
+		}
+		out, err := exec.Command("sh", "-c", scoped).CombinedOutput()
+		ExpectWithOffset(1, err).ToNot(HaveOccurred(), "sh -c failed: %s\n%s", scoped, out)
+	}
+}
+
+var _ = Describe("GetCISHardeningStage gaps found by the CIS DIL benchmark run", func() {
+	var result []schema.Stage
+
+	stageNamed := func(name string) schema.Stage {
+		for _, st := range result {
+			if st.Name == name {
+				return st
+			}
+		}
+		Fail("no stage named " + name)
+		return schema.Stage{}
+	}
+
+	writeTemp := func(content string) string {
+		f := filepath.Join(GinkgoT().TempDir(), "f")
+		Expect(os.WriteFile(f, []byte(content), 0o644)).To(Succeed())
+		return f
+	}
+
+	read := func(path string) string {
+		b, err := os.ReadFile(path)
+		Expect(err).ToNot(HaveOccurred())
+		return string(b)
+	}
+
+	BeforeEach(func() {
+		result = stages.GetCISHardeningStage(values.System{}, logger.NewKairosLogger("test", "error", true))
+	})
+
+	It("refuses secure ICMP redirects and setuid core dumps (CIS 3.2.3, 1.5.1)", func() {
+		sysctl := fileByPath(result, bundled.CISSysctlPath)
+		for _, line := range []string{
+			"net.ipv4.conf.all.secure_redirects = 0",
+			"net.ipv4.conf.default.secure_redirects = 0",
+			"fs.suid_dumpable = 0",
+		} {
+			Expect(sysctl.Content).To(ContainSubstring(line))
+		}
+	})
+
+	It("sets a hard core limit of 0 for everyone (CIS 1.5.1)", func() {
+		limits := fileByPath(result, bundled.CISCoreDumpLimitsPath)
+		Expect(limits.Permissions).To(Equal(uint32(0o644)))
+		Expect(limits.Content).To(MatchRegexp(`(?m)^\*\s+hard\s+core\s+0$`))
+	})
+
+	DescribeTable("journald compresses and persists (CIS 4.2.2.2, 4.2.2.3)",
+		func(initial string) {
+			f := writeTemp(initial)
+			st := stageNamed("Set CIS journald compression and persistent storage")
+			runScoped(st.Commands, map[string]string{bundled.CISJournaldConfPath: f})
+			runScoped(st.Commands, map[string]string{bundled.CISJournaldConfPath: f})
+			got := read(f)
+			Expect(got).To(MatchRegexp(`(?m)^\[Journal\]\n(.*\n)*Compress=yes$`))
+			Expect(got).To(MatchRegexp(`(?m)^Storage=persistent$`))
+			Expect(regexp.MustCompile(`(?m)^Compress=yes$`).FindAllString(got, -1)).To(HaveLen(1), got)
+			Expect(got).ToNot(ContainSubstring("Compress=no"))
+		},
+		Entry("Hadron's bare section", "[Journal]\n"),
+		Entry("a commented default and a wrong value", "[Journal]\n#Compress=yes\nCompress=no\n"),
+		Entry("no section and no trailing newline", "# comment"),
+	)
+
+	It("takes group write and every other bit off log files (CIS 4.2.3)", func() {
+		dir := GinkgoT().TempDir()
+		f := filepath.Join(dir, "faillog")
+		Expect(os.WriteFile(f, nil, 0o664)).To(Succeed())
+		Expect(os.Chmod(f, 0o664)).To(Succeed())
+		runScoped(stageNamed("Restrict log file permissions").Commands, map[string]string{"/var/log": dir})
+		info, err := os.Stat(f)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o640)))
+	})
+
+	It("remembers the last 5 passwords on Hadron (CIS 5.3.3)", func() {
+		st := stageNamed("Remember previous passwords in the Hadron PAM stack")
+		Expect(st.OnlyIfOs).To(Equal("Hadron.*"))
+		f := writeTemp("password   required                    pam_unix.so          try_first_pass nullok sha512 shadow\npassword   optional                    pam_permit.so\n")
+		opasswd := filepath.Join(GinkgoT().TempDir(), "opasswd")
+		swaps := map[string]string{"/etc/pam.d/system-auth": f, "/etc/security/opasswd": opasswd}
+		runScoped(st.Commands, swaps)
+		runScoped(st.Commands, swaps)
+		got := read(f)
+		// The benchmark's regex wants single spaces between pam_unix.so and its arguments.
+		Expect(got).To(MatchRegexp(`(?m)^password\s+(\S+\s+)+pam_unix\.so (\S+\s+)*remember=5$`))
+		Expect(strings.Count(got, "remember=")).To(Equal(1))
+		Expect(opasswd).To(BeARegularFile())
+	})
+
+	DescribeTable("sets the shell umask (CIS 5.4.4)",
+		func(loginDefsUmask, want string) {
+			defs := writeTemp("UMASK\t" + loginDefsUmask + "\n")
+			profile := writeTemp("export PATH=/bin")
+			st := stageNamed("Set the CIS default umask for shells")
+			swaps := map[string]string{"/etc/login.defs": defs, "/etc/profile": profile}
+			runScoped(st.Commands, swaps)
+			runScoped(st.Commands, swaps)
+			got := read(profile)
+			Expect(got).To(HavePrefix("export PATH=/bin\n"))
+			Expect(strings.Count(got, "umask ")).To(Equal(1), got)
+			Expect(got).To(MatchRegexp(`(?m)^umask ` + want + `$`))
+		},
+		// 027 everywhere: copying Hadron's 077 into the shell files would make
+		// everything root creates under sudo -i root-only.
+		Entry("Hadron's login.defs 077", "077", "027"),
+		Entry("a lax 022", "022", "027"),
+	)
+
+	DescribeTable("restricts su to the wheel group (CIS 5.6)",
+		func(initial string) {
+			f := writeTemp(initial)
+			st := stageNamed("Restrict su to the wheel group")
+			runScoped(st.Commands, map[string]string{"/etc/pam.d/su": f})
+			runScoped(st.Commands, map[string]string{"/etc/pam.d/su": f})
+			got := read(f)
+			Expect(strings.Count(got, "\nauth required pam_wheel.so use_uid\n")).To(Equal(1), got)
+			Expect(strings.Index(got, "pam_wheel.so use_uid")).To(BeNumerically(">", strings.Index(got, "pam_rootok.so")))
+		},
+		Entry("Hadron's commented line", "#%PAM-1.0\nauth            sufficient      pam_rootok.so\n#auth           required        pam_wheel.so use_uid\nauth            required        pam_unix.so\n"),
+		Entry("no wheel line at all", "auth       sufficient pam_rootok.so\n@include common-auth\n"),
+	)
+
+	It("copies missing account database backups before tightening them (CIS 6.1.6-6.1.9)", func() {
+		dir := GinkgoT().TempDir()
+		Expect(os.WriteFile(filepath.Join(dir, "passwd"), []byte("root:x:0:0::/root:/bin/sh\n"), 0o644)).To(Succeed())
+		runScoped(stageNamed("Create missing account database backups").Commands, map[string]string{"/etc/": dir + "/"})
+		Expect(read(filepath.Join(dir, "passwd-"))).To(Equal("root:x:0:0::/root:/bin/sh\n"))
+		Expect(filepath.Join(dir, "group-")).ToNot(BeAnExistingFile())
+
+		var backup, chmod int
+		for i, st := range result {
+			if st.Name == "Create missing account database backups" {
+				backup = i
+			}
+			if st.Name == "Tighten permissions on /etc/passwd-" {
+				chmod = i
+			}
+		}
+		Expect(backup).To(BeNumerically("<", chmod))
+	})
+
+	It("creates /etc/gshadow before the account modes are set (CIS 6.1.5)", func() {
+		st := stageNamed("Create /etc/gshadow")
+		Expect(st.If).To(ContainSubstring("! -e /etc/gshadow"))
+		Expect(st.Commands).To(ConsistOf("grpconv"))
+	})
+
+	It("gives the dbus launch helper a group that exists (CIS 6.1.12)", func() {
+		st := stageNamed("Give the dbus launch helper its messagebus group")
+		joined := strings.Join(st.Commands, "\n")
+		Expect(joined).To(ContainSubstring("chgrp messagebus"))
+		// chgrp drops the setuid bit, so the mode is put back afterwards.
+		Expect(joined).To(MatchRegexp(`stat -c %a .*chgrp messagebus .*chmod "\$m"`))
+	})
+
+	Describe("the CIS boot cloud-config", func() {
+		var steps []schema.Stage
+
+		BeforeEach(func() {
+			cc := fileByPath(result, bundled.CISBootCloudConfigPath)
+			var cfg schema.YipConfig
+			Expect(yaml.Unmarshal([]byte(cc.Content), &cfg)).To(Succeed())
+			steps = cfg.Stages["boot.after"]
+		})
+
+		stepNamed := func(name string) schema.Stage {
+			for _, st := range steps {
+				if st.Name == name {
+					return st
+				}
+			}
+			Fail("no boot.after step named " + name)
+			return schema.Stage{}
+		}
+
+		It("creates /usr/local/sbin, which root's PATH names (CIS 6.2.6)", func() {
+			// /usr/local is where COS_PERSISTENT is mounted, so a directory
+			// baked into the image is hidden at runtime.
+			dir := GinkgoT().TempDir()
+			runScoped(stepNamed("Create /usr/local/sbin").Commands, map[string]string{"/usr/local/sbin": filepath.Join(dir, "sbin")})
+			Expect(filepath.Join(dir, "sbin")).To(BeADirectory())
+		})
+
+		It("closes home directories to other (CIS 6.2.8)", func() {
+			home := GinkgoT().TempDir()
+			user := filepath.Join(home, "kairos")
+			Expect(os.Mkdir(user, 0o755)).To(Succeed())
+			Expect(os.Chmod(user, 0o755)).To(Succeed())
+			runScoped(stepNamed("Close home directories to other users").Commands, map[string]string{"/home": home})
+			info, err := os.Stat(user)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o750)))
+		})
+	})
+})
