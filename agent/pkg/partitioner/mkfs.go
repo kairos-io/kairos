@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/types/runner"
 )
@@ -40,6 +41,7 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 	opts := []string{}
 
 	linuxFS, _ := regexp.MatchString("ext[2-4]|xfs", mkfs.fileSystem)
+	extFS, _ := regexp.MatchString("ext[2-4]", mkfs.fileSystem)
 	fatFS, _ := regexp.MatchString("fat|vfat", mkfs.fileSystem)
 
 	switch {
@@ -47,6 +49,12 @@ func (mkfs MkfsCall) buildOptions() ([]string, error) {
 		if mkfs.label != "" {
 			opts = append(opts, "-L")
 			opts = append(opts, mkfs.label)
+		}
+		// Keep every ext filesystem readable by the oldest GRUB we ship.
+		// See constants.ExtDisabledFeatures. mkfs.xfs has no -O, so this is
+		// narrower than the linuxFS branch it sits in.
+		if extFS {
+			opts = append(opts, "-O", constants.ExtDisabledFeatures)
 		}
 		if len(mkfs.customOpts) > 0 {
 			opts = append(opts, mkfs.customOpts...)
