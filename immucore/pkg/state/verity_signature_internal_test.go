@@ -11,20 +11,45 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// assets are the real extension images the test suite ships and the CI job
-// bakes onto a UKI live media. Reading them rather than a synthetic image is
-// the point: work.sysext.raw is what reddened test-core/bundles.
-const assets = "../../../tests/assets/sysext-uki"
+// Type GUIDs of the partitions AuroraBoot puts in an x86-64 sysext image.
+const (
+	rootX86          = "4f68bce3-e8cd-4db1-96e7-fbcaf984b709"
+	rootX86Verity    = "2c7357ed-ebd2-46d9-aec1-23d437ec2bf5"
+	rootX86VeritySig = "41092b05-9fc8-4523-994f-2def0408b176"
+)
 
-// grubAssets are the images baked onto a plain GRUB live media. The split is
-// the whole subject of this file: that work.sysext.raw is verity only, with no
-// signature partition, because nothing enrolls the test signing key on a boot
-// without Secure Boot.
-const grubAssets = "../../../tests/assets/sysext-grub"
+// The images reproduce the partition layout AuroraBoot gives a signed
+// extension (root, verity, verity signature), a verity-only one, and a plain
+// squashfs. The specs only read partition types, and the end-to-end boot
+// tests exercise images AuroraBoot really builds.
+var (
+	// signedWork is verity and signed, as on a UKI live media.
+	signedWork string
+	// verityOnlyWork has no signature partition, as on a GRUB live media,
+	// where nothing enrolls the signing key.
+	verityOnlyWork string
+	// helloBroke is a plain squashfs with neither verity nor signature.
+	helloBroke string
+)
+
+// buildExtensionImages writes the three images into a per-spec temp dir.
+func buildExtensionImages() {
+	dir := GinkgoT().TempDir()
+
+	signedWork = filepath.Join(dir, "work-signed.sysext.raw")
+	writeGPT(signedWork, 512, rootX86, rootX86Verity, rootX86VeritySig)
+
+	verityOnlyWork = filepath.Join(dir, "work-verity.sysext.raw")
+	writeGPT(verityOnlyWork, 512, rootX86, rootX86Verity)
+
+	helloBroke = filepath.Join(dir, "hello-broke.sysext.raw")
+	squashfs := make([]byte, 4096)
+	copy(squashfs, "hsqs")
+	ExpectWithOffset(1, os.WriteFile(helloBroke, squashfs, 0644)).To(Succeed())
+}
 
 // writeGPT builds a disk image whose partition table holds the given type
-// GUIDs, so the arch and sector-size cases can be covered without carrying six
-// more multi-megabyte fixtures in the repo.
+// GUIDs, so every layout can be covered without committing binary fixtures.
 func writeGPT(path string, sectorSize int64, typeGUIDs ...string) {
 	const entrySize = 128
 	entryLBA := int64(2)
@@ -61,27 +86,8 @@ func encodeGPTTypeGUID(guid string) []byte {
 	return b
 }
 
+// These specs build their images with writeGPT and need no Docker.
 var _ = Describe("detecting a verity signature partition", func() {
-	It("finds one in the signed extension the suite ships", func() {
-		// work.sysext.raw is verity and signed with tests/assets/keys/db.key,
-		// so it has a root-x86-64-verity-sig partition.
-		Expect(carriesVeritySignature(filepath.Join(assets, "work.sysext.raw"))).To(BeTrue())
-	})
-
-	It("finds none in the unsigned extension the suite ships", func() {
-		// hello-broke.sysext.raw was built without verity or signing, and has
-		// no partition table at all.
-		Expect(carriesVeritySignature(filepath.Join(assets, "hello-broke.sysext.raw"))).To(BeFalse())
-	})
-
-	It("finds none in the verity-only extension the GRUB media ships", func() {
-		// The GRUB asset has the same payload and the same verity hash
-		// partition as the UKI one, and no root-verity-sig partition. It is
-		// the case the synthetic writeGPT images below stand in for, read off
-		// the image a GRUB cell really boots.
-		Expect(carriesVeritySignature(filepath.Join(grubAssets, "work.sysext.raw"))).To(BeFalse())
-	})
-
 	DescribeTable("recognises the signature partition of every architecture Kairos builds",
 		func(guid string) {
 			path := filepath.Join(GinkgoT().TempDir(), "ext.sysext.raw")
@@ -130,60 +136,81 @@ var _ = Describe("detecting a verity signature partition", func() {
 })
 
 var _ = Describe("skipping an extension this boot cannot verify", func() {
-	signed := filepath.Join(assets, "work.sysext.raw")
+	It("keeps an image it cannot read, rather than disabling a working node", func() {
+		Expect(hasUnverifiableSignature(false, filepath.Join(GinkgoT().TempDir(), "absent.raw"))).To(BeFalse())
+	})
+})
+
+var _ = Describe("detecting a verity signature partition", func() {
+	BeforeEach(buildExtensionImages)
+
+	It("finds one in the signed extension the suite ships", func() {
+		// signedWork has a root-x86-64-verity-sig partition.
+		Expect(carriesVeritySignature(signedWork)).To(BeTrue())
+	})
+
+	It("finds none in the unsigned extension the suite ships", func() {
+		// helloBroke has no partition table at all.
+		Expect(carriesVeritySignature(helloBroke)).To(BeFalse())
+	})
+
+	It("finds none in the verity-only extension the GRUB media ships", func() {
+		// verityOnlyWork has the same root and verity partitions as signedWork
+		// and no root-verity-sig partition, as a GRUB live media carries it.
+		Expect(carriesVeritySignature(verityOnlyWork)).To(BeFalse())
+	})
+})
+
+var _ = Describe("skipping an extension this boot cannot verify", func() {
+	BeforeEach(buildExtensionImages)
 
 	// The regression this guards: the image satisfies root=verity+absent, so
 	// the policy check keeps it, the boot then fails to set it up with ENOKEY,
 	// and a refresh being all or nothing costs the node every other extension.
 	// kairos-io/kairos#5004.
 	It("skips a signed extension on a GRUB boot, which has no certificates", func() {
-		Expect(hasUnverifiableSignature(false, signed)).To(BeTrue())
+		Expect(hasUnverifiableSignature(false, signedWork)).To(BeTrue())
 	})
 
 	It("keeps it on a trusted boot, where ExtractCerts populates /run/verity.d", func() {
-		Expect(hasUnverifiableSignature(true, signed)).To(BeFalse())
+		Expect(hasUnverifiableSignature(true, signedWork)).To(BeFalse())
 	})
 
 	It("keeps an unsigned extension on a GRUB boot", func() {
-		Expect(hasUnverifiableSignature(false, filepath.Join(assets, "hello-broke.sysext.raw"))).To(BeFalse())
+		Expect(hasUnverifiableSignature(false, helloBroke)).To(BeFalse())
 	})
 
-	// Why tests/assets/sysext-grub exists at all: the GRUB live media has to
+	// Why a verity-only image exists at all: the GRUB live media has to
 	// carry an extension this check keeps, or the sweep it covers has nothing
 	// left to merge.
 	It("keeps the verity-only extension the GRUB media ships", func() {
-		Expect(hasUnverifiableSignature(false, filepath.Join(grubAssets, "work.sysext.raw"))).To(BeFalse())
-	})
-
-	It("keeps an image it cannot read, rather than disabling a working node", func() {
-		Expect(hasUnverifiableSignature(false, filepath.Join(GinkgoT().TempDir(), "absent.raw"))).To(BeFalse())
+		Expect(hasUnverifiableSignature(false, verityOnlyWork)).To(BeFalse())
 	})
 })
 
 var _ = Describe("the check the extension sweep actually runs", func() {
+	BeforeEach(buildExtensionImages)
+
 	// passes stands in for systemd-dissect accepting the image. That is the
 	// real answer for work.sysext.raw on a GRUB boot: it is verity and signed,
 	// and root=verity+absent is an overlap test, so the policy is satisfied.
 	passes := func(bool, string) bool { return true }
 	rejects := func(bool, string) bool { return false }
 
-	signed := filepath.Join(assets, "work.sysext.raw")
-	unsigned := filepath.Join(assets, "hello-broke.sysext.raw")
-
 	It("skips a signed image a GRUB boot cannot activate, even though it passes the policy", func() {
-		Expect(activatableExtensionCheck(false, passes)(signed)).To(BeFalse())
+		Expect(activatableExtensionCheck(false, passes)(signedWork)).To(BeFalse())
 	})
 
 	It("keeps that same image on a trusted boot", func() {
-		Expect(activatableExtensionCheck(true, passes)(signed)).To(BeTrue())
+		Expect(activatableExtensionCheck(true, passes)(signedWork)).To(BeTrue())
 	})
 
 	It("keeps an unsigned image that passes the policy", func() {
-		Expect(activatableExtensionCheck(false, passes)(unsigned)).To(BeTrue())
+		Expect(activatableExtensionCheck(false, passes)(helloBroke)).To(BeTrue())
 	})
 
 	It("still skips an image the policy rejects", func() {
-		Expect(activatableExtensionCheck(false, rejects)(unsigned)).To(BeFalse())
+		Expect(activatableExtensionCheck(false, rejects)(helloBroke)).To(BeFalse())
 	})
 
 	It("does not ask about the signature once the policy has rejected the image", func() {
@@ -191,7 +218,7 @@ var _ = Describe("the check the extension sweep actually runs", func() {
 		Expect(activatableExtensionCheck(false, func(bool, string) bool {
 			asked = true
 			return false
-		})(signed)).To(BeFalse())
+		})(signedWork)).To(BeFalse())
 		Expect(asked).To(BeTrue())
 	})
 })
