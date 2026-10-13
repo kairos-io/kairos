@@ -1,6 +1,8 @@
 package schema_test
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	. "github.com/kairos-io/kairos/v4/sdk/schema"
@@ -257,6 +259,65 @@ users:
 				_, err := kc.ValidateSemantics()
 				Expect(err).To(MatchError(ContainSubstring("ssh_authorized_keys")))
 			})
+		})
+
+		// Every one of these keys is declared as ConfigBool or SpecBool.
+		// Those are empty structs, so without an UnmarshalJSON that
+		// accepts a scalar, decoding the config into a RootSchema fails
+		// and ValidateSemantics reports no findings at all, silently
+		// turning off the check above. kairos-agent writes such keys
+		// itself, for instance on `upgrade --allow-insecure-registries`.
+		DescribeTable("keeps the unreachable-SSH error when a yes/no key is set",
+			func(block, key string) {
+				kc = newKC(fmt.Sprintf(`#cloud-config
+install:
+  ssh_hardening: true
+%s:
+  %s: true
+users:
+  - name: kairos
+    passwd: kairos`, block, key))
+
+				_, err := kc.ValidateSemantics()
+				Expect(err).To(MatchError(ContainSubstring("ssh_authorized_keys")))
+			},
+			Entry("upgrade.recovery", "upgrade", "recovery"),
+			Entry("upgrade.reboot", "upgrade", "reboot"),
+			Entry("upgrade.poweroff", "upgrade", "poweroff"),
+			Entry("upgrade.allow-insecure-registries", "upgrade", "allow-insecure-registries"),
+			Entry("reset.reset-persistent", "reset", "reset-persistent"),
+			Entry("reset.reset-oem", "reset", "reset-oem"),
+			Entry("reset.reboot", "reset", "reboot"),
+			Entry("reset.poweroff", "reset", "poweroff"),
+		)
+
+	})
+
+	Context("the text of a validation error", func() {
+		// The validator names the schema document in every error it reports.
+		// Compiling it under a relative resource name made that name resolve
+		// against the working directory, so the operator was told their
+		// configuration disagreed with a file:// path that does not exist on
+		// their machine and that moved with the directory the binary ran in.
+		var validationError error
+
+		BeforeEach(func() {
+			config, err := NewConfigFromYAML("#cloud-config\ninstall:\n  device: 123\n", RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.IsValid()).To(BeFalse())
+			validationError = config.ValidationError
+		})
+
+		It("names the schema document by its identifier", func() {
+			Expect(validationError.Error()).To(ContainSubstring(InProcessSchemaID))
+		})
+
+		It("does not name a path on the machine that ran the validation", func() {
+			Expect(validationError.Error()).ToNot(ContainSubstring("file://"))
+
+			cwd, err := os.Getwd()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(validationError.Error()).ToNot(ContainSubstring(cwd))
 		})
 	})
 

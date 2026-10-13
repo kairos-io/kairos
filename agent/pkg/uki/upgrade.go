@@ -253,7 +253,7 @@ var extractFromInitrd = ExtractFromInitrd
 //
 // Runs BEFORE rotation so a refusal leaves the ESP unchanged.
 func (i *UpgradeAction) prepareFinalize(noroleEfi string) (*finalizeStage, error) {
-	tempDir, err := os.MkdirTemp("", "kairos-uki-finalize-*")
+	tempDir, err := utils.MkdirExecTemp("kairos-uki-finalize-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp dir for target agent extraction: %w", err)
 	}
