@@ -389,3 +389,44 @@ func TestInstallCreatesATargetWrittenWithATrailingSlash(t *testing.T) {
 		t.Fatalf("extension was not written: %v", err)
 	}
 }
+
+// A refusal has to leave the node in the state it claims: "nothing was
+// installed" used to be written while the entries staged before the clash were
+// already in the target, so they were merged on the next boot. See #5370.
+func TestInstallDeclaredLeavesTheTargetEmptyWhenTwoEntriesClash(t *testing.T) {
+	cfg, _, extractor := testConfig(t, nil)
+	extractor.SideEffect = writeImage(cfg, map[string]string{
+		"ghcr.io/example/first:latest":  "first.sysext.raw",
+		"ghcr.io/example/second:latest": "shared.sysext.raw",
+		"ghcr.io/example/third:latest":  "shared.sysext.raw",
+	})
+
+	target := "/target/extensions"
+	requested := extensiontypes.Extensions{
+		{Name: "oci://ghcr.io/example/first"},
+		{Name: "oci://ghcr.io/example/second"},
+		{Name: "oci://ghcr.io/example/third"},
+	}
+	installed, err := installer.InstallDeclared(cfg, requested, target)
+	if err == nil {
+		t.Fatal("InstallDeclared installed two entries that produce one file name")
+	}
+	if !strings.Contains(err.Error(), "shared.sysext.raw") {
+		t.Errorf("error = %q, want it to name the file the two entries share", err)
+	}
+	if installed != nil {
+		t.Errorf("installed = %q, want nothing reported on a refusal", installed)
+	}
+
+	entries, readErr := cfg.Fs.ReadDir(target)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	var present []string
+	for _, entry := range entries {
+		present = append(present, entry.Name())
+	}
+	if len(present) != 0 {
+		t.Fatalf("%s holds %q, want nothing: the error says nothing was installed", target, present)
+	}
+}

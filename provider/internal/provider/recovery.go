@@ -15,6 +15,22 @@ import (
 const recoveryAddr = "127.0.0.1:2222"
 const sshStateDir = "/tmp/.ssh_recovery"
 
+// recoveryServerEnv is the environment the recovery-ssh-server command is
+// started with. Every name here has to be one that command declares a flag
+// for, otherwise the value is dropped without a word.
+//
+// The token goes in as EDGEVPNTOKEN rather than TOKEN: the flag that carries
+// it is EdgeVPN's own, out of cmd.CommonFlags, which the command appends so
+// that cmd.ConfigFromContext can read a whole network config.
+func recoveryServerEnv(token, serviceUUID, password, listen string) []string {
+	return []string{
+		fmt.Sprintf("EDGEVPNTOKEN=%s", token),
+		fmt.Sprintf("SERVICE=%s", serviceUUID),
+		fmt.Sprintf("LISTEN=%s", listen),
+		fmt.Sprintf("PASSWORD=%s", password),
+	}
+}
+
 func Recovery(e *pluggable.Event) pluggable.EventResponse { //nolint:revive
 
 	resp := &pluggable.EventResponse{}
@@ -32,12 +48,7 @@ func Recovery(e *pluggable.Event) pluggable.EventResponse { //nolint:revive
 	sshServer := process.New(
 		process.WithName(os.Args[0]),
 		process.WithArgs("recovery-ssh-server"),
-		process.WithEnvironment(
-			fmt.Sprintf("TOKEN=%s", tk),
-			fmt.Sprintf("SERVICE=%s", serviceUUID),
-			fmt.Sprintf("LISTEN=%s", recoveryAddr),
-			fmt.Sprintf("PASSWORD=%s", generatedPassword),
-		),
+		process.WithEnvironment(recoveryServerEnv(tk, serviceUUID, generatedPassword, recoveryAddr)...),
 		process.WithStateDir(sshStateDir),
 	)
 
