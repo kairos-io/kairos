@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
+	machinesvc "github.com/kairos-io/kairos/v4/sdk/machine/service"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	service "github.com/mudler/edgevpn/api/client/service"
 	"gopkg.in/yaml.v3"
@@ -17,8 +19,8 @@ const (
 	K0sDistroName        = "k0s"
 	K0sMasterName        = "controller"
 	K0sWorkerName        = "worker"
-	K0sMasterServiceName = "k0scontroller"
-	K0sWorkerServiceName = "k0sworker"
+	K0sMasterServiceName = services.K0sControllerServiceName
+	K0sWorkerServiceName = services.K0sWorkerServiceName
 )
 
 type K0sNode struct {
@@ -144,16 +146,8 @@ func (k *K0sNode) GenArgs() ([]string, error) {
 	return args, nil
 }
 
-func (k *K0sNode) EnvUnit() string {
-	return machine.K0sEnvUnit("k0scontroller")
-}
-
 func (k *K0sNode) Service() (machine.Service, error) {
-	if k.IsWorker() {
-		return machine.K0sWorker()
-	}
-
-	return machine.K0s()
+	return machinesvc.New(services.K0sSpec(k.ServiceName()))
 }
 
 func (k *K0sNode) Token() (string, error) {
@@ -312,10 +306,6 @@ func (k *K0sNode) Args() []string {
 	}
 
 	return c.K0s.Args
-}
-
-func (k *K0sNode) EnvFile() string {
-	return machine.K0sEnvUnit(k.ServiceName())
 }
 
 func (k *K0sNode) SetRole(role string) {

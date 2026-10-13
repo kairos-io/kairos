@@ -1011,6 +1011,69 @@ var _ = Describe("Specs coverage", Label("types", "config"), func() {
 				Expect(spec.Partitions.EFI).ToNot(BeNil())
 				Expect(spec.Partitions.EFI.FilesystemLabel).To(Equal(constants.EfiLabel))
 			})
+			It("finds a persistent and an oem partition that are not encrypted", func() {
+				// install.encrypted_partitions can name a subset, so a UKI
+				// install can carry a plain COS_OEM or COS_PERSISTENT. Those
+				// have no device-mapper node and only show up in the ghw list.
+				mainDisk := sdkPartitions.Disk{
+					Name: "device",
+					Partitions: []*sdkPartitions.Partition{
+						{
+							Name:            "device1",
+							FilesystemLabel: constants.EfiLabel,
+							FS:              "vfat",
+						},
+						{
+							Name:            "device2",
+							FilesystemLabel: constants.OEMLabel,
+							FS:              "ext4",
+						},
+						{
+							Name:            "device3",
+							FilesystemLabel: constants.PersistentLabel,
+							FS:              "ext4",
+						},
+					},
+				}
+				ghwTest = ghwMock.GhwMock{}
+				ghwTest.AddDisk(mainDisk)
+				ghwTest.CreateDevices()
+
+				spec, err := config.NewUkiResetSpec(c)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(spec.Partitions.Persistent).ToNot(BeNil())
+				Expect(spec.Partitions.Persistent.FilesystemLabel).To(Equal(constants.PersistentLabel))
+				Expect(spec.Partitions.OEM).ToNot(BeNil())
+				Expect(spec.Partitions.OEM.FilesystemLabel).To(Equal(constants.OEMLabel))
+			})
+			It("prefers the device-mapper node when only persistent is encrypted", func() {
+				mainDisk := sdkPartitions.Disk{
+					Name: "device",
+					Partitions: []*sdkPartitions.Partition{
+						{
+							Name:            "device1",
+							FilesystemLabel: constants.EfiLabel,
+							FS:              "vfat",
+						},
+						{
+							Name:            "device2",
+							FilesystemLabel: constants.OEMLabel,
+							FS:              "ext4",
+						},
+					},
+				}
+				ghwTest = ghwMock.GhwMock{}
+				ghwTest.AddDisk(mainDisk)
+				ghwTest.CreateDevices()
+				createDMDevice(fs, "dm-0", "253:0", constants.PersistentLabel)
+
+				spec, err := config.NewUkiResetSpec(c)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(spec.Partitions.Persistent).ToNot(BeNil())
+				Expect(spec.Partitions.Persistent.Path).To(Equal("/dev/mapper/dm-0"))
+				Expect(spec.Partitions.OEM).ToNot(BeNil())
+				Expect(spec.Partitions.OEM.FilesystemLabel).To(Equal(constants.OEMLabel))
+			})
 		})
 		Describe("NewUkiUpgradeSpec", func() {
 			It("fails when the config cannot be unmarshalled into the spec", func() {
