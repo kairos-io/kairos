@@ -2,7 +2,6 @@ package validation_test
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -23,13 +22,7 @@ func evalRecoveryGuard(expr string, recovery bool) bool {
 	}
 	expr = strings.ReplaceAll(expr, "/run/cos/recovery_mode", sentinel)
 
-	err := exec.Command("sh", "-c", expr).Run()
-	if err == nil {
-		return true
-	}
-	_, isExit := err.(*exec.ExitError)
-	Expect(isExit).To(BeTrue(), "guard failed to run: %v", err)
-	return false
+	return guardPassesExpr(expr)
 }
 
 // stageWritingFor returns the stage for the given service manager that writes
