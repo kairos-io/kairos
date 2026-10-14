@@ -466,9 +466,18 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				}
 				internalUtils.KLog.Logger.Debug().Str("what", what).Str("where", where).Msg("Custom mount done")
 			}
-			internalUtils.KLog.Logger.Warn().Err(err.ErrorOrNil()).Send()
+			// OpMountBind depends on this step and is fatal, so a failure here
+			// stops the boot. Name it: the step used to end in a bare warning
+			// with no message, which said nothing on a clean boot and nothing
+			// useful on a broken one.
+			if mountErr := err.ErrorOrNil(); mountErr != nil {
+				internalUtils.KLog.Logger.Error().Err(mountErr).Int("failed", err.Len()).
+					Msg("Some custom mounts did not mount. The persistent state binds are backed by them, so the boot stops here instead of carrying on without persistence.")
 
-			return err.ErrorOrNil()
+				return mountErr
+			}
+
+			return nil
 		}),
 	)...)
 }
@@ -476,19 +485,28 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 // MountCustomBindsDagStep will add mounting s.BindMounts
 // mount state is defined over a custom mount (/usr/local/.state for instance, needs to be mounted over a device).
 //
-// OpOverlayMount and OpCustomMounts are weak dependencies. herd never executes
-// a node whose hard dependency errored, and both of those steps collect a
-// multierror across a loop, so one extra volume with the wrong label or one
-// overlay path that fails would skip every bind here: /home, /root, /opt,
-// /etc/ssh, /etc/systemd, /var/log and the rest of PERSISTENT_STATE_PATHS. The
-// node then boots to a login prompt on a pristine image /etc with no
-// persistence, and nothing reports it, because none of these ops are fatal.
-// Weak keeps the graph edge and so the ordering, and drops only that cascade,
-// which is what every other consumer of these two steps already does.
+// The op is registered fatal. These binds are the persistence contract of the
+// node: /home, /root, /opt, /etc/ssh, /etc/systemd, /var/log and the rest of
+// PERSISTENT_STATE_PATHS. Without them the system comes up on a pristine image
+// /etc, with everything it writes landing in the ephemeral overlay, so SSH host
+// keys regenerate on every boot and a k3s or k0s node loses its state
+// directory.
+//
+// Nothing used to report that. OpOverlayMount and OpCustomMounts each collect a
+// multierror across a loop, so one extra volume with the wrong label took the
+// whole step down, herd then skipped this node (it never executes a node whose
+// dependency errored), and because no op in the chain was fatal g.Run still
+// returned nil and the boot carried on to a login prompt.
+//
+// Fatal makes g.Run return instead, carrying the error of whichever step broke.
+// The boot stops at the IMMUCORE BOOT FAILED banner, which is also persisted
+// under constants.LogDir, rather than handing the operator a machine that has
+// quietly stopped persisting anything. A half mounted node is an inconsistency
+// to fix, not one to boot through.
 func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpMountBind,
-		append(opts, herd.WithDeps(cnst.OpLoadConfig),
-			herd.WithWeakDeps(cnst.OpOverlayMount, cnst.OpCustomMounts),
+		append(opts, herd.FatalOp,
+			herd.WithDeps(cnst.OpOverlayMount, cnst.OpCustomMounts, cnst.OpLoadConfig),
 			TimedCallback(cnst.OpMountBind,
 				func(_ context.Context) error {
 					var err *multierror.Error
@@ -510,20 +528,21 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount end")
 					}
 
-					// A bind that does not happen is a path the booted system
-					// writes to the ephemeral overlay instead of the persistent
-					// partition, and the boot carries on either way. Name the
-					// paths, rather than emitting a bare warning with no
-					// message on every boot including the ones that worked.
+					// Say what failed and what it costs. The step used to end in
+					// a bare warning with no message, emitted on every boot
+					// including the ones where every bind worked, which is a
+					// large part of why this class of failure went unnoticed.
 					// multierror.Error.Len has a value receiver, so it panics on
 					// the nil accumulator a clean boot leaves behind. Ask
 					// ErrorOrNil first.
 					if bindErr := err.ErrorOrNil(); bindErr != nil {
-						internalUtils.KLog.Logger.Warn().Err(bindErr).Int("failed", err.Len()).
-							Msg("Some persistent binds did not mount. Those paths are ephemeral for this boot and their contents are lost on reboot.")
+						internalUtils.KLog.Logger.Error().Err(bindErr).Int("failed", err.Len()).
+							Msg("Some persistent state binds did not mount. Those paths would be ephemeral and their contents lost on reboot, so the boot stops here instead.")
+
+						return bindErr
 					}
 
-					return err.ErrorOrNil()
+					return nil
 				},
 			),
 		)...)
