@@ -63,7 +63,7 @@ users:
 			"expected object, but got null"),
 		Entry("a key that does carry a value of the wrong type",
 			"#cloud-config\ninstall:\n  device: 123\n",
-			"expected string, but got number"),
+			"expected string or null, but got number"),
 	)
 
 	It("accepts every cloud config the repository ships as an example", func() {
