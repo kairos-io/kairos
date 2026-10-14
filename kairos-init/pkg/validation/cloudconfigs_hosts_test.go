@@ -46,15 +46,17 @@ func readHostsSteps() []hostsStep {
 	return cfg.Stages["initramfs"]
 }
 
-// rewriteHostsPaths points the three absolute paths the stage touches at a
+// rewriteHostsPaths points the absolute paths the stage touches at a
 // temporary root. The substitution is done through placeholders because
 // /usr/local/etc/hosts contains /etc/hosts as a substring, so a plain
 // left-to-right ReplaceAll rewrites the persistent path twice.
 func rewriteHostsPaths(s, root string) string {
 	s = strings.ReplaceAll(s, "/usr/local/etc", "\x01P")
+	s = strings.ReplaceAll(s, "/usr/local/sbin", "\x01S")
 	s = strings.ReplaceAll(s, "/run/cos", "\x01R")
 	s = strings.ReplaceAll(s, "/etc", "\x01E")
 	s = strings.ReplaceAll(s, "\x01P", filepath.Join(root, "usr", "local", "etc"))
+	s = strings.ReplaceAll(s, "\x01S", filepath.Join(root, "usr", "local", "sbin"))
 	s = strings.ReplaceAll(s, "\x01R", filepath.Join(root, "run", "cos"))
 	s = strings.ReplaceAll(s, "\x01E", filepath.Join(root, "etc"))
 	return s
@@ -109,8 +111,16 @@ func bootHostsWith(root string, steps []hostsStep, serviceManager string) int {
 		}
 		for _, file := range step.Files {
 			path := rewriteHostsPaths(file.Path, root)
+			content := file.Content
+			// A file the node executes names the same absolute paths the
+			// stage does, and has to reach the temporary root as well. The
+			// unit and init files are read by a service manager rather than
+			// run, so they are written exactly as they ship.
+			if os.FileMode(file.Permissions)&0111 != 0 {
+				content = rewriteHostsPaths(content, root)
+			}
 			Expect(os.MkdirAll(filepath.Dir(path), 0755)).To(Succeed())
-			Expect(os.WriteFile(path, []byte(file.Content), os.FileMode(file.Permissions))).To(Succeed())
+			Expect(os.WriteFile(path, []byte(content), os.FileMode(file.Permissions))).To(Succeed())
 		}
 		for _, command := range step.Commands {
 			out, err := exec.Command("sh", "-c", rewriteHostsPaths(command, root)).CombinedOutput()
@@ -262,6 +272,45 @@ func setHostnameAtRuntime(root, name string) {
 	Expect(os.Rename(temporary, filepath.Join(etc, "hostname"))).To(Succeed())
 }
 
+// imagePATH is the PATH the save runs under here: a directory holding the
+// utilities a Kairos image is known to carry, and nothing else.
+//
+// The save script must work with the shell and cat alone. It was first written
+// with cmp, which the images do not ship, and the missing binary cost nothing
+// visible: `cmp -s a b || cp` takes the second branch when cmp cannot run, so
+// the guard fell open, every trigger copied, and the only trace was a
+// `cmp: command not found` in the journal. A full PATH hides that, because the
+// host running these specs has cmp.
+//
+// Adding a name to this list is a claim that the images carry it. Check the
+// image before you make it.
+func imagePATH() string {
+	directory := GinkgoT().TempDir()
+	for _, tool := range []string{"cat"} {
+		resolved, err := exec.LookPath(tool)
+		Expect(err).NotTo(HaveOccurred(), "this test host has no %s", tool)
+		Expect(os.Symlink(resolved, filepath.Join(directory, tool))).To(Succeed())
+	}
+	return directory
+}
+
+// runSaveScript runs command under a shell that can reach nothing but
+// imagePATH, and holds it to saying nothing at all: on a node every line it
+// prints is a line in the journal, and a `command not found` there is the only
+// sign that a guard never ran.
+func runSaveScript(root, command string) {
+	runner := exec.Command("sh", "-c", rewriteHostsPaths(command, root))
+	runner.Env = append(os.Environ(), "PATH="+imagePATH())
+
+	out, err := runner.CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), "the save failed: %s", out)
+	Expect(string(out)).To(BeEmpty(), "the save printed something, which on a node is a journal line")
+}
+
+// persistScriptPath is where the stage installs the one copy of the save that
+// both service managers call.
+const persistScriptPath = "/usr/local/sbin/kairos-persist-hostname"
+
 // runPersistUnit runs the ExecStart line of the systemd service the stage
 // installs, which is what the path unit triggers when /etc/hostname changes.
 func runPersistUnit(root string, steps []hostsStep) {
@@ -269,14 +318,13 @@ func runPersistUnit(root string, steps []hostsStep) {
 
 	command := ""
 	for _, line := range strings.Split(unit, "\n") {
-		if rest, found := strings.CutPrefix(line, "ExecStart=/bin/sh -c "); found {
-			command = strings.Trim(strings.TrimSpace(rest), "'")
+		if rest, found := strings.CutPrefix(line, "ExecStart="); found {
+			command = strings.TrimSpace(rest)
 		}
 	}
-	Expect(command).NotTo(BeEmpty(), "the service has no /bin/sh ExecStart to run")
+	Expect(command).NotTo(BeEmpty(), "the service has no ExecStart to run")
 
-	out, err := exec.Command("sh", "-c", rewriteHostsPaths(command, root)).CombinedOutput()
-	Expect(err).NotTo(HaveOccurred(), "ExecStart failed: %s", out)
+	runSaveScript(root, command)
 }
 
 // runOpenRCStop sources the init script the stage installs and calls its
@@ -286,8 +334,7 @@ func runOpenRCStop(root string, steps []hostsStep) {
 	path := filepath.Join(GinkgoT().TempDir(), "kairos-persist-hostname")
 	Expect(os.WriteFile(path, []byte(script), 0755)).To(Succeed())
 
-	out, err := exec.Command("sh", "-c", ". "+path+"; stop").CombinedOutput()
-	Expect(err).NotTo(HaveOccurred(), "stop() failed: %s", out)
+	runSaveScript(root, ". "+path+"; stop")
 }
 
 var _ = Describe("Bundled cloudconfigs persistent /etc/hostname", func() {
@@ -380,6 +427,41 @@ var _ = Describe("Bundled cloudconfigs persistent /etc/hostname", func() {
 
 		runPersistUnit(root, steps)
 		Expect(savedHostname(root)).To(Equal(generated))
+	})
+
+	// The units live on /etc/systemd/system, which is a bind mount from the
+	// persistent partition, so they are still there after a rollback to an
+	// image that symlinks /etc/hostname at the persistent file. Writing
+	// through that symlink writes the persistent file, and a save that copied
+	// anyway would read and truncate the same inode, leaving the node with no
+	// name at all.
+	It("does not empty the saved name when /etc/hostname is a symlink to it", func() {
+		root := GinkgoT().TempDir()
+		Expect(bootHosts(root, steps)).To(BeNumerically(">", 0))
+
+		runtime := filepath.Join(root, "etc", "hostname")
+		Expect(os.Remove(runtime)).To(Succeed())
+		Expect(os.Symlink(hostnamePersistentPath(root), runtime)).To(Succeed())
+		Expect(os.WriteFile(runtime, []byte("node1\n"), 0644)).To(Succeed())
+
+		runPersistUnit(root, steps)
+		Expect(savedHostname(root)).To(Equal("node1"))
+	})
+
+	// Both service managers run the same file, so there is one implementation
+	// of the save to read and to fix.
+	It("installs one save script that the units call", func() {
+		root := GinkgoT().TempDir()
+		Expect(bootHosts(root, steps)).To(BeNumerically(">", 0))
+
+		info, err := os.Stat(filepath.Join(root, "usr", "local", "sbin", "kairos-persist-hostname"))
+		Expect(err).NotTo(HaveOccurred(), "the units call a script that is not installed")
+		Expect(info.Mode().Perm()&0111).NotTo(BeZero(), "the save script is not executable")
+
+		unit := hostsStepFileContent(steps, "/etc/systemd/system/kairos-persist-hostname.service")
+		Expect(unit).To(ContainSubstring(persistScriptPath))
+		openrc := hostsStepFileContent(steps, "/etc/init.d/kairos-persist-hostname")
+		Expect(openrc).To(ContainSubstring(persistScriptPath))
 	})
 
 	// An empty /etc/hostname is what the overlay hands back before the

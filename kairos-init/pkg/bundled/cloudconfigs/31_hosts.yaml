@@ -62,12 +62,49 @@ stages:
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s "/usr/local/etc/hostname" ]'
       name: "Seed a generated hostname"
       hostname: kairos-{{ trunc 4 .MachineID }}
+    # One implementation of the save, in a file both service managers call.
+    # It uses the shell and cat only. The images carry no cmp, and a guard
+    # that cannot run is a guard that always says yes, so a `cmp -s` here
+    # copied on every trigger, logged a `command not found` each time, and on
+    # an image from before this change, where /etc/hostname is still a symlink
+    # to the persistent file, truncated its own source.
+    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+      name: "Install the hostname save script"
+      directories:
+        - path: "/usr/local/sbin"
+          permissions: 0755
+          owner: 0
+          group: 0
+      files:
+        - path: /usr/local/sbin/kairos-persist-hostname
+          permissions: 0755
+          owner: 0
+          group: 0
+          content: |
+            #!/bin/sh
+            # Copy a hostname set at runtime out to the persistent partition.
+            if [ -f /run/cos/recovery_mode ]; then
+              exit 0
+            fi
+            # The overlay hands back an empty /etc/hostname on every boot,
+            # before the restore step puts the saved name back. Empty is not a
+            # name, and copying it out would lose the one that is stored.
+            if [ ! -s /etc/hostname ]; then
+              exit 0
+            fi
+            # Nothing to do when the two already agree. This is also the case
+            # where /etc/hostname is a symlink to the file below, and the copy
+            # would read and truncate the same inode.
+            if [ "$(cat /etc/hostname)" = "$(cat /usr/local/etc/hostname 2>/dev/null)" ]; then
+              exit 0
+            fi
+            cat /etc/hostname > /usr/local/etc/hostname
     # Carries the seeded name out to the persistent partition. After the
-    # restore step above the two files already match and this does nothing.
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s "/etc/hostname" ] && ! cmp -s /etc/hostname /usr/local/etc/hostname'
+    # restore step above the two files already agree and the script exits.
+    - if: '[ ! -f "/run/cos/recovery_mode" ]'
       name: "Save the hostname on the persistent partition"
       commands:
-        - cat /etc/hostname > /usr/local/etc/hostname
+        - /bin/sh /usr/local/sbin/kairos-persist-hostname
     # What closes the loop for a name set at runtime: hostnamectl, a DHCP
     # client or a hand edit all end up changing /etc/hostname, and the path
     # unit copies it back out. A path unit only sees the file it names when
@@ -105,7 +142,7 @@ stages:
 
             [Service]
             Type=oneshot
-            ExecStart=/bin/sh -c '[ -s /etc/hostname ] || exit 0; cmp -s /etc/hostname /usr/local/etc/hostname || cat /etc/hostname > /usr/local/etc/hostname'
+            ExecStart=/bin/sh /usr/local/sbin/kairos-persist-hostname
       commands:
         - mkdir -p /etc/systemd/system/multi-user.target.wants
         - ln -sf /etc/systemd/system/kairos-persist-hostname.path /etc/systemd/system/multi-user.target.wants/kairos-persist-hostname.path
@@ -134,9 +171,7 @@ stages:
             }
 
             stop() {
-              if [ ! -f /run/cos/recovery_mode ] && [ -s /etc/hostname ]; then
-                cmp -s /etc/hostname /usr/local/etc/hostname || cat /etc/hostname > /usr/local/etc/hostname
-              fi
+              /bin/sh /usr/local/sbin/kairos-persist-hostname
               return 0
             }
       commands:
