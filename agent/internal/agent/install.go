@@ -50,6 +50,33 @@ func displayInfo() {
 	fmt.Println(installerInfoLine(machine.Interfaces()))
 }
 
+// configErrorNotice is the line reporting a config that was found but could
+// not be read, or nothing when the scan went through. config.Scan reports no
+// config at all as an empty config, not as an error, so a node booted without
+// one gets no notice.
+func configErrorNotice(scanErr error) string {
+	if scanErr == nil {
+		return ""
+	}
+	return "The configuration on this node could not be read: " + scanErr.Error()
+}
+
+func printConfigError(scanErr error) {
+	if notice := configErrorNotice(scanErr); notice != "" {
+		pterm.Error.Println(notice)
+	}
+}
+
+// printPairing draws the end of the pairing screen. The config error goes
+// last, below the QR code, so it is still on screen once the code is drawn.
+func printPairing(tk string, scanErr error) {
+	if tk != "" {
+		qr.Print(tk)
+		displayInfo()
+	}
+	printConfigError(scanErr)
+}
+
 func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValidations, useDefaultDirs, allowInsecureRegistries bool) error {
 	configSource, err := prepareConfiguration(c)
 	if err != nil {
@@ -107,26 +134,27 @@ func startGetty() {
 // a decision left for a human, and the caller runs its own UX.
 //
 // A config that cannot be read is not an error here, only the absence of an
-// unattended install; the failure is printed and the caller carries on. The
+// unattended install; the failure is printed and returned as scanErr, and the
+// caller carries on. err is only ever the unattended install failing. The
 // config it did read is returned so the caller does not have to scan again:
 // config.Scan follows config_url over HTTP, so a second scan refetches the
 // remote config.
-func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...string) (bool, *sdkConfig.Config, error) {
+func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...string) (installed bool, cc *sdkConfig.Config, scanErr error, err error) {
 	// Without the wait, a config still being written by the datasource reads
 	// as absent, which is the race this function exists to close.
 	ensureDataSourceReady()
 
-	cc, err := config.Scan(collector.Directories(dir...),
+	cc, scanErr = config.Scan(collector.Directories(dir...),
 		collector.Readers(strings.NewReader(generateInstallConfForCLIArgs(sourceImgURL, allowInsecureRegistries))),
 		collector.MergeBootLine)
-	if err != nil {
+	if scanErr != nil {
 		// This is where the scan happens now, so it is where the failure has
 		// to be reported: Install used to print it and no longer scans.
-		fmt.Printf("- config not found in the system: %s\n", err.Error())
+		fmt.Printf("- config not found in the system: %s\n", scanErr.Error())
 	}
 
-	if err != nil || !autoInstallRequested(cc) {
-		return false, cc, nil
+	if scanErr != nil || !autoInstallRequested(cc) {
+		return false, cc, scanErr, nil
 	}
 
 	// Only the branch that installs captures SIGINT and SIGTERM. Registering
@@ -138,7 +166,7 @@ func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...strin
 	}, syscall.SIGINT, syscall.SIGTERM)
 
 	if err := runInstallFn(cc); err != nil {
-		return true, cc, err
+		return true, cc, nil, err
 	}
 
 	if !cc.Install.Reboot && !cc.Install.Poweroff {
@@ -146,13 +174,15 @@ func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...strin
 		startGetty()
 	}
 
-	return true, cc, nil
+	return true, cc, nil, nil
 }
 
 // Install runs the provider flow for a config that still needs a human
 // decision. cc is the config AutoInstall already scanned; scanning it again
-// here would refetch a remote config_url once more per boot.
-func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
+// here would refetch a remote config_url once more per boot. scanErr is the
+// error that scan reported, if any: Install clears the screen, so it prints
+// it again once the screen is drawn.
+func Install(cc *sdkConfig.Config, scanErr error, sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
 	bus.Manager.Initialize()
 	utils.OnSignal(func() {
 		startGetty()
@@ -194,6 +224,7 @@ func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries 
 	if !bus.Manager.HasRegisteredPlugins() {
 		displayInfo()
 		fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
+		printConfigError(scanErr)
 		return utils.Shell().Run()
 	}
 
@@ -219,10 +250,7 @@ func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries 
 		time.Sleep(5 * time.Second)
 	}
 
-	if tk != "" {
-		qr.Print(tk)
-		displayInfo()
-	}
+	printPairing(tk, scanErr)
 
 	if _, err := bus.Manager.Publish(events.EventInstall, events.InstallPayload{Token: tk, Config: configStr}); err != nil {
 		return err

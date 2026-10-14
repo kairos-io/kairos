@@ -194,7 +194,11 @@ func CheckArtifactSignatureIsValid(fs fs.KairosFS, artifact string, logger sdkLo
 	// Note that this is a PEFile, so it's a bit different from a normal file as there are some sections that need to be
 	// excluded when calculating the sha
 	logger.Logger.Debug().Str("what", artifact).Msg("Parsing PE artifact")
-	file, _ := peparser.NewBytes(data, &peparser.Options{Fast: true})
+	file, err := peparser.NewBytes(data, &peparser.Options{Fast: true})
+	if err != nil {
+		logger.Logger.Error().Err(err).Msg("wrapping PE bytes")
+		return fmt.Errorf("wrapping %s bytes as PE: %w", artifact, err)
+	}
 	err = file.Parse()
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("parsing PE file for hash")
@@ -243,47 +247,8 @@ func CheckArtifactSignatureIsValid(fs fs.KairosFS, artifact string, logger sdkLo
 		return err
 	}
 
-	// First check the dbx database as it has precedence, on match, return immediately
-	for _, k := range *dbx {
-		switch k.SignatureType {
-		case signature.CERT_SHA256_GUID: // SHA256 hash
-			// Compare it against the dbx
-			for _, k1 := range k.Signatures {
-				shaSign := hex.EncodeToString(k1.Data)
-				logger.Logger.Debug().Str("artifact", string(hashArtifact)).Str("signature", shaSign).Msg("Comparing hashes")
-				if hashArtifact == shaSign {
-					return fmt.Errorf("hash appears on DBX: %s", hashArtifact)
-				}
-
-			}
-		case signature.CERT_X509_GUID: // Certificate
-			var result []*x509.Certificate
-			for _, k1 := range k.Signatures {
-				certificates, err := x509.ParseCertificates(k1.Data)
-				if err != nil {
-					continue
-				}
-				result = append(result, certificates...)
-			}
-			for _, sig := range sigs {
-				for _, cert := range result {
-					logger.Logger.Debug().Str("what", artifact).Str("subject", cert.Subject.CommonName).Msg("checking signature")
-					p, err := pkcs7.ParsePKCS7(sig.Certificate)
-					if err != nil {
-						logger.Logger.Info().Str("error", err.Error()).Msg("parsing signature")
-						return err
-					}
-					ok, _ := p.Verify(cert)
-					// If cert matches then it means its blacklisted so return error
-					if ok {
-						return fmt.Errorf("artifact is signed with a blacklisted cert")
-					}
-
-				}
-			}
-		default:
-			logger.Logger.Debug().Str("what", artifact).Str("cert type", string(signature.ValidEFISignatureSchemes[k.SignatureType])).Msg("not supported type of cert")
-		}
+	if err := checkArtifactAgainstDBX(dbx, hashArtifact, sigs, artifact, logger); err != nil {
+		return err
 	}
 
 	// Now check against the DB to see if its allowed
@@ -304,4 +269,49 @@ func CheckArtifactSignatureIsValid(fs fs.KairosFS, artifact string, logger sdkLo
 	}
 	// If we reach this point, we need to fail as we haven't matched anything, so default is to fail
 	return fmt.Errorf("could not find a signature in EFIVars DB that matches the artifact")
+}
+
+// checkArtifactAgainstDBX rejects the artifact when its Authenticode hash
+// or any of its signing certs appears in the DBX (deny list). DBX has
+// precedence over DB, so this runs first; a nil return means the artifact
+// is not blacklisted and the DB check can proceed.
+func checkArtifactAgainstDBX(dbx *signature.SignatureDatabase, hashArtifact string, sigs []*signature.WINCertificate, artifact string, logger sdkLogger.KairosLogger) error {
+	for _, k := range *dbx {
+		switch k.SignatureType {
+		case signature.CERT_SHA256_GUID:
+			for _, k1 := range k.Signatures {
+				shaSign := hex.EncodeToString(k1.Data)
+				logger.Logger.Debug().Str("artifact", string(hashArtifact)).Str("signature", shaSign).Msg("Comparing hashes")
+				if hashArtifact == shaSign {
+					return fmt.Errorf("hash appears on DBX: %s", hashArtifact)
+				}
+			}
+		case signature.CERT_X509_GUID:
+			var result []*x509.Certificate
+			for _, k1 := range k.Signatures {
+				certificates, err := x509.ParseCertificates(k1.Data)
+				if err != nil {
+					continue
+				}
+				result = append(result, certificates...)
+			}
+			for _, sig := range sigs {
+				for _, cert := range result {
+					logger.Logger.Debug().Str("what", artifact).Str("subject", cert.Subject.CommonName).Msg("checking signature")
+					p, err := pkcs7.ParsePKCS7(sig.Certificate)
+					if err != nil {
+						logger.Logger.Info().Str("error", err.Error()).Msg("parsing signature")
+						return err
+					}
+					ok, _ := p.Verify(cert)
+					if ok {
+						return fmt.Errorf("artifact is signed with a blacklisted cert")
+					}
+				}
+			}
+		default:
+			logger.Logger.Debug().Str("what", artifact).Str("cert type", string(signature.ValidEFISignatureSchemes[k.SignatureType])).Msg("not supported type of cert")
+		}
+	}
+	return nil
 }
