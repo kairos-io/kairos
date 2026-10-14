@@ -46,6 +46,7 @@ kubernetes_distro/kubernetes_version.
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -98,6 +99,14 @@ def subst_inputs(script, inputs):
     return script
 
 
+def step_env(st, inputs):
+    """Export a step's `env:` block, with its expressions substituted."""
+    return "".join(
+        f"export {k}={shlex.quote(subst_inputs(str(v), inputs))}\n"
+        for k, v in (st.get("env") or {}).items()
+    )
+
+
 def run(script, env_prelude=""):
     full = "set -u\n" + env_prelude + "\n" + script + "\n"
     p = subprocess.run(["bash", "-c", full], capture_output=True, text=True)
@@ -110,7 +119,8 @@ def run(script, env_prelude=""):
 
 # ---- factory: run the real "Setup environment" step -------------------------
 factory = load(f"{WF}/reusable-factory.yaml")
-setup_script = step(factory, "build", "Setup environment")["run"]
+setup_step = step(factory, "build", "Setup environment")
+setup_script = setup_step["run"]
 
 
 def factory_tag(distro, version, trusted_boot=False, tag_format=None,
@@ -144,6 +154,7 @@ def factory_tag(distro, version, trusted_boot=False, tag_format=None,
     prelude = (
         'GITHUB_ENV=$(mktemp); GITHUB_OUTPUT=$(mktemp); export GITHUB_ENV GITHUB_OUTPUT\n'
         'git() { echo "v4.5.0"; }\n'
+        + step_env(setup_step, inputs)
     )
     out = run(script + '\nprintf "TAG=%s\\nARTIFACT=%s\\nK8S=%s\\nDEFAULT_TAG=%s\\n" '
                         '"$TAG" "$ARTIFACT_NAME" "$K8S" "$DEFAULT_TAG"'
