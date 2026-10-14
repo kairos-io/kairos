@@ -31,18 +31,20 @@ type KernelConsole struct {
 	// Out is where the log stream is written. Required.
 	Out io.Writer
 
-	// PrintkPath, KmsgPath and Signal exist for the tests. Zero values use
-	// the real kernel interfaces.
-	PrintkPath string
-	KmsgPath   string
-	Signal     func(sig syscall.Signal) error
+	// PrintkPath, KmsgPath, CmdlinePath and Signal exist for the tests. Zero
+	// values use the real kernel interfaces.
+	PrintkPath  string
+	KmsgPath    string
+	CmdlinePath string
+	Signal      func(sig syscall.Signal) error
 
-	mu      sync.Mutex
-	saved   string
-	quieted bool
-	kmsg    io.ReadCloser
-	stop    chan struct{}
-	done    chan struct{}
+	mu         sync.Mutex
+	saved      string
+	showStatus bool
+	quieted    bool
+	kmsg       io.ReadCloser
+	stop       chan struct{}
+	done       chan struct{}
 }
 
 func (k *KernelConsole) printk() string {
@@ -57,6 +59,13 @@ func (k *KernelConsole) kmsgFile() string {
 		return k.KmsgPath
 	}
 	return kmsgPath
+}
+
+func (k *KernelConsole) cmdline() string {
+	if k.CmdlinePath != "" {
+		return k.CmdlinePath
+	}
+	return cmdlinePath
 }
 
 func (k *KernelConsole) signal(sig syscall.Signal) error {
@@ -79,22 +88,72 @@ func (k *KernelConsole) Quiet() {
 		if raw, err := os.ReadFile(k.printk()); err == nil {
 			k.saved = string(raw)
 		}
+		k.showStatus = statusOnFromCmdline(k.cmdline())
 	}
 	_ = os.WriteFile(k.printk(), []byte(quietPrintk), 0o644)
 	_ = k.signal(showStatusSignal(21))
 	k.quieted = true
 }
 
-// Unquiet restores the printk level captured by Quiet and re-enables systemd's
-// status messages.
+// Unquiet restores the printk level captured by Quiet, and puts systemd's
+// status messages back the way the boot asked for them.
+//
+// It restores, it does not enable: on a boot whose command line says quiet,
+// status was already off and Unquiet leaves it off. Sending SIGRTMIN+20 there
+// turns status on for the rest of the uptime, because the signal sets an
+// override systemd keeps across switch-root and has no signal to clear. That
+// is what put "Starting Switch Root..." and the rest of the job output back on
+// the console the moment the initramfs splash was stopped.
 func (k *KernelConsole) Unquiet() {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	if k.saved != "" {
 		_ = os.WriteFile(k.printk(), []byte(k.saved), 0o644)
 	}
-	_ = k.signal(showStatusSignal(20))
+	if k.showStatus {
+		_ = k.signal(showStatusSignal(20))
+	}
 	k.quieted = false
+}
+
+// statusOnFromCmdline reports whether systemd was printing unit status to the
+// console before Quiet turned it off.
+//
+// There is no way to ask systemd, and the two signals it listens on only set an
+// override: SIGRTMIN+20 turns status on, SIGRTMIN+21 turns it off, and nothing
+// clears the override again. So the command line is the best record of what the
+// boot asked for, and it is what Unquiet restores to.
+//
+// A command line that cannot be read counts as status on, which is what a
+// container or a developer box looks like.
+func statusOnFromCmdline(path string) bool {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return true
+	}
+	on := true
+	// Later options win, the same way systemd parses its own command line.
+	for _, f := range strings.Fields(string(raw)) {
+		switch {
+		case f == "quiet":
+			on = false
+		case strings.HasPrefix(f, "systemd.show_status="):
+			on = showStatusOn(strings.TrimPrefix(f, "systemd.show_status="))
+		}
+	}
+	return on
+}
+
+// showStatusOn parses a systemd.show_status= value. Only a true boolean prints
+// status for every unit; "auto" and "error" print it for failures alone, which
+// is not a console the splash has to hand back.
+func showStatusOn(v string) bool {
+	switch strings.ToLower(v) {
+	case "1", "yes", "y", "true", "t", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // EnterLogs leaves the alternate screen, unquiets the kernel and starts
