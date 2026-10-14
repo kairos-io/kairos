@@ -66,21 +66,31 @@ func (i *UpgradeAction) Run() (err error) {
 		return err
 	}
 
-	if err = elementalUtils.RunStage(i.cfg, "kairos-uki-upgrade.after"); err != nil {
-		i.cfg.Logger.Errorf("running kairos-uki-upgrade.after stage: %s", err.Error())
-	}
+	// Only for the flavors that are not the active upgrade. An active upgrade
+	// ends inside writeArtifacts in runFinalizeStep, and the target agent's
+	// RunFinalize runs this stage and this hook script itself, so running them
+	// here as well would run a user stage twice on every upgrade. Recovery and
+	// single entry upgrades (both of which carry an Entry) never reach
+	// finalize, so for those two this is the only place the stage runs.
+	if i.spec.Entry != "" {
+		if err = elementalUtils.RunStage(i.cfg, "kairos-uki-upgrade.after"); err != nil {
+			i.cfg.Logger.Errorf("running kairos-uki-upgrade.after stage: %s", err.Error())
+		}
 
-	if err = events.RunHookScript("/usr/bin/kairos-agent.uki.upgrade.after.hook"); err != nil {
-		i.cfg.Logger.Errorf("running kairos-uki-upgrade.after hook script: %s", err.Error())
+		if err = events.RunHookScript("/usr/bin/kairos-agent.uki.upgrade.after.hook"); err != nil {
+			i.cfg.Logger.Errorf("running kairos-uki-upgrade.after hook script: %s", err.Error())
+		}
 	}
 
 	return nil
 }
 
 // writeArtifacts puts the new artifact set on the already RW mounted ESP. It
-// returns to Run so the after-upgrade hook and the kairos-uki-upgrade.after
-// stage run for every upgrade flavor, including the recovery and single entry
-// ones that used to return straight out of Run.
+// returns to Run so the after-upgrade hook runs for every upgrade flavor,
+// including the recovery and single entry ones that used to return straight
+// out of Run. The kairos-uki-upgrade.after stage is not run from Run for an
+// active upgrade: that flavor ends here in runFinalizeStep, and the target
+// agent's RunFinalize runs the stage itself.
 func (i *UpgradeAction) writeArtifacts(e *elemental.Elemental, cleanup *utils.CleanStack) error {
 	var err error
 
