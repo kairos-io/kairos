@@ -2,11 +2,11 @@ package schema_test
 
 import (
 	"encoding/json"
+	"strings"
 
 	. "github.com/kairos-io/kairos/v4/sdk/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"strings"
 )
 
 var _ = Describe("Install Schema", func() {
