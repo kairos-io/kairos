@@ -639,6 +639,104 @@ func TestInstallBundleFlagsAfterTargetAreNotParsed(t *testing.T) {
 	}
 }
 
+// --repository reaches LuetInstaller and nothing else, --local-file reaches
+// the two OCI installers and nothing else. Passing either to the other scheme
+// used to be accepted and then dropped, so an operator who pointed
+// --repository at their own mirror and asked for a container:// bundle still
+// pulled from the registry the target named, with nothing said about it.
+func TestInstallBundleRefusesAFlagTheSchemeCannotRead(t *testing.T) {
+	command := installBundleCommand(t)
+
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "repository on a container target",
+			args: []string{"--repository", "docker://quay.io/myorg/packages", "container://quay.io/myorg/mybundle:latest"},
+			want: "--repository is only read by a package:// target",
+		},
+		{
+			name: "repository on a run target",
+			args: []string{"--repository", "docker://quay.io/myorg/packages", "run://quay.io/myorg/mybundle:latest"},
+			want: "--repository is only read by a package:// target",
+		},
+		{
+			name: "local-file on a package target",
+			args: []string{"--local-file", "package://utils/edgevpn"},
+			want: "--local-file is not read by a package:// target",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := commandContext(t, command, "", tc.args...)
+			err := checkInstallBundleFlags(ctx, ctx.Args().First())
+			if err == nil {
+				t.Fatalf("args %q were accepted, the flag would have been dropped without a word", tc.args)
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want one containing %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// The check has to be wired into the action, not only exist. The refusal
+// returns before RunBundles, and --root-path keeps a regression that lets the
+// call through from writing into the test host's /.
+func TestInstallBundleActionRunsTheFlagCheck(t *testing.T) {
+	command := installBundleCommand(t)
+
+	ctx := commandContext(t, command, "", "--root-path", t.TempDir(), "--repository", "docker://quay.io/myorg/packages", "container://quay.io/myorg/mybundle:latest")
+	err := command.Action(ctx)
+	if err == nil || !strings.Contains(err.Error(), "--repository is only read by a package:// target") {
+		t.Fatalf("install-bundle action = %v, want it to refuse --repository on a container target", err)
+	}
+}
+
+// The flags each scheme does read, and the default --repository carries, have
+// to keep working. A default value is not a request, so only a --repository
+// the operator actually passed may refuse a container:// bundle.
+func TestInstallBundleAcceptsTheFlagsTheSchemeReads(t *testing.T) {
+	command := installBundleCommand(t)
+
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{name: "no flags", args: []string{"container://quay.io/myorg/mybundle:latest"}},
+		{name: "unset repository keeps its default", args: []string{"--local-file", "container:///absolute/path/mybundle.tar"}},
+		{name: "local-file on a run target", args: []string{"--local-file", "run:///absolute/path/mybundle.tar"}},
+		{name: "repository on a package target", args: []string{"--repository", "docker://quay.io/myorg/packages", "package://utils/edgevpn"}},
+		{name: "root-path on any target", args: []string{"--root-path", "/usr/local", "docker://quay.io/myorg/mybundle:latest"}},
+		{name: "a target with no scheme is left to RunBundles", args: []string{"--repository", "docker://quay.io/myorg/packages", "quay.io/myorg/mybundle:latest"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := commandContext(t, command, "", tc.args...)
+			if err := checkInstallBundleFlags(ctx, ctx.Args().First()); err != nil {
+				t.Fatalf("args %q were refused: %v", tc.args, err)
+			}
+		})
+	}
+}
+
+// Every example the help prints has to survive the check the command now runs,
+// or the help tells people to type a command that is refused.
+func TestInstallBundleExamplesPassTheFlagCheck(t *testing.T) {
+	command := installBundleCommand(t)
+
+	for _, line := range strings.Split(command.Description, "\n") {
+		_, example, found := strings.Cut(line, "kairos-agent install-bundle ")
+		if !found {
+			continue
+		}
+		ctx := commandContext(t, command, "", strings.Fields(example)...)
+		if err := checkInstallBundleFlags(ctx, ctx.Args().First()); err != nil {
+			t.Errorf("example %q is refused by the command: %v", line, err)
+		}
+	}
+}
+
 func TestInstallBundleFlagsHaveUsage(t *testing.T) {
 	command := installBundleCommand(t)
 
