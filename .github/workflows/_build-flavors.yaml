@@ -245,20 +245,31 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           PROBE: ${{ matrix.package_source_probe }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           echo "The build failed. Running '${PROBE}' in ${BASE_IMAGE} to find out why."
+          # The probe is expected to fail, so it is the one command in
+          # this step that errexit must not act on. Everything after it
+          # stays guarded.
+          rc=0
           docker run --rm --platform "linux/${PLATFORM}" "${BASE_IMAGE}" \
-            sh -c "${PROBE}"
-          rc=$?
+            sh -c "${PROBE}" || rc=$?
           if [ "$rc" -eq 0 ]; then
             echo "::error title=${BASE_IMAGE} (${PLATFORM}) failed to build::The package source answered, so this is a kairos-init failure on this flavor, not an outage. Read the build step above."
             exit 1
           fi
-          # 127 is the shell saying the probe command does not exist in
-          # this image. That is the image having changed under us, not
-          # its packages being unreachable, so it must not pass as one.
-          if [ "$rc" -eq 127 ]; then
-            echo "::error title=${BASE_IMAGE} (${PLATFORM}) probe is stale::'${PROBE}' does not exist in this image, so the build failure could not be classified. Fix package_source_probe for this cell in _build-flavors.yaml."
+          # Only the probe's own error code says "I could not read the
+          # packages". 126 and 127 are the shell refusing to run the
+          # probe, and 125 is docker never reaching the image at all,
+          # so none of those may pass as an outage. Any other code is
+          # one this step has not been taught to read, and guessing at
+          # it would let a real regression through as a warning.
+          if [ "$rc" -ne 1 ]; then
+            case "$rc" in
+              125) why="docker could not run ${BASE_IMAGE} at all, so the probe never ran" ;;
+              126|127) why="'${PROBE}' is not runnable in this image, so package_source_probe for this cell is stale" ;;
+              *) why="'${PROBE}' exited ${rc}, which is not the code it uses for unreachable packages" ;;
+            esac
+            echo "::error title=${BASE_IMAGE} (${PLATFORM}) build failure not classified::${why}. Read the build step above, and fix this cell in _build-flavors.yaml if the probe is wrong."
             exit 1
           fi
           summary="${BASE_IMAGE} (${PLATFORM}) could not read its packages, so the flavor was not tested on this run. This cell has one package source and the project does not run it. Tracking issue: kairos-io/kairos#4986."
