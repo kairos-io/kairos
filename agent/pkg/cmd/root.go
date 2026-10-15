@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kairos-io/kairos/v4/agent/internal/agent"
@@ -174,13 +176,8 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 						return err
 					}
 
-					// Provider returns tags. Print and return.
-					if len(tags) > 0 {
-						fmt.Println("Available releases from provider:")
-						for _, r := range tags {
-							fmt.Println(r)
-							return nil
-						}
+					if printProviderReleases(os.Stdout, tags) {
+						return nil
 					}
 
 					if c.Bool("all") {
@@ -380,6 +377,7 @@ The target has the form SCHEME://REFERENCE. Supported schemes:
   package://                 install a luet package from --repository into --root-path
 
 Flags must come before the target, anything after the target is not read as a flag.
+A flag the target's scheme does not read is refused rather than ignored.
 
 Examples:
 
@@ -392,7 +390,7 @@ Examples:
 				Name:    "repository",
 				EnvVars: []string{"REPOSITORY"},
 				Value:   "docker://quay.io/kairos/packages",
-				Usage:   "Luet repository as TYPE://URL, only used by package:// targets",
+				Usage:   "Luet repository as TYPE://URL, accepted only by package:// targets",
 			},
 			&cli.StringFlag{
 				Name:  "root-path",
@@ -402,7 +400,7 @@ Examples:
 			&cli.BoolFlag{
 				Name:    "local-file",
 				EnvVars: []string{"LOCAL_FILE"},
-				Usage:   "Read the container, docker or run target from an image tarball on disk instead of pulling it from a registry",
+				Usage:   "Read the container, docker or run target from an image tarball on disk instead of pulling it from a registry, not accepted by package:// targets",
 			},
 		},
 		UsageText: "install-bundle [--local-file] [--repository TYPE://URL] [--root-path PATH] SCHEME://REFERENCE",
@@ -412,6 +410,10 @@ Examples:
 		Action: func(c *cli.Context) error {
 			if c.Args().Len() != 1 {
 				return fmt.Errorf("bundle name required")
+			}
+
+			if err := checkInstallBundleFlags(c, c.Args().First()); err != nil {
+				return err
 			}
 
 			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRootFS(c.String("root-path")), bundles.WithRepository(c.String("repository")), bundles.WithTarget(c.Args().First()), bundles.WithLocalFile(c.Bool("local-file"))})
@@ -1859,6 +1861,35 @@ func skipAutoInstall(c *cli.Context) bool {
 	return cmdlineEnables(string(cmdline), skipAutoInstallCmdline)
 }
 
+// checkInstallBundleFlags refuses a flag the target's scheme cannot read.
+// Only LuetInstaller reads Repository, and only the two OCI installers read
+// LocalFile, so each flag used to be accepted on the other scheme and then
+// dropped without a word: the operator who passed --repository to a
+// container:// bundle got the image the target named, from the registry the
+// target named, and no sign that the flag had been ignored.
+//
+// An unreadable target is left alone here so that RunBundles keeps reporting
+// it, with the bundle name it already puts in that message.
+func checkInstallBundleFlags(c *cli.Context, target string) error {
+	scheme, err := (&bundles.BundleConfig{Target: target}).TargetScheme()
+	if err != nil {
+		return nil //nolint:nilerr // RunBundles reports the invalid target
+	}
+
+	if scheme == "package" {
+		if c.IsSet("local-file") {
+			return fmt.Errorf("--local-file is not read by a package:// target, it applies to container://, docker:// and run:// targets (unset the flag or the LOCAL_FILE environment variable)")
+		}
+		return nil
+	}
+
+	if c.IsSet("repository") {
+		return fmt.Errorf("--repository is only read by a package:// target, and %s is a %s:// target (unset the flag or the REPOSITORY environment variable)", target, scheme)
+	}
+
+	return nil
+}
+
 func validateSource(source string) error {
 	if source == "" {
 		return nil
@@ -1905,24 +1936,71 @@ func bootFromLiveMedia() bool {
 	return false
 }
 
-func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
+// releaseCollector gathers the releases every provider answers with.
+//
+// go-pluggable runs each provider in its own goroutine and emits each result to
+// the response listeners the same way, so collect is called concurrently when
+// more than one provider answers. Unmarshalling straight into a shared slice
+// both races and replaces what the previous provider contributed, which is why
+// the answers are appended under a lock instead.
+type releaseCollector struct {
+	mu   sync.Mutex
+	tags []string
+}
+
+// collect adds the releases carried by one provider's response.
+func (rc *releaseCollector) collect(data string) {
+	if data == "" {
+		return
+	}
+
 	var tags []string
+	if err := json.Unmarshal([]byte(data), &tags); err != nil {
+		fmt.Printf("warn: failed unmarshalling data: '%s'\n", err.Error())
+		return
+	}
+
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.tags = append(rc.tags, tags...)
+}
+
+// releases returns everything collected so far.
+func (rc *releaseCollector) releases() []string {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	return rc.tags
+}
+
+func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
+	rc := &releaseCollector{}
 	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
-		if r.Data == "" {
-			return
-		}
-		if err := json.Unmarshal([]byte(r.Data), &tags); err != nil {
-			fmt.Printf("warn: failed unmarshalling data: '%s'\n", err.Error())
-		}
+		rc.collect(r.Data)
 	})
 
 	configYAML := fmt.Sprintf("IncludePreReleases: %t", includePrereleases)
 	_, err := bus.Manager.Publish(events.EventAvailableReleases, events.EventPayload{Config: configYAML})
 	if err != nil {
-		return tags, fmt.Errorf("failed publishing event: %w", err)
+		return rc.releases(), fmt.Errorf("failed publishing event: %w", err)
 	}
 
-	return tags, nil
+	return rc.releases(), nil
+}
+
+// printProviderReleases writes every release the providers answered with and
+// reports whether there were any. A true result means the providers have
+// answered the question and the registry does not need to be consulted.
+func printProviderReleases(w io.Writer, tags []string) bool {
+	if len(tags) == 0 {
+		return false
+	}
+
+	fmt.Fprintln(w, "Available releases from provider:")
+	for _, r := range tags {
+		fmt.Fprintln(w, r)
+	}
+
+	return true
 }
 
 func moreThanOneEnabled(bools ...bool) bool {

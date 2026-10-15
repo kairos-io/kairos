@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -274,7 +275,11 @@ func formatLuks(device, name, mapper, label, pass string, logger sdkLogger.Kairo
 	}
 
 	l.Debug().Msg("format")
-	cmdFormat := fmt.Sprintf("mkfs.ext4 -L %s %s", label, mapper)
+	// Same feature set as every other ext filesystem Kairos creates, see
+	// constants.ExtDisabledFeatures. GRUB never reads inside a LUKS container,
+	// so this one is not at risk today, but keeping one feature set across all
+	// of them means a partition does not change shape by being encrypted.
+	cmdFormat := fmt.Sprintf("mkfs.ext4 -L %s -O %s %s", label, constants.ExtDisabledFeatures, mapper)
 	out, err := utils.SH(cmdFormat)
 	if err != nil {
 		return fmt.Errorf("mkfs err: %w, out: %s", err, out)
