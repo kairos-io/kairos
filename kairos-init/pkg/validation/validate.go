@@ -317,6 +317,20 @@ func validateSplashInInitrd(splashBinaryPath, lsinitrdOutput string) error {
 		}
 	}
 	if len(missing) > 0 {
+		// The Lstat above deliberately accepts a symlink without
+		// following it, so reaching here with a dangling one is the
+		// other way the module goes missing: dracut's check() cannot
+		// find the real binary and drops the module. Saying the
+		// splash "is installed" would send the operator to rebuild an
+		// initrd that will come out the same, so name the broken link
+		// instead.
+		if _, err := os.Stat(splashBinaryPath); os.IsNotExist(err) {
+			target, readErr := os.Readlink(splashBinaryPath)
+			if readErr != nil {
+				return fmt.Errorf("[INITRD] %s exists but cannot be resolved, so the boot splash dracut module was dropped from the initrd: %s", splashBinaryPath, err)
+			}
+			return fmt.Errorf("[INITRD] %s is a symlink to %s, which does not exist, so the boot splash dracut module was dropped from the initrd, missing: %s", splashBinaryPath, target, strings.Join(missing, ", "))
+		}
 		return fmt.Errorf("[INITRD] %s is installed but the boot splash dracut module is not in the initrd, missing: %s", splashBinaryPath, strings.Join(missing, ", "))
 	}
 

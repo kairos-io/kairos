@@ -102,18 +102,31 @@ func TestValidateSplashInInitrd(t *testing.T) {
 		}
 	})
 
-	t.Run("a dangling splash symlink still demands the module", func(t *testing.T) {
+	t.Run("a dangling splash symlink is reported as the broken link it is", func(t *testing.T) {
 		// Lstat, not Stat. A downstream that pointed the path at an
 		// executable it later dropped leaves a dangling link; Stat would
 		// read that as "no splash" and skip the check.
+		//
+		// The module is genuinely missing from the initrd here, but
+		// rebuilding the initrd cannot put it back while the link
+		// dangles, so the error has to name the link and its target
+		// rather than claim the splash is installed.
 		dir := t.TempDir()
 		splash := filepath.Join(dir, filepath.Base(bundled.SplashBinaryPath))
-		if err := os.Symlink(filepath.Join(dir, "gone"), splash); err != nil {
+		target := filepath.Join(dir, "gone")
+		if err := os.Symlink(target, splash); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := validateSplashInInitrd(splash, lsinitrdWithoutSplash); err == nil {
+		err := validateSplashInInitrd(splash, lsinitrdWithoutSplash)
+		if err == nil {
 			t.Fatal("expected a dangling splash symlink to still require the module in the initrd")
+		}
+		if !strings.Contains(err.Error(), target) {
+			t.Errorf("expected the error to name the symlink target %q, got: %v", target, err)
+		}
+		if strings.Contains(err.Error(), "is installed") {
+			t.Errorf("a dangling link is not an installed splash, the error should not say so: %v", err)
 		}
 	})
 
