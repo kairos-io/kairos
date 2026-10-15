@@ -110,6 +110,15 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 			for _, w := range warnings {
 				fmt.Printf("WARNING: %s\n", w)
 			}
+
+			// A key the schema does not declare is read by nobody and
+			// dropped without a word, so a misspelled one looks exactly
+			// like a setting that did not take effect. It does not make
+			// the config invalid, which is why nothing above reports it
+			// and why this is a warning rather than an error.
+			for _, s := range kc.SuggestUnknownKeys() {
+				fmt.Printf("WARNING: %s\n", s)
+			}
 		}
 	}
 
