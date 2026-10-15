@@ -34,6 +34,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -595,25 +596,58 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
+		if err := lockedContainerError(sdkConstants.OEMLabel, "reset-oem"); err != nil {
+			return nil, err
+		}
 		cfg.Logger.Warnf("no OEM partition found, won't format it")
 	}
 
 	if ep.Persistent == nil && spec.FormatPersistent {
+		if err := lockedContainerError(sdkConstants.PersistentLabel, "reset-persistent"); err != nil {
+			return nil, err
+		}
 		cfg.Logger.Warnf("no Persistent partition found, won't format it")
 	}
 
 	// If we mount partitions by the /dev/disk/by-label stanza, their mountpoints wont show up due to ghw not
 	// accounting for them. Normally this is not an issue but in this case, if we are formatting a given partition we
 	// want to unmount it first. Thus we need to make sure that if its mounted we have the mountpoint info
-	if ep.Persistent.MountPoint == "" {
+	//
+	// Both are optional, as the warnings above already state, so guard the
+	// lookup the same way NewUpgradeSpec does.
+	if ep.Persistent != nil && ep.Persistent.MountPoint == "" {
 		ep.Persistent.MountPoint = partitions.GetMountPointByLabel(ep.Persistent.FilesystemLabel)
 	}
 
-	if ep.OEM.MountPoint == "" {
+	if ep.OEM != nil && ep.OEM.MountPoint == "" {
 		ep.OEM.MountPoint = partitions.GetMountPointByLabel(ep.OEM.FilesystemLabel)
 	}
 
 	return spec, nil
+}
+
+// lockedContainerError tells an absent partition from one that is there but
+// locked. Both reach the caller as a nil entry in ElementalPartitions: the ghw
+// walk matches the plaintext label, which lives inside the container, and
+// GetPartitionViaDM only finds a mapper that is already open. Warning for the
+// locked case would format nothing and still return a usable spec, so reset
+// would redeploy the OS, exit 0, and leave the operator believing the
+// partition had been reset. Returning an error names the one action that makes
+// the reset they asked for possible.
+func lockedContainerError(label, resetKey string) error {
+	container, err := lookup.FindLUKSContainerByLabel(label)
+	if err != nil || container == nil {
+		return nil
+	}
+
+	device := container.Path
+	if device == "" {
+		device = container.Name
+	}
+
+	return fmt.Errorf("%s is an encrypted container (%s) with no open mapper, so it cannot be formatted; "+
+		"unlock it first with `kairos-agent kcrypt unlock-all` and retry, or set `%s: false` to reset without it",
+		label, device, resetKey)
 }
 
 // ReadResetSpecFromConfig will return a proper ResetSpec based on an agent Config
@@ -773,10 +807,22 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 	cfg.Logger.Infof("Setting image size to %dMiB", spec.Partitions.EFI.Size)
 
 	err = unmarshallFullSpec(cfg, "install", spec)
+	if err != nil {
+		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+
+	// resolve also the target of the spec so we can partition properly, the same
+	// way NewInstallSpec does it. Without this a script:// device is handed to
+	// the partitioner as a literal path, and a /dev/disk/by-X device is never
+	// resolved nor rejected when it names a partition.
+	spec.Target, err = resolveTarget(spec.Target)
+	if err != nil {
+		return nil, err
+	}
 
 	// Add default values for the skip partitions for our default entries
 	spec.SkipEntries = append(spec.SkipEntries, constants.UkiDefaultSkipEntries()...)
-	return spec, err
+	return spec, nil
 }
 
 // ReadUkiInstallSpecFromConfig will return a proper v1.InstallUkiSpec based on an agent Config
@@ -798,6 +844,14 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 	spec := &spec.UpgradeUkiSpec{}
 	if err := unmarshallFullSpec(cfg, "upgrade", spec); err != nil {
 		return nil, fmt.Errorf("failed unmarshalling full spec: %w", err)
+	}
+	// upgrade.efi-partition decodes onto this spec and is overwritten below by
+	// the ESP the host reports, so whatever the config said is thrown away. It
+	// cannot be honored either: the upgrade mounts the partition by Path and
+	// MountPoint, and neither of those is settable from cloud-config. Refuse
+	// the key rather than upgrading a partition the user did not name.
+	if spec.EfiPartition != nil {
+		return nil, fmt.Errorf("upgrade.efi-partition is not configurable: the EFI partition is the one labeled %s on the running system", sdkConstants.EfiLabel)
 	}
 	// Honor upgrade.allow-insecure-registries before any image is fetched
 	if err := applyAllowInsecureRegistries(cfg, "upgrade"); err != nil {
