@@ -52,6 +52,16 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Download Go modules
+        uses: ./.github/actions/go-mod-download
+
+      # make test also descends into the nested module under
+      # .github/actions, which resolves its own dependencies.
+      - name: Download Go modules for the nested action module
+        uses: ./.github/actions/go-mod-download
+        with:
+          working-directory: .github/actions/ghcr-cleanup
+
       - name: Unit tests
         env:
           # agent/pkg/github/releases_test.go probes the live GitHub API.
