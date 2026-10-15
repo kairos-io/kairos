@@ -205,7 +205,6 @@ users:
 
 					err := Validate(server.URL + "/cloud-config.yaml")
 					Expect(err).To(MatchError(ContainSubstring(http.StatusText(code))))
-					Expect(err).To(MatchError(ContainSubstring(server.URL)))
 					Expect(err).ToNot(MatchError(ContainSubstring("missing #cloud-config header")))
 				},
 				Entry("a not found with no body", http.StatusNotFound, ""),
@@ -214,6 +213,27 @@ users:
 					`<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>`),
 				Entry("a server error", http.StatusInternalServerError, ""),
 			)
+
+			// The error reaches stderr and, through the web installer, the
+			// log, so a URL that authenticates the fetch must not travel
+			// with it.
+			Context("when the URL carries credentials", func() {
+				BeforeEach(func() {
+					status = http.StatusForbidden
+					body = `<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>`
+				})
+
+				It("keeps them out of the error", func() {
+					host := strings.TrimPrefix(server.URL, "http://")
+					url := "http://kairos:hunter2@" + host +
+						"/cloud-config.yaml?X-Amz-Signature=5f4dcc3b5aa765d6"
+
+					err := Validate(url)
+					Expect(err).To(MatchError(ContainSubstring(http.StatusText(http.StatusForbidden))))
+					Expect(err).ToNot(MatchError(ContainSubstring("hunter2")))
+					Expect(err).ToNot(MatchError(ContainSubstring("5f4dcc3b5aa765d6")))
+				})
+			})
 		})
 	})
 })
