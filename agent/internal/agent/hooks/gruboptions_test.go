@@ -144,9 +144,14 @@ var _ = Describe("GrubFirstBootOptions mounts", func() {
 			"the options still have to be written, log: %s", memLog.String())
 		Expect(mountPaths()).To(ContainElement(cnst.OEMPath),
 			"the hook must leave the mount table as it found it, actions: %v", mounter.GetLog())
+		// The old code reached for machine.Umount and machine.Mount, which
+		// shell out and never reach the fake mounter, so an empty action log
+		// on its own proves nothing. The log line and the mount table do.
+		Expect(memLog.String()).To(ContainSubstring("OEM is already mounted"),
+			"the hook has to recognise the mount instead of taking it over")
 		for _, action := range mounter.GetLog() {
-			Expect(action.Action).ToNot(Equal(mount.FakeActionUnmount),
-				"nothing this hook did not mount may be unmounted, actions: %v", mounter.GetLog())
+			Expect(action.Target).ToNot(Equal(cnst.OEMPath),
+				"a mount this hook does not own is not its to move, actions: %v", mounter.GetLog())
 		}
 	})
 
@@ -166,13 +171,51 @@ var _ = Describe("GrubFirstBootOptions mounts", func() {
 			"a mount this hook made is its own to clean up, actions: %v", mounter.GetLog())
 	})
 
-	It("fails instead of writing the options outside the OEM partition", func() {
-		// Without the mount the write goes to the ephemeral root, where GRUB
-		// never looks, and the old code reported success for it.
+	It("writes nothing when OEM cannot be mounted, and lets the boot carry on", func() {
+		// Without the mount the write would go to the ephemeral root, where
+		// GRUB never looks, and the old code reported success for it.
+		// Failing is not the answer either: a non-zero kairos-agent start
+		// ends agent.Run before the firstboot sentinel and the bootstrap
+		// event, and systemd restarts the unit every few seconds.
 		withOEM()
 		cfg.Mounter = failingMountMounter{Interface: mounter}
 
-		Expect(hook.GrubFirstBootOptions{}.Run(*cfg, nil)).ShouldNot(Succeed())
+		Expect(hook.GrubFirstBootOptions{}.Run(*cfg, nil)).Should(Succeed())
+
+		_, readErr := grubenv()
+		Expect(readErr).To(HaveOccurred(),
+			"nothing may be written when the partition is not there")
+		Expect(memLog.String()).To(ContainSubstring("leaving the grub options unwritten"))
+	})
+
+	It("writes nothing and carries on when the node has no COS_OEM at all", func() {
+		// The agent service runs on live and netboot nodes too, where /oem
+		// is the datasource userdata and COS_OEM was never created, so the
+		// label does not resolve to anything.
+		ghwTest := ghwMock.GhwMock{}
+		ghwTest.AddDisk(sdkPartitions.Disk{Name: "vda", Partitions: []*sdkPartitions.Partition{
+			{Name: "vda1", Path: "/dev/vda1", FilesystemLabel: cnst.StateLabel, FS: "ext4"},
+		}})
+		ghwTest.CreateDevices()
+		DeferCleanup(ghwTest.Clean)
+
+		Expect(hook.GrubFirstBootOptions{}.Run(*cfg, nil)).Should(Succeed())
+
+		_, readErr := grubenv()
+		Expect(readErr).To(HaveOccurred(),
+			"nothing may be written when there is no OEM partition")
+		Expect(memLog.String()).To(ContainSubstring("leaving the grub options unwritten"))
+	})
+
+	It("still fails the install when OEM cannot be mounted", func() {
+		// The install path keeps the error. It has just created the
+		// partition, so not reaching it is a broken install rather than a
+		// node that never had one.
+		withOEM()
+		cfg.Mounter = failingMountMounter{Interface: mounter}
+		cfg.Install.GrubOptions = map[string]string{"default_menu_entry": "My Kairos"}
+
+		Expect(hook.GrubPostInstallOptions{}.Run(*cfg, nil)).ShouldNot(Succeed())
 
 		_, readErr := grubenv()
 		Expect(readErr).To(HaveOccurred(),
