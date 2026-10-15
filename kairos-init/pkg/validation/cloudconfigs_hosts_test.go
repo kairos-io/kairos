@@ -84,10 +84,8 @@ func bootHosts(root string, steps []hostsStep) int {
 
 	applied := 0
 	for _, step := range steps {
-		if step.If != "" {
-			if err := exec.Command("sh", "-c", rewriteHostsPaths(step.If, root)).Run(); err != nil {
-				continue
-			}
+		if step.If != "" && !guardPassesExpr(rewriteHostsPaths(step.If, root)) {
+			continue
 		}
 		applied++
 
