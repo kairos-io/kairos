@@ -1,6 +1,13 @@
 package utils
 
-import "testing"
+import (
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestGetEfiGrubFiles(t *testing.T) {
 	tests := []struct {
@@ -157,5 +164,47 @@ func TestPoweroffCommand(t *testing.T) {
 				t.Fatalf("poweroffCommand(%v) = %q, want %q", tt.openRC, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestShellSTDINRunsTheCommand(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "marker")
+
+	out, err := ShellSTDIN("hello from stdin\n", "cat > "+marker+"; echo done")
+	if err != nil {
+		t.Fatalf("ShellSTDIN returned %v, want nil", err)
+	}
+	if out != "done\n" {
+		t.Errorf("combined output is %q, want %q", out, "done\n")
+	}
+
+	// The command has to have run, and it has to have read the string it was
+	// given. Setting cmd.Stdout made CombinedOutput refuse to start, so both
+	// of these used to be false while the error said "Stdout already set".
+	b, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("the command did not run: %v", err)
+	}
+	if string(b) != "hello from stdin\n" {
+		t.Errorf("the command read %q from stdin, want %q", string(b), "hello from stdin\n")
+	}
+}
+
+func TestShellSTDINReportsTheCommandsOwnFailure(t *testing.T) {
+	out, err := ShellSTDIN("", "echo on stdout; echo on stderr >&2; exit 7")
+	if err == nil {
+		t.Fatal("ShellSTDIN returned nil, want the command's exit status")
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("ShellSTDIN returned %v, want an *exec.ExitError", err)
+	}
+	if exitErr.ExitCode() != 7 {
+		t.Errorf("exit code is %d, want 7", exitErr.ExitCode())
+	}
+	// Both streams come back, which is what CombinedOutput is for.
+	if !strings.Contains(out, "on stdout") || !strings.Contains(out, "on stderr") {
+		t.Errorf("combined output is %q, want both streams", out)
 	}
 }
