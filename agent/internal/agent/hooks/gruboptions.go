@@ -180,7 +180,15 @@ func (b GrubFirstBootOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	}
 
 	if err := grubOptions(c, c.GrubOptions, oemEncrypted); err != nil {
-		return err
+		// Logged, not returned, for the reason FirstBootStage gives: this
+		// hook runs inside the sentinel-gated first boot block, so returning
+		// here aborts the chain before the firstboot sentinel is written and
+		// before the bootstrap event that starts the k3s or k0s provider. The
+		// node would then never finish its first boot and would repeat the
+		// whole block, bundles included, on every restart of the agent unit.
+		// An unwritten grubenv is worth a loud log, not that.
+		c.Logger.Logger.Err(err).Msg("Failed setting grub options, continuing so the firstboot sentinel still gets written")
+		return nil
 	}
 	c.Logger.Logger.Info().Msg("Finish GrubOptions hook")
 	return nil
@@ -216,7 +224,11 @@ func writeGrubenvToState(c sdkConfig.Config, opts map[string]string) error {
 		c.Logger.Logger.Debug().Msg("Unmounting STATE partition")
 		// Back to read-only first: the remount below changes the superblock,
 		// so it is also the one the initramfs mount of this device sees.
-		_ = c.Mounter.Mount(device, cnst.StateDir, "auto", []string{"remount", "ro"})
+		// Say so when it fails, because STATE then stays writable for the
+		// rest of the boot and nothing else reports that.
+		if err := c.Mounter.Mount(device, cnst.StateDir, "auto", []string{"remount", "ro"}); err != nil {
+			c.Logger.Logger.Warn().Err(err).Msg("Could not remount the STATE partition read-only, it stays writable for the rest of this boot")
+		}
 		_ = c.Mounter.Unmount(cnst.StateDir)
 	}()
 

@@ -19,6 +19,7 @@ import (
 	install "github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
+	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -103,6 +104,44 @@ func (m *remountMounter) Mount(source, target, fstype string, options []string) 
 	return m.Interface.Mount(source, target, fstype, options)
 }
 
+// failingMounter refuses one kind of mount call on the STATE mountpoint and
+// passes the rest through, so a test can pick which step of the STATE write
+// breaks: the plain mount, or the remount that makes the filesystem writable.
+type failingMounter struct {
+	mount.Interface
+	fs     *roStateFS
+	failOn string
+}
+
+func (m *failingMounter) Mount(source, target, fstype string, options []string) error {
+	if target == cnst.StateDir && strings.Join(options, ",") == m.failOn {
+		return fmt.Errorf("mount %s %s: fake failure", source, target)
+	}
+	if target == cnst.StateDir {
+		for _, o := range options {
+			switch o {
+			case "rw":
+				m.fs.readOnly = false
+			case "ro":
+				m.fs.readOnly = true
+			}
+		}
+	}
+	return m.Interface.Mount(source, target, fstype, options)
+}
+
+// recordingHook stands in for the hooks that follow GrubFirstBootOptions in
+// the first boot chain, FirstBootStage above all: if it did not run, neither
+// did the firstboot sentinel write nor the bootstrap event behind it.
+type recordingHook struct {
+	ran bool
+}
+
+func (h *recordingHook) Run(_ sdkConfig.Config, _ sdkSpec.Spec) error {
+	h.ran = true
+	return nil
+}
+
 var _ = Describe("GrubFirstBootOptions", func() {
 	var cfg *sdkConfig.Config
 	var fs vfs.FS
@@ -113,9 +152,20 @@ var _ = Describe("GrubFirstBootOptions", func() {
 	var cleanup func()
 	var err error
 
-	// runWithOEM presents ghw with a single disk holding the given COS_OEM
-	// partition and runs the hook. A nil partition is a node where the label
-	// is nowhere to be found.
+	// runWithParts presents ghw with a single disk holding the given
+	// partitions and runs the given hooks as a chain, the way the first boot
+	// block runs them.
+	runWithParts := func(parts []*sdkPartitions.Partition, hooks ...hook.Interface) error {
+		ghwTest = ghwMock.GhwMock{}
+		ghwTest.AddDisk(sdkPartitions.Disk{Name: "vda", Partitions: parts})
+		ghwTest.CreateDevices()
+		DeferCleanup(ghwTest.Clean)
+		return hook.Run(*cfg, nil, hooks...)
+	}
+
+	// runWithOEM presents ghw with a single disk holding COS_STATE and the
+	// given COS_OEM partition, and runs the hook. A nil partition is a node
+	// where the OEM label is nowhere to be found.
 	runWithOEM := func(oem *sdkPartitions.Partition) error {
 		parts := []*sdkPartitions.Partition{
 			{Name: "vda1", Path: "/dev/vda1", FilesystemLabel: cnst.StateLabel, FS: "ext4"},
@@ -123,11 +173,7 @@ var _ = Describe("GrubFirstBootOptions", func() {
 		if oem != nil {
 			parts = append(parts, oem)
 		}
-		ghwTest = ghwMock.GhwMock{}
-		ghwTest.AddDisk(sdkPartitions.Disk{Name: "vda", Partitions: parts})
-		ghwTest.CreateDevices()
-		DeferCleanup(ghwTest.Clean)
-		return hook.GrubFirstBootOptions{}.Run(*cfg, nil)
+		return runWithParts(parts, hook.GrubFirstBootOptions{})
 	}
 
 	grubenv := func(dir string) (string, error) {
@@ -234,6 +280,74 @@ var _ = Describe("GrubFirstBootOptions", func() {
 		Expect(readErr).To(HaveOccurred())
 		_, readErr = grubenv(cnst.StateDir)
 		Expect(readErr).To(HaveOccurred())
+	})
+
+	Context("when the STATE write fails", func() {
+		// This hook runs inside the sentinel-gated first boot block, so an
+		// error returned from here aborts the chain before the firstboot
+		// sentinel is written and before the bootstrap event that starts the
+		// provider. The node would then repeat the whole block on every
+		// restart of the agent unit, and never come up. Every one of these
+		// failures has to end in a log line and a nil.
+		encryptedOEM := []*sdkPartitions.Partition{
+			{Name: "vda1", Path: "/dev/vda1", FilesystemLabel: cnst.StateLabel, FS: "ext4"},
+			{Name: "vda2", Path: "/dev/vda2", FilesystemLabel: cnst.OEMLabel, FS: "crypto_LUKS"},
+		}
+		var next *recordingHook
+
+		BeforeEach(func() {
+			next = &recordingHook{}
+		})
+
+		It("carries on when the STATE partition cannot be mounted", func() {
+			cfg.Mounter = &failingMounter{Interface: mount.NewFakeMounter(nil), fs: stateFS}
+
+			Expect(runWithParts(encryptedOEM, hook.GrubFirstBootOptions{}, next)).To(Succeed())
+
+			Expect(next.ran).To(BeTrue(), "the rest of the first boot chain must still run, log: %s", memLog.String())
+			Expect(memLog.String()).To(ContainSubstring("Failed to mount the STATE partition"))
+			Expect(memLog.String()).To(ContainSubstring("continuing so the firstboot sentinel still gets written"))
+			_, readErr := grubenv(cnst.StateDir)
+			Expect(readErr).To(HaveOccurred())
+		})
+
+		It("carries on when the write fails because STATE stayed read-only", func() {
+			// The remount is the only thing standing between the initramfs
+			// read-only mount and the write, so when it fails the write
+			// fails with EROFS.
+			cfg.Mounter = &failingMounter{Interface: mount.NewFakeMounter(nil), fs: stateFS, failOn: "remount,rw"}
+
+			Expect(runWithParts(encryptedOEM, hook.GrubFirstBootOptions{}, next)).To(Succeed())
+
+			Expect(next.ran).To(BeTrue(), "the rest of the first boot chain must still run, log: %s", memLog.String())
+			Expect(memLog.String()).To(ContainSubstring("Could not remount the STATE partition read-write"))
+			Expect(memLog.String()).To(ContainSubstring("Failed to set grub options in STATE"))
+			Expect(memLog.String()).To(ContainSubstring("continuing so the firstboot sentinel still gets written"))
+		})
+
+		It("carries on when the STATE partition is nowhere to be found", func() {
+			Expect(runWithParts([]*sdkPartitions.Partition{
+				{Name: "vda2", Path: "/dev/vda2", FilesystemLabel: cnst.OEMLabel, FS: "crypto_LUKS"},
+			}, hook.GrubFirstBootOptions{}, next)).To(Succeed())
+
+			Expect(next.ran).To(BeTrue(), "the rest of the first boot chain must still run, log: %s", memLog.String())
+			Expect(memLog.String()).To(ContainSubstring("Failed to find the STATE partition"))
+		})
+
+		It("still writes when the remount fails on a filesystem that is writable anyway", func() {
+			// The remount is best effort: a filesystem that is already
+			// writable must not lose its grub options because mount refused
+			// a flag it did not need.
+			stateFS.readOnly = false
+			cfg.Mounter = &failingMounter{Interface: mount.NewFakeMounter(nil), fs: stateFS, failOn: "remount,rw"}
+
+			Expect(runWithParts(encryptedOEM, hook.GrubFirstBootOptions{}, next)).To(Succeed())
+
+			Expect(next.ran).To(BeTrue())
+			Expect(grubenv(cnst.StateDir)).To(ContainSubstring("default_menu_entry=My Kairos"),
+				"log: %s", memLog.String())
+			Expect(memLog.String()).To(ContainSubstring("Could not remount the STATE partition read-write"))
+		})
 	})
 })
 
