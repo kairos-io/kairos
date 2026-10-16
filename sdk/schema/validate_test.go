@@ -121,6 +121,38 @@ users:
 			})
 		})
 
+		Context("with a header and nothing else", func() {
+			// An emptied configuration is a configuration. `kairos
+			// edit-config` reopens the editor until the document validates,
+			// so a schema that refuses this one is a schema that will not let
+			// anybody clear /oem/90_custom.yaml.
+			for _, header := range []string{"#cloud-config", "#kairos-config", "#node-config"} {
+				It("accepts "+header+" on its own", func() {
+					Expect(Validate(header + "\n")).ToNot(HaveOccurred())
+				})
+			}
+
+			It("accepts a header followed by comments only", func() {
+				Expect(Validate("#cloud-config\n# everything here is commented out\n")).ToNot(HaveOccurred())
+			})
+
+			It("accepts the empty mapping written out", func() {
+				Expect(Validate("#cloud-config\n{}\n")).ToNot(HaveOccurred())
+			})
+
+			It("still refuses a body that is not a mapping", func() {
+				// Emptiness is the only thing being allowed here. A document
+				// whose body is a sequence or a scalar is still not a Kairos
+				// configuration.
+				Expect(Validate("#cloud-config\n- kairos\n")).To(MatchError(ContainSubstring("expected object, but got array")))
+				Expect(Validate("#cloud-config\nkairos\n")).To(MatchError(ContainSubstring("expected object, but got string")))
+			})
+
+			It("still refuses an empty document with no header", func() {
+				Expect(Validate("")).To(MatchError("missing #cloud-config header"))
+			})
+		})
+
 		Context("without a header", func() {
 			BeforeEach(func() {
 				yaml = `users:
