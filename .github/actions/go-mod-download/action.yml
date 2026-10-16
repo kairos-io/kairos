@@ -1,0 +1,49 @@
+name: 'Download Go modules'
+description: >
+  Populate the Go module cache before a build, retrying when the module
+  proxy drops a download. Run it after actions/setup-go so the build and
+  test steps that follow read the cache instead of the network.
+inputs:
+  working-directory:
+    description: 'Directory holding the go.mod to download for'
+    required: false
+    default: '.'
+  attempts:
+    description: 'How many times to try before giving up'
+    required: false
+    default: '3'
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        ATTEMPTS: ${{ inputs.attempts }}
+      run: |
+        # One dropped zip from proxy.golang.org reds the whole job, and the
+        # message reads like broken code rather than a failed download:
+        #
+        #   github.com/ipld/go-ipld-prime@v0.23.0: read
+        #   "https://proxy.golang.org/github.com/ipld/go-ipld-prime/@v/v0.23.0.zip":
+        #   stream error: stream ID 411; INTERNAL_ERROR; received from peer
+        #
+        # Three jobs on three different modules went red that way inside five
+        # minutes on 2026-10-14, and nothing re-runs them, so the red outlives
+        # the outage. See kairos-io/kairos#5502.
+        #
+        # Nothing here reports findings, unlike the linter in #5486, so every
+        # failure is a fetch failure and the retry needs no match on the error
+        # text. The cache that actions/setup-go restores is keyed on go.sum, so
+        # it does not help the first build after a dependency changes, which is
+        # when the proxy is actually read.
+        for attempt in $(seq 1 "${ATTEMPTS}"); do
+          if go mod download; then
+            exit 0
+          fi
+          if [ "${attempt}" -lt "${ATTEMPTS}" ]; then
+            echo "go mod download failed on attempt ${attempt}, retrying"
+            sleep "$((attempt * 10))"
+          fi
+        done
+        echo "go mod download did not succeed in ${ATTEMPTS} attempts"
+        exit 1
