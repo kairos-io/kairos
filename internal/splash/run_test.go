@@ -2,6 +2,7 @@ package splash
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -482,4 +483,134 @@ func TestRunTreatsAZeroDurationAsUnlimited(t *testing.T) {
 	if calls != 4 {
 		t.Errorf("Now called %d times, want 4 (start + 3 frames)", calls)
 	}
+}
+
+// The booted-system unit is the last thing on tty1 before the login prompt,
+// and agetty does not clear the console. Whatever the animation drew over has
+// to be wiped here or it stays on screen under the prompt.
+func TestRunClearsTheConsoleOnExitWhenAsked(t *testing.T) {
+	var out bytes.Buffer
+	b := DefaultBranding()
+	calls := 0
+	err := Run(Options{
+		Out:         &out,
+		Rows:        b.Height() + 8,
+		Cols:        b.Width() + 10,
+		IsTTY:       true,
+		Branding:    b,
+		Frame:       time.Millisecond,
+		Duration:    3 * time.Millisecond,
+		Now:         countingClock(time.Millisecond, &calls),
+		ClearOnExit: true,
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := out.String(); !strings.HasSuffix(got, seqLeave+seqClear) {
+		t.Errorf("the console was not cleared on the way out; tail = %q", tail(got, 40))
+	}
+}
+
+// The initramfs unit does not pass the flag: switch-root and then the booted
+// animation follow it, so a clear there is a black frame in the middle of the
+// splash and nothing else.
+func TestRunLeavesTheConsoleAloneByDefault(t *testing.T) {
+	var out bytes.Buffer
+	b := DefaultBranding()
+	calls := 0
+	err := Run(Options{
+		Out:      &out,
+		Rows:     b.Height() + 8,
+		Cols:     b.Width() + 10,
+		IsTTY:    true,
+		Branding: b,
+		Frame:    time.Millisecond,
+		Duration: 3 * time.Millisecond,
+		Now:      countingClock(time.Millisecond, &calls),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	got := out.String()
+	if !strings.HasSuffix(got, seqLeave) {
+		t.Errorf("the console was not restored; tail = %q", tail(got, 40))
+	}
+	if strings.Contains(got, seqClear) {
+		t.Error("cleared the console without ClearOnExit")
+	}
+}
+
+// A console that could not be animated on never entered the splash, so there
+// is nothing of the animation's to clear and the one-line fallback has to
+// survive: clearing here would wipe the only trace that the unit ran.
+func TestRunDoesNotClearTheFallbackLine(t *testing.T) {
+	var out bytes.Buffer
+	err := Run(Options{
+		Out:         &out,
+		IsTTY:       false,
+		Branding:    DefaultBranding(),
+		MaxFrames:   1,
+		ClearOnExit: true,
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := out.String(); got != "KAIROS\n" {
+		t.Errorf("output = %q, want the bare fallback line", got)
+	}
+}
+
+// logConsole is a Console that says when the splash has handed the screen to
+// the kernel log, so a test can end the animation at a known mode.
+type logConsole struct{ entered chan struct{} }
+
+func (c *logConsole) EnterLogs() error { close(c.entered); return nil }
+func (c *logConsole) LeaveLogs() error { return nil }
+
+// Escape swaps the animation for the kernel log, and the booted unit's
+// Duration can run out while the user is still reading it. Clearing then
+// destroys exactly what they asked for, which is why this cannot be left to
+// systemd's TTYVTDisallocate= on the unit: the unit cannot know the mode.
+func TestRunDoesNotClearTheKernelLogTheUserAskedToSee(t *testing.T) {
+	con := &logConsole{entered: make(chan struct{})}
+	keys, press := io.Pipe()
+	defer press.Close()
+	done := make(chan struct{})
+	go func() {
+		if _, err := press.Write([]byte{esc}); err != nil {
+			return
+		}
+		<-con.entered
+		close(done)
+	}()
+
+	var out bytes.Buffer
+	b := DefaultBranding()
+	err := Run(Options{
+		Out:         &out,
+		Rows:        b.Height() + 8,
+		Cols:        b.Width() + 10,
+		IsTTY:       true,
+		Branding:    b,
+		Frame:       time.Millisecond,
+		In:          keys,
+		Console:     con,
+		Done:        done,
+		ClearOnExit: true,
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := out.String(); strings.Contains(got, seqClear) {
+		t.Error("cleared the kernel log the user switched to with Escape")
+	}
+}
+
+// tail is the last n bytes of s, for an error message that does not print a
+// whole screen of escape sequences.
+func tail(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
 }
