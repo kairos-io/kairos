@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/diskfs/go-diskfs"
+	"github.com/diskfs/go-diskfs/backend/file"
 	"github.com/diskfs/go-diskfs/disk"
 	"github.com/diskfs/go-diskfs/partition"
 	"github.com/diskfs/go-diskfs/partition/gpt"
@@ -220,8 +221,20 @@ func WithLogger(logger logger.KairosLogger) func(d *Disk) error {
 	}
 }
 
+// NewDisk opens device for partitioning.
+//
+// The backend is built with file.OpenFromPathWithExclusive rather than with
+// diskfs.Open, because diskfs.Open uses file.New, which does not record the
+// path it was opened from. go-diskfs needs that path for the BLKPG fallback it
+// uses when BLKRRPART cannot re-read the partition table: without it the
+// fallback refuses to run and a transient busy device fails the install. The
+// open flags are the same O_RDWR|O_EXCL that diskfs.Open defaults to.
 func NewDisk(device string, opts ...DiskOptions) (*Disk, error) {
-	d, err := diskfs.Open(device)
+	backend, err := file.OpenFromPathWithExclusive(device, false, true)
+	if err != nil {
+		return nil, err
+	}
+	d, err := diskfs.OpenBackend(backend)
 	if err != nil {
 		return nil, err
 	}
