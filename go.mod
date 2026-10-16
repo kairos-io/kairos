@@ -1,6 +1,6 @@
 module github.com/kairos-io/kairos/v4
 
-go 1.26.8
+go 1.26.9
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
@@ -64,7 +64,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/zcalusic/sysinfo v1.1.3
 	golang.org/x/mod v0.41.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.46.0
