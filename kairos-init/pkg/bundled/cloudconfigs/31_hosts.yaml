@@ -19,7 +19,7 @@ stages:
     - if: '[ ! -f "/run/cos/recovery_mode" ]'
       name: "Ensure persistent /etc/ directory"
       directories:
-        - path: "/usr/local/etc/"
+        - path: "/usr/local/etc"
           permissions: 0755
           owner: 0
           group: 0
