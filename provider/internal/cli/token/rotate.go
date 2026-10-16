@@ -3,8 +3,10 @@ package token
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/provider/internal/provider"
@@ -136,6 +138,11 @@ func mappingValue(m *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
+// maxConfigFileSize is the size above which a candidate is skipped rather than
+// read. It is the bound sdk/collector already puts on a config file, repeated
+// here because this package walks the same directories.
+const maxConfigFileSize = 2 * 1024 * 1024
+
 // FindYAMLWithKey will find and return files that contain a given key in them.
 func FindYAMLWithKey(s string, opts ...collector.Option) ([]string, error) {
 	o := &collector.Options{}
@@ -145,26 +152,64 @@ func FindYAMLWithKey(s string, opts ...collector.Option) ([]string, error) {
 		return result, err
 	}
 
-	files := allFiles(o.ScanDir)
-
-	for _, f := range files {
-		dat, err := os.ReadFile(f)
+	for _, f := range allFiles(o.ScanDir) {
+		dat, err := readConfigCandidate(f)
 		if err != nil {
 			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
+			continue
 		}
 
 		found, err := unstructured.YAMLHasKey(s, dat)
 		if err != nil {
 			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
+			continue
 		}
 
 		if found {
 			result = append(result, f)
 		}
-
 	}
 
 	return result, nil
+}
+
+// readConfigCandidate reads a config candidate and refuses anything that is not
+// a regular file of a plausible size.
+//
+// os.ReadFile opens without O_NONBLOCK, and opening a FIFO for reading blocks in
+// open(2) until a writer arrives. On a node none ever does, so rotate-token
+// parks for good, after ReplaceToken has rewritten the token in the config files
+// and before writeEdgeVPNEnv has rewritten the edgevpn unit. O_NONBLOCK makes
+// the open return whatever the path turns out to be, so the fstat that follows
+// can reject it. A character device is the same shape of problem, and /dev/zero
+// reads until memory runs out, which the size bound catches as well.
+//
+// O_NOFOLLOW is deliberately not set: a symlink to a real config is a layout
+// Kairos supports, and following it lands on the regular file the fstat wants.
+//
+// sdk/collector grew the same guard for its own scan in kairos-io/kairos#4869.
+// The two want to be one helper once that has landed.
+func readConfigCandidate(f string) ([]byte, error) {
+	file, err := os.OpenFile(f, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if !stat.Mode().IsRegular() {
+		return nil, errors.New("it is not a regular file")
+	}
+
+	if stat.Size() > maxConfigFileSize {
+		return nil, fmt.Errorf("it is %d bytes, above the %d the collector reads", stat.Size(), maxConfigFileSize)
+	}
+
+	return io.ReadAll(file)
 }
 
 func allFiles(dir []string) []string {
@@ -177,6 +222,11 @@ func allFiles(dir []string) []string {
 	return files
 }
 
+// listFiles returns the config candidates under dir, which are the .yml and
+// .yaml files only. The walk used to return every file it saw, so rotate-token
+// opened and read the whole of whatever a scanned directory happened to hold:
+// the EFI binaries, grub modules and kernels of kairos-io/kairos#2064 when it
+// is pointed at the live media, and a FIFO under any name at all.
 func listFiles(dir string) ([]string, error) {
 	var content []string
 
@@ -185,9 +235,14 @@ func listFiles(dir string) ([]string, error) {
 			if err != nil {
 				return nil
 			}
-			if !info.IsDir() {
-				content = append(content, path)
+			if info.IsDir() {
+				return nil
 			}
+			if ext := filepath.Ext(path); ext != ".yml" && ext != ".yaml" {
+				return nil
+			}
+
+			content = append(content, path)
 
 			return nil
 		})
