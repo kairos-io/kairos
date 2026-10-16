@@ -298,14 +298,26 @@ func GetImage(targetImage, targetPlatform string, auth *registrytypes.AuthConfig
 		transport.WithRetryPredicate(defaultRetryPredicate),
 	)
 
-	// Try to get the image from the local Docker daemon
+	// Try to get the image from the local Docker daemon. Whatever stopped the
+	// daemon from answering is kept, so that it can be reported when the
+	// registry does not answer either: logs.Warn is go-containerregistry's own
+	// logger, which writes to io.Discard unless the program assigns it, and
+	// nothing in Kairos or AuroraBoot does. A source like docker:upgrade-image
+	// names an image that only the daemon can have, so for those the registry
+	// leg cannot succeed and its error is the only one the caller would see.
 	image, daemonErr := daemon.Image(ref, daemonImageOptions...)
 	if daemonErr == nil {
 		imgConfig, cfgErr := image.ConfigFile()
-		if cfgErr != nil {
+		switch {
+		case cfgErr != nil:
+			daemonErr = fmt.Errorf("reading the image config: %w", cfgErr)
 			logs.Warn.Printf("local daemon image %q: read config: %v; falling back to remote", ref.String(), cfgErr)
-		} else if imgConfig.Architecture == platform.Architecture && imgConfig.OS == platform.OS {
+		case imgConfig.Architecture == platform.Architecture && imgConfig.OS == platform.OS:
 			return image, nil
+		default:
+			daemonErr = fmt.Errorf("the daemon has %s/%s, want %s/%s",
+				imgConfig.OS, imgConfig.Architecture, platform.OS, platform.Architecture)
+			logs.Warn.Printf("local daemon image %q: %v; falling back to remote", ref.String(), daemonErr)
 		}
 	} else {
 		logs.Warn.Printf("local daemon image %q: %v; falling back to remote", ref.String(), daemonErr)
@@ -322,6 +334,12 @@ func GetImage(targetImage, targetPlatform string, auth *registrytypes.AuthConfig
 	}
 
 	image, err = remote.Image(ref, remoteOpts...)
+	if err != nil && daemonErr != nil {
+		// Both legs failed. Name the reference and carry both causes, so the
+		// caller is not left with a registry error for an image they may never
+		// have asked a registry for.
+		return image, fmt.Errorf("resolving %s: local docker daemon: %w; registry: %w", ref.String(), daemonErr, err)
+	}
 
 	return image, err
 }
