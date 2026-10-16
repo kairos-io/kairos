@@ -593,7 +593,12 @@ else
   set fallback="0 1 2"
 fi
 
-insmod all_video
+# Some GRUB builds compile the video drivers into the core image and ship no
+# all_video.mod. Loading the module there prints "file not found" on every
+# boot, so only load it when the file is present.
+if [ -f "${prefix}/${grub_cpu}-${grub_platform}/all_video.mod" ]; then
+  insmod all_video
+fi
 insmod loopback
 insmod squash4
 insmod serial
