@@ -145,18 +145,46 @@ func K0sBin() string {
 	return ""
 }
 
+// EnvFileMode is the mode WriteEnv gives a service environment file.
+//
+// These files carry the cluster join secrets: EDGEVPNTOKEN for the p2p mesh,
+// K3S_TOKEN and K0S_TOKEN for the Kubernetes distributions, plus whatever an
+// operator puts in a k3s.env or k0s.env block. Only the init system reads
+// them, and it reads them as root, so nobody else needs the bytes. Upstream
+// k3s chmods the same file to 0600 in its own installer.
+const EnvFileMode = 0600
+
+// WriteEnv merges config into the environment file at envFile, creating it if
+// it is not there yet, and leaves it readable by root only.
+//
+// A file that is already on disk is tightened before the new values go in, not
+// after. A node installed before this was fixed has a 0644 file, and os.WriteFile
+// keeps the mode of a file it truncates, so without the chmod the secrets would
+// stay exposed. Doing it first also means the new token is never on disk at a
+// mode wider than this one, even for an instant.
 func WriteEnv(envFile string, config map[string]string) error {
 	content, err := os.ReadFile(envFile)
-	if err != nil && !os.IsNotExist(err) {
+	switch {
+	case err == nil:
+		if err := os.Chmod(envFile, EnvFileMode); err != nil {
+			return err
+		}
+	case !os.IsNotExist(err):
 		return err
 	}
+
 	env, _ := godotenv.Unmarshal(string(content))
 
 	for key, val := range config {
 		env[key] = val
 	}
 
-	return godotenv.Write(env, envFile)
+	marshalled, err := godotenv.Marshal(env)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(envFile, []byte(marshalled+"\n"), EnvFileMode)
 }
 
 func Flavor() string {
