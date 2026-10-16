@@ -10,12 +10,14 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	elementalUtils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/signatures"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/rs/zerolog"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 type UpgradeAction struct {
@@ -312,7 +314,11 @@ func (i *UpgradeAction) prepareFinalize(noroleEfi string) (*finalizeStage, error
 // refusals were already handled up in prepareFinalize before rotation.
 func (i *UpgradeAction) runFinalizeStep(stage *finalizeStage) error {
 	ctxPath := filepath.Join(stage.tempDir, "context.json")
-	if err := action.WriteFinalizeContext(i.cfg.Fs, ctxPath, stage.ctx); err != nil {
+	// stage.tempDir came from os.MkdirTemp and the target agent reads
+	// --context-file as a real path, so the context goes on the host
+	// filesystem, like the extraction and the chmod that put the binary
+	// beside it. cfg.Fs is the ESP's view and is not where this belongs.
+	if err := action.WriteFinalizeContext(vfs.OSFS, ctxPath, stage.ctx); err != nil {
 		return fmt.Errorf("writing finalize context: %w", err)
 	}
 
@@ -354,16 +360,19 @@ func containsPath(paths []string, want string) bool {
 
 func (i *UpgradeAction) installEntry(entry string) error {
 	targetEntryFile := filepath.Join(constants.UkiEfiDir, "EFI", "kairos", fmt.Sprintf("%s.efi", entry))
-	if _, err := os.Stat(targetEntryFile); err != nil {
+	if _, err := i.cfg.Fs.Stat(targetEntryFile); err != nil {
 		return fmt.Errorf("could not stat target efi file for entry %s: %s", entry, err)
 	}
 
-	tmpDir, err := os.MkdirTemp("", "")
+	// The dump below writes through i.cfg.Fs, so the directory it writes into
+	// has to be created on the same filesystem. Reading it back with os would
+	// only agree with the dump because cfg.Fs is rooted at / in production.
+	tmpDir, err := fsutils.TempDir(i.cfg.Fs, "", "kairos-uki-entry-")
 	if err != nil {
 		i.cfg.Logger.Errorf("creating a tmp dir: %s", err.Error())
 		return fmt.Errorf("creating a tmp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = i.cfg.Fs.RemoveAll(tmpDir) }()
 
 	// Dump artifact to tmp dir
 	e := elemental.NewElemental(i.cfg)
@@ -373,7 +382,7 @@ func (i *UpgradeAction) installEntry(entry string) error {
 		return err
 	}
 
-	err = copyFile(filepath.Join(tmpDir, "EFI", "kairos", UnassignedArtifactRole+".efi"), targetEntryFile)
+	err = copyFile(i.cfg.Fs, filepath.Join(tmpDir, "EFI", "kairos", UnassignedArtifactRole+".efi"), targetEntryFile)
 	if err != nil {
 		i.cfg.Logger.Errorf("copying efi files: %s", err.Error())
 		return err
@@ -381,16 +390,17 @@ func (i *UpgradeAction) installEntry(entry string) error {
 
 	targetConfPath := filepath.Join(constants.UkiEfiDir, "loader", "entries", fmt.Sprintf("%s.conf", entry))
 	err = copyFile(
+		i.cfg.Fs,
 		filepath.Join(tmpDir, "loader", "entries", UnassignedArtifactRole+".conf"),
 		targetConfPath)
 	if err != nil {
 		i.cfg.Logger.Errorf("copying conf files: %s", err.Error())
 		return err
 	}
-	err = replaceRoleInKey(targetConfPath, "efi", UnassignedArtifactRole, entry, i.cfg.Logger)
+	err = replaceRoleInKey(i.cfg.Fs, targetConfPath, "efi", UnassignedArtifactRole, entry, i.cfg.Logger)
 	if err != nil {
 		// Maybe a newer system where we use the "uki" key instead of "efi"
-		if err := replaceRoleInKey(targetConfPath, "uki", UnassignedArtifactRole, entry, i.cfg.Logger); err != nil {
+		if err := replaceRoleInKey(i.cfg.Fs, targetConfPath, "uki", UnassignedArtifactRole, entry, i.cfg.Logger); err != nil {
 			i.cfg.Logger.Errorf("replacing role in in key %s: %s", "uki", err.Error())
 			return err
 		}
@@ -407,7 +417,7 @@ func (i *UpgradeAction) installRecovery() error {
 	}
 
 	targetConfPath := filepath.Join(constants.UkiEfiDir, "loader", "entries", "recovery.conf")
-	err := replaceConfTitle(targetConfPath, "recovery")
+	err := replaceConfTitle(i.cfg.Fs, targetConfPath, "recovery")
 	if err != nil {
 		i.cfg.Logger.Errorf("replacing conf title: %s", err.Error())
 		return err

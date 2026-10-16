@@ -18,6 +18,7 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"debug/pe"
 	"errors"
@@ -707,8 +708,16 @@ func ReadAssessmentFromEntry(fs sdkFs.KairosFS, entry string, logger logger.Kair
 
 // GetMajorImageVersion reads the MajorImageVersion field from the PE optional header
 // of the EFI binary at path. Used to determine the version of systemd-boot.
-func GetMajorImageVersion(path string) (uint16, error) {
-	f, err := pe.Open(path)
+// The binary is read through vfs so that callers holding an EFI partition on the
+// configured filesystem look it up where they look everything else up. A
+// systemd-boot image is a few hundred kilobytes, so reading it whole costs less
+// than handing the PE reader a raw host path.
+func GetMajorImageVersion(vfs sdkFs.KairosFS, path string) (uint16, error) {
+	data, err := vfs.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	f, err := pe.NewFile(bytes.NewReader(data))
 	if err != nil {
 		return 0, err
 	}

@@ -259,11 +259,29 @@ var _ = Describe("Uki reset action", func() {
 			"the persistent partition was formatted although it could not be unmounted")
 	})
 
-	It("fails when copying recovery artifacts to active fails", func() {
-		// a recovery prefixed conf file is parsed with an os based reader
-		// which does not see the test fs, so the copy fails
+	It("copies the recovery artifacts to active", func() {
 		Expect(fs.WriteFile("/efi/loader/entries/recovery.conf",
 			[]byte("title Kairos\nefi /EFI/kairos/recovery.efi\n"), os.ModePerm)).To(Succeed())
+
+		// The run still ends on the boot entry selection, which needs a GRUB
+		// configuration this fixture has no reason to carry. What this spec is
+		// about is the copy that happens before it.
+		err := reset.Run()
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).ToNot(ContainSubstring("copying recovery to active"))
+
+		// AddBootAssessment renames the entry once it is in place
+		content, err := fs.ReadFile("/efi/loader/entries/active+3.conf")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(content)).To(ContainSubstring("efi /EFI/kairos/active.efi"))
+		Expect(string(content)).To(ContainSubstring("title Kairos\n"))
+	})
+
+	It("fails when a recovery conf can not be parsed", func() {
+		// a .conf whose contents got replaced by newline-free garbage makes
+		// the reader fail on bufio.ErrTooLong rather than on open
+		Expect(fs.WriteFile("/efi/loader/entries/recovery.conf",
+			bytes.Repeat([]byte("x"), 128*1024), os.ModePerm)).To(Succeed())
 
 		err := reset.Run()
 		Expect(err).To(HaveOccurred())
@@ -276,21 +294,16 @@ var _ = Describe("Uki reset action", func() {
 		Expect(fs.WriteFile("/proc/cmdline", []byte("rd.immucore.uki"), os.ModePerm)).To(Succeed())
 		Expect(fsutils.MkdirAll(fs, "/sys/firmware/efi/efivars", constants.DirPerm)).To(Succeed())
 
-		// conf files are parsed with an os based reader while artifacts are
-		// managed through the config fs, so the EFI mountpoint is mirrored in
-		// a real temporary directory and in the test fs
 		efiDir := GinkgoT().TempDir()
-		Expect(os.MkdirAll(efiDir+"/loader/entries", 0755)).To(Succeed())
 		Expect(fsutils.MkdirAll(fs, efiDir+"/loader/entries", constants.DirPerm)).To(Succeed())
-		writeBoth := func(path, content string) {
-			Expect(os.WriteFile(path, []byte(content), 0644)).To(Succeed())
+		writeEntry := func(path, content string) {
 			Expect(fs.WriteFile(path, []byte(content), os.ModePerm)).To(Succeed())
 		}
-		writeBoth(efiDir+"/loader/loader.conf", "timeout 5\n")
-		writeBoth(efiDir+"/loader/entries/active+2-1.conf", "title kairos\nefi /EFI/kairos/active.efi\n")
-		writeBoth(efiDir+"/loader/entries/passive+3.conf", "title kairos (fallback)\nefi /EFI/kairos/passive.efi\n")
-		writeBoth(efiDir+"/loader/entries/recovery+1-2.conf", "title kairos recovery\nefi /EFI/kairos/recovery.efi\n")
-		writeBoth(efiDir+"/loader/entries/statereset+2-1.conf", "title kairos state reset (auto)\nefi /EFI/kairos/statereset.efi\n")
+		writeEntry(efiDir+"/loader/loader.conf", "timeout 5\n")
+		writeEntry(efiDir+"/loader/entries/active+2-1.conf", "title kairos\nefi /EFI/kairos/active.efi\n")
+		writeEntry(efiDir+"/loader/entries/passive+3.conf", "title kairos (fallback)\nefi /EFI/kairos/passive.efi\n")
+		writeEntry(efiDir+"/loader/entries/recovery+1-2.conf", "title kairos recovery\nefi /EFI/kairos/recovery.efi\n")
+		writeEntry(efiDir+"/loader/entries/statereset+2-1.conf", "title kairos state reset (auto)\nefi /EFI/kairos/statereset.efi\n")
 
 		spec.Partitions.EFI.MountPoint = efiDir
 		// the boot entry selection looks the EFI partition up via ghw
