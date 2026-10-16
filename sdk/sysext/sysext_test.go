@@ -117,6 +117,7 @@ var _ = Describe("sysext", Label("sysext"), Ordered, func() {
 
 var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 	var parent, dest string
+	var logs *bytes.Buffer
 	var log sdkLogger.KairosLogger
 
 	BeforeEach(func() {
@@ -125,7 +126,8 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		dest = filepath.Join(parent, "dest")
 		Expect(os.Mkdir(dest, 0o755)).To(Succeed())
-		log = sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		logs = &bytes.Buffer{}
+		log = sdkLogger.NewBufferLogger(logs)
 	})
 
 	AfterEach(func() {
@@ -190,6 +192,44 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 		)
 		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
 		Expect(os.Readlink(filepath.Join(dest, "usr/link"))).To(Equal("/usr/lib/real"))
+	})
+
+	It("extracts a hard link as a hard link, not as a copy", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/git", Mode: 0o755},
+			tar.Header{Typeflag: tar.TypeLink, Name: "usr/libexec/git-core/git-add", Linkname: "usr/bin/git", Mode: 0o755},
+			tar.Header{Typeflag: tar.TypeLink, Name: "usr/libexec/git-core/git-log", Linkname: "/usr/bin/git", Mode: 0o755},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		target, err := os.Lstat(filepath.Join(dest, "usr/bin/git"))
+		Expect(err).ToNot(HaveOccurred())
+		for _, helper := range []string{"git-add", "git-log"} {
+			info, err := os.Lstat(filepath.Join(dest, "usr/libexec/git-core", helper))
+			Expect(err).ToNot(HaveOccurred(), helper)
+			// A copy would pass an existence check, so compare the inode.
+			Expect(os.SameFile(target, info)).To(BeTrue(), helper)
+		}
+	})
+
+	It("refuses a hard link whose target climbs out of the destination", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeLink, Name: "usr/escaped", Linkname: "usr/../../outside", Mode: 0o644},
+		)
+		err := ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("usr/escaped"))
+	})
+
+	It("drops a hard link the allow list excluded, and keeps the rest of the layer", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/tool", Mode: 0o755},
+			tar.Header{Typeflag: tar.TypeLink, Name: "usr/bin/ls", Linkname: "bin/busybox", Mode: 0o755},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		Expect(filepath.Join(dest, "usr/bin/tool")).To(BeAnExistingFile())
+		Expect(filepath.Join(dest, "usr/bin/ls")).ToNot(BeAnExistingFile())
+		Expect(logs.String()).To(ContainSubstring("usr/bin/ls"))
+		Expect(logs.String()).To(ContainSubstring("bin/busybox"))
 	})
 })
 
