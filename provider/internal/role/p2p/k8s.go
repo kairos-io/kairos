@@ -37,6 +37,7 @@ type K8sNode interface {
 	GenerateEnv() map[string]string
 	Service() (machine.Service, error)
 	GenArgs() ([]string, error)
+	AppendArgs(other []string) []string
 	DeployKubeVIP() error
 	Token() (string, error)
 	K8sBin() string
