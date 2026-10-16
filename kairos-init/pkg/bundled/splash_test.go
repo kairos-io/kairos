@@ -275,6 +275,7 @@ declare systemdsystemunitdir=/usr/lib/systemd/system
 require_binaries() { for b in "$@"; do echo "require_binaries $b" >> %[2]s; done; return %[3]d; }
 inst_multiple() { for f in "$@"; do echo "inst_multiple $f" >> %[2]s; done; }
 inst_simple() { echo "inst_simple $1 ${2:-}" >> %[2]s; }
+instmods() { echo "instmods hostonly=[${hostonly-unset}] $*" >> %[2]s; }
 ln_r() { echo "ln_r $1 $2" >> %[2]s; }
 derror() { echo "derror $*" >> %[2]s; }
 source %[1]s/module-setup.sh
@@ -395,6 +396,46 @@ source %[1]s/module-setup.sh
 		_, recorded := run("install", 0,
 			"splash_branding_dir="+filepath.Join(dir, "absent"))
 		Expect(recorded).ToNot(ContainSubstring("absent"))
+	})
+
+	// Omitting plymouth takes dracut's drm and simpledrm modules with it, so
+	// an initramfs built from this config has no KMS driver and draws on the
+	// firmware text console. The booted half draws on a framebuffer, so the
+	// logo changes size halfway through the boot unless the module brings a
+	// driver of its own.
+	It("pulls a KMS driver into the initramfs", func() {
+		_, recorded := run("installkernel", 0)
+		for _, mod := range []string{"simpledrm", "bochs", "virtio-gpu"} {
+			Expect(recorded).To(MatchRegexp(`instmods .*\b`+regexp.QuoteMeta(mod)+`\b`), mod)
+		}
+	})
+
+	// hostonly="no" is set image-wide, so dracut has no host to narrow the
+	// driver set down to. Asking for the whole of drivers/gpu/drm there is
+	// tens of megabytes of initramfs, which is what dracut's own drm module
+	// would do and why this module names drivers instead of depending on it.
+	It("names drivers rather than depending on dracut's drm module", func() {
+		_, depended := run("depends", 0)
+		Expect(depended).To(BeEmpty())
+		_, recorded := run("installkernel", 0)
+		Expect(recorded).ToNot(ContainSubstring("=drivers/"))
+	})
+
+	// The image is built somewhere that has nothing to do with the machine it
+	// boots on, so the drivers have to go in whether or not the builder has
+	// that hardware. Dropping the prefix would inherit dracut's own hostonly
+	// and silently produce an initramfs that only animates on the build host.
+	It("installs the drivers regardless of the build host's hardware", func() {
+		_, recorded := run("installkernel", 0)
+		Expect(recorded).To(ContainSubstring("instmods hostonly=[] "))
+	})
+
+	// instmods is optional unless it is called with -c. A -c here would turn
+	// a kernel built without, say, virtio-gpu into a failed image build.
+	It("does not fail the build when a driver is not in the kernel", func() {
+		_, recorded := run("installkernel", 0)
+		Expect(recorded).To(ContainSubstring("instmods "))
+		Expect(recorded).ToNot(MatchRegexp(`instmods .*\s-c\b`))
 	})
 })
 
