@@ -138,6 +138,18 @@ fi`
 // Wants= behaves identically whenever the unit is present and succeeds.
 // Removing the ordering altogether needs immucore to wait for its own
 // labelled devices first; see kairos-io/kairos#1378.
+//
+// TimeoutStopSec= is what makes the Before= and Conflicts= above hold when the
+// boot really has failed. Stopping the unit is how the switch-root reaches
+// immucore, and the SIGTERM that does it is also what makes immucore paint the
+// boot-failure banner and wait out its reboot countdown. On the default
+// DefaultTimeoutStopSec of 90s the SIGKILL lands before that countdown ends:
+// the unit goes to failed, the Conflicts= is released, and the machine
+// switch-roots into a system with none of its binds instead of rebooting
+// (kairos-io/kairos#5143). 180s clears the banner's 90s plus the settle delay
+// and leaves room for the reboot to take effect, and it still bounds a wedged
+// immucore rather than hanging the initramfs forever. The matching check is in
+// immucore/internal/utils/halt_stop_timeout_internal_test.go.
 const ImmucoreServiceDracut = `[Unit]
 Description=immucore
 DefaultDependencies=no
@@ -151,6 +163,7 @@ Conflicts=initrd-switch-root.target
 Type=oneshot
 RemainAfterExit=yes
 StandardOutput=journal+console
+TimeoutStopSec=180s
 ExecStart=/usr/bin/immucore`
 
 // ImmucoreModuleSetupDracut is the dracut module setup script that is used to install the immucore module and deps
