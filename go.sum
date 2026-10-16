@@ -593,6 +593,8 @@ github.com/kairos-io/go-nodepair v0.3.0 h1:JIMBAtbNhIAsx89aP61mQDGMuGFoIQH/woK2t
 github.com/kairos-io/go-nodepair v0.3.0/go.mod h1:7i905W/KmR9DAcMSVJr/Wdb84E5Yyu9YLgj7chwX1xs=
 github.com/kairos-io/tpm-helpers v0.0.0-20260901080153-3b403a08f864 h1:dOWct+I2bBhsF7XKkqJrtIzGcZ5r30rzQU4s+wog5Qk=
 github.com/kairos-io/tpm-helpers v0.0.0-20260901080153-3b403a08f864/go.mod h1:VCNa+JJQgXutnWNJvZyNSemeMSy2w+b9SKTkItiIkro=
+github.com/kairos-io/tpm-helpers v0.0.0-20260922065406-012adaae3798 h1:zy7zoFUew3rXK89eJWcZg4LBvdnJqCt+bjpxvzRAIgM=
+github.com/kairos-io/tpm-helpers v0.0.0-20260922065406-012adaae3798/go.mod h1:VCNa+JJQgXutnWNJvZyNSemeMSy2w+b9SKTkItiIkro=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 h1:Z9n2FFNUXsshfwJMBgNA0RU6/i7WVaAegv3PtuIHPMs=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51/go.mod h1:CzGEWj7cYgsdH8dAjBGEr58BoE7ScuLd+fwFZ44+/x8=
 github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237 h1:YOp8St+CM/AQ9Vp4XYm4272E77MptJDHkwypQHIRl9Q=
