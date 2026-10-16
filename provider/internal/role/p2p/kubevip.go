@@ -6,12 +6,16 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 
+	httpimpl "github.com/kairos-io/kairos/v4/agent/pkg/implementations/http"
 	"github.com/kairos-io/kairos/v4/provider/internal/assets"
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/verify"
 	"github.com/kube-vip/kube-vip/pkg/kubevip"
 )
 
@@ -180,6 +184,38 @@ func downloadFromURL(url, where string) error {
 	return nil
 }
 
+// downloadVerifiedManifest fetches url and writes it to where only if the
+// response body's sha256 digest matches want. The write is atomic (temp file
+// in the same directory, then rename), so a tampered or truncated response
+// never appears at where — the kubelet watches this directory, so a
+// half-verified file landing there is as bad as an unverified one. This
+// mirrors the stream-hash-verify-rename pattern
+// sdk/utils/image.ExtractRawExtension uses for OCI raw extension downloads.
+//
+// The download itself goes through sdk/types/http.Client (via
+// verify.VerifiedDownload), the same download interface every other
+// download call site in this tree depends on; there is no logger threaded
+// through this call chain, so a null logger is used here the same way
+// agent/pkg/action/sysext.go does for its own GetURL call.
+func downloadVerifiedManifest(url, where string, want verify.SHA256Sum) error {
+	dir := filepath.Dir(where)
+	temporary, err := os.CreateTemp(dir, "."+filepath.Base(where)+".*")
+	if err != nil {
+		return fmt.Errorf("create temporary file for %s: %w", where, err)
+	}
+	temporaryName := temporary.Name()
+	_ = temporary.Close()
+	defer func() { _ = os.Remove(temporaryName) }()
+
+	if err := verify.VerifiedDownload(httpimpl.NewClient(), sdkLogger.NewNullLogger(), url, temporaryName, want); err != nil {
+		return err
+	}
+	if err := os.Rename(temporaryName, where); err != nil {
+		return fmt.Errorf("move verified manifest into %s: %w", where, err)
+	}
+	return nil
+}
+
 func deployKubeVIP(iface, ip string, pconfig *providerConfig.Config) error {
 	manifestDirectory := "/var/lib/rancher/k3s/server/manifests/"
 	if pconfig.K3sAgent.IsEnabled() {
@@ -198,7 +234,15 @@ func deployKubeVIP(iface, ip string, pconfig *providerConfig.Config) error {
 	}
 
 	if pconfig.KubeVIP.ManifestURL != "" {
-		err := downloadFromURL(pconfig.KubeVIP.ManifestURL, targetCRDFile)
+		var err error
+		if pconfig.KubeVIP.ManifestSHA256 != "" {
+			// ManifestURL is operator-supplied and arbitrary — nothing Kairos
+			// could pin on its behalf — but ManifestSHA256 lets the operator
+			// pin it themselves, so verify against that when given.
+			err = downloadVerifiedManifest(pconfig.KubeVIP.ManifestURL, targetCRDFile, verify.SHA256Sum(pconfig.KubeVIP.ManifestSHA256))
+		} else {
+			err = downloadFromURL(pconfig.KubeVIP.ManifestURL, targetCRDFile)
+		}
 		if err != nil {
 			return err
 		}
