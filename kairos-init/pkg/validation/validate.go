@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -182,46 +183,17 @@ func (v *Validator) Validate() error {
 			v.Log.Logger.Warn().Msg("[INITRD] lsinitrd not found, cannot check initrd contents")
 		} else {
 			v.Log.Logger.Info().Msg("Checking initrd contents")
-			out, err := exec.Command("lsinitrd", "/boot/initrd").CombinedOutput()
+			// Output, not CombinedOutput: a run that fails writes its reason
+			// to stderr and produces no listing, and searching those
+			// diagnostics for a binary name adds "did not find immucore in
+			// the initrd" on top of the real error. That second line names
+			// the wrong culprit, so keep the two apart and only search a
+			// listing lsinitrd actually produced.
+			out, err := exec.Command("lsinitrd", "/boot/initrd").Output()
 			if err != nil {
-				multi = multierror.Append(multi, fmt.Errorf("[INITRD] failed checking initrd contents: %s", err))
-			}
-			// Only immucore runs from the initrd (its immucore.service is
-			// what the 28immucore dracut module wires in). kairos-agent is a
-			// post-switch-root userland tool, driven by the cloud-config
-			// systemd units in 02_agent.yaml and 09_systemd_services.yaml,
-			// and the dracut module does not install a kairos-agent name
-			// into the initrd's PATH, so lsinitrd will never surface one.
-			for _, binary := range []string{"immucore"} {
-				if !strings.Contains(string(out), binary) {
-					multi = multierror.Append(multi, fmt.Errorf("[INITRD] did not find %s in the initrd", binary))
-				} else {
-					v.Log.Logger.Info().Str("binary", binary).Msg("Found binary in the initrd")
-				}
-			}
-
-			// Verify kernel modules that we force-include via dracut add_drivers made it in.
-			// Warn-only: some kernels (minimal builds, non-x86 arches) simply don't ship the
-			// module, in which case dracut silently drops the add_drivers directive. That's
-			// not a build failure — but on kernels that DO ship it, a miss here means the
-			// dracut config was never applied and BMC virtual media boots would break on
-			// affected server generations (HPE iLO, Dell iDRAC, Supermicro BMC) — the
-			// dependency is on the BMC controller hardware/firmware, not the server chipset.
-			// Check both the canonical underscored name and the dashed variant since
-			// lsinitrd may render the module filename with either form.
-			for _, module := range []string{"xhci_pci_renesas"} {
-				dashed := strings.ReplaceAll(module, "_", "-")
-				found := ""
-				if strings.Contains(string(out), module) {
-					found = module
-				} else if strings.Contains(string(out), dashed) {
-					found = dashed
-				}
-				if found == "" {
-					v.Log.Logger.Warn().Str("module", module).Msg("[INITRD] kernel module not found in initrd (may be absent from kernel package)")
-				} else {
-					v.Log.Logger.Info().Str("module", found).Msg("Found kernel module in the initrd")
-				}
+				multi = multierror.Append(multi, fmt.Errorf("[INITRD] failed checking initrd contents: %s", DescribeCommandError(err)))
+			} else if err := v.ValidateInitrdContents(string(out)); err != nil {
+				multi = multierror.Append(multi, err)
 			}
 		}
 	}
@@ -398,4 +370,65 @@ func (v *Validator) ValidateGettyServicesWithPaths(searchPaths []string) error {
 	}
 
 	return multi.ErrorOrNil()
+}
+
+// ValidateInitrdContents checks an lsinitrd listing for what the initrd has to
+// carry. It takes the listing instead of running lsinitrd itself, so the
+// expectations can be exercised without a built image, and so a caller never
+// passes it anything other than output lsinitrd really produced.
+func (v *Validator) ValidateInitrdContents(listing string) error {
+	var multi *multierror.Error
+
+	// Only immucore runs from the initrd (its immucore.service is
+	// what the 28immucore dracut module wires in). kairos-agent is a
+	// post-switch-root userland tool, driven by the cloud-config
+	// systemd units in 02_agent.yaml and 09_systemd_services.yaml,
+	// and the dracut module does not install a kairos-agent name
+	// into the initrd's PATH, so lsinitrd will never surface one.
+	for _, binary := range []string{"immucore"} {
+		if !strings.Contains(listing, binary) {
+			multi = multierror.Append(multi, fmt.Errorf("[INITRD] did not find %s in the initrd", binary))
+		} else {
+			v.Log.Logger.Info().Str("binary", binary).Msg("Found binary in the initrd")
+		}
+	}
+
+	// Verify kernel modules that we force-include via dracut add_drivers made it in.
+	// Warn-only: some kernels (minimal builds, non-x86 arches) simply don't ship the
+	// module, in which case dracut silently drops the add_drivers directive. That's
+	// not a build failure, but on kernels that DO ship it, a miss here means the
+	// dracut config was never applied and BMC virtual media boots would break on
+	// affected server generations (HPE iLO, Dell iDRAC, Supermicro BMC). The
+	// dependency is on the BMC controller hardware/firmware, not the server chipset.
+	// Check both the canonical underscored name and the dashed variant since
+	// lsinitrd may render the module filename with either form.
+	for _, module := range []string{"xhci_pci_renesas"} {
+		dashed := strings.ReplaceAll(module, "_", "-")
+		found := ""
+		if strings.Contains(listing, module) {
+			found = module
+		} else if strings.Contains(listing, dashed) {
+			found = dashed
+		}
+		if found == "" {
+			v.Log.Logger.Warn().Str("module", module).Msg("[INITRD] kernel module not found in initrd (may be absent from kernel package)")
+		} else {
+			v.Log.Logger.Info().Str("module", found).Msg("Found kernel module in the initrd")
+		}
+	}
+
+	return multi.ErrorOrNil()
+}
+
+// DescribeCommandError spells out why a command failed. exec.Cmd.Output puts the
+// reason on ExitError.Stderr, and the bare "exit status 1" that the error
+// renders to on its own tells an operator nothing they can act on.
+func DescribeCommandError(err error) string {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		if msg := strings.TrimSpace(string(exitErr.Stderr)); msg != "" {
+			return fmt.Sprintf("%s: %s", err, msg)
+		}
+	}
+	return err.Error()
 }
