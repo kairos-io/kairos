@@ -171,7 +171,7 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 		}
 		partGUID := uuid.NewV5(uuid.NamespaceURL, guidSeed).String()
 
-		if part.Name == sdkConstants.EfiPartName && part.FS == sdkConstants.EfiFs {
+		if IsESP(part) {
 			// EFI boot partition
 			partitions = append(partitions, &gpt.Partition{
 				Start:      start,
