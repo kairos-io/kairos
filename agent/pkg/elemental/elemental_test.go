@@ -35,6 +35,7 @@ import (
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/agent/pkg/partitioner"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
@@ -476,6 +477,64 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 				Expect(partition.Type).To(Equal(gpt.LinuxFilesystem))
 			}
 		})
+		Describe("EFI system partition check", func() {
+			var restore func()
+
+			BeforeEach(func() {
+				restore = elemental.SetPartLabelDevice(func(name string) (string, error) {
+					return "/dev/" + name, nil
+				})
+			})
+
+			AfterEach(func() { restore() })
+
+			It("fails when the formatted ESP is FAT32 with too few clusters for UEFI", func() {
+				install.PartTable = sdkConstants.GPT
+				install.Firmware = sdkConstants.EFI
+				Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.EFI, sdkConstants.GPT)).To(BeNil())
+				// mkfs.vfat output on a 4096-byte-sector device: 16346 clusters
+				Expect(fs.WriteFile("/dev/efi", partitioner.FAT32BootSector(16346), 0o644)).To(Succeed())
+
+				err := el.PartitionAndFormatDevice(install)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("UEFI firmware will not mount the EFI system partition on /dev/efi"))
+			})
+
+			It("succeeds when the formatted ESP is a FAT32 volume UEFI accepts", func() {
+				install.PartTable = sdkConstants.GPT
+				install.Firmware = sdkConstants.EFI
+				Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.EFI, sdkConstants.GPT)).To(BeNil())
+				Expect(fs.WriteFile("/dev/efi", partitioner.FAT32BootSector(65525), 0o644)).To(Succeed())
+
+				Expect(el.PartitionAndFormatDevice(install)).To(Succeed())
+			})
+
+			It("does not check an extra partition named efi that is not FAT", func() {
+				install.PartTable = sdkConstants.GPT
+				install.Firmware = sdkConstants.BIOS
+				Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.BIOS, sdkConstants.GPT)).To(BeNil())
+				install.ExtraPartitions = SdkPartitions.PartitionList{
+					{Name: sdkConstants.EfiPartName, FilesystemLabel: "DATA", FS: "ext4", Size: 64},
+				}
+				// an ext4 volume starts with a zeroed boot block
+				Expect(fs.WriteFile("/dev/efi", make([]byte, 1024), 0o644)).To(Succeed())
+
+				Expect(el.PartitionAndFormatDevice(install)).To(Succeed())
+			})
+
+			It("does not check a FAT extra partition with another name", func() {
+				install.PartTable = sdkConstants.GPT
+				install.Firmware = sdkConstants.EFI
+				Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.EFI, sdkConstants.GPT)).To(BeNil())
+				install.ExtraPartitions = SdkPartitions.PartitionList{
+					{Name: "data", FilesystemLabel: "DATA", FS: sdkConstants.EfiFs, Size: 64},
+				}
+				Expect(fs.WriteFile("/dev/efi", partitioner.FAT32BootSector(65525), 0o644)).To(Succeed())
+				Expect(fs.WriteFile("/dev/data", partitioner.FAT32BootSector(16346), 0o644)).To(Succeed())
+
+				Expect(el.PartitionAndFormatDevice(install)).To(Succeed())
+			})
+		})
 		It("Preserves PARTLABEL on an extra partition when persistent has a fixed size (kairos-io/kairos#4257)", func() {
 			// Re-create a bigger backing file: the default 2GiB one is not
 			// large enough to hold the state/recovery defaults plus a fixed
@@ -535,7 +594,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			Expect(persistent).ToNot(BeNil())
 			persistentBytes := (persistent.End - persistent.Start + 1) * sectorSize
-			Expect(persistentBytes).To(Equal(1024 * mib),
+			Expect(persistentBytes).To(Equal(1024*mib),
 				"persistent should keep its configured 1024 MiB size")
 		})
 		It("Refuses config when persistent + extras exceed target disk size", func() {
