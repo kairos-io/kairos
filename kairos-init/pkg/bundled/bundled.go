@@ -604,6 +604,14 @@ insmod squash4
 insmod serial
 
 loadfont unicode
+# rmmod lives in the minicmd module. Some GRUB builds, such as Hadron's, do not
+# embed it, and a missing command prints "can't find command" on every boot.
+# GRUB looks up a built-in command before a script function, so this no-op
+# only runs where the real rmmod does not exist. Such builds do not embed tpm
+# either, so there is nothing to remove.
+function rmmod {
+  true
+}
 if [ "${grub_platform}" = "efi" ]; then
     ## workaround for grub2-efi bug: https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1851311
     rmmod tpm

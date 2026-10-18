@@ -51,6 +51,38 @@ var _ = Describe("GrubCfg", func() {
 		}
 	})
 
+	// rmmod is in the minicmd module, which Hadron's GRUB does not embed. The
+	// config defines a no-op rmmod function for that case. GRUB runs a built-in
+	// command before a function of the same name, so Ubuntu still runs the
+	// real rmmod for its tpm workaround.
+	Describe("rmmod tpm", func() {
+		fallback := regexp.MustCompile(`(?m)^function rmmod \{\n  true\n\}$`)
+		call := regexp.MustCompile(`(?m)^if \[ "\$\{grub_platform\}" = "efi" \]; then\n(?:\s*#.*\n)*\s+rmmod tpm\nfi$`)
+
+		It("still removes tpm on EFI", func() {
+			Expect(bundled.GrubCfg).To(MatchRegexp(call.String()))
+		})
+
+		It("defines a top-level rmmod fallback before the call", func() {
+			// GRUB accepts a function definition only at the top level.
+			def := fallback.FindStringIndex(bundled.GrubCfg)
+			Expect(def).ToNot(BeNil(), "no rmmod fallback function")
+			use := call.FindStringIndex(bundled.GrubCfg)
+			Expect(use).ToNot(BeNil())
+			Expect(def[0]).To(BeNumerically("<", use[0]), "the fallback must be defined before rmmod tpm runs")
+		})
+
+		It("does not call rmmod anywhere else", func() {
+			var calls []string
+			for _, line := range directives() {
+				if strings.HasPrefix(strings.TrimSpace(line), "rmmod ") {
+					calls = append(calls, strings.TrimSpace(line))
+				}
+			}
+			Expect(calls).To(Equal([]string{"rmmod tpm"}))
+		})
+	})
+
 	It("passes grub-script-check", func() {
 		check, err := exec.LookPath("grub-script-check")
 		if err != nil {
