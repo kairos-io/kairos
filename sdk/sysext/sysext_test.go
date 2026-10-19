@@ -211,6 +211,21 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 		}
 	})
 
+	It("extracts a hard link whose target carries the leading dot GNU tar writes", func() {
+		// "tar -C rootfs -c ." names every entry "./usr/...", including the
+		// target a hard link points at.
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "./usr/bin/git", Mode: 0o755},
+			tar.Header{Typeflag: tar.TypeLink, Name: "./usr/libexec/git-core/git-add", Linkname: "./usr/bin/git", Mode: 0o755},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		target, err := os.Lstat(filepath.Join(dest, "usr/bin/git"))
+		Expect(err).ToNot(HaveOccurred())
+		info, err := os.Lstat(filepath.Join(dest, "usr/libexec/git-core/git-add"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(os.SameFile(target, info)).To(BeTrue())
+	})
+
 	It("refuses a hard link whose target climbs out of the destination", func() {
 		image := imageWithLayer(
 			tar.Header{Typeflag: tar.TypeLink, Name: "usr/escaped", Linkname: "usr/../../outside", Mode: 0o644},
