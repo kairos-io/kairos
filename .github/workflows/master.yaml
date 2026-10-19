@@ -375,9 +375,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {test: 'provider-qrcode-install'}
+          # bridge: true marks a leg that needs a second libp2p peer to be
+          # discovered. provider-qrcode-install pairs the runner with the VM
+          # over go-nodepair, provider-decentralized-k8s pairs the two VMs
+          # over edgevpn. The other three legs are single peer.
+          #
+          # On QEMU user-mode networking neither pair can see the other, so
+          # the rendezvous has to go out to the public DHT and back. That
+          # works most of the time, which is what made these two the only
+          # legs here that redden intermittently on master.
+          - {test: 'provider-qrcode-install', bridge: true}
           - {test: 'provider-upgrade-k8s'}
-          - {test: 'provider-decentralized-k8s'}
+          - {test: 'provider-decentralized-k8s', bridge: true}
           - {test: 'provider-k3s-disabled'}
           - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
     name: test-standard / ${{ matrix.test }}
@@ -400,6 +409,7 @@ jobs:
       # since a k0s cell computes the same variant.
       kubernetes_distro: 'k3s'
       release-matcher: ${{ matrix.release-matcher || '' }}
+      use_bridge_network: ${{ matrix.bridge || false }}
 
   # See pr-full.yaml for the rationale on splitting encryption cells out.
   test-standard-encryption:
