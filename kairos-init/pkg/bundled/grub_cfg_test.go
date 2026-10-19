@@ -56,7 +56,7 @@ var _ = Describe("GrubCfg", func() {
 	// command before a function of the same name, so Ubuntu still runs the
 	// real rmmod for its tpm workaround.
 	Describe("rmmod tpm", func() {
-		fallback := regexp.MustCompile(`(?m)^function rmmod \{\n  true\n\}$`)
+		fallback := regexp.MustCompile(`(?m)^function rmmod \{\n  (.+)\n\}$`)
 		call := regexp.MustCompile(`(?m)^if \[ "\$\{grub_platform\}" = "efi" \]; then\n(?:\s*#.*\n)*\s+rmmod tpm\nfi$`)
 
 		It("still removes tpm on EFI", func() {
@@ -70,6 +70,23 @@ var _ = Describe("GrubCfg", func() {
 			use := call.FindStringIndex(bundled.GrubCfg)
 			Expect(use).ToNot(BeNil())
 			Expect(def[0]).To(BeNumerically("<", use[0]), "the fallback must be defined before rmmod tpm runs")
+		})
+
+		// The body runs on the builds that have no minicmd, so it cannot use a
+		// command that lives in a module either: a build that dropped one can
+		// have dropped the other. true is true.mod and echo is echo.mod. These
+		// four are registered by grub_register_core_commands in
+		// grub-core/kern/corecmd.c, which grub_main always calls, so they are
+		// in every image. QA on #5527 saw a Hadron boot print
+		// "can't find command `true'" when the body was true.
+		It("uses a command the GRUB kernel registers, not a module", func() {
+			coreCommands := []string{"set", "unset", "ls", "insmod"}
+			body := fallback.FindStringSubmatch(bundled.GrubCfg)
+			Expect(body).ToNot(BeNil(), "no rmmod fallback function")
+			first := strings.Fields(body[1])
+			Expect(first).ToNot(BeEmpty(), "the fallback body is empty")
+			Expect(coreCommands).To(ContainElement(first[0]),
+				"the rmmod fallback body runs %q, which a GRUB image does not have to embed", first[0])
 		})
 
 		It("does not call rmmod anywhere else", func() {

@@ -609,8 +609,11 @@ loadfont unicode
 # GRUB looks up a built-in command before a script function, so this no-op
 # only runs where the real rmmod does not exist. Such builds do not embed tpm
 # either, so there is nothing to remove.
+# The body has to be a command that every build has. true and echo live in
+# modules a build can leave out, the same way this one left out minicmd. set is
+# registered by the GRUB kernel itself, so it is there in every image.
 function rmmod {
-  true
+  set kairos_rmmod_noop=1
 }
 if [ "${grub_platform}" = "efi" ]; then
     ## workaround for grub2-efi bug: https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1851311
