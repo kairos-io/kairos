@@ -77,12 +77,14 @@ func effectiveAfter(unit string) []string {
 // own units declare. It reports an error when the edges cannot be sorted,
 // which is the ordering cycle systemd would log and then break at random.
 //
-// The fixed edges are read off the shipped units: systemd-vconsole-setup
-// carries Before=sysinit.target, getty@.service carries Before=getty.target
+// The fixed edges are read off the shipped units: systemd-vconsole-setup and
+// systemd-sysctl both carry Before=sysinit.target and declare no edge between
+// each other, getty@.service carries Before=getty.target
 // and has default dependencies, and sysinit.target is before basic.target.
 func bootOrder(unit, name string) ([]string, error) {
 	before := map[string][]string{
 		"systemd-vconsole-setup.service": {"sysinit.target"},
+		"systemd-sysctl.service":         {"sysinit.target"},
 		"sysinit.target":                 {"basic.target"},
 		"basic.target":                   {"getty@tty1.service", "getty.target"},
 		"getty@tty1.service":             {"getty.target"},
@@ -268,6 +270,21 @@ var _ = Describe("SplashService", func() {
 	It("waits for the console font before painting block art", func() {
 		Expect(unitDirective(unit(), "After")).
 			To(ContainElement("systemd-vconsole-setup.service"))
+	})
+
+	// The splash saves kernel.printk on start and writes it back on exit. If
+	// systemd-sysctl applies a kernel.printk from /etc/sysctl.d during the
+	// animation, the saved value wins when the animation ends and the image's
+	// setting is gone until the next boot. basic.target used to order the two
+	// and stock systemd puts no edge between sysctl and vconsole-setup, so
+	// this unit has to declare it.
+	It("waits for the sysctls before it saves the console log level", func() {
+		Expect(unitDirective(unit(), "After")).
+			To(ContainElement("systemd-sysctl.service"))
+		order, err := bootOrder(unit(), "kairos-splash.service")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(slices.Index(order, "systemd-sysctl.service")).
+			To(BeNumerically("<", slices.Index(order, "kairos-splash.service")))
 	})
 
 	// Opting out of the default dependencies also opts out of the two that

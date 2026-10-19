@@ -515,6 +515,14 @@ install() {
 // runs well inside the gap, and ordering after it keeps the block-art glyphs
 // from being painted with a font that is about to be replaced under them.
 //
+// systemd-sysctl.service is the second. The splash reads kernel.printk when it
+// starts and writes the old value back when it exits, so a sysctl applied from
+// /etc/sysctl.d during the animation would be overwritten on exit and lost
+// until the next boot. basic.target used to order the two, and stock systemd
+// declares no edge between sysctl and vconsole-setup, so dropping the default
+// dependencies leaves nothing holding them apart. systemd-sysctl.service is
+// also Before=sysinit.target, so this costs about as little as the first edge.
+//
 // Dropping the default dependencies also drops the two that stop a unit at
 // shutdown, so they are written out again. Without them a cosmetic oneshot
 // with RemainAfterExit=yes is still "active" while the system goes down, and
@@ -536,6 +544,7 @@ const SplashService = `[Unit]
 Description=Kairos boot splash
 DefaultDependencies=no
 After=systemd-vconsole-setup.service
+After=systemd-sysctl.service
 Conflicts=shutdown.target
 Before=shutdown.target
 Before=getty.target
