@@ -24,8 +24,20 @@ const liveMediaExtension = "work.sysext.raw"
 // The hierarchy list the kairos drop-in installs, spelled out so that
 // `systemd-sysext status` reports on what the boot merged instead of on its
 // own defaults. /usr/local is deliberately not in it: it is the persistent
-// partition mount, and a merge would turn it read-only.
-const sysextHierarchiesEnv = `SYSTEMD_SYSEXT_HIERARCHIES="/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"`
+// partition mount, and a merge would turn it read-only. Kept in step with
+// kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml, which is what the
+// booted node actually reads.
+var sysextHierarchies = []string{
+	"/usr/bin",
+	"/usr/share",
+	"/usr/lib",
+	"/usr/include",
+	"/usr/src",
+	"/usr/sbin",
+}
+
+var sysextHierarchiesEnv = fmt.Sprintf("SYSTEMD_SYSEXT_HIERARCHIES=%q",
+	strings.Join(sysextHierarchies, ":"))
 
 // Both test extensions carry their payload at /usr/bin/hello.sh, which is a
 // merged hierarchy, so a successful merge puts the script on the host's PATH.
@@ -139,10 +151,18 @@ users:
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(strings.TrimSpace(out)).To(Equal("root:root"))
 
-				out, err = vm.Sudo(`find /usr -xdev \( -nouser -o -nogroup \)`)
+				// Each hierarchy is overlaid separately, so /usr itself is not
+				// a mount point and `find /usr -xdev` stops at the top of it,
+				// before reaching anything the merge brought in. Start at the
+				// hierarchies themselves. A node that does not carry one of
+				// them, /usr/src for instance, is skipped rather than failed,
+				// but a find that cannot run still fails the spec.
+				out, err = vm.Sudo(fmt.Sprintf(
+					`for d in %s; do [ -d "$d" ] || continue; find "$d" -xdev \( -nouser -o -nogroup \) || exit 1; done`,
+					strings.Join(sysextHierarchies, " ")))
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(strings.TrimSpace(out)).To(BeEmpty(),
-					"files under /usr with no passwd or group entry")
+					"merged files with no passwd or group entry")
 			})
 		})
 	})
