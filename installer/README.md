@@ -107,10 +107,10 @@ one frontend refuses the other refuses too, with the same message.
 | --- | --- | --- |
 | `disk` | the disk to install to | no |
 | `user` | a user name and a password | yes |
-| `ssh_keys` | SSH public keys, or `github:` and `gitlab:` user names | yes |
+| `ssh_keys` | SSH public keys, or `github:` and `gitlab:` user names | yes, and it needs the `user` step: the keys are written as that user's authorized keys, so an install with no user refuses them |
 | `hostname` | the host name | yes |
 | `locale` | the timezone and the console keymap | yes |
-| `extensions` | system extensions from the live media or the catalogs | yes |
+| `extensions` | system extensions from the catalogs; the ones on the live media are always installed, so the step lists them instead of offering them | yes |
 | `provider` | the fields a provider plugin asks for; a field the plugin asks only after a yes gets that yes or no in front of it | yes, and it is shown only when a provider asks something |
 | `finish` | reboot, power off, or nothing after the install | no, it starts on nothing |
 

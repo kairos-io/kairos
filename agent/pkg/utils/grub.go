@@ -235,7 +235,7 @@ func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, 
 			}
 		}
 
-		copyGrubFonts(g.config, rootDir, grubdir, systemgrub)
+		copyGrubFonts(g.config, rootDir, bootDir, systemgrub)
 
 		if err = g.RefreshESP(cnst.ActiveDir, cnst.EfiDir, stateLabel, systemgrub); err != nil {
 			return err
@@ -406,14 +406,28 @@ func SetPersistentVariables(grubEnvFile string, vars map[string]string, c *sdkCo
 // rootdir is the dir where to search for the fonts
 // bootdir is the base dir where they will be copied
 func copyGrubFonts(cfg *sdkConfig.Config, rootDir, bootDir, systemgrub string) {
+	// grub resolves `loadfont unicode` to $prefix/fonts/unicode.pf2, and the
+	// stub grub.cfg on the ESP sets prefix to ($root)/<systemgrub>, which is
+	// this bootDir. The font dir is not arch suffixed, the module dir is.
+	fontsDir := filepath.Join(bootDir, systemgrub, "fonts")
+	if err := fsutils.MkdirAll(cfg.Fs, fontsDir, cnst.DirPerm); err != nil {
+		cfg.Logger.Warnf("could not create grub fonts dir %s: %s", fontsDir, err)
+		return
+	}
+
 	for _, m := range cnst.GetGrubFonts() {
 		var foundFont bool
 		_ = fsutils.WalkDirFs(cfg.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if d.Name() == m && strings.Contains(path, cfg.Arch) {
-				fileWriteName := filepath.Join(bootDir, fmt.Sprintf("%s/%s-efi/fonts/%s", systemgrub, cfg.Arch, m))
+			// Fonts are not arch suffixed and distros do not agree on where
+			// they live: Ubuntu and Debian ship them under /usr/share/grub,
+			// openSUSE under /usr/share/grub2. Match on the name alone and
+			// keep the first hit, so a namesake deeper in the tree cannot
+			// overwrite it.
+			if !foundFont && d.Name() == m {
+				fileWriteName := filepath.Join(fontsDir, m)
 				cfg.Logger.Debugf("Copying %s to %s", path, fileWriteName)
 				fileContent, err := cfg.Fs.ReadFile(path)
 				if err != nil {
