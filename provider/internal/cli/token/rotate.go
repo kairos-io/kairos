@@ -187,8 +187,10 @@ func FindYAMLWithKey(s string, opts ...collector.Option) ([]string, error) {
 // O_NOFOLLOW is deliberately not set: a symlink to a real config is a layout
 // Kairos supports, and following it lands on the regular file the fstat wants.
 //
-// sdk/collector grew the same guard for its own scan in kairos-io/kairos#4869.
-// The two want to be one helper once that has landed.
+// RotateToken walks the scanned directories a second time through
+// collector.Scan, which needs the same guard. sdk/collector grew it in
+// kairos-io/kairos#4869, carried into this branch so that rotate-token stops
+// hanging without waiting on a second merge. The two want to be one helper.
 func readConfigCandidate(f string) ([]byte, error) {
 	file, err := os.OpenFile(f, os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {

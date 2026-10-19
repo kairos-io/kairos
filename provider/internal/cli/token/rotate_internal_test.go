@@ -101,3 +101,41 @@ var _ = Describe("FindYAMLWithKey", func() {
 		Expect(findInBackground(dir)).To(ConsistOf(config))
 	})
 })
+
+var _ = Describe("RotateToken", func() {
+	var dir, root, config string
+
+	BeforeEach(func() {
+		dir = GinkgoT().TempDir()
+		root = GinkgoT().TempDir()
+		config = filepath.Join(dir, "10-p2p.yaml")
+		Expect(os.WriteFile(config, []byte(configWithToken), 0600)).To(Succeed())
+	})
+
+	// RotateToken walks the scanned directories twice: FindYAMLWithKey, to
+	// rewrite the token, and then collector.Scan, to read the config back. The
+	// first walk is guarded here, the second one in sdk/collector. A spec that
+	// only covered the first reported this bug fixed while rotate-token still
+	// parked on the second, which is what the QA of kairos-io/kairos#5313
+	// measured: the token was rewritten and the command never returned.
+	It("returns when a named pipe sits in a scanned directory", func() {
+		Expect(syscall.Mkfifo(filepath.Join(dir, "00-pipe.yaml"), 0600)).To(Succeed())
+
+		done := make(chan struct{})
+		go func() {
+			defer GinkgoRecover()
+			defer close(done)
+			// The error is the environment's: this box has no edgevpn service
+			// to write. Returning at all is the claim under test, and the
+			// rewritten token below is what says the run got past both walks.
+			_ = RotateToken([]string{dir}, "NEWTOKEN", "", root, false)
+		}()
+
+		Eventually(done, 30*time.Second).Should(BeClosed(),
+			"rotate-token blocked on the named pipe instead of skipping it")
+
+		// ReplaceToken runs before the scan, so a rewritten token proves the
+		// run reached collector.Scan rather than erroring out ahead of it.
+		Expect(os.ReadFile(config)).To(ContainSubstring("NEWTOKEN"))
+	})
+})
