@@ -224,13 +224,14 @@ func GetFallBackEfi(arch string) string {
 // UKI image carries in EFI/BOOT on its ESP, for the given architecture.
 //
 // This is not GetFallBackEfi. That one names the file the agent itself writes
-// on the GRUB path, under EFI/boot and in lower case. The file named here is
-// written by AuroraBoot's build-uki, which spells all three names in upper case
-// (AuroraBoot/pkg/constants EfiFallbackNamex86, EfiFallbackNameArm and
-// EfiFallbackNameRiscv64). An ESP is vfat and vfat lookups ignore case, so on
-// amd64 and arm64 the two spellings reach the same file, but on riscv64 the
-// name itself differs, and a reader that does not know riscv64 asks for a file
-// that is not there.
+// on the GRUB path, under EFI/boot, and it spells amd64 and arm64 in lower
+// case. The file named here is written by AuroraBoot's build-uki, which spells
+// all three names in upper case (AuroraBoot/pkg/constants EfiFallbackNamex86,
+// EfiFallbackNameArm and EfiFallbackNameRiscv64). An ESP is vfat and vfat
+// lookups ignore case, so the two helpers reach the same file on every
+// architecture. Keep them as two helpers anyway: they describe two different
+// writers, and only this one is the name to use when reading an ESP that a UKI
+// build produced.
 func GetSystemdBootFallBackEfi(arch string) string {
 	switch arch {
 	case ArchArm64:

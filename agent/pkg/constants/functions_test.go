@@ -80,16 +80,18 @@ var _ = Describe("Constants functions", func() {
 		Entry("empty arch defaults to BOOTX64.EFI", "", "BOOTX64.EFI"),
 	)
 
-	It("GetSystemdBootFallBackEfi names a different file from GetFallBackEfi on riscv64 only", func() {
-		// On amd64 and arm64 the two differ only in case, and an ESP is vfat, so
-		// they reach the same file. On riscv64 the name itself differs, which is
-		// why a reader that does not know riscv64 finds nothing there.
-		for _, arch := range []string{cnst.ArchAmd64, cnst.ArchArm64} {
+	It("GetSystemdBootFallBackEfi names the same file as GetFallBackEfi on every arch", func() {
+		// The two helpers describe two different writers, so they are spelled
+		// differently: amd64 and arm64 are lower case on the GRUB path and upper
+		// case on the UKI path. An ESP is vfat and vfat lookups ignore case, so
+		// both names reach the same file. This is what keeps the GRUB path and
+		// the UKI path from fighting over EFI/BOOT, and it has to hold for the
+		// arch that has no lower case spelling either.
+		for _, arch := range []string{cnst.ArchAmd64, cnst.ArchArm64, cnst.ArchRiscv64} {
 			Expect(strings.EqualFold(cnst.GetFallBackEfi(arch), cnst.GetSystemdBootFallBackEfi(arch))).
-				To(BeTrue(), "arch %s", arch)
+				To(BeTrue(), "arch %s: %q vs %q",
+					arch, cnst.GetFallBackEfi(arch), cnst.GetSystemdBootFallBackEfi(arch))
 		}
-		Expect(strings.EqualFold(cnst.GetFallBackEfi(cnst.ArchRiscv64), cnst.GetSystemdBootFallBackEfi(cnst.ArchAmd64))).
-			To(BeFalse())
 	})
 
 	DescribeTable("BaseBootTitle strips known suffixes",
