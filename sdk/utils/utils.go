@@ -198,10 +198,15 @@ func IsOpenRCBased() bool {
 	return GetInit() == openrc
 }
 
+// ShellSTDIN runs c under /bin/sh with s on the command's standard input, and
+// returns everything the command wrote to stdout and stderr.
+//
+// Do not assign cmd.Stdout or cmd.Stderr here. CombinedOutput installs its own
+// buffer on both and refuses to start when either is already set, returning
+// "exec: Stdout already set" before it forks, so the command never runs at all.
+// A caller that wants the output on the terminal prints the returned string.
 func ShellSTDIN(s, c string) (string, error) {
 	cmd := exec.Command("/bin/sh", "-c", c)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	cmd.Stdin = bytes.NewBuffer([]byte(s))
 	o, err := cmd.CombinedOutput()
 	return string(o), err
