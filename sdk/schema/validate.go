@@ -8,6 +8,17 @@ import (
 	"strings"
 )
 
+// InProcessSchemaID is the identifier of the cloud config schema document the
+// in-process validator compiles. That document carries no version, so it has
+// no $id and cannot be named by SchemaID.
+//
+// It has to be an absolute URI. jsonschema.CompileString reads its first
+// argument as the resource's URL and resolves a relative one against the
+// working directory, which put the directory the process happened to run in
+// into the text of every validation error. Like SchemaID, this names the
+// document and is not a location to fetch.
+const InProcessSchemaID = "https://kairos.io/cloud-config.json"
+
 // SchemaID returns the identifier of the cloud config schema document for a
 // given Kairos version. It names the document, it is not a location to fetch:
 // nothing has been published under https://kairos.io/ since v2.0.1, so the

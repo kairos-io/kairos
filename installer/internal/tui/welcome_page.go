@@ -78,6 +78,11 @@ func (w *welcomePage) Help() string {
 	return help
 }
 
+// Skipped reports that the page had nothing to show and moved on.
+func (w *welcomePage) Skipped() bool {
+	return w.loaded && len(w.urls) == 0 && !w.pairing && !w.recovery
+}
+
 // Init reads the web UI's addresses once, renders the QR for the first one,
 // and looks for a provider that could drive the pairing install.
 //

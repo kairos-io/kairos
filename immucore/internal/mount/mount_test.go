@@ -201,3 +201,27 @@ func TestAllMountsEveryEntryAndStopsAtTheFirstError(t *testing.T) {
 		t.Errorf("expected to stop after the first failure, got %d calls", len(*failing))
 	}
 }
+
+func TestMountRemountsABindWithPerMountFlags(t *testing.T) {
+	// mount(2) ignores nodev/nosuid/noexec on the first MS_BIND call too, the
+	// same as MS_RDONLY, so a "bind,nodev" mount (/home, CIS 1.1.14) only gets
+	// the flag from a second MS_REMOUNT call.
+	m := Mount{Type: "overlay", Source: "/run/state/home.bind", Options: []string{"bind", "nodev"}}
+
+	calls := record(t, nil, func() {
+		if err := m.Mount("/sysroot/home"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if len(*calls) != 2 {
+		t.Fatalf("a nodev bind needs two syscalls, got %d: %+v", len(*calls), *calls)
+	}
+	remount := (*calls)[1]
+	if remount.flags&unix.MS_REMOUNT == 0 || remount.flags&unix.MS_BIND == 0 {
+		t.Errorf("the second call is not a bind remount: %#x", remount.flags)
+	}
+	if remount.flags&unix.MS_NODEV == 0 {
+		t.Error("the remount does not carry MS_NODEV")
+	}
+}

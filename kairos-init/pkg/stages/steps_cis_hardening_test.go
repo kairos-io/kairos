@@ -17,6 +17,7 @@ import (
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/yip/pkg/schema"
+	"gopkg.in/yaml.v3"
 )
 
 // fileByPath returns the single yip file entry written to path across all the
@@ -560,6 +561,49 @@ var _ = Describe("GetCISHardeningStage", func() {
 			})
 		})
 
+		Describe("the faillock tally reset after user provisioning", func() {
+			var reset schema.File
+
+			BeforeEach(func() {
+				reset = fileByPath(result, bundled.CISFaillockResetCloudConfigPath)
+			})
+
+			It("ships a 0644 root-owned cloud-config under /system/oem", func() {
+				Expect(reset.Path).To(HavePrefix("/system/oem/"))
+				Expect(reset.Permissions).To(Equal(uint32(0o644)))
+				Expect(reset.Owner).To(BeZero())
+				Expect(reset.Group).To(BeZero())
+			})
+
+			It("runs at boot.after, once the boot stage has set user passwords", func() {
+				var cfg schema.YipConfig
+				Expect(yaml.Unmarshal([]byte(reset.Content), &cfg)).To(Succeed())
+				Expect(cfg.Stages).To(HaveKey("boot.after"))
+				Expect(cfg.Stages).To(HaveLen(1))
+				st := cfg.Stages["boot.after"]
+				Expect(st).To(HaveLen(1))
+				Expect(st[0].Commands).To(ConsistOf(ContainSubstring("/run/faillock")))
+			})
+
+			It("clears the tally files and nothing else", func() {
+				tally, err := os.MkdirTemp("", "faillock-*")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(tally)
+				Expect(os.WriteFile(filepath.Join(tally, "kairos"), []byte("x"), 0o600)).To(Succeed())
+				Expect(os.Mkdir(filepath.Join(tally, "keep.d"), 0o700)).To(Succeed())
+
+				var cfg schema.YipConfig
+				Expect(yaml.Unmarshal([]byte(reset.Content), &cfg)).To(Succeed())
+				cmd := strings.ReplaceAll(cfg.Stages["boot.after"][0].Commands[0], "/run/faillock", tally)
+				out, err := exec.Command("sh", "-c", cmd).CombinedOutput()
+				Expect(err).ToNot(HaveOccurred(), string(out))
+
+				Expect(filepath.Join(tally, "kairos")).ToNot(BeAnExistingFile())
+				Expect(filepath.Join(tally, "keep.d")).To(BeADirectory())
+				Expect(tally).To(BeADirectory())
+			})
+		})
+
 		Describe("the login.defs aging and umask defaults", func() {
 			var stage schema.Stage
 
@@ -782,6 +826,175 @@ var _ = Describe("GetCISHardeningStage", func() {
 				}
 			})
 		})
+
+		Describe("the PAM stack wiring", func() {
+			stageNamed := func(name string) schema.Stage {
+				var found []schema.Stage
+				for _, st := range result {
+					if st.Name == name {
+						found = append(found, st)
+					}
+				}
+				ExpectWithOffset(1, found).To(HaveLen(1), "expected exactly one stage named "+name)
+				return found[0]
+			}
+
+			Context("on Debian and Ubuntu", func() {
+				It("writes both faillock profiles and enables them with pam-auth-update", func() {
+					st := stageNamed("Wire pam_faillock into the Debian/Ubuntu PAM stack")
+					Expect(st.OnlyIfOs).To(Equal("Ubuntu.*|Debian.*"))
+					Expect(st.Commands).To(ConsistOf(
+						"DEBIAN_FRONTEND=noninteractive pam-auth-update --enable kairos-faillock kairos-faillock-notify"))
+					var paths []string
+					for _, f := range st.Files {
+						paths = append(paths, f.Path)
+						Expect(f.Permissions).To(Equal(uint32(0o644)))
+					}
+					Expect(paths).To(ConsistOf(bundled.CISPamConfigFaillockPath, bundled.CISPamConfigFaillockNotifyPath))
+				})
+
+				It("only writes the profiles when pam_faillock.so is on disk", func() {
+					// pam-auth-update enables Default: yes profiles on any
+					// later run; a profile naming a missing module would
+					// fail every authentication.
+					st := stageNamed("Wire pam_faillock into the Debian/Ubuntu PAM stack")
+					Expect(st.If).To(ContainSubstring("command -v pam-auth-update"))
+					Expect(st.If).To(ContainSubstring("security/pam_faillock.so"))
+				})
+
+				It("places authfail after pam_unix and preauth plus account reset before it", func() {
+					Expect(bundled.CISPamConfigFaillock).To(ContainSubstring("Priority: 0\n"))
+					Expect(bundled.CISPamConfigFaillock).To(MatchRegexp(`(?m)^\t\[default=die\]\tpam_faillock\.so authfail$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(ContainSubstring("Priority: 1024\n"))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^\trequisite\tpam_faillock\.so preauth$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^Account-Type: Primary$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^\trequired\tpam_faillock\.so$`))
+				})
+
+				It("enables the stock pwquality profile only when libpam-pwquality installed it", func() {
+					st := stageNamed("Wire pam_pwquality into the Debian/Ubuntu PAM stack")
+					Expect(st.OnlyIfOs).To(Equal("Ubuntu.*|Debian.*"))
+					Expect(st.If).To(ContainSubstring("test -f /usr/share/pam-configs/pwquality"))
+					Expect(st.If).To(ContainSubstring("security/pam_pwquality.so"))
+					Expect(st.Commands).To(ConsistOf("DEBIAN_FRONTEND=noninteractive pam-auth-update --enable pwquality"))
+				})
+			})
+
+			Context("on the RHEL family", func() {
+				It("uses authselect with-faillock when authselect is installed", func() {
+					st := stageNamed("Wire pam_faillock into the RHEL-family PAM stack with authselect")
+					Expect(st.OnlyIfOs).To(Equal(values.RHELFamilyRegex))
+					Expect(st.If).To(HavePrefix("command -v authselect >/dev/null && "))
+					Expect(st.If).To(ContainSubstring("security/pam_faillock.so"))
+					Expect(st.Commands).To(ConsistOf(bundled.CISAuthselectFaillock))
+					Expect(bundled.CISAuthselectFaillock).To(ContainSubstring("authselect enable-feature with-faillock"))
+					Expect(bundled.CISAuthselectFaillock).To(ContainSubstring(`authselect select "$profile" with-faillock --force`))
+				})
+
+				It("falls back to editing the plain stack only when authselect is missing", func() {
+					st := stageNamed("Wire pam_faillock into the RHEL-family PAM stack without authselect")
+					Expect(st.OnlyIfOs).To(Equal(values.RHELFamilyRegex))
+					Expect(st.If).To(HavePrefix("! command -v authselect >/dev/null && "))
+					Expect(st.Commands).To(ConsistOf(bundled.CISRHELFaillockFallback))
+				})
+
+				Context("when the fallback script runs against a stock EL9 stack", func() {
+					var tmpdir string
+					const stockSystemAuth = `#%PAM-1.0
+auth        required      pam_env.so
+auth        sufficient    pam_unix.so try_first_pass nullok
+auth        required      pam_deny.so
+
+account     required      pam_unix.so
+
+password    requisite     pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type=
+password    sufficient    pam_unix.so try_first_pass use_authtok nullok sha512 shadow
+password    required      pam_deny.so
+`
+
+					BeforeEach(func() {
+						var err error
+						tmpdir, err = os.MkdirTemp("", "pam-d-*")
+						Expect(err).ToNot(HaveOccurred())
+					})
+
+					AfterEach(func() {
+						_ = os.RemoveAll(tmpdir)
+					})
+
+					run := func() {
+						scoped := strings.ReplaceAll(bundled.CISRHELFaillockFallback, "/etc/pam.d/", tmpdir+"/")
+						out, err := exec.Command("sh", "-c", scoped).CombinedOutput()
+						Expect(err).ToNot(HaveOccurred(), string(out))
+					}
+
+					It("inserts preauth, authfail and the account line around pam_unix, once", func() {
+						for _, n := range []string{"system-auth", "password-auth"} {
+							Expect(os.WriteFile(filepath.Join(tmpdir, n), []byte(stockSystemAuth), 0o644)).To(Succeed())
+						}
+						run()
+						run()
+						for _, n := range []string{"system-auth", "password-auth"} {
+							got, err := os.ReadFile(filepath.Join(tmpdir, n))
+							Expect(err).ToNot(HaveOccurred())
+							lines := strings.Split(string(got), "\n")
+							idx := func(re string) int {
+								for i, l := range lines {
+									if regexp.MustCompile(re).MatchString(l) {
+										return i
+									}
+								}
+								return -1
+							}
+							pre := idx(`^auth\s+required\s+pam_faillock\.so preauth silent$`)
+							unix := idx(`^auth\s+sufficient\s+pam_unix\.so`)
+							fail := idx(`^auth\s+required\s+pam_faillock\.so authfail$`)
+							acct := idx(`^account\s+required\s+pam_faillock\.so$`)
+							acctUnix := idx(`^account\s+required\s+pam_unix\.so`)
+							Expect(pre).To(BeNumerically(">=", 0), n+": %s", got)
+							Expect(pre).To(Equal(unix-1), n)
+							Expect(fail).To(Equal(unix+1), n)
+							Expect(acct).To(Equal(acctUnix-1), n)
+							Expect(strings.Count(string(got), "pam_faillock.so")).To(Equal(3), "script is not idempotent in "+n)
+							Expect(string(got)).To(ContainSubstring("pam_pwquality.so"))
+						}
+					})
+
+					It("leaves an authselect-managed symlink and an unexpected stack alone", func() {
+						Expect(os.WriteFile(filepath.Join(tmpdir, "target"), []byte(stockSystemAuth), 0o644)).To(Succeed())
+						Expect(os.Symlink(filepath.Join(tmpdir, "target"), filepath.Join(tmpdir, "system-auth"))).To(Succeed())
+						odd := "auth required pam_sss.so\naccount required pam_sss.so\n"
+						Expect(os.WriteFile(filepath.Join(tmpdir, "password-auth"), []byte(odd), 0o644)).To(Succeed())
+						run()
+						got, _ := os.ReadFile(filepath.Join(tmpdir, "target"))
+						Expect(string(got)).To(Equal(stockSystemAuth))
+						got, _ = os.ReadFile(filepath.Join(tmpdir, "password-auth"))
+						Expect(string(got)).To(Equal(odd))
+					})
+				})
+			})
+
+			Context("on SUSE", func() {
+				It("swaps cracklib for pwquality with pam-config when pam-config knows the module", func() {
+					st := stageNamed("Wire pam_pwquality into the SUSE PAM stack with pam-config")
+					Expect(st.OnlyIfOs).To(Equal(values.AllSuseRegex))
+					Expect(st.If).To(ContainSubstring("pam-config --help"))
+					Expect(st.If).To(ContainSubstring("--pwquality"))
+					Expect(st.If).To(ContainSubstring("security/pam_pwquality.so"))
+					Expect(bundled.CISSUSEPwquality).To(ContainSubstring("pam-config -a --pwquality"))
+					Expect(bundled.CISSUSEPwquality).To(ContainSubstring("pam-config -d --cracklib"))
+				})
+			})
+
+			It("does not wire anything on Alpine, which has no PAM in the login path", func() {
+				for _, st := range result {
+					if strings.HasPrefix(st.Name, "Wire pam_") {
+						Expect(st.OnlyIfOs).ToNot(Equal(values.AlpineRegex))
+						Expect(st.OnlyIfOs).ToNot(BeEmpty(), st.Name+" must be gated on a distro family")
+					}
+				}
+			})
+		})
 	})
 
 	Context("when the skip step is configured", func() {
@@ -798,6 +1011,216 @@ var _ = Describe("GetCISHardeningStage", func() {
 
 		It("returns no stages", func() {
 			Expect(stages.GetCISHardeningStage(values.System{}, log)).To(BeEmpty())
+		})
+	})
+})
+
+// runScoped runs every command of a stage with path swapped for a scratch
+// copy, the way the login.defs tests do, and returns nothing: callers read
+// the scratch files back.
+func runScoped(cmds []string, swaps map[string]string) {
+	for _, cmd := range cmds {
+		scoped := cmd
+		for from, to := range swaps {
+			scoped = strings.ReplaceAll(scoped, from, to)
+		}
+		out, err := exec.Command("sh", "-c", scoped).CombinedOutput()
+		ExpectWithOffset(1, err).ToNot(HaveOccurred(), "sh -c failed: %s\n%s", scoped, out)
+	}
+}
+
+var _ = Describe("GetCISHardeningStage gaps found by the CIS DIL benchmark run", func() {
+	var result []schema.Stage
+
+	stageNamed := func(name string) schema.Stage {
+		for _, st := range result {
+			if st.Name == name {
+				return st
+			}
+		}
+		Fail("no stage named " + name)
+		return schema.Stage{}
+	}
+
+	writeTemp := func(content string) string {
+		f := filepath.Join(GinkgoT().TempDir(), "f")
+		Expect(os.WriteFile(f, []byte(content), 0o644)).To(Succeed())
+		return f
+	}
+
+	read := func(path string) string {
+		b, err := os.ReadFile(path)
+		Expect(err).ToNot(HaveOccurred())
+		return string(b)
+	}
+
+	BeforeEach(func() {
+		result = stages.GetCISHardeningStage(values.System{}, logger.NewKairosLogger("test", "error", true))
+	})
+
+	It("refuses secure ICMP redirects and setuid core dumps (CIS 3.2.3, 1.5.1)", func() {
+		sysctl := fileByPath(result, bundled.CISSysctlPath)
+		for _, line := range []string{
+			"net.ipv4.conf.all.secure_redirects = 0",
+			"net.ipv4.conf.default.secure_redirects = 0",
+			"fs.suid_dumpable = 0",
+		} {
+			Expect(sysctl.Content).To(ContainSubstring(line))
+		}
+	})
+
+	It("sets a hard core limit of 0 for everyone (CIS 1.5.1)", func() {
+		limits := fileByPath(result, bundled.CISCoreDumpLimitsPath)
+		Expect(limits.Permissions).To(Equal(uint32(0o644)))
+		Expect(limits.Content).To(MatchRegexp(`(?m)^\*\s+hard\s+core\s+0$`))
+	})
+
+	DescribeTable("journald compresses and persists (CIS 4.2.2.2, 4.2.2.3)",
+		func(initial string) {
+			f := writeTemp(initial)
+			st := stageNamed("Set CIS journald compression and persistent storage")
+			runScoped(st.Commands, map[string]string{bundled.CISJournaldConfPath: f})
+			runScoped(st.Commands, map[string]string{bundled.CISJournaldConfPath: f})
+			got := read(f)
+			Expect(got).To(MatchRegexp(`(?m)^\[Journal\]\n(.*\n)*Compress=yes$`))
+			Expect(got).To(MatchRegexp(`(?m)^Storage=persistent$`))
+			Expect(regexp.MustCompile(`(?m)^Compress=yes$`).FindAllString(got, -1)).To(HaveLen(1), got)
+			Expect(got).ToNot(ContainSubstring("Compress=no"))
+		},
+		Entry("Hadron's bare section", "[Journal]\n"),
+		Entry("a commented default and a wrong value", "[Journal]\n#Compress=yes\nCompress=no\n"),
+		Entry("no section and no trailing newline", "# comment"),
+	)
+
+	It("takes group write and every other bit off log files (CIS 4.2.3)", func() {
+		dir := GinkgoT().TempDir()
+		f := filepath.Join(dir, "faillog")
+		Expect(os.WriteFile(f, nil, 0o664)).To(Succeed())
+		Expect(os.Chmod(f, 0o664)).To(Succeed())
+		runScoped(stageNamed("Restrict log file permissions").Commands, map[string]string{"/var/log": dir})
+		info, err := os.Stat(f)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o640)))
+	})
+
+	It("remembers the last 5 passwords on Hadron (CIS 5.3.3)", func() {
+		st := stageNamed("Remember previous passwords in the Hadron PAM stack")
+		Expect(st.OnlyIfOs).To(Equal("Hadron.*"))
+		f := writeTemp("password   required                    pam_unix.so          try_first_pass nullok sha512 shadow\npassword   optional                    pam_permit.so\n")
+		opasswd := filepath.Join(GinkgoT().TempDir(), "opasswd")
+		swaps := map[string]string{"/etc/pam.d/system-auth": f, "/etc/security/opasswd": opasswd}
+		runScoped(st.Commands, swaps)
+		runScoped(st.Commands, swaps)
+		got := read(f)
+		// The benchmark's regex wants single spaces between pam_unix.so and its arguments.
+		Expect(got).To(MatchRegexp(`(?m)^password\s+(\S+\s+)+pam_unix\.so (\S+\s+)*remember=5$`))
+		Expect(strings.Count(got, "remember=")).To(Equal(1))
+		Expect(opasswd).To(BeARegularFile())
+	})
+
+	DescribeTable("sets the shell umask (CIS 5.4.4)",
+		func(loginDefsUmask, want string) {
+			defs := writeTemp("UMASK\t" + loginDefsUmask + "\n")
+			profile := writeTemp("export PATH=/bin")
+			st := stageNamed("Set the CIS default umask for shells")
+			swaps := map[string]string{"/etc/login.defs": defs, "/etc/profile": profile}
+			runScoped(st.Commands, swaps)
+			runScoped(st.Commands, swaps)
+			got := read(profile)
+			Expect(got).To(HavePrefix("export PATH=/bin\n"))
+			Expect(strings.Count(got, "umask ")).To(Equal(1), got)
+			Expect(got).To(MatchRegexp(`(?m)^umask ` + want + `$`))
+		},
+		// 027 everywhere: copying Hadron's 077 into the shell files would make
+		// everything root creates under sudo -i root-only.
+		Entry("Hadron's login.defs 077", "077", "027"),
+		Entry("a lax 022", "022", "027"),
+	)
+
+	DescribeTable("restricts su to the wheel group (CIS 5.6)",
+		func(initial string) {
+			f := writeTemp(initial)
+			st := stageNamed("Restrict su to the wheel group")
+			runScoped(st.Commands, map[string]string{"/etc/pam.d/su": f})
+			runScoped(st.Commands, map[string]string{"/etc/pam.d/su": f})
+			got := read(f)
+			Expect(strings.Count(got, "\nauth required pam_wheel.so use_uid\n")).To(Equal(1), got)
+			Expect(strings.Index(got, "pam_wheel.so use_uid")).To(BeNumerically(">", strings.Index(got, "pam_rootok.so")))
+		},
+		Entry("Hadron's commented line", "#%PAM-1.0\nauth            sufficient      pam_rootok.so\n#auth           required        pam_wheel.so use_uid\nauth            required        pam_unix.so\n"),
+		Entry("no wheel line at all", "auth       sufficient pam_rootok.so\n@include common-auth\n"),
+	)
+
+	It("copies missing account database backups before tightening them (CIS 6.1.6-6.1.9)", func() {
+		dir := GinkgoT().TempDir()
+		Expect(os.WriteFile(filepath.Join(dir, "passwd"), []byte("root:x:0:0::/root:/bin/sh\n"), 0o644)).To(Succeed())
+		runScoped(stageNamed("Create missing account database backups").Commands, map[string]string{"/etc/": dir + "/"})
+		Expect(read(filepath.Join(dir, "passwd-"))).To(Equal("root:x:0:0::/root:/bin/sh\n"))
+		Expect(filepath.Join(dir, "group-")).ToNot(BeAnExistingFile())
+
+		var backup, chmod int
+		for i, st := range result {
+			if st.Name == "Create missing account database backups" {
+				backup = i
+			}
+			if st.Name == "Tighten permissions on /etc/passwd-" {
+				chmod = i
+			}
+		}
+		Expect(backup).To(BeNumerically("<", chmod))
+	})
+
+	It("creates /etc/gshadow before the account modes are set (CIS 6.1.5)", func() {
+		st := stageNamed("Create /etc/gshadow")
+		Expect(st.If).To(ContainSubstring("! -e /etc/gshadow"))
+		Expect(st.Commands).To(ConsistOf("grpconv"))
+	})
+
+	It("gives the dbus launch helper a group that exists (CIS 6.1.12)", func() {
+		st := stageNamed("Give the dbus launch helper its messagebus group")
+		joined := strings.Join(st.Commands, "\n")
+		Expect(joined).To(ContainSubstring("chgrp messagebus"))
+		// chgrp drops the setuid bit, so the mode is put back afterwards.
+		Expect(joined).To(MatchRegexp(`stat -c %a .*chgrp messagebus .*chmod "\$m"`))
+	})
+
+	Describe("the CIS boot cloud-config", func() {
+		var steps []schema.Stage
+
+		BeforeEach(func() {
+			cc := fileByPath(result, bundled.CISBootCloudConfigPath)
+			var cfg schema.YipConfig
+			Expect(yaml.Unmarshal([]byte(cc.Content), &cfg)).To(Succeed())
+			steps = cfg.Stages["boot.after"]
+		})
+
+		stepNamed := func(name string) schema.Stage {
+			for _, st := range steps {
+				if st.Name == name {
+					return st
+				}
+			}
+			Fail("no boot.after step named " + name)
+			return schema.Stage{}
+		}
+
+		It("creates /usr/local/sbin, which root's PATH names (CIS 6.2.6)", func() {
+			// /usr/local is where COS_PERSISTENT is mounted, so a directory
+			// baked into the image is hidden at runtime.
+			dir := GinkgoT().TempDir()
+			runScoped(stepNamed("Create /usr/local/sbin").Commands, map[string]string{"/usr/local/sbin": filepath.Join(dir, "sbin")})
+			Expect(filepath.Join(dir, "sbin")).To(BeADirectory())
+		})
+
+		It("closes home directories to other (CIS 6.2.8)", func() {
+			home := GinkgoT().TempDir()
+			user := filepath.Join(home, "kairos")
+			Expect(os.Mkdir(user, 0o755)).To(Succeed())
+			Expect(os.Chmod(user, 0o755)).To(Succeed())
+			runScoped(stepNamed("Close home directories to other users").Commands, map[string]string{"/home": home})
+			info, err := os.Stat(user)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o750)))
 		})
 	})
 })

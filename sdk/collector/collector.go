@@ -358,7 +358,7 @@ func Scan(o *Options, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	if o.MergeBootCMDLine {
 		cConfig, err := ParseCmdLine(o.BootCMDLineFile, filter)
 		o.SoftErr("parsing cmdline", err)
-		if err == nil { // best-effort
+		if err == nil || len(cConfig.Values) > 0 { // best-effort
 			configs = append(configs, cConfig)
 		}
 	}
@@ -470,7 +470,7 @@ func parseReaders(readers []io.Reader, nologs bool) Configs {
 			err = json.Unmarshal(read, &newConfig.Values)
 			if err != nil {
 				if !nologs {
-					fmt.Printf("Error unmarshalling config(error: %s): %s", err.Error(), string(read))
+					fmt.Printf("Error unmarshalling config: %s", err.Error())
 				}
 				continue
 			}
@@ -532,6 +532,11 @@ func listFiles(dir string) ([]string, error) {
 // by a stray generic token with the same key. Call MergeConfigURL on
 // the result to recursively pull any remote config referenced through
 // config_url.
+//
+// A generic token that cannot be turned into YAML (e.g. a key starting
+// with a digit such as 8250.nr_uarts=0) is skipped: the rest of the
+// cmdline is still parsed and returned together with the error, so
+// callers can report it without losing the usable values.
 func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	result := &Config{Sources: []string{"cmdline"}, Values: ConfigValues{}}
 
@@ -544,10 +549,7 @@ func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, 
 	}
 	s := string(dat)
 
-	genericYAML, err := machine.DotStringToYAML(s)
-	if err != nil {
-		return result, err
-	}
+	genericYAML, genericErr := machine.DotStringToYAML(s)
 	if len(genericYAML) > 0 {
 		filteredYAML, err := filter(genericYAML)
 		if err != nil {
@@ -572,7 +574,7 @@ func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, 
 		}
 	}
 
-	return result, nil
+	return result, genericErr
 }
 
 // ConfigURL returns the value of config_url if set or empty string otherwise.

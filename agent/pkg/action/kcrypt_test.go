@@ -18,6 +18,8 @@ package action
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
@@ -89,23 +91,24 @@ var _ = Describe("Kcrypt actions", Label("kcrypt"), func() {
 		})
 	})
 
+	// c_index is declared at the top level of the kcrypt block by
+	// schema.KcryptSchema, next to nv_index and tpm_device, and that is where
+	// the sdk encryptor reads it from. These specs used to put it under
+	// kcrypt.challenger, which the schema does not declare and nothing writes.
+	// See kairos-io/kairos#5183.
 	Describe("resolveCIndex", func() {
 		It("prefers the explicit flag", func() {
 			config.Collector.Values = collector.ConfigValues{
-				"kcrypt": map[string]interface{}{
-					"challenger": map[string]interface{}{
-						"c_index": "0x1500010",
-					},
+				"kcrypt": collector.ConfigValues{
+					"c_index": "0x1500010",
 				},
 			}
 			Expect(resolveCIndex(config, "0x1500011")).To(Equal("0x1500011"))
 		})
 		It("falls back to the config value", func() {
 			config.Collector.Values = collector.ConfigValues{
-				"kcrypt": map[string]interface{}{
-					"challenger": map[string]interface{}{
-						"c_index": "0x1500010",
-					},
+				"kcrypt": collector.ConfigValues{
+					"c_index": "0x1500010",
 				},
 			}
 			Expect(resolveCIndex(config, "")).To(Equal("0x1500010"))
@@ -113,11 +116,54 @@ var _ = Describe("Kcrypt actions", Label("kcrypt"), func() {
 		It("returns empty when there is no kcrypt config", func() {
 			Expect(resolveCIndex(config, "")).To(Equal(""))
 		})
-		It("returns empty when there is no challenger config", func() {
+		It("returns empty when the kcrypt block declares no c_index", func() {
 			config.Collector.Values = collector.ConfigValues{
-				"kcrypt": map[string]interface{}{},
+				"kcrypt": collector.ConfigValues{},
 			}
 			Expect(resolveCIndex(config, "")).To(Equal(""))
+		})
+	})
+
+	// The specs above build Collector.Values by hand, which cannot show
+	// what a real configuration looks like. A scanned cloud-config stores the
+	// kcrypt block as collector.ConfigValues, not as a plain
+	// map[string]interface{}, so the resolvers' old type assertion dropped the
+	// whole block and the subcommands fell back to the default NV index on
+	// every node that configured one. See kairos-io/kairos#5183.
+	Describe("resolving against a scanned cloud-config", func() {
+		var scanned *sdkConfig.Config
+
+		BeforeEach(func() {
+			dir := GinkgoT().TempDir()
+			Expect(os.WriteFile(filepath.Join(dir, "kcrypt.yaml"), []byte(
+				"#cloud-config\nkcrypt:\n  nv_index: \"0x1500001\"\n  c_index: \"0x1500010\"\n  tpm_device: /dev/tpmrm9\n  challenger:\n    challenger_server: https://kms.example\n",
+			), 0600)).To(Succeed())
+
+			var err error
+			scanned, err = agentConfig.ScanNoLogs(collector.Directories(dir))
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("stores the kcrypt block as collector.ConfigValues", func() {
+			_, plain := scanned.Collector.Values["kcrypt"].(map[string]interface{})
+			Expect(plain).To(BeFalse(), "a scan does not produce a plain map, so the resolvers must not assert one")
+		})
+
+		It("reads the configured NV index and TPM device", func() {
+			index, device := resolveNVIndexAndDevice(scanned, "", "")
+			Expect(index).To(Equal("0x1500001"))
+			Expect(device).To(Equal("/dev/tpmrm9"))
+		})
+
+		It("reads the configured C index", func() {
+			Expect(resolveCIndex(scanned, "")).To(Equal("0x1500010"))
+		})
+
+		It("still prefers the explicit flags", func() {
+			index, device := resolveNVIndexAndDevice(scanned, "0x1500002", "/dev/tpmrm5")
+			Expect(index).To(Equal("0x1500002"))
+			Expect(device).To(Equal("/dev/tpmrm5"))
+			Expect(resolveCIndex(scanned, "0x1500011")).To(Equal("0x1500011"))
 		})
 	})
 

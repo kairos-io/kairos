@@ -78,7 +78,7 @@ stages:
 			})
 
 			It("rejects the invalid stage", func() {
-				Expect(Validate(yaml)).To(MatchError(ContainSubstring("expected array, but got string")))
+				Expect(Validate(yaml)).To(MatchError(ContainSubstring("expected array or null, but got string")))
 			})
 		})
 
@@ -158,7 +158,7 @@ users:
 				err = os.WriteFile(path, []byte(yaml), 0655)
 				Expect(err).ToNot(HaveOccurred())
 				err = Validate(path)
-				Expect(err.Error()).To(MatchRegexp("expected string, but got number"))
+				Expect(err.Error()).To(MatchRegexp("expected string or null, but got number"))
 			})
 		})
 	})
