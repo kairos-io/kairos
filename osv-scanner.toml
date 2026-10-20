@@ -82,12 +82,7 @@ reason = "no-fix-available: golang.org/x/crypto. No fixed version published at a
 [[IgnoredVulns]]
 id = "GHSA-g35j-m5xg-vh3q"
 ignoreUntil = 2026-11-19
-reason = "upstream-fix-pending: CVE-2026-57497, github.com/quic-go/webtransport-go v0.10.0, fixed in v0.11.1. In the prebuilt edgevpn v0.35.5 binary, built with Go 1.26.7; no newer edgevpn release yet. Fix is mudler/edgevpn#1083."
-
-[[IgnoredVulns]]
-id = "GO-2026-6099"
-ignoreUntil = 2026-11-19
-reason = "upstream-fix-pending: github.com/quic-go/webtransport-go v0.10.0, fixed in v0.11.1 (Go advisory for the same issue as GHSA-g35j-m5xg-vh3q). In the prebuilt edgevpn v0.35.5 binary, built with Go 1.26.7; no newer edgevpn release yet. Fix is mudler/edgevpn#1083."
+reason = "upstream-fix-pending: CVE-2026-57497 (also reported as GO-2026-6099, which the scanner folds into this id), github.com/quic-go/webtransport-go v0.10.0, fixed in v0.11.1. In the prebuilt edgevpn v0.35.5 binary, built with Go 1.26.7; no newer edgevpn release yet. Fix is mudler/edgevpn#1083."
 
 [[IgnoredVulns]]
 id = "GO-2026-6599"
