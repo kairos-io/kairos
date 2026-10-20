@@ -51,7 +51,7 @@ upgrade:
 
 		Expect(config.IsValid()).To(BeFalse())
 		Expect(config.ValidationError.Error()).To(ContainSubstring("/upgrade/system/size"))
-		Expect(config.ValidationError.Error()).To(ContainSubstring("expected integer, but got string"))
+		Expect(config.ValidationError.Error()).To(ContainSubstring("expected integer or null, but got string"))
 	})
 
 	// `kairos-agent upgrade --boot-entry foo` writes `upgrade.entry: foo` into
