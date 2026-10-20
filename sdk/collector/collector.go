@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -423,7 +424,7 @@ func parseFiles(dir []string, nologs bool) Configs {
 			continue
 		}
 
-		b, err := os.ReadFile(f)
+		b, err := readConfigFile(f)
 		if err != nil {
 			if !nologs {
 				fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
@@ -480,6 +481,67 @@ func parseReaders(readers []io.Reader, nologs bool) Configs {
 	}
 
 	return result
+}
+
+// readConfigFile reads a candidate config file and refuses anything that is
+// not a regular file.
+//
+// os.ReadFile opens without O_NONBLOCK, and opening a FIFO for reading blocks
+// in open(2) until a writer arrives. A FIFO named like a config in a scanned
+// directory therefore parks the whole boot: the scan never returns, the stage
+// runner keeps its shutdown inhibitor, and the node can be neither reached nor
+// rebooted until someone deletes the file from recovery media
+// (kairos-io/kairos#4865). A character device has the same shape of problem,
+// and /dev/zero named like a config reads until memory runs out.
+//
+// O_NONBLOCK makes the open return immediately whatever the file turns out to
+// be, so the fstat that follows can reject the types that are not configs. The
+// flag does not change reads from a regular file, so the common path behaves
+// as it did.
+//
+// O_NOFOLLOW is deliberately not set. A symlink pointing at a real config is a
+// layout Kairos already supports, and following it lands on the regular file
+// the fstat wants; a symlink pointing at a FIFO is caught by that same fstat.
+// Planting the file needs root-equivalent write access to a scanned path, so
+// this is a robustness guard rather than a privilege boundary.
+func readConfigFile(f string) ([]byte, error) {
+	file, err := os.OpenFile(f, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if !stat.Mode().IsRegular() {
+		return nil, fmt.Errorf("it is %s, not a regular file", fileTypeName(stat.Mode()))
+	}
+
+	return io.ReadAll(file)
+}
+
+// fileTypeName names a file type the way an operator reading a boot console
+// would, rather than as the mode bits ("p---------").
+func fileTypeName(m os.FileMode) string {
+	switch {
+	case m&os.ModeNamedPipe != 0:
+		return "a named pipe"
+	case m&os.ModeSocket != 0:
+		return "a socket"
+	case m&os.ModeCharDevice != 0:
+		return "a character device"
+	case m&os.ModeDevice != 0:
+		return "a block device"
+	case m&os.ModeDir != 0:
+		return "a directory"
+	case m&os.ModeIrregular != 0:
+		return "an irregular file"
+	default:
+		return "not a regular file"
+	}
 }
 
 // fileSize returns the size of f in bytes. An error means the caller could not
