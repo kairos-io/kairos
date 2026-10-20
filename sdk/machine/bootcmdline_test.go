@@ -135,4 +135,28 @@ var _ = Describe("BootCMDLine", func() {
 			Expect(out).To(ContainSubstring("foo: bar"))
 		})
 	})
+
+	Context("DotStringToYAMLBestEffort", func() {
+		It("returns the tokens that converted and reports the skipped ones", func() {
+			var skipped error
+			b, err := DotStringToYAMLBestEffort("8250.nr_uarts=0 foo.bar=baz", func(e error) { skipped = e })
+			Expect(err).ToNot(HaveOccurred())
+			Expect(skipped).To(HaveOccurred())
+			Expect(string(b)).To(ContainSubstring("bar: baz"))
+			Expect(string(b)).ToNot(ContainSubstring("nr_uarts"))
+		})
+
+		It("returns the error when no token converted", func() {
+			called := false
+			_, err := DotStringToYAMLBestEffort("8250.nr_uarts=0", func(error) { called = true })
+			Expect(err).To(HaveOccurred())
+			Expect(called).To(BeFalse())
+		})
+
+		It("leaves DotStringToYAML returning partial output and the error", func() {
+			b, err := DotStringToYAML("8250.nr_uarts=0 foo.bar=baz")
+			Expect(err).To(HaveOccurred())
+			Expect(string(b)).To(ContainSubstring("bar: baz"))
+		})
+	})
 })

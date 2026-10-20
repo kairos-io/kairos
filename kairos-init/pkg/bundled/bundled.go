@@ -593,12 +593,28 @@ else
   set fallback="0 1 2"
 fi
 
-insmod all_video
+# Some GRUB builds compile the video drivers into the core image and ship no
+# all_video.mod. Loading the module there prints "file not found" on every
+# boot, so only load it when the file is present.
+if [ -f "${prefix}/${grub_cpu}-${grub_platform}/all_video.mod" ]; then
+  insmod all_video
+fi
 insmod loopback
 insmod squash4
 insmod serial
 
 loadfont unicode
+# rmmod lives in the minicmd module. Some GRUB builds, such as Hadron's, do not
+# embed it, and a missing command prints "can't find command" on every boot.
+# GRUB looks up a built-in command before a script function, so this no-op
+# only runs where the real rmmod does not exist. Such builds do not embed tpm
+# either, so there is nothing to remove.
+# The body has to be a command that every build has. true and echo live in
+# modules a build can leave out, the same way this one left out minicmd. set is
+# registered by the GRUB kernel itself, so it is there in every image.
+function rmmod {
+  set kairos_rmmod_noop=1
+}
 if [ "${grub_platform}" = "efi" ]; then
     ## workaround for grub2-efi bug: https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1851311
     rmmod tpm

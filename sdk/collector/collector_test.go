@@ -96,6 +96,30 @@ var _ = Describe("Config Collector", func() {
 			Expect(c.Values).ToNot(HaveKey("cos"))
 		})
 
+		It("keeps the rest of the cmdline when one generic token does not parse", func() {
+			path := writeCmdline(
+				`root=X 8250.nr_uarts=0 options.foo=bar kairos.config_url=https://a/x.yaml`,
+			)
+			c, err := ParseCmdLine(path, FilterKeysTest)
+			Expect(err).To(MatchError(ContainSubstring("8250")))
+			Expect(c.Values).To(HaveKeyWithValue("config_url", "https://a/x.yaml"))
+			Expect(c.Values).To(HaveKeyWithValue("root", "X"))
+			opts, ok := c.Values["options"].(ConfigValues)
+			Expect(ok).To(BeTrue())
+			Expect(opts).To(HaveKeyWithValue("foo", "bar"))
+		})
+
+		It("Scan keeps the cmdline config when one generic token does not parse", func() {
+			path := writeCmdline(`root=X 8250.nr_uarts=0 kairos.config=hostname=box`)
+			o := &Options{}
+			Expect(o.Apply(MergeBootLine, WithBootCMDLineFile(path), NoLogs)).To(Succeed())
+			c, err := Scan(o, passthrough)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c.Values).To(HaveKeyWithValue("hostname", "box"))
+			Expect(c.Values).To(HaveKeyWithValue("root", "X"))
+			Expect(c.Sources).To(ContainElement("cmdline"))
+		})
+
 		It("Scan wires ParseCmdLine when MergeBootCMDLine is set", func() {
 			path := writeCmdline(`kairos.config=hostname=box`)
 			o := &Options{}
@@ -821,6 +845,7 @@ info:
 			BeforeEach(func() {
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
+				cmdLinePath = writeTestCmdline("BOOT_IMAGE=/vmlinuz root=LABEL=COS_ACTIVE console=tty0 rd.immucore.debug\n")
 				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
 install:
   auto: true
@@ -906,6 +931,7 @@ stages:
 			BeforeEach(func() {
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
+				cmdLinePath = writeTestCmdline("BOOT_IMAGE=/vmlinuz root=LABEL=COS_ACTIVE console=tty0 rd.immucore.debug\n")
 				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
 stages:
   initramfs:
@@ -981,6 +1007,7 @@ stages:
 			BeforeEach(func() {
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
+				cmdLinePath = writeTestCmdline("BOOT_IMAGE=/vmlinuz root=LABEL=COS_ACTIVE console=tty0 rd.immucore.debug\n")
 				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
 
 stages:
@@ -1167,6 +1194,7 @@ stages:
 			BeforeEach(func() {
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
+				cmdLinePath = writeTestCmdline("BOOT_IMAGE=/vmlinuz root=LABEL=COS_ACTIVE console=tty0 rd.immucore.debug\n")
 				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
 install:
   auto: true
@@ -1767,6 +1795,17 @@ remote_key_2: remote_value_2
 	Expect(err).ToNot(HaveOccurred())
 
 	return cmdLinePath
+}
+
+// writeTestCmdline writes a cmdline file removed after the spec, so specs that
+// merge the boot cmdline never depend on the host /proc/cmdline.
+func writeTestCmdline(contents string) string {
+	f, err := os.CreateTemp("", "cmdline")
+	Expect(err).ToNot(HaveOccurred())
+	DeferCleanup(func() { _ = os.Remove(f.Name()) })
+	Expect(f.Close()).To(Succeed())
+	Expect(os.WriteFile(f.Name(), []byte(contents), 0o644)).To(Succeed())
+	return f.Name()
 }
 
 // Generic config type with no fields, accepts everything for filtering

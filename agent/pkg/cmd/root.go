@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kairos-io/kairos/v4/agent/internal/agent"
@@ -54,19 +56,84 @@ const (
 	extTypeCtxKey ctxKey = "extType"
 )
 
-// ReleasesToOutput gets a semver.Collection and outputs it in the given format
-// Only used here.
+// Output formats accepted by "upgrade list-releases --output".
+const (
+	outputFormatTerminal = "terminal"
+	outputFormatJSON     = "json"
+	outputFormatYAML     = "yaml"
+)
+
+// ReleasesToOutput renders the releases in the given format. The terminal
+// format returns one release per element, so that the caller prints them one
+// per line. The machine readable formats return a single element holding the
+// whole document.
 func ReleasesToOutput(rels []string, output string) []string {
+	// Marshal an empty list as "[]" rather than "null", so that a caller
+	// parsing the document always gets a list back.
+	if rels == nil {
+		rels = []string{}
+	}
+
 	switch strings.ToLower(output) {
-	case "yaml":
+	case outputFormatYAML:
 		d, _ := yaml.Marshal(rels)
 		return []string{string(d)}
-	case "json":
+	case outputFormatJSON:
 		d, _ := json.Marshal(rels)
 		return []string{string(d)}
 	default:
 		return rels
 	}
+}
+
+// parseReleasesOutput validates the --output value of list-releases. An empty
+// value keeps the terminal format, so that the flag stays optional. An unknown
+// value is refused instead of falling back to the terminal format, so that a
+// typo in a script is visible rather than quietly producing the wrong format.
+func parseReleasesOutput(output string) (string, error) {
+	switch strings.ToLower(output) {
+	case "":
+		return outputFormatTerminal, nil
+	case outputFormatTerminal, outputFormatJSON, outputFormatYAML:
+		return strings.ToLower(output), nil
+	default:
+		return "", fmt.Errorf("unknown output format %q, use one of %q, %q or %q",
+			output, outputFormatJSON, outputFormatYAML, outputFormatTerminal)
+	}
+}
+
+// releasesNotes returns the writer the human readable lines of list-releases go
+// to. In a machine readable format they go to stderr, so that stdout carries
+// the document and nothing else.
+func releasesNotes(format string) io.Writer {
+	if format == outputFormatTerminal {
+		return os.Stdout
+	}
+
+	return os.Stderr
+}
+
+// printReleases writes the releases in the requested format.
+func printReleases(w io.Writer, rels []string, format string) {
+	for _, r := range ReleasesToOutput(rels, format) {
+		fmt.Fprintln(w, r)
+	}
+}
+
+// printProviderReleases writes the releases the providers answered with and
+// reports whether there were any. A true result means the providers have
+// answered the question and the registry does not need to be consulted. The
+// header goes to notes rather than to w, so that it does not land in the middle
+// of a machine readable document.
+func printProviderReleases(w, notes io.Writer, tags []string, format string) bool {
+	if len(tags) == 0 {
+		return false
+	}
+
+	fmt.Fprintln(notes, "Available releases from provider:")
+	printReleases(w, tags, format)
+
+	return true
 }
 
 var sourceFlag = cli.StringFlag{
@@ -81,7 +148,6 @@ var allowInsecureRegistriesFlag = cli.BoolFlag{
 
 var kcryptNVIndexFlag = cli.StringFlag{
 	Name:  "nv-index",
-	Value: kcrypt.DefaultLocalPassphraseNVIndex,
 	Usage: "NV index to operate on (defaults to configured index or 0x1500000)",
 }
 
@@ -144,22 +210,40 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				Name:        "list-releases",
 				Description: `List all available releases versions`,
 				Before: func(c *cli.Context) error {
+					// Refuse an unusable format before anything is printed.
+					format, err := parseReleasesOutput(c.String("output"))
+					if err != nil {
+						return err
+					}
+					notes := releasesNotes(format)
+
 					// Check if the registry is set in the OS release and warn that its deprecated
 					registryAndOrg, err := sdkUtils.OSRelease("REGISTRY_AND_ORG")
 					if err == nil {
-						fmt.Println("Warning: The 'REGISTRY_AND_ORG' OS release variable is deprecated. Use the '--registry' flag instead.")
-						fmt.Println("Warning: Using the values from 'REGISTRY_AND_ORG' instead of the flag.")
+						fmt.Fprintln(notes, "Warning: The 'REGISTRY_AND_ORG' OS release variable is deprecated. Use the '--registry' flag instead.")
+						fmt.Fprintln(notes, "Warning: Using the values from 'REGISTRY_AND_ORG' instead of the flag.")
 						_ = c.Set("registry", registryAndOrg)
 
 					}
-					fmt.Printf("Using registry: %s\n", c.String("registry"))
+					fmt.Fprintf(notes, "Using registry: %s\n", c.String("registry"))
 					return nil
 				},
 				Action: func(c *cli.Context) error {
+					format, err := parseReleasesOutput(c.String("output"))
+					if err != nil {
+						return err
+					}
+					notes := releasesNotes(format)
+
 					if utils.IsUki() {
-						fmt.Println("You are running in \"trusted boot\" mode")
-						fmt.Println("Upgrading your OS requires a new image to be built an signed")
-						fmt.Println("Read the docs on how to do so: https://kairos.io/docs/upgrade/trustedboot/")
+						fmt.Fprintln(notes, "You are running in \"trusted boot\" mode")
+						fmt.Fprintln(notes, "Upgrading your OS requires a new image to be built an signed")
+						fmt.Fprintln(notes, "Read the docs on how to do so: https://kairos.io/docs/upgrade/trustedboot/")
+						// Still emit the document, so that a caller asking for
+						// a machine readable format always gets one.
+						if format != outputFormatTerminal {
+							printReleases(os.Stdout, nil, format)
+						}
 						return nil
 					}
 
@@ -167,7 +251,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 					if err != nil {
 						return err
 					}
-					fmt.Printf("Current image:\n%s\n\n", currentImage)
+					fmt.Fprintf(notes, "Current image:\n%s\n\n", currentImage)
 
 					var tags []string
 					tags, err = getReleasesFromProvider(c.Bool("pre"))
@@ -176,22 +260,18 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 					}
 
 					// Provider returns tags. Print and return.
-					if len(tags) > 0 {
-						fmt.Println("Available releases from provider:")
-						for _, r := range tags {
-							fmt.Println(r)
-							return nil
-						}
+					if printProviderReleases(os.Stdout, notes, tags, format) {
+						return nil
 					}
 
 					if c.Bool("all") {
-						fmt.Println("Available releases (all):")
+						fmt.Fprintln(notes, "Available releases (all):")
 						tags, err = agent.ListAllReleases(c.Bool("pre"), c.String("registry"))
 						if err != nil {
 							return err
 						}
 					} else {
-						fmt.Println("Available releases with higher version:")
+						fmt.Fprintln(notes, "Available releases with higher version:")
 						tags, err = agent.ListNewerReleases(c.Bool("pre"), c.String("registry"))
 						if err != nil {
 							return err
@@ -199,13 +279,16 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 					}
 
 					if len(tags) == 0 {
-						fmt.Println("No newer releases found")
+						fmt.Fprintln(notes, "No newer releases found")
+						// An empty list is still a valid answer, so emit the
+						// document rather than leaving stdout empty.
+						if format != outputFormatTerminal {
+							printReleases(os.Stdout, nil, format)
+						}
 						return nil
 					}
 
-					for _, r := range tags {
-						fmt.Println(r)
-					}
+					printReleases(os.Stdout, tags, format)
 
 					return nil
 				},
@@ -343,7 +426,7 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 				// real fix is for the provider CLI to derive its default from
 				// the APILISTEN the provider already writes to
 				// /etc/systemd/system.conf.d/edgevpn-kairos.env, which belongs
-				// in kairos-io/provider-kairos.
+				// in provider/ (formerly kairos-io/provider-kairos).
 				Value: "",
 			},
 		},
@@ -372,12 +455,21 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 	{
 		Name:  "install-bundle",
 		Usage: "Installs a kairos bundle",
-		Description: `
+		Description: `Manually installs a kairos bundle.
 
-Manually installs a kairos bundle.
+The target has the form SCHEME://REFERENCE. Supported schemes:
 
-E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
+  container:// or docker://  extract the image into --root-path
+  run://                     extract the image to a temporary directory and run its run.sh
+  package://                 install a luet package from --repository into --root-path
 
+Flags must come before the target, anything after the target is not read as a flag.
+A flag the target's scheme does not read is refused rather than ignored.
+
+Examples:
+
+  kairos-agent install-bundle container://quay.io/myorg/mybundle:latest
+  kairos-agent install-bundle --local-file container:///absolute/path/mybundle.tar
 `,
 		Aliases: []string{},
 		Flags: []cli.Flag{
@@ -385,23 +477,30 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 				Name:    "repository",
 				EnvVars: []string{"REPOSITORY"},
 				Value:   "docker://quay.io/kairos/packages",
+				Usage:   "Luet repository as TYPE://URL, accepted only by package:// targets",
 			},
 			&cli.StringFlag{
 				Name:  "root-path",
 				Value: "/",
+				Usage: "Directory the bundle is installed into, not used by run:// targets",
 			},
 			&cli.BoolFlag{
 				Name:    "local-file",
 				EnvVars: []string{"LOCAL_FILE"},
+				Usage:   "Read the container, docker or run target from an image tarball on disk instead of pulling it from a registry, not accepted by package:// targets",
 			},
 		},
-		UsageText: "Install a bundle manually in the node",
+		UsageText: "install-bundle [--local-file] [--repository TYPE://URL] [--root-path PATH] SCHEME://REFERENCE",
 		Before: func(c *cli.Context) error {
 			return checkRoot()
 		},
 		Action: func(c *cli.Context) error {
 			if c.Args().Len() != 1 {
 				return fmt.Errorf("bundle name required")
+			}
+
+			if err := checkInstallBundleFlags(c, c.Args().First()); err != nil {
+				return err
 			}
 
 			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRootFS(c.String("root-path")), bundles.WithRepository(c.String("repository")), bundles.WithTarget(c.Args().First()), bundles.WithLocalFile(c.Bool("local-file"))})
@@ -1306,11 +1405,6 @@ with 'kairos-agent kcrypt unlock-all'.`,
 			},
 		},
 		Action: func(c *cli.Context) error {
-			url := c.String("url")
-			token := c.String("token")
-			group := c.String("group")
-			heartbeat := c.Duration("heartbeat-interval")
-
 			// Pull phonehome defaults from cloud-config via the shared Collector.
 			// CLI flags still win: they override anything from the merged config.
 			var cfg phonehome.Config
@@ -1330,16 +1424,7 @@ with 'kairos-agent kcrypt unlock-all'.`,
 				}
 			}
 
-			if url != "" {
-				cfg.URL = url
-			}
-			if token != "" {
-				cfg.RegistrationToken = token
-			}
-			if group != "" {
-				cfg.Group = group
-			}
-			cfg.HeartbeatInterval = heartbeat
+			MergePhoneHomeFlags(c, &cfg)
 
 			if cfg.URL == "" {
 				return fmt.Errorf("phonehome URL required (use --url, PHONEHOME_URL env, or a phonehome: section in cloud-config)")
@@ -1369,6 +1454,36 @@ with 'kairos-agent kcrypt unlock-all'.`,
 			return client.Run(ctx)
 		},
 	},
+}
+
+// MergePhoneHomeFlags overlays the phone-home command line on top of the
+// configuration the Collector read from cloud-config. A flag wins only when
+// the user actually passed it.
+//
+// The three string flags carry no default, so an empty value already means
+// "not given". heartbeat-interval carries a non-zero default, so its value
+// alone cannot say that, and asking the parser is the only way to tell a user
+// writing --heartbeat-interval=30s apart from a user writing nothing. The unit
+// the agent installs runs "kairos-agent phone-home" with no flags, so without
+// that question the default would overwrite phonehome.heartbeat_interval on
+// every node and the config key would do nothing.
+//
+// When neither side sets the interval, cfg.HeartbeatInterval stays zero and
+// the client falls back to phonehome.DefaultHeartbeatInterval, which is the
+// same 30 seconds the flag advertises.
+func MergePhoneHomeFlags(c *cli.Context, cfg *phonehome.Config) {
+	if v := c.String("url"); v != "" {
+		cfg.URL = v
+	}
+	if v := c.String("token"); v != "" {
+		cfg.RegistrationToken = v
+	}
+	if v := c.String("group"); v != "" {
+		cfg.Group = v
+	}
+	if c.IsSet("heartbeat-interval") {
+		cfg.HeartbeatInterval = c.Duration("heartbeat-interval")
+	}
 }
 
 // nolint:gocyclo // urfave/cli command builder: the subcommand definitions (list, list-installed, enable, disable, install, remove) live in-line so the whole sysext/confext CLI shape is grep-friendly; splitting them into per-subcommand functions would only move the complexity, not reduce it.
@@ -1833,6 +1948,35 @@ func skipAutoInstall(c *cli.Context) bool {
 	return cmdlineEnables(string(cmdline), skipAutoInstallCmdline)
 }
 
+// checkInstallBundleFlags refuses a flag the target's scheme cannot read.
+// Only LuetInstaller reads Repository, and only the two OCI installers read
+// LocalFile, so each flag used to be accepted on the other scheme and then
+// dropped without a word: the operator who passed --repository to a
+// container:// bundle got the image the target named, from the registry the
+// target named, and no sign that the flag had been ignored.
+//
+// An unreadable target is left alone here so that RunBundles keeps reporting
+// it, with the bundle name it already puts in that message.
+func checkInstallBundleFlags(c *cli.Context, target string) error {
+	scheme, err := (&bundles.BundleConfig{Target: target}).TargetScheme()
+	if err != nil {
+		return nil //nolint:nilerr // RunBundles reports the invalid target
+	}
+
+	if scheme == "package" {
+		if c.IsSet("local-file") {
+			return fmt.Errorf("--local-file is not read by a package:// target, it applies to container://, docker:// and run:// targets (unset the flag or the LOCAL_FILE environment variable)")
+		}
+		return nil
+	}
+
+	if c.IsSet("repository") {
+		return fmt.Errorf("--repository is only read by a package:// target, and %s is a %s:// target (unset the flag or the REPOSITORY environment variable)", target, scheme)
+	}
+
+	return nil
+}
+
 func validateSource(source string) error {
 	if source == "" {
 		return nil
@@ -1879,24 +2023,55 @@ func bootFromLiveMedia() bool {
 	return false
 }
 
-func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
+// releaseCollector gathers the releases every provider answers with.
+//
+// go-pluggable runs each provider in its own goroutine and emits each result to
+// the response listeners the same way, so collect is called concurrently when
+// more than one provider answers. Unmarshalling straight into a shared slice
+// both races and replaces what the previous provider contributed, which is why
+// the answers are appended under a lock instead.
+type releaseCollector struct {
+	mu   sync.Mutex
+	tags []string
+}
+
+// collect adds the releases carried by one provider's response.
+func (rc *releaseCollector) collect(data string) {
+	if data == "" {
+		return
+	}
+
 	var tags []string
+	if err := json.Unmarshal([]byte(data), &tags); err != nil {
+		fmt.Printf("warn: failed unmarshalling data: '%s'\n", err.Error())
+		return
+	}
+
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.tags = append(rc.tags, tags...)
+}
+
+// releases returns everything collected so far.
+func (rc *releaseCollector) releases() []string {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	return rc.tags
+}
+
+func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
+	rc := &releaseCollector{}
 	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
-		if r.Data == "" {
-			return
-		}
-		if err := json.Unmarshal([]byte(r.Data), &tags); err != nil {
-			fmt.Printf("warn: failed unmarshalling data: '%s'\n", err.Error())
-		}
+		rc.collect(r.Data)
 	})
 
 	configYAML := fmt.Sprintf("IncludePreReleases: %t", includePrereleases)
 	_, err := bus.Manager.Publish(events.EventAvailableReleases, events.EventPayload{Config: configYAML})
 	if err != nil {
-		return tags, fmt.Errorf("failed publishing event: %w", err)
+		return rc.releases(), fmt.Errorf("failed publishing event: %w", err)
 	}
 
-	return tags, nil
+	return rc.releases(), nil
 }
 
 func moreThanOneEnabled(bools ...bool) bool {

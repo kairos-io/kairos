@@ -74,6 +74,15 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			"k3s-agent",
 			"k0scontroller",
 			"k0sworker",
+			// 99_sysext.yaml clears the ExecStart of both units and replaces
+			// it with a Kairos image policy, and the agent restarts them
+			// whenever an extension is enabled, disabled or removed. The
+			// drop-in sets TimeoutStartSec=10 precisely because the unit can
+			// fail when no key unlocks an extension, and when it does this
+			// journal is the only record of why a system extension is not
+			// merged.
+			"systemd-sysext",
+			"systemd-confext",
 		},
 		Files: []string{
 			"/var/log/kairos/*.log",

@@ -14,11 +14,22 @@ import (
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 )
 
+// isUkiBoot reports whether this boot is a UKI boot. It reads the kernel
+// command line through the config filesystem, so both grub options hooks can
+// be exercised without a real /proc/cmdline, and falls back to the host read
+// for a config that was built without a filesystem.
+func isUkiBoot(c sdkConfig.Config) bool {
+	if c.Fs == nil {
+		return utils.IsUki()
+	}
+	return utils.IsUkiWithFs(c.Fs)
+}
+
 // GrubPostInstallOptions is a hook that runs after the install process to add grub options.
 type GrubPostInstallOptions struct{}
 
 func (b GrubPostInstallOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
-	if utils.IsUki() {
+	if isUkiBoot(c) {
 		c.Logger.Logger.Info().Msg("Skipping GrubPostInstallOptions hook in uki mode")
 		return nil
 	}
@@ -124,6 +135,14 @@ type GrubFirstBootOptions struct{}
 
 func (b GrubFirstBootOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	if len(c.GrubOptions) == 0 {
+		return nil
+	}
+	// A UKI boot takes its command line from the signed .cmdline section of
+	// the image, so a grubenv written here is read by nobody. Skip for the
+	// same reason GrubPostInstallOptions does, and say so, because the key
+	// was set on purpose and the user needs to know it did not take effect.
+	if isUkiBoot(c) {
+		c.Logger.Logger.Warn().Msg("Skipping GrubFirstBootOptions hook in uki mode: grub_options writes a grubenv that a UKI boot never reads, the kernel command line comes from the signed .cmdline section of the image")
 		return nil
 	}
 	c.Logger.Logger.Info().Msg("Running GrubOptions hook")

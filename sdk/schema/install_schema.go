@@ -19,7 +19,9 @@ type InstallSchema struct {
 	Extensions          []ExtensionSchema `json:"extensions,omitempty" description:"System extensions to install onto the node."`
 	GrubOptionsSchema   `json:"grub_options,omitempty"`
 	SelinuxOptions      `json:"selinux,omitempty"`
-	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
+	Source              string `json:"source,omitempty" description:"Container image to install the system from, e.g. oci://quay.io/kairos/opensuse:latest. This is the key the installer reads."`
+	ImageDeprecated     string `json:"image,omitempty" deprecated:"true" description:"Deprecated and ignored: it was never read by the installer. Use source instead"`
+	NoUsers             bool   `json:"nousers,omitempty" description:"Skip the check that the config declares at least one administrative user. Intended for images that provision users by other means."`
 	PowerManagement
 	Partitions      ElementalPartitions `json:"partitions,omitempty"`
 	GrubDefEntry    string              `json:"grub-entry-name,omitempty"`
@@ -31,6 +33,27 @@ type InstallSchema struct {
 	Active          Image               `json:"system,omitempty"`
 	Recovery        Image               `json:"recovery-system,omitempty"`
 	Passive         Image               `json:"passive,omitempty"`
+	// Keys below are decoded into InstallSpec and InstallUkiSpec by
+	// unmarshallFullSpec(cfg, "install", spec), not into types/config.Config.
+	Firmware                string              `json:"firmware,omitempty" enum:"[\"efi\",\"bios\"]" description:"Firmware to install for. Defaults to what the installing machine reports, so set it only to install for a machine other than the one running the installer"`
+	PartTable               string              `json:"part-table,omitempty" enum:"[\"gpt\"]" description:"Partition table to write. Only gpt is supported, for both efi and bios firmware"`
+	CloudInit               []string            `json:"cloud-init,omitempty" description:"Extra cloud-config files to copy onto the installed system, on top of the config that drove the install. Each entry is one file, given as a path or as a URL to download. A directory is not copied"`
+	Iso                     string              `json:"iso,omitempty" description:"URL or path of an ISO to install from, instead of the running installation medium"`
+	Tty                     string              `json:"tty,omitempty" description:"Console the installed system gets a getty on, in addition to the default one" examples:"[\"ttyS0\",\"tty1\"]"`
+	SkipEntries             []string            `json:"skip-entries,omitempty" description:"Trusted Boot only: boot entries to leave out of the installed system. Added to the entries Kairos skips by default"`
+	AllowInsecureRegistries bool                `json:"allow-insecure-registries,omitempty" description:"Pull the install image from a registry served over plain HTTP or presenting an untrusted certificate"`
+	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
+}
+
+// RegistryAuthSchema describes one explicit registry credential form. Exactly
+// one form is accepted by the agent at runtime.
+type RegistryAuthSchema struct {
+	File          string `json:"file,omitempty" description:"Path to a YAML credential object available before the operation starts. Cannot be combined with inline credentials."`
+	Username      string `json:"username,omitempty" description:"Registry username. Must be provided with password."`
+	Password      string `json:"password,omitempty" description:"Registry password."`
+	Auth          string `json:"auth,omitempty" description:"Base64 encoded username:password."`
+	IdentityToken string `json:"identity-token,omitempty" description:"Registry identity token."`
+	RegistryToken string `json:"registry-token,omitempty" description:"Registry bearer token."`
 }
 
 // OEMFileSchema represents one entry of the install.oem_files block. The file
@@ -40,9 +63,14 @@ type OEMFileSchema struct {
 	Content string `json:"content,omitempty" required:"true" description:"Content of the file, a cloud-config document"`
 }
 
+// Image describes one of the install block's image slots (system,
+// recovery-system, passive). Mirrors sdk/types/images.Image, which is what the
+// runtime decodes these into: there, URI is marked "deprecated, use Source
+// instead", so `source` is the key to offer and `uri` the one to retire.
 type Image struct {
-	Size   uint   `json:"size,omitempty"`
-	Source string `json:"uri,omitempty"`
+	Size          uint   `json:"size,omitempty"`
+	Source        string `json:"source,omitempty" description:"Container image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest"`
+	URIDeprecated string `json:"uri,omitempty" deprecated:"true" description:"Deprecated: use source instead. Still honoured on system and recovery-system, ignored on passive"`
 }
 
 type Partition struct {

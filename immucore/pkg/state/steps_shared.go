@@ -84,14 +84,29 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// removable/network media but must behave like an installed
 			// Active system, so they get uki_boot_mode, never
 			// uki_install_mode (which would fire the installer stages).
+			ukiInstallMedium := false
 			cmdline, err := os.ReadFile(internalUtils.GetHostProcCmdline())
 			if err != nil {
 				return fmt.Errorf("reading kernel cmdline: %w", err)
 			}
 			if strings.Contains(string(cmdline), "rd.immucore.uki") {
-				ukiSentinel := internalUtils.UkiSentinel(state.EfiBootFromInstall(internalUtils.KLog.Logger), s.InRAM)
+				bootedFromInstall := state.EfiBootFromInstall(internalUtils.KLog.Logger)
+				ukiSentinel := internalUtils.UkiSentinel(bootedFromInstall, s.InRAM)
 				internalUtils.KLog.Logger.Info().Str("to", ukiSentinel).Msg("Setting sentinel file")
 				if err := os.WriteFile(filepath.Join("/run/cos/", ukiSentinel), []byte("1"), os.ModePerm); err != nil {
+					return err
+				}
+				ukiInstallMedium = internalUtils.UkiInstallMedium(bootedFromInstall, s.InRAM)
+			}
+
+			// Translate this boot's install intent into sentinels too, so that
+			// the installer cloud-config gates on a file on every medium
+			// rather than grepping /proc/cmdline on the GRUB path and reading
+			// a file on Trusted Boot. See kairos-io/kairos#5459.
+			for _, sentinel := range state.InstallIntentSentinels(
+				string(cmdline), ukiInstallMedium, runtime.BootState == state.LiveCD) {
+				internalUtils.KLog.Logger.Info().Str("to", sentinel).Msg("Setting install intent sentinel file")
+				if err := os.WriteFile(filepath.Join("/run/cos/", sentinel), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 			}
@@ -451,18 +466,53 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				}
 				internalUtils.KLog.Logger.Debug().Str("what", what).Str("where", where).Msg("Custom mount done")
 			}
-			internalUtils.KLog.Logger.Warn().Err(err.ErrorOrNil()).Send()
+			// OpMountBind depends on this step and is fatal, so a failure here
+			// stops the boot unless the cmdline says otherwise. Name it: the
+			// step used to end in a bare warning with no message, which said
+			// nothing on a clean boot and nothing useful on a broken one.
+			if mountErr := err.ErrorOrNil(); mountErr != nil {
+				internalUtils.KLog.Logger.Error().Err(mountErr).Int("failed", err.Len()).
+					Msg("Some custom mounts did not mount. The persistent state binds are backed by them, so the boot stops here instead of carrying on without persistence.")
 
-			return err.ErrorOrNil()
+				return onMountFailure(cnst.OpCustomMounts, mountErr)
+			}
+
+			return nil
 		}),
 	)...)
 }
 
 // MountCustomBindsDagStep will add mounting s.BindMounts
 // mount state is defined over a custom mount (/usr/local/.state for instance, needs to be mounted over a device).
+//
+// The op is registered fatal. These binds are the persistence contract of the
+// node: /home, /root, /opt, /etc/ssh, /etc/systemd, /var/log and the rest of
+// PERSISTENT_STATE_PATHS. Without them the system comes up on a pristine image
+// /etc, with everything it writes landing in the ephemeral overlay, so SSH host
+// keys regenerate on every boot and a k3s or k0s node loses its state
+// directory.
+//
+// Nothing used to report that. OpOverlayMount and OpCustomMounts each collect a
+// multierror across a loop, so one extra volume with the wrong label took the
+// whole step down, herd then skipped this node (it never executes a node whose
+// dependency errored), and because no op in the chain was fatal g.Run still
+// returned nil and the boot carried on to a login prompt.
+//
+// Fatal makes g.Run return instead, carrying the error of whichever step broke.
+// The boot stops at the IMMUCORE BOOT FAILED banner, which is also persisted
+// under constants.LogDir, rather than handing the operator a machine that has
+// quietly stopped persisting anything. A half mounted node is an inconsistency
+// to fix, not one to boot through.
+//
+// Stopping is the default, not the only option. onMountFailure runs the
+// constants.StageMountFailure cloud-init stage first, so a distribution can
+// define its own recovery for this state, and constants.CmdlineIgnoreMountFailure
+// on the kernel cmdline turns the halt back into the old carry-on behaviour
+// for an operator who wants the node more than the diagnosis.
 func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpMountBind,
-		append(opts, herd.WithDeps(cnst.OpOverlayMount, cnst.OpCustomMounts, cnst.OpLoadConfig),
+		append(opts, herd.FatalOp,
+			herd.WithDeps(cnst.OpOverlayMount, cnst.OpCustomMounts, cnst.OpLoadConfig),
 			TimedCallback(cnst.OpMountBind,
 				func(_ context.Context) error {
 					var err *multierror.Error
@@ -483,8 +533,22 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 						}
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount end")
 					}
-					internalUtils.KLog.Logger.Warn().Err(err.ErrorOrNil()).Send()
-					return err.ErrorOrNil()
+
+					// Say what failed and what it costs. The step used to end in
+					// a bare warning with no message, emitted on every boot
+					// including the ones where every bind worked, which is a
+					// large part of why this class of failure went unnoticed.
+					// multierror.Error.Len has a value receiver, so it panics on
+					// the nil accumulator a clean boot leaves behind. Ask
+					// ErrorOrNil first.
+					if bindErr := err.ErrorOrNil(); bindErr != nil {
+						internalUtils.KLog.Logger.Error().Err(bindErr).Int("failed", err.Len()).
+							Msg("Some persistent state binds did not mount. Those paths would be ephemeral and their contents lost on reboot, so the boot stops here instead.")
+
+						return onMountFailure(cnst.OpMountBind, bindErr)
+					}
+
+					return nil
 				},
 			),
 		)...)
