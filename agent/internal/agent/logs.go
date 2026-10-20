@@ -70,6 +70,12 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			"cos-setup-fs",
 			"cos-setup-network",
 			"cos-setup-reconcile",
+			// Written and enabled by 31_hosts.yaml. A hostname set at runtime
+			// that never reached the persistent partition is accounted for
+			// nowhere else. The path unit is named too: when it refuses to
+			// start, the oneshot simply never runs and says nothing.
+			"kairos-persist-hostname",
+			"kairos-persist-hostname.path",
 			"k3s",
 			"k3s-agent",
 			"k0scontroller",
