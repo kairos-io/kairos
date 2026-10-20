@@ -2,6 +2,9 @@ package schema_test
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -159,6 +162,77 @@ users:
 				Expect(err).ToNot(HaveOccurred())
 				err = Validate(path)
 				Expect(err.Error()).To(MatchRegexp("expected string or null, but got number"))
+			})
+		})
+
+		Context("read over http", func() {
+			var server *httptest.Server
+			var status int
+			var body string
+
+			BeforeEach(func() {
+				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(status)
+					_, _ = io.WriteString(w, body)
+				}))
+			})
+
+			AfterEach(func() {
+				server.Close()
+			})
+
+			Context("when the server serves the configuration", func() {
+				BeforeEach(func() {
+					status = http.StatusOK
+					body = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos`
+				})
+
+				It("validates it", func() {
+					Expect(Validate(server.URL + "/cloud-config.yaml")).ToNot(HaveOccurred())
+				})
+			})
+
+			// Every one of these used to come out as "missing #cloud-config
+			// header", which sends the user to look at a file that was never
+			// fetched.
+			DescribeTable("when the server does not serve the configuration",
+				func(code int, page string) {
+					status = code
+					body = page
+
+					err := Validate(server.URL + "/cloud-config.yaml")
+					Expect(err).To(MatchError(ContainSubstring(http.StatusText(code))))
+					Expect(err).ToNot(MatchError(ContainSubstring("missing #cloud-config header")))
+				},
+				Entry("a not found with no body", http.StatusNotFound, ""),
+				Entry("a not found with an error page", http.StatusNotFound, "<html><body>404</body></html>"),
+				Entry("a forbidden with an XML document", http.StatusForbidden,
+					`<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>`),
+				Entry("a server error", http.StatusInternalServerError, ""),
+			)
+
+			// The error reaches stderr and, through the web installer, the
+			// log, so a URL that authenticates the fetch must not travel
+			// with it.
+			Context("when the URL carries credentials", func() {
+				BeforeEach(func() {
+					status = http.StatusForbidden
+					body = `<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>`
+				})
+
+				It("keeps them out of the error", func() {
+					host := strings.TrimPrefix(server.URL, "http://")
+					url := "http://kairos:hunter2@" + host +
+						"/cloud-config.yaml?X-Amz-Signature=5f4dcc3b5aa765d6"
+
+					err := Validate(url)
+					Expect(err).To(MatchError(ContainSubstring(http.StatusText(http.StatusForbidden))))
+					Expect(err).ToNot(MatchError(ContainSubstring("hunter2")))
+					Expect(err).ToNot(MatchError(ContainSubstring("5f4dcc3b5aa765d6")))
+				})
 			})
 		})
 	})
