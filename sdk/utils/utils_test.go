@@ -167,6 +167,41 @@ func TestPoweroffCommand(t *testing.T) {
 	}
 }
 
+func TestSHStdoutKeepsStderrOut(t *testing.T) {
+	// A command that succeeds while writing a warning to stderr, which is what
+	// cryptsetup and blkid do. SH merges the two streams, SHStdout must not.
+	const cmd = `echo "WARNING: Locking directory /run/cryptsetup is missing!" >&2; echo 1a2b3c4d-0000-0000-0000-000000000000`
+
+	combined, err := SH(cmd)
+	if err != nil {
+		t.Fatalf("SH returned an error for a successful command: %v", err)
+	}
+	if !strings.Contains(combined, "WARNING") {
+		t.Fatalf("SH is expected to return combined output, got %q", combined)
+	}
+
+	out, err := SHStdout(cmd)
+	if err != nil {
+		t.Fatalf("SHStdout returned an error for a successful command: %v", err)
+	}
+	if strings.TrimSpace(out) != "1a2b3c4d-0000-0000-0000-000000000000" {
+		t.Fatalf("SHStdout returned stderr as part of the value: %q", out)
+	}
+}
+
+func TestSHStdoutReportsStderrInTheError(t *testing.T) {
+	out, err := SHStdout(`echo "cryptsetup: device not found" >&2; exit 1`)
+	if err == nil {
+		t.Fatal("SHStdout returned no error for a failing command")
+	}
+	if !strings.Contains(err.Error(), "cryptsetup: device not found") {
+		t.Fatalf("SHStdout dropped the diagnosis on stderr: %v", err)
+	}
+	if out != "" {
+		t.Fatalf("SHStdout returned unexpected stdout: %q", out)
+	}
+}
+
 func TestShellSTDINRunsTheCommand(t *testing.T) {
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "marker")

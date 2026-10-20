@@ -36,6 +36,11 @@ func (err KeyNotFoundErr) Error() string {
 	return err.Err.Error()
 }
 
+// SH runs a command through /bin/sh and returns its combined output, stdout
+// and stderr together. Use it only when the output is logged or discarded.
+// When the value is parsed, or used as a device path or an identifier, use
+// SHStdout: one line on stderr from a command that otherwise succeeded would
+// become part of the value.
 func SH(c string) (string, error) {
 	cmd := exec.Command("/bin/sh", "-c", c)
 	cmd.Env = os.Environ()
@@ -43,6 +48,26 @@ func SH(c string) (string, error) {
 	return string(o), err
 }
 
+// SHStdout runs a command through /bin/sh and returns its standard output
+// only. Whatever the command writes to stderr is kept out of the returned
+// value, so the result is safe to parse or to use as a device path. When the
+// command fails, stderr is reported in the error instead of being dropped.
+func SHStdout(c string) (string, error) {
+	cmd := exec.Command("/bin/sh", "-c", c)
+	cmd.Env = os.Environ()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil && stderr.Len() > 0 {
+		return stdout.String(), fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return stdout.String(), err
+}
+
+// SHInDir runs a command through /bin/sh in the given directory and returns
+// its combined output, stdout and stderr together. The note on SH applies here
+// too.
 func SHInDir(c, dir string, envs ...string) (string, error) {
 	cmd := exec.Command("/bin/sh", "-c", c)
 	cmd.Env = append(os.Environ(), envs...)
