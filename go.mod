@@ -18,7 +18,7 @@ require (
 	github.com/distribution/reference v0.6.0
 	github.com/edsrzf/mmap-go v1.2.0
 	github.com/erikgeiser/promptkit v0.12.0
-	github.com/foxboron/go-uefi v0.0.0-20251010190908-d29549a44f29
+	github.com/foxboron/go-uefi v0.0.0-20261004203234-c7f1f57bdc6e
 	github.com/go-logr/logr v1.4.4
 	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/gofrs/uuid v4.4.0+incompatible
