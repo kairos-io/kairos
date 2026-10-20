@@ -1827,7 +1827,11 @@ func beforeSysextConfext(c *cli.Context) error {
 // It is called from the standalone kairos-agent binary and from the multi-call
 // kairos binary.
 func Run() int {
-	bus.Manager.Initialize()
+	// The bus is not initialized here. Initializing it before the command line
+	// is parsed loads the providers from the default directories, and the
+	// commands that read a provider directory out of the configuration, such
+	// as notify, then have nowhere to put it. Each command that uses the bus
+	// initializes it, with the directories that command resolved.
 
 	app := &cli.App{
 		Flags: []cli.Flag{
@@ -2060,6 +2064,8 @@ func (rc *releaseCollector) releases() []string {
 }
 
 func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
+	bus.Manager.Initialize()
+
 	rc := &releaseCollector{}
 	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 		rc.collect(r.Data)
