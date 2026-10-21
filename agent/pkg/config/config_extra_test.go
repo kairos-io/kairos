@@ -106,6 +106,16 @@ var _ = Describe("Config helpers", Label("config", "helpers"), func() {
 			_, err := config.FilterKeys([]byte("install: [unclosed"))
 			Expect(err).To(HaveOccurred())
 		})
+		It("nests a dashed cmdline key and keeps it only when the config schema has it", func() {
+			cmdline := filepath.Join(GinkgoT().TempDir(), "cmdline")
+			Expect(os.WriteFile(cmdline, []byte("install.grub-entry-name=custom k3s-agent.enabled=true p2p.network-token=x\n"), 0o644)).To(Succeed())
+
+			c, err := collector.ParseCmdLine(cmdline, config.FilterKeys)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c.Values).To(Equal(collector.ConfigValues{
+				"install": collector.ConfigValues{"grub-entry-name": "custom"},
+			}))
+		})
 	})
 	Describe("CheckConfigForExtraPartitions", func() {
 		It("passes when no extra partitions are defined", func() {
