@@ -106,6 +106,16 @@ var _ = Describe("Config helpers", Label("config", "helpers"), func() {
 			_, err := config.FilterKeys([]byte("install: [unclosed"))
 			Expect(err).To(HaveOccurred())
 		})
+		It("nests a dashed cmdline key and keeps it only when the config schema has it", func() {
+			cmdline := filepath.Join(GinkgoT().TempDir(), "cmdline")
+			Expect(os.WriteFile(cmdline, []byte("install.grub-entry-name=custom k3s-agent.enabled=true p2p.network-token=x\n"), 0o644)).To(Succeed())
+
+			c, err := collector.ParseCmdLine(cmdline, config.FilterKeys)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c.Values).To(Equal(collector.ConfigValues{
+				"install": collector.ConfigValues{"grub-entry-name": "custom"},
+			}))
+		})
 	})
 	Describe("CheckConfigForExtraPartitions", func() {
 		It("passes when no extra partitions are defined", func() {
@@ -914,6 +924,33 @@ var _ = Describe("Specs coverage", Label("types", "config"), func() {
 				_, err := config.ReadUkiInstallSpecFromConfig(c)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("failed initializing spec"))
+			})
+			It("resolves a script:// target into the device the script prints", func() {
+				ghwTest = ghwMock.GhwMock{}
+				ghwTest.CreateDevices()
+				script := filepath.Join(GinkgoT().TempDir(), "pick-disk.sh")
+				Expect(os.WriteFile(script, []byte("#!/bin/sh\nprintf /dev/sda\n"), 0755)).To(Succeed())
+
+				c.Install.Device = "script://" + script
+				spec, err := config.NewUkiInstallSpec(c)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(spec.Target).To(Equal("/dev/sda"))
+			})
+			It("fails if the target is a partlabel or partuuid", func() {
+				ghwTest = ghwMock.GhwMock{}
+				ghwTest.CreateDevices()
+				c.Install.Device = "/dev/disk/by-partlabel/mypart"
+				_, err := config.NewUkiInstallSpec(c)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("looks like its a partition"))
+			})
+			It("fails if the by-X disk does not exist", func() {
+				ghwTest = ghwMock.GhwMock{}
+				ghwTest.CreateDevices()
+				c.Install.Device = "/dev/disk/by-label/DOES-NOT-EXIST-KAIROS-TEST"
+				_, err := config.NewUkiInstallSpec(c)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to read device link"))
 			})
 		})
 		Describe("ReadUkiInstallSpecFromConfig", func() {

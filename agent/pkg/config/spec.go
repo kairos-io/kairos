@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
-	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	k8sutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/k8s"
@@ -34,6 +33,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -166,8 +166,13 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 		PowerOff:  cfg.Install.Poweroff,
 	}
 
-	// Honor install.allow-insecure-registries before any image is fetched
-	if err := applyAllowInsecureRegistries(cfg, "install"); err != nil {
+	// Resolve the source override before sizing or scoping credentials. The
+	// unmarshal after sizing still preserves explicitly configured sizes.
+	if err := unmarshallFullSpec(cfg, "install", spec); err != nil {
+		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+	// Honor install registry options before any image is fetched
+	if err := applyRegistryOptions(cfg, "install", spec.Active.Source); err != nil {
 		return nil, err
 	}
 
@@ -425,8 +430,12 @@ func NewUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeSpec, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
 	}
-	// Honor upgrade.allow-insecure-registries before any image is fetched
-	if err := applyAllowInsecureRegistries(cfg, "upgrade"); err != nil {
+	// Honor upgrade registry options before any image is fetched
+	source := spec.Active.Source
+	if spec.RecoveryUpgrade() {
+		source = spec.Recovery.Source
+	}
+	if err := applyRegistryOptions(cfg, "upgrade", source); err != nil {
 		return nil, err
 	}
 	err = setUpgradeSourceSize(cfg, spec)
@@ -595,25 +604,58 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
+		if err := lockedContainerError(sdkConstants.OEMLabel, "reset-oem"); err != nil {
+			return nil, err
+		}
 		cfg.Logger.Warnf("no OEM partition found, won't format it")
 	}
 
 	if ep.Persistent == nil && spec.FormatPersistent {
+		if err := lockedContainerError(sdkConstants.PersistentLabel, "reset-persistent"); err != nil {
+			return nil, err
+		}
 		cfg.Logger.Warnf("no Persistent partition found, won't format it")
 	}
 
 	// If we mount partitions by the /dev/disk/by-label stanza, their mountpoints wont show up due to ghw not
 	// accounting for them. Normally this is not an issue but in this case, if we are formatting a given partition we
 	// want to unmount it first. Thus we need to make sure that if its mounted we have the mountpoint info
-	if ep.Persistent.MountPoint == "" {
+	//
+	// Both are optional, as the warnings above already state, so guard the
+	// lookup the same way NewUpgradeSpec does.
+	if ep.Persistent != nil && ep.Persistent.MountPoint == "" {
 		ep.Persistent.MountPoint = partitions.GetMountPointByLabel(ep.Persistent.FilesystemLabel)
 	}
 
-	if ep.OEM.MountPoint == "" {
+	if ep.OEM != nil && ep.OEM.MountPoint == "" {
 		ep.OEM.MountPoint = partitions.GetMountPointByLabel(ep.OEM.FilesystemLabel)
 	}
 
 	return spec, nil
+}
+
+// lockedContainerError tells an absent partition from one that is there but
+// locked. Both reach the caller as a nil entry in ElementalPartitions: the ghw
+// walk matches the plaintext label, which lives inside the container, and
+// GetPartitionViaDM only finds a mapper that is already open. Warning for the
+// locked case would format nothing and still return a usable spec, so reset
+// would redeploy the OS, exit 0, and leave the operator believing the
+// partition had been reset. Returning an error names the one action that makes
+// the reset they asked for possible.
+func lockedContainerError(label, resetKey string) error {
+	container, err := lookup.FindLUKSContainerByLabel(label)
+	if err != nil || container == nil {
+		return nil
+	}
+
+	device := container.Path
+	if device == "" {
+		device = container.Name
+	}
+
+	return fmt.Errorf("%s is an encrypted container (%s) with no open mapper, so it cannot be formatted; "+
+		"unlock it first with `kairos-agent kcrypt unlock-all` and retry, or set `%s: false` to reset without it",
+		label, device, resetKey)
 }
 
 // ReadResetSpecFromConfig will return a proper ResetSpec based on an agent Config
@@ -754,8 +796,13 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 		Flags:           []string{},
 	}
 
-	// Honor install.allow-insecure-registries before any image is fetched
-	if err := applyAllowInsecureRegistries(cfg, "install"); err != nil {
+	// Resolve the source override before sizing or scoping credentials. The
+	// unmarshal after sizing still preserves explicitly configured sizes.
+	if err := unmarshallFullSpec(cfg, "install", spec); err != nil {
+		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+	// Honor install registry options before any image is fetched
+	if err := applyRegistryOptions(cfg, "install", spec.Active.Source); err != nil {
 		return nil, err
 	}
 
@@ -773,10 +820,22 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 	cfg.Logger.Infof("Setting image size to %dMiB", spec.Partitions.EFI.Size)
 
 	err = unmarshallFullSpec(cfg, "install", spec)
+	if err != nil {
+		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+
+	// resolve also the target of the spec so we can partition properly, the same
+	// way NewInstallSpec does it. Without this a script:// device is handed to
+	// the partitioner as a literal path, and a /dev/disk/by-X device is never
+	// resolved nor rejected when it names a partition.
+	spec.Target, err = resolveTarget(spec.Target)
+	if err != nil {
+		return nil, err
+	}
 
 	// Add default values for the skip partitions for our default entries
 	spec.SkipEntries = append(spec.SkipEntries, constants.UkiDefaultSkipEntries()...)
-	return spec, err
+	return spec, nil
 }
 
 // ReadUkiInstallSpecFromConfig will return a proper v1.InstallUkiSpec based on an agent Config
@@ -807,8 +866,8 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 	if spec.EfiPartition != nil {
 		return nil, fmt.Errorf("upgrade.efi-partition is not configurable: the EFI partition is the one labeled %s on the running system", sdkConstants.EfiLabel)
 	}
-	// Honor upgrade.allow-insecure-registries before any image is fetched
-	if err := applyAllowInsecureRegistries(cfg, "upgrade"); err != nil {
+	// Honor upgrade registry options before any image is fetched
+	if err := applyRegistryOptions(cfg, "upgrade", spec.Active.Source); err != nil {
 		return nil, err
 	}
 	// Get the actual source size to calculate the image size and partitions size.
@@ -1179,48 +1238,6 @@ func configBool(value interface{}) (bool, error) {
 	default:
 		return false, fmt.Errorf("cannot read a %T as a boolean", value)
 	}
-}
-
-// applyAllowInsecureRegistries switches the config's ImageExtractor to one that
-// allows pulling from registries served over plain HTTP or presenting an
-// untrusted/self-signed TLS certificate, when the given cloud-config subkey
-// requests it (install.allow-insecure-registries / upgrade.allow-insecure-registries).
-// It is called before any image pull or size calculation so the whole flow honors
-// the setting. Only the default OCIImageExtractor is swapped, so extractors
-// injected by tests or providers are left untouched.
-func applyAllowInsecureRegistries(cfg *sdkConfig.Config, subkey string) error {
-	allow, err := readAllowInsecureRegistries(cfg, subkey)
-	if err != nil {
-		return err
-	}
-	if !allow {
-		return nil
-	}
-	if _, ok := cfg.ImageExtractor.(imageextractor.OCIImageExtractor); ok {
-		cfg.Logger.Infof("Allowing insecure registry pulls via %s.allow-insecure-registries", subkey)
-		cfg.ImageExtractor = imageextractor.OCIImageExtractor{Insecure: true}
-	}
-	return nil
-}
-
-// readAllowInsecureRegistries peeks the boolean <subkey>.allow-insecure-registries
-// value from the merged cloud config. It uses a fresh viper instance so the global
-// viper state used by unmarshallFullSpec is not disturbed.
-func readAllowInsecureRegistries(cfg *sdkConfig.Config, subkey string) (bool, error) {
-	ccString, err := cfg.Collector.String()
-	if err != nil {
-		return false, err
-	}
-	v := viper.New()
-	v.SetConfigType("yaml")
-	if err := v.ReadConfig(strings.NewReader(ccString)); err != nil {
-		return false, err
-	}
-	sub := v.Sub(subkey)
-	if sub == nil {
-		return false, nil
-	}
-	return sub.GetBool("allow-insecure-registries"), nil
 }
 
 // checkDeprecatedURIUsage checks if any Image structs in the spec have the deprecated URI field set
