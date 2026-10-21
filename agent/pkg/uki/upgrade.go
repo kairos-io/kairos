@@ -50,9 +50,51 @@ func (i *UpgradeAction) Run() (err error) {
 	}
 	cleanup.Push(umount)
 
-	// We copy first and then rotate, so the sizes that matter are only known
-	// once the new set is on disk. The check runs after the dump below and
-	// before the rotation, in checkSpaceForUpgradeRotation.
+	// before-upgrade runs once the ESP is mounted RW and before any artifact
+	// is written, which is where the GRUB path runs it too. It has to be here
+	// rather than inside writeArtifacts so that a recovery or single entry
+	// upgrade gets it as well.
+	if err = Hook(i.cfg, constants.BeforeUpgradeHook); err != nil {
+		i.cfg.Logger.Errorf("running before-upgrade hook: %s", err.Error())
+		return err
+	}
+
+	if err = i.writeArtifacts(e, cleanup); err != nil {
+		return err
+	}
+
+	if err = Hook(i.cfg, constants.AfterUpgradeHook); err != nil {
+		i.cfg.Logger.Errorf("running after-upgrade hook: %s", err.Error())
+		return err
+	}
+
+	// Only for the flavors that are not the active upgrade. An active upgrade
+	// ends inside writeArtifacts in runFinalizeStep, and the target agent's
+	// RunFinalize runs this stage and this hook script itself, so running them
+	// here as well would run a user stage twice on every upgrade. Recovery and
+	// single entry upgrades (both of which carry an Entry) never reach
+	// finalize, so for those two this is the only place the stage runs.
+	if i.spec.Entry != "" {
+		if err = elementalUtils.RunStage(i.cfg, "kairos-uki-upgrade.after"); err != nil {
+			i.cfg.Logger.Errorf("running kairos-uki-upgrade.after stage: %s", err.Error())
+		}
+
+		if err = events.RunHookScript("/usr/bin/kairos-agent.uki.upgrade.after.hook"); err != nil {
+			i.cfg.Logger.Errorf("running kairos-uki-upgrade.after hook script: %s", err.Error())
+		}
+	}
+
+	return nil
+}
+
+// writeArtifacts puts the new artifact set on the already RW mounted ESP. It
+// returns to Run so the after-upgrade hook runs for every upgrade flavor,
+// including the recovery and single entry ones that used to return straight
+// out of Run. The kairos-uki-upgrade.after stage is not run from Run for an
+// active upgrade: that flavor ends here in runFinalizeStep, and the target
+// agent's RunFinalize runs the stage itself.
+func (i *UpgradeAction) writeArtifacts(e *elemental.Elemental, cleanup *utils.CleanStack) error {
+	var err error
 
 	// When upgrading recovery or single entries, we don't want to replace loader.conf or any other
 	// files, thus we take a simpler approach and only install the new efi file
@@ -68,6 +110,11 @@ func (i *UpgradeAction) Run() (err error) {
 	}
 
 	i.cfg.Logger.Infof("installing entry: active")
+
+	// We copy first and then rotate, so the sizes that matter are only known
+	// once the new set is on disk. The check runs after the dump below and
+	// before the rotation, in checkSpaceForUpgradeRotation.
+
 	// Dump artifact to efi dir
 	_, err = e.DumpSource(constants.UkiEfiDir, i.spec.Active.Source)
 	if err != nil {
