@@ -122,6 +122,16 @@ var _ = Describe("Config Collector", func() {
 			Expect(c.Sources).To(ContainElement("cmdline"))
 		})
 
+		It("Scan drops the cmdline config when a kairos.config stanza cannot be merged", func() {
+			path := writeCmdline(`options.foo=bar kairos.config=options=disabled`)
+			o := &Options{}
+			Expect(o.Apply(MergeBootLine, WithBootCMDLineFile(path), NoLogs)).To(Succeed())
+			c, err := Scan(o, passthrough)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c.Values).ToNot(HaveKey("options"))
+			Expect(c.Sources).ToNot(ContainElement("cmdline"))
+		})
+
 		It("Scan wires ParseCmdLine when MergeBootCMDLine is set", func() {
 			path := writeCmdline(`kairos.config=hostname=box`)
 			o := &Options{}

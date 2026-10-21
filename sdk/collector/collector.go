@@ -4,6 +4,7 @@ package collector
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,6 +25,11 @@ import (
 )
 
 const DefaultHeader = "#cloud-config"
+
+// ErrCmdlineTokensSkipped is wrapped into the error ParseCmdLine returns when
+// it skipped generic cmdline tokens that could not be turned into YAML. The
+// Config returned with it holds every other token and is usable.
+var ErrCmdlineTokensSkipped = errors.New("skipped cmdline tokens")
 
 // configURLAttempts is how many times a config_url fetch is tried before the
 // node gives up and boots without the remote config.
@@ -359,7 +365,7 @@ func Scan(o *Options, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	if o.MergeBootCMDLine {
 		cConfig, err := ParseCmdLine(o.BootCMDLineFile, filter)
 		o.SoftErr("parsing cmdline", err)
-		if err == nil || len(cConfig.Values) > 0 { // best-effort
+		if err == nil || errors.Is(err, ErrCmdlineTokensSkipped) { // best-effort
 			configs = append(configs, cConfig)
 		}
 	}
@@ -597,8 +603,9 @@ func listFiles(dir string) ([]string, error) {
 //
 // A generic token that cannot be turned into YAML (e.g. a key starting
 // with a digit such as 8250.nr_uarts=0) is skipped: the rest of the
-// cmdline is still parsed and returned together with the error, so
-// callers can report it without losing the usable values.
+// cmdline is still parsed and returned together with an error wrapping
+// ErrCmdlineTokensSkipped, so callers can report it without losing the
+// usable values. Any other error means the Config is not usable.
 func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	result := &Config{Sources: []string{"cmdline"}, Values: ConfigValues{}}
 
@@ -612,6 +619,9 @@ func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, 
 	s := string(dat)
 
 	genericYAML, genericErr := machine.DotStringToYAML(s)
+	if genericErr != nil {
+		genericErr = fmt.Errorf("%w: %w", ErrCmdlineTokensSkipped, genericErr)
+	}
 	if len(genericYAML) > 0 {
 		filteredYAML, err := filter(genericYAML)
 		if err != nil {
