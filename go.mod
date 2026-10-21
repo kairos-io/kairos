@@ -37,8 +37,8 @@ require (
 	github.com/kairos-io/go-nodepair v0.3.0
 	github.com/kairos-io/tpm-helpers v0.0.0-20260922065406-012adaae3798
 	github.com/labstack/echo/v5 v5.3.1
-	github.com/moby/moby/api v1.56.0
-	github.com/moby/moby/client v0.6.0
+	github.com/moby/moby/api v1.56.1
+	github.com/moby/moby/client v0.6.2
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
@@ -243,7 +243,7 @@ require (
 	github.com/djherbis/times v1.6.0 // indirect
 	github.com/docker/cli v29.7.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
-	github.com/docker/go-connections v0.7.0 // indirect
+	github.com/docker/go-connections v0.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eliukblau/pixterm v1.3.2 // indirect
 	github.com/elliotwutingfeng/asciiset v0.0.0-20260129054604-cfde2086bc57 // indirect
