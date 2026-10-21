@@ -266,4 +266,33 @@ const (
 	// Immucore stops right before a named step, hands the console to a shell
 	// and resumes the boot once that shell exits.
 	CmdlineBreak = "rd.immucore.break="
+
+	// CmdlineIgnoreMountFailure overrides the mount failure policy. By default
+	// a custom mount or a persistent state bind that did not mount stops the
+	// boot, because a node that comes up with some of its persistent paths
+	// bound and some of them not is in a state nobody asked for. Pass this
+	// stanza to boot anyway, which is what immucore did before, and get a
+	// system whose unmounted paths write to the ephemeral overlay.
+	//
+	// It is a bare flag: the stanza being present is the whole value.
+	CmdlineIgnoreMountFailure = "rd.immucore.ignoremountfailure"
+
+	// StageMountFailure is the cloud-init stage immucore runs when a custom
+	// mount or a persistent state bind did not mount, before it decides
+	// whether to stop the boot. It is the hook a distribution maintainer gets
+	// to define their own recovery for this state: remount by hand, call
+	// home, write a sentinel, or take the console.
+	//
+	// It runs on both paths. The stanza above only decides what immucore does
+	// after the stage has had its turn, so a hook that repairs the situation
+	// has to be paired with CmdlineIgnoreMountFailure to let the boot carry
+	// on.
+	StageMountFailure = "mount-failure"
+
+	// EnvMountFailure and EnvMountFailureStep are exported into the
+	// environment of StageMountFailure, so a `commands:` block in that stage
+	// can tell what broke without parsing a log. EnvMountFailureStep carries
+	// the Op* name of the step, EnvMountFailure the error it collected.
+	EnvMountFailure     = "IMMUCORE_MOUNT_FAILURE"
+	EnvMountFailureStep = "IMMUCORE_MOUNT_FAILURE_STEP"
 )

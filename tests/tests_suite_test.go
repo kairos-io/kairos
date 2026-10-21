@@ -552,20 +552,24 @@ func vmOptsNoDrives(stateDir string, withTPM bool) []types.MachineOption {
 			}
 
 			// Add second NIC with bridge networking for VM-to-VM communication.
-			// This is useful when running locally where QEMU's user-mode networking (slirp)
-			// doesn't allow VMs to see each other (e.g., for edgevpn discovery).
+			// QEMU's user-mode networking (slirp) does not let VMs see each
+			// other or the host, which is what libp2p discovery needs for
+			// edgevpn and for go-nodepair.
 			// The first NIC (user networking with port forwarding) is kept for SSH access.
 			// Enable with USE_BRIDGE_NETWORK=1 environment variable.
+			//
+			// A bridge that cannot be set up is fatal, not a warning. The
+			// spec that asked for one fails at its own rendezvous timeout
+			// otherwise, ten minutes later and naming the wrong cause.
 			if os.Getenv("USE_BRIDGE_NETWORK") != "" {
 				if err := ensureBridgeNetwork(); err != nil {
-					GinkgoLogr.Info("Warning: failed to ensure bridge network", "error", err)
-				} else {
-					mac := generateMACAddress()
-					GinkgoLogr.Info("Adding bridge network interface", "mac", mac, "vm", vmName)
-					m.Args = append(m.Args,
-						"-nic", fmt.Sprintf("bridge,br=virbr0,model=virtio-net-pci,mac=%s", mac),
-					)
+					return fmt.Errorf("USE_BRIDGE_NETWORK is set but the bridge could not be set up: %w", err)
 				}
+				mac := generateMACAddress()
+				GinkgoLogr.Info("Adding bridge network interface", "mac", mac, "vm", vmName)
+				m.Args = append(m.Args,
+					"-nic", fmt.Sprintf("bridge,br=virbr0,model=virtio-net-pci,mac=%s", mac),
+				)
 			}
 
 			return nil
