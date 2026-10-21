@@ -206,5 +206,24 @@ a:
 			Expect(m).ToNot(HaveKey("a"))
 			Expect(m).ToNot(HaveKey("8250"))
 		})
+
+		It("resolves colliding keys the same way on every run", func() {
+			in := map[string]interface{}{
+				"rd.luks":      "0",
+				"rd.luks.uuid": "x",
+				"list[0]":      "x",
+				"list[0].key":  "y",
+			}
+			for range 50 {
+				m, err := toMap(in)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(`"rd.luks.uuid"`))
+				Expect(err.Error()).To(ContainSubstring(`"list[0].key"`))
+				Expect(m).To(Equal(map[string]interface{}{
+					"list": []interface{}{"x"},
+					"rd":   map[string]interface{}{"luks": "0"},
+				}))
+			}
+		})
 	})
 })

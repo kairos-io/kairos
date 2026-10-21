@@ -3,7 +3,9 @@ package unstructured
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -111,8 +113,10 @@ func ToYAML(v map[string]interface{}) ([]byte, error) {
 	data := map[string]interface{}{}
 	var errs error
 
-	for k, value := range v {
-		var typed interface{} = fmt.Sprintf("%s", value)
+	// Sorted, so that which of two colliding keys wins is the same on
+	// every boot.
+	for _, k := range slices.Sorted(maps.Keys(v)) {
+		var typed interface{} = fmt.Sprintf("%s", v[k])
 		if typed == "true" || typed == "false" {
 			typed = typed == "true"
 		}
