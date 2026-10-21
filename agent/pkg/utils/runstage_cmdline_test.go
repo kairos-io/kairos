@@ -12,8 +12,10 @@ package utils_test
 
 import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	"github.com/mudler/yip/pkg/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/twpayne/go-vfs/v4/vfst"
 	"gopkg.in/yaml.v3"
 )
 
@@ -84,6 +86,29 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 			Expect(err).ToNot(HaveOccurred())
 			var m map[string]interface{}
 			Expect(yaml.Unmarshal(out, &m)).To(Succeed())
+		})
+	})
+
+	Context("SDKDotNotationModifier with digit-leading keys", func() {
+		It("keeps valid tokens and returns no error when a key starts with a digit", func() {
+			// Real-world cmdline token (serial driver option). The SDK cannot turn
+			// it into YAML and skips it, but must not make the whole conversion fail.
+			out, err := utils.SDKDotNotationModifier([]byte("8250.nr_uarts=0 foo.bar=baz"))
+			Expect(err).ToNot(HaveOccurred())
+			var m map[string]interface{}
+			Expect(yaml.Unmarshal(out, &m)).To(Succeed())
+			Expect(m).To(HaveKey("foo"))
+			Expect(m["foo"]).To(HaveKeyWithValue("bar", "baz"))
+		})
+		It("keeps a yip stage when loaded through schema.Load with a digit-leading token", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).ToNot(HaveOccurred())
+			defer cleanup()
+			cfg, err := schema.Load("8250.nr_uarts=0 stages.initramfs[0].name=survivor", fs, nil, utils.SDKDotNotationModifier)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg).ToNot(BeNil())
+			Expect(cfg.Stages).To(HaveKey("initramfs"))
+			Expect(cfg.Stages["initramfs"][0].Name).To(Equal("survivor"))
 		})
 	})
 })

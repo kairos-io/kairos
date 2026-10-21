@@ -21,11 +21,22 @@ stages:
           - multi-user.target
           - getty@tty1
           - iscsid
-          - logrotate.timer
         mask:
           - purge-kernels
       commands:
         - systemctl set-default multi-user.target
+    # logrotate comes from values.CommonPackages, so every flavor kairos-init
+    # installs packages on has the timer, and the package has already enabled
+    # it. Hadron is the exception: GetInstallStage returns early there and the
+    # image ships no logrotate, so enabling the timer unconditionally failed on
+    # every boot of the default flavor. Gate it on the unit, the way the
+    # networkd stages in 05_network.yaml gate on the binary.
+    - name: "Enable logrotate timer where the unit exists"
+      only_service_manager: "systemd"
+      if: '[ -f /usr/lib/systemd/system/logrotate.timer ]'
+      systemctl:
+        enable:
+          - logrotate.timer
     - name: "Create systemd services"
       only_service_manager: "systemd"
       files:

@@ -25,6 +25,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -129,7 +130,7 @@ func RunStageWithPaths(cfg *sdkConfig.Config, stage string, analyze bool, cloudI
 	// generic dot-nested KEY=VALUE tokens (e.g. stages.foo[0].name=bar) to YAML
 	// while skipping Kairos-owned prefixes (kairos.config=, kairos.config_url=,
 	// cos.setup=) so those tokens are not double-processed here.
-	cfg.CloudInitRunner.SetModifier(SDKDotNotationModifier)
+	cfg.CloudInitRunner.SetModifier(sdkDotNotationModifierWithLog(cfg.Logger))
 
 	for _, s := range []string{stageBefore, stage, stageAfter} {
 		if analyze {
@@ -193,7 +194,17 @@ func KairosConfigURIFromString(s string) string {
 // machine.DotStringToYAML. Unlike yip's built-in schema.DotNotationModifier it
 // skips Kairos-owned prefixes so those tokens flow exclusively through the
 // KairosCmdlineYAML path instead of being double-processed as generic
-// dot-nested keys.
+// dot-nested keys. Tokens the SDK cannot convert (e.g. 8250.nr_uarts=0) are
+// skipped instead of failing the whole cmdline; runstage logs them at debug
+// level through sdkDotNotationModifierWithLog.
 func SDKDotNotationModifier(s []byte) ([]byte, error) {
-	return machine.DotStringToYAML(string(s))
+	return machine.DotStringToYAMLBestEffort(string(s), nil)
+}
+
+func sdkDotNotationModifierWithLog(l logger.KairosLogger) func([]byte) ([]byte, error) {
+	return func(s []byte) ([]byte, error) {
+		return machine.DotStringToYAMLBestEffort(string(s), func(err error) {
+			l.Debugf("skipped /proc/cmdline tokens that cannot be converted to YAML: %s", err)
+		})
+	}
 }
