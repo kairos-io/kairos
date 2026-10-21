@@ -74,7 +74,15 @@ func BuildSysext(ctx context.Context, opts SysextOptions) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	args := append([]string{"run", "--rm"}, userArgs()...)
+	// This one runs as root, unlike every other helper here. AuroraBoot
+	// extracts the image layer and writes the extension-release file into a
+	// staging directory, then packs that directory with systemd-repart
+	// --make-ddi, which keeps the uid and gid it finds. As the calling user
+	// the whole extension would carry that uid, and a Kairos node that merges
+	// it over /usr has no such user, so every file in it answers to
+	// `find -nouser` and CIS DIL 6.1.11 and 6.1.12 fail on the installed
+	// system. chownOutput hands the image back afterwards.
+	args := []string{"run", "--rm"}
 	args = append(args, sock...)
 	args = append(args, "-v", opts.Dir+":/out")
 	sysextArgs := []string{"sysext", "--arch", opts.Arch, "--output", "/out"}
@@ -88,7 +96,23 @@ func BuildSysext(ctx context.Context, opts SysextOptions) (string, error) {
 	if err := docker(ctx, args...); err != nil {
 		return "", err
 	}
-	return filepath.Join(opts.Dir, opts.Name+".sysext.raw"), nil
+	out := opts.Name + ".sysext.raw"
+	if err := chownOutput(ctx, opts.Dir, out); err != nil {
+		return "", err
+	}
+	return filepath.Join(opts.Dir, out), nil
+}
+
+// chownOutput gives a file a root container wrote into a bind mount back to
+// the calling user, who cannot chown it from the host. The paths inside the
+// image stay root owned; only the image file itself changes hands.
+func chownOutput(ctx context.Context, dir, name string) error {
+	args := []string{"run", "--rm", "-v", dir + ":/out", "--entrypoint", "chown",
+		AuroraBootImage, fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "/out/" + name}
+	if err := docker(ctx, args...); err != nil {
+		return fmt.Errorf("taking ownership of %s: %w", name, err)
+	}
+	return nil
 }
 
 // BuildPlainSquashfsSysext builds a bare squashfs extension holding hello.sh,

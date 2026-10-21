@@ -558,10 +558,18 @@ func IsUKI() bool {
 // Active one (installer cloud-init stages key off uki_install_mode and must
 // NOT fire).
 func UkiSentinel(bootedFromInstall, inRAM bool) string {
-	if bootedFromInstall || inRAM {
-		return "uki_boot_mode"
+	if UkiInstallMedium(bootedFromInstall, inRAM) {
+		return "uki_install_mode"
 	}
-	return "uki_install_mode"
+	return "uki_boot_mode"
+}
+
+// UkiInstallMedium reports whether a UKI boot is install media, which is the
+// condition UkiSentinel names as uki_install_mode. It is also the whole of a
+// Trusted Boot medium's install intent, so the sentinel step reads it directly
+// rather than comparing UkiSentinel's return against a literal.
+func UkiInstallMedium(bootedFromInstall, inRAM bool) bool {
+	return !bootedFromInstall && !inRAM
 }
 
 // SkipUKIUnlock decides whether the UKI unlock step should skip unlocking
