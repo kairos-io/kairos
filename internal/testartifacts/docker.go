@@ -39,9 +39,9 @@ func dockerSocket() string {
 	return "/var/run/docker.sock"
 }
 
-// socketArgs mounts the Docker socket into a container running as the
-// calling user and adds the socket's group, which a non-root user needs
-// to talk to the daemon.
+// socketArgs mounts the Docker socket into a container and adds the socket's
+// group, which a container running as a non-root user needs to talk to the
+// daemon and which a root one ignores.
 func socketArgs() ([]string, error) {
 	sock := dockerSocket()
 	info, err := os.Stat(sock)

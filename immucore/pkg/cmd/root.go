@@ -58,9 +58,14 @@ func NewApp() *cli.App {
 
 		// normalBoot tracks whether we took the full active/passive/recovery mount
 		// pipeline. Only that path should drop to an emergency shell on failure:
-		// live media intentionally disables immucore, and UKI already drops to a
-		// shell from inside its own steps.
-		var normalBoot bool
+		// live media intentionally disables immucore.
+		//
+		// ukiBoot tracks the trusted boot DAG. It usually takes the console from
+		// inside its own steps, but a fatal op (the persistent state binds) stops
+		// the graph before OpUkiInit is reached, and under UKI immucore is the
+		// init, so returning the error there would exit pid 1 and panic the
+		// kernel with nothing on screen. That path takes the console below.
+		//
 		// Only the paths that read a block device before their DAG is built
 		// wait for udev out here. The two UKI paths do not, and must not:
 		// under UKI immucore is PID1 in an initramfs where udevd is not
@@ -69,6 +74,7 @@ func NewApp() *cli.App {
 		// that touches a device depends on that step, so there is nothing to
 		// wait for before the DAG, and a wait here would burn its whole
 		// budget on every UKI boot against a /dev nobody is populating.
+		var normalBoot, ukiBoot bool
 		switch {
 		case st.InRAM && utils.IsUKI():
 			// Trusted boot in-RAM: the UKI is already the whole system in
@@ -77,6 +83,7 @@ func NewApp() *cli.App {
 			// policy) and to skip the removable-media unlock/sentinel gates.
 			// Partition provisioning is a DAG step here, gated on OpUkiUdev.
 			utils.KLog.Logger.Info().Msg("UKI booting in-RAM (kairos.ram) with OEM+persistent from disk!")
+			ukiBoot = true
 			err = dag.RegisterUKI(st, g)
 		case st.InRAM:
 			// kairos.ram must win over DisableImmucore below: an in-RAM boot
@@ -104,6 +111,7 @@ func NewApp() *cli.App {
 			err = dag.RegisterLiveMedia(st, g)
 		case utils.IsUKI():
 			utils.KLog.Logger.Info().Msg("UKI booting!")
+			ukiBoot = true
 			err = dag.RegisterUKI(st, g)
 		default:
 			utils.KLog.Logger.Info().Msg("Booting on active/passive/recovery.")
@@ -165,6 +173,16 @@ func NewApp() *cli.App {
 				utils.KLog.Logger.Err(werr).Msg("writing failure summary")
 			}
 		}
+
+		// Under UKI immucore is the init. A fatal op stops the graph before
+		// OpUkiInit, so the step that would normally take the console never
+		// runs, and returning here would exit pid 1. Print, persist and take
+		// the console from here instead. DropToEmergencyShellWithError does
+		// not return on a host with a shell.
+		if err != nil && ukiBoot {
+			utils.DropToEmergencyShellWithError(st.FailureReason(g))
+		}
+
 		return err
 	}
 	app.Flags = []cli.Flag{

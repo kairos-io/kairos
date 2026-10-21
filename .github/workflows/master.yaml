@@ -134,6 +134,8 @@ jobs:
         include:
           - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
           - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          # k0s build coverage, image-only (see pr-full.yaml for rationale).
+          - {name: 'amd64-standard-k0s', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: false, trusted_boot: false, kubernetes_distro: 'k0s', fips: false}
           # FIPS core cell (see pr-full.yaml for rationale).
           - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
           # UKI cells feed test-uki (see pr-full.yaml for the shape).
@@ -250,6 +252,7 @@ jobs:
           - {test: 'ssh-hardening'}
           - {test: 'cis'}
           - {test: 'sysext'}
+          - {test: 'cmdline-config-url'}
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -373,9 +376,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {test: 'provider-qrcode-install'}
+          # bridge: true marks a leg that needs a second libp2p peer to be
+          # discovered. provider-qrcode-install pairs the runner with the VM
+          # over go-nodepair, provider-decentralized-k8s pairs the two VMs
+          # over edgevpn. The other three legs are single peer.
+          #
+          # On QEMU user-mode networking neither pair can see the other, so
+          # the rendezvous has to go out to the public DHT and back. That
+          # works most of the time, which is what made these two the only
+          # legs here that redden intermittently on master.
+          - {test: 'provider-qrcode-install', bridge: true}
           - {test: 'provider-upgrade-k8s'}
-          - {test: 'provider-decentralized-k8s'}
+          - {test: 'provider-decentralized-k8s', bridge: true}
           - {test: 'provider-k3s-disabled'}
           - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
     name: test-standard / ${{ matrix.test }}
@@ -392,7 +404,13 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      # These cells consume the amd64-standard build cell's image, which
+      # is a k3s one. The pushed tag carries the distro, so the test side
+      # has to name it: `standard` alone does not identify a k3s image,
+      # since a k0s cell computes the same variant.
+      kubernetes_distro: 'k3s'
       release-matcher: ${{ matrix.release-matcher || '' }}
+      use_bridge_network: ${{ matrix.bridge || false }}
 
   # See pr-full.yaml for the rationale on splitting encryption cells out.
   test-standard-encryption:
@@ -430,6 +448,8 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      # Same amd64-standard (k3s) image test-standard consumes.
+      kubernetes_distro: 'k3s'
       kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:master-scratch
 
   test-uki:
@@ -438,8 +458,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {test: 'install-upgrade', variant: 'standard'}
-          - {test: 'boot-assessment', variant: 'core'}
+          - {test: 'install-upgrade', variant: 'standard', kubernetes_distro: 'k3s'}
+          - {test: 'boot-assessment', variant: 'core', kubernetes_distro: ''}
     name: test-uki / ${{ matrix.test }}
     uses: ./.github/workflows/_uki-test.yaml
     permissions:
@@ -451,6 +471,9 @@ jobs:
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}
+      # Mirrors the kubernetes_distro of the build-iso UKI cell each test
+      # consumes: amd64-standard-uki is k3s, amd64-core-uki is neither.
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
       base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
       arch: 'amd64'
       model: 'generic'

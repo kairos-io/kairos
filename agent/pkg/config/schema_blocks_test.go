@@ -90,8 +90,8 @@ var _ = Describe("Schema blocks that are read straight into an action spec", fun
 		},
 		// upgrade.recovery is not a spec field: NewUpgradeSpec reads it off
 		// the collector values directly, before the spec is built, and turns
-		// it into entry: recovery.
-		Entry("upgrade", v1.UpgradeSpec{}, schema.UpgradeSchema{}, "upgrade", "recovery"),
+		// it into entry: recovery. Registry credentials are read by readRegistryOptions.
+		Entry("upgrade", v1.UpgradeSpec{}, schema.UpgradeSchema{}, "upgrade", "recovery", "registry-auth"),
 		Entry("reset", v1.ResetSpec{}, schema.ResetSchema{}, "reset"),
 	)
 })

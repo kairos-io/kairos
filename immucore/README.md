@@ -114,6 +114,22 @@ The immutable rootfs can be configured with the following kernel parameters:
   comment in `internal/utils/common.go` describes. Raise `TimeoutStartSec=` on
   `immucore.service` if you need to hold a breakpoint open longer than that.
 
+* `rd.immucore.ignoremountfailure`: This is a boolean option, true if present,
+  false if not. By default a custom mount or a persistent state bind that did
+  not mount stops the boot at the `IMMUCORE BOOT FAILED` banner, because a node
+  that comes up with some of its persistent paths bound and some of them not is
+  in a state nobody asked for: the unbound paths write to the ephemeral overlay
+  and lose everything on reboot. Pass this to boot anyway and get that state,
+  with the failure in the log.
+
+  Whichever way it goes, immucore runs the `mount-failure` cloud-init stage
+  first, so a distribution can define its own recovery for this: remount by
+  hand, call home, write a sentinel, or take the console. The stage gets
+  `IMMUCORE_MOUNT_FAILURE_STEP` (the step that broke, `custom-mount` or
+  `mount-bind`) and `IMMUCORE_MOUNT_FAILURE` (the error) in its environment. A
+  hook that repairs the mount has to be paired with this stanza, because the
+  stage runs before the decision and does not change it.
+
 * `rd.immucore.sysrootwait=<seconds>`: Waits for the sysroot to be mounted up to <seconds> before continuing with the boot process. This is useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready. Sometimes dracut can be really slow and the default 1 minute of waiting is not enough. In those cases you can increase this value to wait more time. Defaults to 60s.
 
 ### In-RAM boot (`kairos.ram.*`)
