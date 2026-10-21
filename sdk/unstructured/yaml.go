@@ -1,9 +1,12 @@
 package unstructured
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
@@ -90,54 +93,41 @@ func ReplaceValue(command string, data map[string]interface{}) (string, error) {
 // 	LookupString(commd
 // }
 
-func jq(command string, data map[string]interface{}) (map[string]interface{}, error) {
-	v, err := lookupKey(command, data)
-	if err != nil {
-		return make(map[string]interface{}), err
-	}
+// MaxListIndex bounds the list index a cmdline key may use, so that one
+// token cannot allocate a list of millions of entries.
+const MaxListIndex = 1024
 
-	if err, ok := v.(error); ok {
-		return nil, err
-	}
-	if t, ok := v.(map[string]interface{}); ok {
-		return t, nil
-	}
+var keySegment = regexp.MustCompile(`^([^\[\]]+)((?:\[[0-9]+\])*)$`)
 
-	return make(map[string]interface{}), nil
-}
-
+// ToYAML turns a map of dotted keys into nested YAML. A key is a
+// dot-separated path, and a segment may end in list indexes, as in
+// stages.boot[0].commands[0]. A segment is used as a literal map key and is
+// never evaluated: one that is not a name followed by [N] indexes, such as
+// install["device"], is a key with that exact name. Values are stored as
+// strings, except "true" and "false", which become booleans. A key that
+// cannot be placed is skipped: a segment is empty or starts with a digit, an
+// index is above MaxListIndex, or the path runs through a value another key
+// set. The returned error names every skipped key, and the YAML holds all
+// the others.
 func ToYAML(v map[string]interface{}) ([]byte, error) {
 	data := map[string]interface{}{}
 	var errs error
 
-	for k, value := range v {
-		prefix := "."
-		equal := "="
-		tmplKey := "%s"
-		tmplValue := "%s"
-
-		// If key has a dash we need to add quotes to it to avoid failure parsing ut
-		if strings.Contains(k, "-") {
-			tmplKey = "\"%s\""
+	// Sorted, so that which of two colliding keys wins is the same on
+	// every boot.
+	for _, k := range slices.Sorted(maps.Keys(v)) {
+		var typed interface{} = fmt.Sprintf("%s", v[k])
+		if typed == "true" || typed == "false" {
+			typed = typed == "true"
 		}
-
-		valueStr := fmt.Sprintf("%s", value)
-		// support boolean types
-		if value != "true" && value != "false" {
-			quoted, err := json.Marshal(valueStr)
-			if err != nil {
-				errs = multierror.Append(errs, err)
-				continue
-			}
-			valueStr = string(quoted)
+		path, err := parseKey(k)
+		if err == nil {
+			_, err = setPath(data, path, typed)
 		}
-		finalTemplate := prefix + tmplKey + equal + tmplValue
-		newData, err := jq(fmt.Sprintf(finalTemplate, k, valueStr), data)
 		if err != nil {
-			errs = multierror.Append(errs, err)
-			continue
+			// The key only: a cmdline value can be a secret.
+			errs = multierror.Append(errs, fmt.Errorf("skipping key %q: %w", k, err))
 		}
-		data = newData
 	}
 
 	out, err := yaml.Marshal(&data)
@@ -145,6 +135,77 @@ func ToYAML(v map[string]interface{}) ([]byte, error) {
 		errs = multierror.Append(errs, err)
 	}
 	return out, errs
+}
+
+// parseKey splits a key into map keys (string) and list indexes (int).
+func parseKey(k string) ([]interface{}, error) {
+	var path []interface{}
+	for _, seg := range strings.Split(k, ".") {
+		name, indexes := seg, ""
+		if m := keySegment.FindStringSubmatch(seg); m != nil {
+			name, indexes = m[1], m[2]
+		}
+		if name == "" {
+			return nil, errors.New("empty key segment")
+		}
+		if name[0] >= '0' && name[0] <= '9' {
+			return nil, fmt.Errorf("key segment %q starts with a digit", name)
+		}
+		path = append(path, name)
+		for _, idx := range strings.Split(strings.Trim(indexes, "[]"), "][") {
+			if idx == "" {
+				continue
+			}
+			i, err := strconv.Atoi(idx)
+			if err != nil || i > MaxListIndex {
+				return nil, fmt.Errorf("list index %s is above %d", idx, MaxListIndex)
+			}
+			path = append(path, i)
+		}
+	}
+	return path, nil
+}
+
+// setPath returns node with value stored at path, creating the maps and
+// lists on the way. node is changed only when the whole path can be set.
+func setPath(node interface{}, path []interface{}, value interface{}) (interface{}, error) {
+	if len(path) == 0 {
+		return value, nil
+	}
+	switch p := path[0].(type) {
+	case string:
+		if node == nil {
+			node = map[string]interface{}{}
+		}
+		m, ok := node.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("cannot set key %q on a %T", p, node)
+		}
+		child, err := setPath(m[p], path[1:], value)
+		if err != nil {
+			return nil, err
+		}
+		m[p] = child
+		return m, nil
+	default:
+		i := p.(int)
+		if node == nil {
+			node = []interface{}{}
+		}
+		l, ok := node.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("cannot set index %d on a %T", i, node)
+		}
+		for len(l) <= i {
+			l = append(l, nil)
+		}
+		child, err := setPath(l[i], path[1:], value)
+		if err != nil {
+			return nil, err
+		}
+		l[i] = child
+		return l, nil
+	}
 }
 
 // ToYAMLMap turns a map string interface which describes a yaml file in 'dot.yaml' format to a fully deep marshalled yaml.
