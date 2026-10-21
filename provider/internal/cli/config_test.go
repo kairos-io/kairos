@@ -33,9 +33,11 @@ bb:
 			d, _ := os.MkdirTemp("", "xxxx")
 			defer os.RemoveAll(d)
 
-			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			// Named .yaml because that is what the walk offers the reader, the
+			// same set sdk/collector parses (kairos-io/kairos#2064).
+			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
-			err = os.WriteFile(filepath.Join(d, "b"), []byte(`
+			err = os.WriteFile(filepath.Join(d, "b.yaml"), []byte(`
 fooz: "bar"
 			`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
@@ -43,7 +45,7 @@ fooz: "bar"
 			err = ReplaceToken([]string{d, "/doesnotexist"}, "baz")
 			Expect(err).ToNot(HaveOccurred())
 
-			content, err := os.ReadFile(filepath.Join(d, "test"))
+			content, err := os.ReadFile(filepath.Join(d, "test.yaml"))
 			Expect(err).ToNot(HaveOccurred())
 
 			res := map[interface{}]interface{}{}

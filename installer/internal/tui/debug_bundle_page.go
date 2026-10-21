@@ -12,6 +12,8 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
+	"github.com/kairos-io/kairos/v4/internal/version"
 )
 
 type bundleState int
@@ -31,7 +33,7 @@ type debugBundlePage struct {
 	urls       []string
 	server     *debugbundle.Server
 	usbMessage string
-	usbMounts  []debugbundle.RemovableMount
+	usbTargets []debugbundle.Target
 	usbCursor  int
 	errMsg     string
 }
@@ -54,22 +56,44 @@ func (p *debugBundlePage) Init() tea.Cmd {
 		// Snapshot everything buildBundle needs on the Update goroutine, BEFORE
 		// spawning the worker, so the worker never touches the mainModel global
 		// (which the Update goroutine mutates on WindowSizeMsg / navigation).
-		agentBin := agentrun.ResolveAgentBin()
-		redacted, _ := RenderRedactedCloudConfig(&mainModel)
-		cmd := agentrun.Command(agentBin, "<config>", mainModel.source, mainModel.finishAction)
-		ctx := debugbundle.Context{
-			AgentBin:            agentBin,
-			AgentArgs:           cmd.Args[1:],
-			Disk:                mainModel.disk,
-			Source:              mainModel.source,
-			Version:             version,
-			CloudConfigRedacted: redacted,
-		}
+		ctx := bundleContext()
 		go func() {
-			p.resultCh <- buildBundle(agentBin, ctx)
+			p.resultCh <- buildBundle(ctx.AgentBin, ctx)
 		}()
 	})
 	return func() tea.Msg { return CheckBundleMsg{} }
+}
+
+// bundleContext reads the install metadata the bundle records off mainModel.
+// Call it on the Update goroutine only, see Init.
+//
+// Version comes from internal/version, the one version literal in the tree and
+// the only one the root Makefile stamps with -ldflags. A copy local to this
+// package would never be stamped, so every bundle a released installer writes
+// would report the package default instead of the release it came from.
+func bundleContext() debugbundle.Context {
+	agentBin := agentrun.ResolveAgentBin()
+	cmd := agentrun.Command(agentBin, "<config>", mainModel.answers.Source, mainModel.answers.FinishAction)
+	return debugbundle.Context{
+		AgentBin:            agentBin,
+		AgentArgs:           cmd.Args[1:],
+		Disk:                mainModel.answers.Disk,
+		Source:              mainModel.answers.Source,
+		Version:             version.Version,
+		CloudConfigRedacted: bundledCloudConfig(),
+	}
+}
+
+// bundledCloudConfig is the install's configuration with every credential
+// redacted. A configuration that cannot be produced, such as hand-edited text
+// that does not parse, is replaced whole by a redacted placeholder: there is
+// no way to know where a secret is in it.
+func bundledCloudConfig() string {
+	cfg, err := currentCloudConfig()
+	if err != nil {
+		return "#cloud-config\n# " + wizard.Redacted + " (the configuration could not be produced)\n"
+	}
+	return wizard.Redact(cfg)
 }
 
 // buildBundle collects extras, generates the tarball, and starts the HTTP
@@ -120,15 +144,15 @@ func (p *debugBundlePage) handleKey(m tea.KeyMsg) (Page, tea.Cmd) {
 	switch p.state {
 	case bundleReady:
 		if m.String() == "u" {
-			// Scan for removable mounts and open the selection menu. With none
-			// found, stay on the ready screen and tell the user to plug one in
-			// and press u to rescan.
-			mounts, err := debugbundle.RemovableMounts()
-			if err != nil || len(mounts) == 0 {
+			// Scan for drives we can write to and open the selection menu.
+			// With none found, stay on the ready screen and tell the user to
+			// plug one in and press u to rescan.
+			targets, err := debugbundle.CopyTargets()
+			if err != nil || len(targets) == 0 {
 				p.usbMessage = "No USB drive detected. Plug one in and press u to rescan."
 				return p, nil
 			}
-			p.usbMounts = mounts
+			p.usbTargets = targets
 			p.usbCursor = 0
 			p.usbMessage = ""
 			p.state = bundleUSBSelect
@@ -141,14 +165,14 @@ func (p *debugBundlePage) handleKey(m tea.KeyMsg) (Page, tea.Cmd) {
 				p.usbCursor--
 			}
 		case "down", "j":
-			if p.usbCursor < len(p.usbMounts)-1 {
+			if p.usbCursor < len(p.usbTargets)-1 {
 				p.usbCursor++
 			}
 		case "esc":
 			p.state = bundleReady
 			return p, nil
 		case "enter":
-			p.usbMessage = copyToMount(p.path, p.usbMounts[p.usbCursor])
+			p.usbMessage = copyToTarget(p.path, p.usbTargets[p.usbCursor])
 			p.state = bundleReady
 			return p, nil
 		}
@@ -156,29 +180,48 @@ func (p *debugBundlePage) handleKey(m tea.KeyMsg) (Page, tea.Cmd) {
 	return p, nil
 }
 
-// copyToMount copies the bundle to the chosen removable mount, returning a
-// user-facing status line.
-func copyToMount(path string, mount debugbundle.RemovableMount) string {
-	dest, err := debugbundle.CopyTo(path, mount.MountPoint)
+// copyToTarget copies the bundle to the chosen drive, returning a user-facing
+// status line. The drive is unmounted again by the time this returns, so the
+// message tells the user the drive rather than a mount point that no longer
+// exists.
+func copyToTarget(path string, target debugbundle.Target) string {
+	name, err := debugbundle.CopyBundleTo(path, target)
 	if err != nil {
 		return "Copy failed: " + err.Error()
 	}
-	return "Copied to " + dest + " on " + mount.Device
+	return "Copied " + name + " to " + target.Device + ". You can remove the drive."
 }
 
-// formatUSBMenu renders the removable-mount selection list, marking the row at
-// cursor with a ">" indicator.
-func formatUSBMenu(mounts []debugbundle.RemovableMount, cursor int) string {
+// formatUSBMenu renders the drive selection list, marking the row at cursor
+// with a ">" indicator. A drive nothing has mounted is the normal case in a
+// live installer, so the row says what the installer will do with it rather
+// than showing an empty mount point.
+func formatUSBMenu(targets []debugbundle.Target, cursor int) string {
 	var b strings.Builder
 	b.WriteString("Select a USB drive to copy the bundle to:\n\n")
-	for i, mnt := range mounts {
+	for i, target := range targets {
 		indicator := " "
 		if i == cursor {
 			indicator = lipgloss.NewStyle().Foreground(kairosAccent).Render(">")
 		}
-		fmt.Fprintf(&b, "%s %s (%s)\n", indicator, mnt.Device, mnt.MountPoint)
+		fmt.Fprintf(&b, "%s %s\n", indicator, describeTarget(target))
 	}
 	return b.String()
+}
+
+// describeTarget renders one drive as device, size, filesystem label and what
+// the installer will have to do to write to it.
+func describeTarget(target debugbundle.Target) string {
+	parts := []string{target.Device, fmt.Sprintf("%.2f GiB", float64(target.SizeBytes)/float64(1024*1024*1024))}
+	if target.Label != "" {
+		parts = append(parts, target.Label)
+	}
+	if target.MountPoint == "" {
+		parts = append(parts, "will be mounted")
+	} else {
+		parts = append(parts, "mounted at "+target.MountPoint)
+	}
+	return strings.Join(parts, "  ")
 }
 
 // formatRetrievalText renders the HTTP URLs and local path block.
@@ -209,12 +252,13 @@ func failureBanner() string {
 }
 
 // sensitiveDataWarning reminds the user to vet the bundle before sharing: it
-// contains the logs, the rendered cloud-config (password redacted, but other
-// fields are not), and system info that may include secrets we can't know about.
+// contains the logs, the rendered cloud-config (credentials redacted by key
+// name, which cannot catch one inside free text), and system info that may
+// include secrets we cannot know about.
 func sensitiveDataWarning() string {
 	amber := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFAF00")).Bold(true)
 	return amber.Render("[!] Review the bundle before sharing it.") + "\n" +
-		"It contains your logs, the install config (password redacted) and system info,\n" +
+		"It contains your logs, the install config (credentials redacted) and system info,\n" +
 		"which may include other sensitive data. Inspect it before sending to third parties.\n"
 }
 
@@ -230,7 +274,7 @@ func (p *debugBundlePage) View() string {
 		return failureBanner() + lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).Bold(true).
 			Render("Failed to build debug bundle: "+p.errMsg) + "\n"
 	case bundleUSBSelect:
-		return formatUSBMenu(p.usbMounts, p.usbCursor)
+		return formatUSBMenu(p.usbTargets, p.usbCursor)
 	default: // bundleReady
 		ready := "Debug bundle ready."
 		if mainModel.installError == "" {

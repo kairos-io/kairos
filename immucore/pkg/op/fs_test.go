@@ -42,6 +42,15 @@ var _ = Describe("MountBind", func() {
 		Expect(operation.MountOption.Options).To(ContainElement("bind"))
 	})
 
+	It("mounts /home nodev (CIS 1.1.14) and leaves other binds alone", func() {
+		home := op.MountBind("/home", root, "/usr/local/.state")
+		Expect(home.MountOption.Options).To(ContainElements("bind", "nodev"))
+		Expect(home.FstabEntry.MntOps).To(HaveKey("nodev"))
+
+		other := op.MountBind("/var/lib/rancher", root, "/usr/local/.state")
+		Expect(other.MountOption.Options).ToNot(ContainElement("nodev"))
+	})
+
 	It("gives the state directory the mode of the path it backs", func() {
 		// The bind exposes the inode of the state directory, so a path the
 		// image keeps at 0700 (/var/log/audit) has to find the same mode there

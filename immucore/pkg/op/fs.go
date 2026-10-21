@@ -84,11 +84,9 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 	stateDir := BindStateDir(mountpoint, root, stateTarget)
 
 	tmpMount := mount.Mount{
-		Type:   "overlay",
-		Source: stateDir,
-		Options: []string{
-			"bind",
-		},
+		Type:    "overlay",
+		Source:  stateDir,
+		Options: append([]string{"bind"}, constants.BindMountOptions(mountpoint)...),
 	}
 	internalUtils.KLog.Logger.Debug().Str("where", rootMount).Str("what", stateDir).Msg("Bind mount")
 	tmpFstab := internalUtils.MountToFstab(tmpMount)

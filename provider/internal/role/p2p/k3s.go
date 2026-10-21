@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
+	machinesvc "github.com/kairos-io/kairos/v4/sdk/machine/service"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	service "github.com/mudler/edgevpn/api/client/service"
 )
@@ -63,8 +65,13 @@ func (k *K3sNode) GenArgs() ([]string, error) {
 		args = append(args, "--embedded-registry")
 	}
 
+	// Append, do not replace. An external datastore does not conflict with the
+	// flags computed above: the VPN interface flannel runs on, the kube-vip
+	// node IP and TLS SAN, and the embedded registry are all still needed.
+	// The one flag it does conflict with, --cluster-init, is excluded by its
+	// own condition below.
 	if pconfig.P2P.Auto.HA.ExternalDB != "" {
-		args = []string{fmt.Sprintf("--datastore-endpoint=%s", pconfig.P2P.Auto.HA.ExternalDB)}
+		args = append(args, fmt.Sprintf("--datastore-endpoint=%s", pconfig.P2P.Auto.HA.ExternalDB))
 	}
 
 	if k.HA() && !k.ClusterInit() {
@@ -91,16 +98,8 @@ func (k *K3sNode) AppendArgs(other []string) []string {
 	return append(other, c.K3s.Args...)
 }
 
-func (k *K3sNode) EnvUnit() string {
-	return machine.K3sEnvUnit("k3s")
-}
-
 func (k *K3sNode) Service() (machine.Service, error) {
-	if k.role == "worker" {
-		return machine.K3sAgent()
-	}
-
-	return machine.K3s()
+	return machinesvc.New(services.K3sSpec(k.ServiceName()))
 }
 
 func (k *K3sNode) Token() (string, error) {
@@ -245,13 +244,12 @@ func (k *K3sNode) SetupWorker(masterIP, nodeToken string) error {
 		}
 	}
 
-	if err := utils.WriteEnv(machine.K3sEnvUnit("k3s-agent"),
-		env,
-	); err != nil {
+	svc, err := machinesvc.New(services.K3sSpec(K3sWorkerServiceName))
+	if err != nil {
 		return err
 	}
 
-	return nil
+	return svc.SetEnv(env)
 }
 
 func (k *K3sNode) Role() string {
@@ -298,10 +296,6 @@ func (k *K3sNode) Args() []string {
 	}
 
 	return args
-}
-
-func (k *K3sNode) EnvFile() string {
-	return machine.K3sEnvUnit(k.ServiceName())
 }
 
 func (k *K3sNode) SetRole(role string) {

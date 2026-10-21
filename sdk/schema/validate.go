@@ -8,11 +8,29 @@ import (
 	"strings"
 )
 
+// InProcessSchemaID is the identifier of the cloud config schema document the
+// in-process validator compiles. That document carries no version, so it has
+// no $id and cannot be named by SchemaID.
+//
+// It has to be an absolute URI. jsonschema.CompileString reads its first
+// argument as the resource's URL and resolves a relative one against the
+// working directory, which put the directory the process happened to run in
+// into the text of every validation error. Like SchemaID, this names the
+// document and is not a location to fetch.
+const InProcessSchemaID = "https://kairos.io/cloud-config.json"
+
+// SchemaID returns the identifier of the cloud config schema document for a
+// given Kairos version. It names the document, it is not a location to fetch:
+// nothing has been published under https://kairos.io/ since v2.0.1, so the
+// address does not resolve for any supported release.
+func SchemaID(version string) string {
+	return fmt.Sprintf("https://kairos.io/%s/cloud-config.json", version)
+}
+
 // JSONSchema builds a JSON Schema based on the Root Schema and the given version
 // this is helpful when mapping a validation error.
 func JSONSchema(version string) (string, error) {
-	url := fmt.Sprintf("https://kairos.io/%s/cloud-config.json", version)
-	schema, err := GenerateSchema(RootSchema{}, url)
+	schema, err := GenerateSchema(RootSchema{}, SchemaID(version))
 	if err != nil {
 		return "", err
 	}
@@ -30,6 +48,18 @@ func Validate(source string) error {
 			return err
 		}
 		defer resp.Body.Close()
+		// An error page is a body like any other, and reading it as the
+		// configuration reports whatever the server happened to send instead of
+		// the fetch that failed. The agent checks this on the same URL before
+		// an install, so validate has to agree with it.
+		//
+		// The URL stays out of the message. The caller passed it, so repeating
+		// it adds nothing, and it can carry credentials in its userinfo or in a
+		// signed query that would then reach stderr and the installer log.
+		// install and the collector report the status alone for the same reason.
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("could not read the configuration: %s", resp.Status)
+		}
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
