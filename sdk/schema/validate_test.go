@@ -1,11 +1,16 @@
 package schema_test
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 
 	. "github.com/kairos-io/kairos/v4/sdk/schema"
+	"github.com/santhosh-tekuri/jsonschema/v5"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,10 +18,52 @@ import (
 
 var _ = Describe("Validate", func() {
 	Context("JSONSchema", func() {
-		It("returns a schema with a url to the given version", func() {
-			out, err := JSONSchema("0.0.0")
+		var out string
+		var doc map[string]interface{}
+
+		BeforeEach(func() {
+			var err error
+			out, err = JSONSchema("0.0.0")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(strings.Contains(out, `$schema": "https://kairos.io/0.0.0/cloud-config.json"`)).To(BeTrue())
+			Expect(json.Unmarshal([]byte(out), &doc)).To(Succeed())
+		})
+
+		It("names the document after the given version", func() {
+			Expect(doc).To(HaveKeyWithValue("$id", "https://kairos.io/0.0.0/cloud-config.json"))
+		})
+
+		It("declares the dialect it is written in, not its own address", func() {
+			// $schema is the dialect the document is written in. Pointing it at
+			// the document's own address makes a validator fetch that address as
+			// a meta-schema, and https://kairos.io/<version>/cloud-config.json
+			// has not been published since v2.0.1.
+			Expect(doc).To(HaveKeyWithValue("$schema", MetaSchemaDraft07))
+		})
+
+		It("declares the dialect the reflector actually emits", func() {
+			// The reflector writes "definitions", which is draft-07. If it ever
+			// starts writing "$defs" the declared dialect has to move with it.
+			Expect(doc).To(HaveKey("definitions"))
+			Expect(doc).ToNot(HaveKey("$defs"))
+		})
+
+		It("is usable by a validator that reads the dialect it declares", func() {
+			// The point of the two keys above: a consumer can compile the
+			// printed document and get the same verdicts the agent gives.
+			// This fails if the declared dialect cannot resolve the $ref
+			// targets the reflector emitted.
+			compiler := jsonschema.NewCompiler()
+			Expect(compiler.AddResource("cloud-config.json", strings.NewReader(out))).To(Succeed())
+			sch, err := compiler.Compile("cloud-config.json")
+			Expect(err).ToNot(HaveOccurred())
+
+			var valid interface{}
+			Expect(json.Unmarshal([]byte(`{"users":[{"name":"kairos"}]}`), &valid)).To(Succeed())
+			Expect(sch.Validate(valid)).To(Succeed())
+
+			var invalid interface{}
+			Expect(json.Unmarshal([]byte(`{"users":[{"name":7}]}`), &invalid)).To(Succeed())
+			Expect(sch.Validate(invalid)).To(MatchError(ContainSubstring("expected string, but got number")))
 		})
 	})
 
@@ -34,7 +81,7 @@ stages:
 			})
 
 			It("rejects the invalid stage", func() {
-				Expect(Validate(yaml)).To(MatchError(ContainSubstring("expected array, but got string")))
+				Expect(Validate(yaml)).To(MatchError(ContainSubstring("expected array or null, but got string")))
 			})
 		})
 
@@ -114,7 +161,78 @@ users:
 				err = os.WriteFile(path, []byte(yaml), 0655)
 				Expect(err).ToNot(HaveOccurred())
 				err = Validate(path)
-				Expect(err.Error()).To(MatchRegexp("expected string, but got number"))
+				Expect(err.Error()).To(MatchRegexp("expected string or null, but got number"))
+			})
+		})
+
+		Context("read over http", func() {
+			var server *httptest.Server
+			var status int
+			var body string
+
+			BeforeEach(func() {
+				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(status)
+					_, _ = io.WriteString(w, body)
+				}))
+			})
+
+			AfterEach(func() {
+				server.Close()
+			})
+
+			Context("when the server serves the configuration", func() {
+				BeforeEach(func() {
+					status = http.StatusOK
+					body = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos`
+				})
+
+				It("validates it", func() {
+					Expect(Validate(server.URL + "/cloud-config.yaml")).ToNot(HaveOccurred())
+				})
+			})
+
+			// Every one of these used to come out as "missing #cloud-config
+			// header", which sends the user to look at a file that was never
+			// fetched.
+			DescribeTable("when the server does not serve the configuration",
+				func(code int, page string) {
+					status = code
+					body = page
+
+					err := Validate(server.URL + "/cloud-config.yaml")
+					Expect(err).To(MatchError(ContainSubstring(http.StatusText(code))))
+					Expect(err).ToNot(MatchError(ContainSubstring("missing #cloud-config header")))
+				},
+				Entry("a not found with no body", http.StatusNotFound, ""),
+				Entry("a not found with an error page", http.StatusNotFound, "<html><body>404</body></html>"),
+				Entry("a forbidden with an XML document", http.StatusForbidden,
+					`<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>`),
+				Entry("a server error", http.StatusInternalServerError, ""),
+			)
+
+			// The error reaches stderr and, through the web installer, the
+			// log, so a URL that authenticates the fetch must not travel
+			// with it.
+			Context("when the URL carries credentials", func() {
+				BeforeEach(func() {
+					status = http.StatusForbidden
+					body = `<?xml version="1.0"?><Error><Code>AccessDenied</Code></Error>`
+				})
+
+				It("keeps them out of the error", func() {
+					host := strings.TrimPrefix(server.URL, "http://")
+					url := "http://kairos:hunter2@" + host +
+						"/cloud-config.yaml?X-Amz-Signature=5f4dcc3b5aa765d6"
+
+					err := Validate(url)
+					Expect(err).To(MatchError(ContainSubstring(http.StatusText(http.StatusForbidden))))
+					Expect(err).ToNot(MatchError(ContainSubstring("hunter2")))
+					Expect(err).ToNot(MatchError(ContainSubstring("5f4dcc3b5aa765d6")))
+				})
 			})
 		})
 	})

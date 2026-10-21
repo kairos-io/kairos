@@ -1,9 +1,7 @@
-FROM quay.io/kairos/kairos-init:v0.7.0-beta13 AS kairos-init
-
 FROM ubuntu:20.04@sha256:8feb4d8ca5354def3d8fce243717141ce31e2c428701f6682bd2fafe15388214
 ARG VERSION=v0.0.1
 
-RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init \
     /kairos-init -l debug -s install --version "${VERSION}"
 # Remove default kernel that Kairos-init installs
 RUN apt-get remove -y linux-base linux-image-generic-hwe-20.04 && apt-get autoremove -y
@@ -22,7 +20,7 @@ RUN --mount=type=secret,id=pro-attach-config \
 # Copy the custom dracut config file which enables fipsn
 COPY dracut.conf /etc/dracut.conf.d/kairos-fips.conf
 
-RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init \
     /kairos-init -l debug -s init --version "${VERSION}"
 
 # Symlink kernel HMAC

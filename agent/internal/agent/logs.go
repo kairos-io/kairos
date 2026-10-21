@@ -52,10 +52,15 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			// kairos-installer, so without this a failed interactive install
 			// leaves no installer journal in the bundle at all.
 			"kairos-interactive",
-			"kairos-webui",
 			"kairos-reset",
 			"kairos-recovery",
 			"kairos-selinux-relabel",
+			// The boot splash owns tty1 before getty does, so when it
+			// misbehaves the symptom is a console nobody can read and the
+			// journal is the only account of it. Ordered Before=getty.target,
+			// it can also delay a boot, and TimeoutStartSec firing is only
+			// visible here.
+			"kairos-splash",
 			// Written and enabled by the agent rather than by a cloud-config,
 			// on any node whose merged config carries a phonehome url.
 			// Without it a bundle from such a node has no journal for the
@@ -65,10 +70,25 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			"cos-setup-fs",
 			"cos-setup-network",
 			"cos-setup-reconcile",
+			// Written and enabled by 31_hosts.yaml. A hostname set at runtime
+			// that never reached the persistent partition is accounted for
+			// nowhere else. The path unit is named too: when it refuses to
+			// start, the oneshot simply never runs and says nothing.
+			"kairos-persist-hostname",
+			"kairos-persist-hostname.path",
 			"k3s",
 			"k3s-agent",
 			"k0scontroller",
 			"k0sworker",
+			// 99_sysext.yaml clears the ExecStart of both units and replaces
+			// it with a Kairos image policy, and the agent restarts them
+			// whenever an extension is enabled, disabled or removed. The
+			// drop-in sets TimeoutStartSec=10 precisely because the unit can
+			// fail when no key unlocks an extension, and when it does this
+			// journal is the only record of why a system extension is not
+			// merged.
+			"systemd-sysext",
+			"systemd-confext",
 		},
 		Files: []string{
 			"/var/log/kairos/*.log",

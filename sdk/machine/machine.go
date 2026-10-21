@@ -7,19 +7,20 @@ import (
 	"strings"
 
 	"github.com/denisbrodbeck/machineid"
-	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
-	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
+	"github.com/kairos-io/kairos/v4/sdk/machine/service"
+	"github.com/mudler/yip/pkg/console"
+	"github.com/mudler/yip/pkg/executor"
+	"github.com/twpayne/go-vfs/v4"
 
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
-type Service interface {
-	WriteUnit() error
-	Start() error
-	OverrideCmd(string) error
-	Enable() error
-	Restart() error
-}
+// Service is a system service, whatever the init system underneath.
+//
+// The interface and the implementations live in sdk/machine/service; this alias
+// is here so existing callers keep compiling.
+type Service = service.Service
 
 const (
 	PassiveBoot  = "passive"
@@ -52,92 +53,35 @@ func BootFrom() string {
 	}
 }
 
-type fakegetty struct{}
+// consoleSwitch stands in for a getty service on an init system that runs no
+// getty unit we can address. Switching the console is then the whole of what
+// starting one can mean.
+type consoleSwitch struct {
+	service.Noop
+}
 
-func (fakegetty) Restart() error           { return nil }
-func (fakegetty) Enable() error            { return nil }
-func (fakegetty) OverrideCmd(string) error { return nil }
-func (fakegetty) SetEnvFile(string) error  { return nil }
-func (fakegetty) WriteUnit() error         { return nil }
-func (fakegetty) Start() error {
+func (consoleSwitch) Start() error {
 	utils.SH("chvt 2") //nolint:errcheck
 	return nil
 }
 
+// Getty returns the service that owns a virtual console.
+//
+// On openrc the tty asked for is ignored and the console switches to tty2, as
+// it did before this was a generic service. That looks wrong next to the
+// systemd side, but changing which console Kairos switches to belongs in its
+// own change, with a reason.
 func Getty(i int) (Service, error) {
-	if utils.IsOpenRCBased() {
-		return &fakegetty{}, nil
+	if service.Detect() == service.OpenRC {
+		return consoleSwitch{Noop: service.Noop{ServiceName: "getty"}}, nil
 	}
 
-	return systemd.NewService(
-		systemd.WithName("getty"),
-		systemd.WithInstance(fmt.Sprintf("tty%d", i)),
-	)
+	return service.New(service.Spec{
+		Name:     "getty",
+		Instance: fmt.Sprintf("tty%d", i),
+	})
 }
 
-func K3s() (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("k3s"),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("k3s"),
-	)
-}
-
-func K3sAgent() (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("k3s-agent"),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("k3s-agent"),
-	)
-}
-
-func K3sEnvUnit(unit string) string {
-	if utils.IsOpenRCBased() {
-		return fmt.Sprintf("/etc/rancher/k3s/%s.env", unit)
-	}
-
-	return fmt.Sprintf("/etc/sysconfig/%s", unit)
-}
-
-func K0s() (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("k0scontroller"),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("k0scontroller"),
-	)
-}
-
-func K0sWorker() (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("k0sworker"),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("k0sworker"),
-	)
-}
-
-func K0sEnvUnit(unit string) string {
-	if utils.IsOpenRCBased() {
-		return fmt.Sprintf("/etc/k0s/%s.env", unit)
-	}
-
-	return fmt.Sprintf("/etc/sysconfig/%s", unit)
-}
 func UUID() string {
 	if os.Getenv("UUID") != "" {
 		return os.Getenv("UUID")
@@ -158,14 +102,37 @@ func SentinelExist(f string) bool {
 	return false
 }
 
-func ExecuteInlineCloudConfig(cloudConfig, stage string) error {
-	_, err := utils.ShellSTDIN(cloudConfig, fmt.Sprintf("elemental run-stage -s %s -", stage))
-	return err
+// runStage drives yip in this process over a single source: either a
+// cloud-config document or a path to one.
+//
+// It does not shell out. The command these two helpers used to run,
+// "elemental run-stage", is not in any Kairos image: kairos-init/pkg/bundled
+// embeds kairos, provider-kairos, kairos-installer and edgevpn, and no package
+// list installs elemental. Every other stage call in the tree goes through
+// "kairos-agent run-stage", which takes the stage as a positional argument and
+// cannot read a document from standard input, so it is not a drop-in either.
+//
+// Only the source it is handed runs. /oem and the other default cloud-config
+// directories are deliberately left out: the caller asked for one document,
+// and running the system's whole config as a side effect of that would be a
+// surprise. Use the agent's RunStage when you want the default paths.
+//
+// runStage is a variable so a spec can exercise the callers without a yip run.
+var runStage = func(stage, source string) error {
+	e := executor.NewExecutor(executor.WithLogger(logger.NewKairosLogger("sdk", "info", false)))
+	return e.Run(stage, vfs.OSFS, console.NewStandardConsole(), source)
 }
 
+// ExecuteInlineCloudConfig runs one stage of the cloud-config document it is
+// given against the running system.
+func ExecuteInlineCloudConfig(cloudConfig, stage string) error {
+	return runStage(stage, cloudConfig)
+}
+
+// ExecuteCloudConfig runs one stage of the cloud-config file at the given path
+// against the running system.
 func ExecuteCloudConfig(file, stage string) error {
-	_, err := utils.SH(fmt.Sprintf("elemental run-stage -s %s %s", stage, file))
-	return err
+	return runStage(stage, file)
 }
 
 func FindCommand(def string, options []string) string {

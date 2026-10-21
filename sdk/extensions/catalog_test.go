@@ -131,3 +131,36 @@ func TestParseRejectsInvalidJSON(t *testing.T) {
 		t.Fatal("Parse() error = nil, want invalid JSON error")
 	}
 }
+
+// baseOnlyCatalog indexes a layer that is published as a base image with its
+// system extension build switched off, which hadron-layers does per layer
+// through publishing.yaml. Every tag carries an empty sysext object.
+const baseOnlyCatalog = `{
+  "repo": "kairos-io/hadron-layers",
+  "layers": [{
+    "name": "git",
+    "latest": "2.56.0",
+    "tags": [
+      {"tag": "2.55.0", "sysext": {}},
+      {"tag": "2.56.0", "sysext": {}}
+    ]
+  }]
+}`
+
+func TestResolveSaysNothingIsPublishedRatherThanBlamingTheArchitecture(t *testing.T) {
+	catalog, err := Parse(strings.NewReader(baseOnlyCatalog))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = catalog.Resolve("git", "", "amd64")
+	if err == nil {
+		t.Fatal("Resolve() succeeded on a layer that publishes no extension image")
+	}
+	if !strings.Contains(err.Error(), "publishes no system extension image") {
+		t.Fatalf("Resolve() error = %v, want it to say the layer publishes no image", err)
+	}
+	if strings.Contains(err.Error(), "amd64") {
+		t.Fatalf("Resolve() error = %v, must not blame the architecture: no architecture would work", err)
+	}
+}

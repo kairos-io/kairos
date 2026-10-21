@@ -465,6 +465,7 @@ var BasePackages = PackageMap{
 	DebianFamily: {
 		ArchCommon: {
 			Common: {
+				"auditd",
 				"ca-certificates", // Basic certificates for secure communication
 				"curl",            // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"binutils",
@@ -489,6 +490,7 @@ var BasePackages = PackageMap{
 				"libldap-common",
 				"libnss-systemd",
 				"libpam-cap",
+				"libpam-pwquality", // pam_pwquality for CIS L1 5.4.1; its pam-auth-update profile wires it
 				"libsasl2-modules",
 				"mdadm",
 				"nbd-client",
@@ -516,10 +518,29 @@ var BasePackages = PackageMap{
 				"zerofree",
 			},
 		},
+		// qemu-guest-agent is what 26_vm.yaml starts once DMI says the machine
+		// is a QEMU or KVM guest, and the Alpine, SUSE and Red Hat families
+		// already install it. Without it the hypervisor gets no guest shutdown,
+		// no reported addresses and no filesystem freeze for snapshots.
+		//
+		// Listed per architecture rather than under ArchCommon because Debian
+		// bookworm has no qemu-guest-agent for riscv64, the same reason
+		// open-vm-tools is split this way for the SUSE family below.
+		ArchAMD64: {
+			Common: {
+				"qemu-guest-agent",
+			},
+		},
+		ArchARM64: {
+			Common: {
+				"qemu-guest-agent",
+			},
+		},
 	},
 	SUSEFamily: {
 		ArchCommon: {
 			Common: {
+				"audit",
 				"curl", // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"bash-completion",
 				"conntrack-tools",
@@ -586,7 +607,9 @@ var BasePackages = PackageMap{
 	AlpineFamily: {
 		ArchCommon: {
 			Common: {
-				"curl", // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
+				"audit",
+				"audit-openrc", // /etc/init.d/auditd lives here, not in `audit`
+				"curl",         // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"bash",
 				"bash-completion",
 				"blkid",
@@ -663,6 +686,7 @@ var BasePackages = PackageMap{
 		ArchCommon: {
 			Common: {
 				"audit",                   // For audit support, check if needed?
+				"authselect",              // Manages the PAM stack; used to enable pam_faillock for CIS L1 5.4.2
 				"chrony",                  // RHEL family uses chronyd for time sync (not systemd-timesyncd)
 				"cracklib-dicts",          // Password dictionary support
 				"device-mapper",           // Device mapper support, needed for lvm and cryptsetup

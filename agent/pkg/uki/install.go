@@ -124,11 +124,13 @@ func (i *InstallAction) Run() (err error) {
 	// Read all confs
 	i.cfg.Logger.Debugf("Parsing efi partition files (skip SkipEntries, replace placeholders etc)")
 	err = fsutils.WalkDirFs(i.cfg.Fs, filepath.Join(i.spec.Partitions.EFI.MountPoint), func(path string, info os.DirEntry, err error) error {
-		filename := info.Name()
+		// WalkDirFs passes a nil entry when it cannot stat the root, so the
+		// name can only be read once the error is known to be nil.
 		if err != nil {
-			i.cfg.Logger.Errorf("Error walking path: %s, %s", filename, err.Error())
+			i.cfg.Logger.Errorf("Error walking path: %s, %s", path, err.Error())
 			return err
 		}
+		filename := info.Name()
 
 		i.cfg.Logger.Debugf("Checking file %s", path)
 		if info.IsDir() {

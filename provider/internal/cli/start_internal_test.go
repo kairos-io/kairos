@@ -23,10 +23,16 @@ import (
 )
 
 var _ = Describe("EdgeVPN API CLI wiring", func() {
-	It("defaults role commands to the EdgeVPN Unix socket", func() {
+	It("points role commands at the address resolved for this machine", func() {
+		// The resolved address is the local daemon's on a node and the bridge's
+		// off one, so the spec asks for whichever this machine is rather than
+		// naming one. Build the app first: that is what resolves it, and this
+		// spec should not depend on another having run already.
+		NewApp()
+
 		apiFlag, ok := RoleCMD.Subcommands[0].Flags[0].(*cli.StringFlag)
 		Expect(ok).To(BeTrue())
-		Expect(apiFlag.Value).To(Equal(provider.DefaultEdgeVPNAPIAddress))
+		Expect(apiFlag.Value).To(Equal(provider.ResolveAPIAddress(provider.EdgeVPNEnvFile)))
 		Expect(apiFlag.EnvVars).To(Equal([]string{"EDGEVPN_API"}))
 	})
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -12,11 +13,43 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-// The extension the ISO ships. tests/assets/sysext is mounted as the
-// auroraboot --overlay-iso directory by reusable-factory.yaml, so both images
-// in it land at the ISO root and therefore under /run/initramfs/live while the
-// installer runs.
+// The extension the ISO ships. The generated test extension directory is
+// mounted as the auroraboot --overlay-iso directory by the CI workflows on
+// non-trusted-boot cells, so the image in it lands at the ISO root and
+// therefore under /run/initramfs/live while the installer runs. Its
+// work.sysext.raw is verity-only (unsigned) so systemd-sysext can activate
+// it on a boot with no test signing key enrolled.
 const liveMediaExtension = "work.sysext.raw"
+
+// The hierarchy list the kairos drop-in installs, spelled out so that
+// `systemd-sysext status` reports on what the boot merged instead of on its
+// own defaults. /usr/local is deliberately not in it: it is the persistent
+// partition mount, and a merge would turn it read-only. Kept in step with
+// kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml, which is what the
+// booted node actually reads.
+var sysextHierarchies = []string{
+	"/usr/bin",
+	"/usr/share",
+	"/usr/lib",
+	"/usr/include",
+	"/usr/src",
+	"/usr/sbin",
+}
+
+var sysextHierarchiesEnv = fmt.Sprintf("SYSTEMD_SYSEXT_HIERARCHIES=%q",
+	strings.Join(sysextHierarchies, ":"))
+
+// Both test extensions carry their payload at /usr/bin/hello.sh, which is a
+// merged hierarchy, so a successful merge puts the script on the host's PATH.
+// Running it is the strongest proof the overlay went up: it needs the image to
+// be accepted by the boot's image policy, merged, and visible to a fresh
+// process. internal/testartifacts builds both images with that payload.
+const (
+	mergedExtensionHierarchy = "/usr/bin"
+	mergedExtensionCommand   = "hello.sh"
+	mergedExtensionOutput    = "Hello world"
+	mergedExtensionPath      = mergedExtensionHierarchy + "/" + mergedExtensionCommand
+)
 
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
 // is asserted in uki_test.go, where the extension reaches the EFI partition.
@@ -84,9 +117,8 @@ users:
 
 				// The hierarchies have to be spelled out the same way the
 				// kairos drop-in does, or systemd-sysext reports on its own
-				// defaults and misses the /usr/local ones.
-				env := "SYSTEMD_SYSEXT_HIERARCHIES=\"/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin\""
-				out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", env))
+				// defaults rather than on what this boot merged.
+				out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", sysextHierarchiesEnv))
 				Expect(err).ToNot(HaveOccurred(), out)
 
 				var sysexts sysextStatus
@@ -94,18 +126,43 @@ users:
 
 				var merged bool
 				for _, sysext := range sysexts {
-					if sysext.Hierarchy == "/usr/local/bin" {
+					if sysext.Hierarchy == mergedExtensionHierarchy {
 						Expect(sysext.Extensions).To(ContainElement("work"))
 						merged = true
 					}
 				}
-				Expect(merged).To(BeTrue(), "no /usr/local/bin hierarchy in %s", out)
+				Expect(merged).To(BeTrue(), "no %s hierarchy in %s", mergedExtensionHierarchy, out)
 			})
 
 			By("running a command the extension provides", func() {
-				out, err := vm.Sudo("hello.sh")
+				out, err := vm.Sudo(mergedExtensionCommand)
 				Expect(err).ToNot(HaveOccurred(), out)
-				Expect(out).To(ContainSubstring("Hello world"))
+				Expect(out).To(ContainSubstring(mergedExtensionOutput))
+			})
+
+			// The merge puts the extension's own files under /usr, where CIS
+			// DIL 6.1.11 and 6.1.12 audit them. systemd-repart keeps the uid
+			// and gid of the tree it packs, so an extension built by an
+			// unprivileged process ships files owned by a user the node does
+			// not have, and the only symptom is the cis suite failing on an
+			// unrelated change.
+			By("merging files the node has a user and a group for", func() {
+				out, err := vm.Sudo("stat -c %U:%G " + mergedExtensionPath)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(Equal("root:root"))
+
+				// Each hierarchy is overlaid separately, so /usr itself is not
+				// a mount point and `find /usr -xdev` stops at the top of it,
+				// before reaching anything the merge brought in. Start at the
+				// hierarchies themselves. A node that does not carry one of
+				// them, /usr/src for instance, is skipped rather than failed,
+				// but a find that cannot run still fails the spec.
+				out, err = vm.Sudo(fmt.Sprintf(
+					`for d in %s; do [ -d "$d" ] || continue; find "$d" -xdev \( -nouser -o -nogroup \) || exit 1; done`,
+					strings.Join(sysextHierarchies, " ")))
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(BeEmpty(),
+					"merged files with no passwd or group entry")
 			})
 		})
 	})

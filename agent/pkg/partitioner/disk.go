@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/diskfs/go-diskfs"
+	"github.com/diskfs/go-diskfs/backend/file"
 	"github.com/diskfs/go-diskfs/disk"
 	"github.com/diskfs/go-diskfs/partition"
 	"github.com/diskfs/go-diskfs/partition/gpt"
@@ -158,14 +159,27 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 			size = (end - start + 1) * uint64(sectorSize)
 		}
 
-		if part.Name == sdkConstants.EfiPartName && part.FS == sdkConstants.EfiFs {
+		// The GUID is derived rather than random so it is predictable across
+		// installs. Every built-in partition carries a filesystem label, but
+		// an extra partition usually does not, and uuid.NewV5 over the empty
+		// string is a constant: two unlabelled extra partitions came out with
+		// the same PARTUUID on the same disk, and every machine got that same
+		// value. Fall back to the partition name, which the installer already
+		// requires for an extra partition.
+		guidSeed := part.FilesystemLabel
+		if guidSeed == "" {
+			guidSeed = part.Name
+		}
+		partGUID := uuid.NewV5(uuid.NamespaceURL, guidSeed).String()
+
+		if IsESP(part) {
 			// EFI boot partition
 			partitions = append(partitions, &gpt.Partition{
 				Start:      start,
 				End:        end,
 				Type:       gpt.EFISystemPartition,
-				Size:       size,                                                         // partition size in bytes
-				GUID:       uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(), // set know predictable UUID
+				Size:       size, // partition size in bytes
+				GUID:       partGUID,
 				Name:       part.Name,
 				Index:      index + 1, // GPT partition indices are 1-based
 				Attributes: 0x1,       // system partition flag
@@ -176,8 +190,8 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 				Start:      start,
 				End:        end,
 				Type:       gpt.BIOSBoot,
-				Size:       size,                                                         // partition size in bytes
-				GUID:       uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(), // set know predictable UUID
+				Size:       size, // partition size in bytes
+				GUID:       partGUID,
 				Name:       part.Name,
 				Index:      index + 1, // GPT partition indices are 1-based
 				Attributes: 0x4,       // legacy bios bootable flag
@@ -189,7 +203,7 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 				End:   end,
 				Type:  gpt.LinuxFilesystem,
 				Size:  size,
-				GUID:  uuid.NewV5(uuid.NamespaceURL, part.FilesystemLabel).String(),
+				GUID:  partGUID,
 				Name:  part.Name,
 				Index: index + 1, // GPT partition indices are 1-based
 			})
@@ -207,8 +221,20 @@ func WithLogger(logger logger.KairosLogger) func(d *Disk) error {
 	}
 }
 
+// NewDisk opens device for partitioning.
+//
+// The backend is built with file.OpenFromPathWithExclusive rather than with
+// diskfs.Open, because diskfs.Open uses file.New, which does not record the
+// path it was opened from. go-diskfs needs that path for the BLKPG fallback it
+// uses when BLKRRPART cannot re-read the partition table: without it the
+// fallback refuses to run and a transient busy device fails the install. The
+// open flags are the same O_RDWR|O_EXCL that diskfs.Open defaults to.
 func NewDisk(device string, opts ...DiskOptions) (*Disk, error) {
-	d, err := diskfs.Open(device)
+	backend, err := file.OpenFromPathWithExclusive(device, false, true)
+	if err != nil {
+		return nil, err
+	}
+	d, err := diskfs.OpenBackend(backend)
 	if err != nil {
 		return nil, err
 	}

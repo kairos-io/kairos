@@ -15,17 +15,28 @@
 //
 // # Who can reach it
 //
-// Nobody is authenticated. Anything that can reach the web installer can call
-// every tool, install included. The cross-origin wrapper below is a browser
-// control and nothing else: it decides on Sec-Fetch-Site and Origin, which a
+// Whoever can reach the web installer, and on the same terms: sharing its
+// listener means sharing its front door. Nothing here checks a caller, and
+// nothing here needs to. webui.requireToken is installed with echo's Pre, so
+// it runs before routing and covers this route the way it covers the form and
+// the assets, and an agent presents the token as "Authorization: Bearer".
+//
+//	webui:
+//	  token: "a secret the harness knows"
+//
+// With no token set nobody is authenticated and every tool is open, install
+// included, which is what an unbranded live ISO is meant to be. An image that
+// puts this on the network wants the token; see sdk/branding.WebUI.
+//
+// The cross-origin wrapper below is not part of that. It is a browser control
+// and nothing else: it decides on Sec-Fetch-Site and Origin, which a
 // non-browser caller does not send, so it stops a page the operator opened and
 // not a program on the network.
 //
-// That exposure is exactly the web installer's, which is the point of sharing
-// its listener. webui.disable is how an operator says "no unauthenticated
-// network installer on this box", and it now switches this off too, because
-// there is no server left to hang the route on. An image that wants the
-// browser installer without the agent one says so:
+// webui.disable is the other half of the answer: it is how an operator says
+// "no network installer on this box at all", and it switches this off too,
+// because there is no server left to hang the route on. An image that wants
+// the browser installer without the agent one says so:
 //
 //	mcp:
 //	  disable: true
@@ -109,6 +120,14 @@ func (agentInstaller) Run(agentBin, cfgPath, source, finishAction string, onEven
 type Server struct {
 	log sdkLogger.KairosLogger
 
+	// source is the install source this boot pinned, from
+	// `kairos-installer --source`. It is what the install tool falls back to
+	// when the caller names none, so an agent-driven install pulls the image
+	// the medium was started for, the same one the TUI and the web UI pull.
+	// Empty means the boot pinned nothing, and kairos-agent goes on resolving
+	// its own default.
+	source string
+
 	// scanDisks lists installation candidates.
 	scanDisks func() ([]disks.Disk, error)
 	// gatherChecks and applyDecisions run the prerequisite plugins.
@@ -124,10 +143,12 @@ type Server struct {
 	installed  bool
 }
 
-// New builds a Server backed by the real host.
-func New(log sdkLogger.KairosLogger) *Server {
+// New builds a Server backed by the real host. source is the install source the
+// installer was started with, and may be empty.
+func New(log sdkLogger.KairosLogger, source string) *Server {
 	s := &Server{
 		log:            log,
+		source:         source,
 		scanDisks:      disks.Scan,
 		installer:      agentInstaller{},
 		generateBundle: func() (string, error) { return generateBundle(time.Now()) },
@@ -145,7 +166,7 @@ func New(log sdkLogger.KairosLogger) *Server {
 }
 
 // EnabledFromConfig reports whether to serve MCP at all, from
-// /etc/kairos/agent.yaml, the same file kairos-webui reads for itself. It is
+// /etc/kairos/agent.yaml, the same file the agent reads for itself. It is
 // on unless the image turned it off.
 //
 // This is the only control an operator has on a real boot: kairos-agent execs
@@ -165,10 +186,14 @@ func EnabledFromConfig(paths ...string) bool {
 // Handler returns the MCP server as an http.Handler, so it can be mounted on
 // the web installer's router next to the browser's own routes.
 //
+// source is the install source the installer was started with. It is carried
+// here for the same reason webui.Options carries it: all three frontends of one
+// binary have to install the image the boot asked for.
+//
 // One Server backs every session. The "one install per boot" guard is held on
 // it, so reconnecting does not hand a client a second install.
-func Handler(log sdkLogger.KairosLogger) http.Handler {
-	return handlerFor(New(log))
+func Handler(log sdkLogger.KairosLogger, source string) http.Handler {
+	return handlerFor(New(log, source))
 }
 
 func handlerFor(s *Server) http.Handler {

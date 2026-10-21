@@ -77,6 +77,14 @@ func Encrypt(c sdkConfig.Config) error {
 
 // Helper methods for unified encryption flow
 
+// DefaultUKIEncryptionTargets is the partition list a UKI install encrypts
+// when install.encrypted_partitions is empty. The reset path
+// (agent/pkg/action) re-encrypts against the same list, so it lives in one
+// place and cannot drift between install and reset.
+func DefaultUKIEncryptionTargets() []string {
+	return []string{constants.OEMLabel, constants.PersistentLabel}
+}
+
 // determinePartitionsToEncrypt returns the list of partitions to encrypt based on mode
 func determinePartitionsToEncrypt(c sdkConfig.Config) []string {
 	// If user has specified partitions, respect their preference
@@ -86,8 +94,7 @@ func determinePartitionsToEncrypt(c sdkConfig.Config) []string {
 
 	// No user-specified partitions
 	if internalutils.IsUki() {
-		// UKI mode: encrypt OEM and PERSISTENT by default
-		return []string{constants.OEMLabel, constants.PersistentLabel}
+		return DefaultUKIEncryptionTargets()
 	}
 
 	// Non-UKI mode with no user-specified partitions: don't encrypt anything
@@ -101,7 +108,7 @@ func preparePartitionsForEncryption(c sdkConfig.Config, partitions []string) err
 
 		// Unmount the partition before encrypting it
 		// Find the device path for this partition label
-		devPath, err := utils.SH(fmt.Sprintf("blkid -L %s", p))
+		devPath, err := utils.SHStdout(fmt.Sprintf("blkid -L %s", p))
 		if err != nil {
 			c.Logger.Logger.Warn().Str("label", p).Err(err).Msg("Could not find device for label")
 		} else {
@@ -109,7 +116,7 @@ func preparePartitionsForEncryption(c sdkConfig.Config, partitions []string) err
 			c.Logger.Logger.Info().Str("device", devPath).Str("label", p).Msg("Found device for label")
 
 			// Find all mount points for this device and unmount them
-			mountPoints, _ := utils.SH(fmt.Sprintf("findmnt -n -o TARGET -S %s", devPath))
+			mountPoints, _ := utils.SHStdout(fmt.Sprintf("findmnt -n -o TARGET -S %s", devPath))
 			if mountPoints != "" {
 				for _, mp := range strings.Split(strings.TrimSpace(mountPoints), "\n") {
 					if mp != "" {
@@ -187,7 +194,7 @@ func backupOEMIfNeeded(c sdkConfig.Config) (backupPath string, cleanup func(), e
 func findMapperDeviceForPartition(c sdkConfig.Config, label string) (string, error) {
 	// First, find the underlying encrypted partition device by its label
 	// This will return the LUKS container device (e.g., /dev/vda2)
-	partitionPath, err := utils.SH(fmt.Sprintf("blkid -L %s", label))
+	partitionPath, err := utils.SHStdout(fmt.Sprintf("blkid -L %s", label))
 	if err != nil {
 		return "", fmt.Errorf("failed to find partition with label %s: %w", label, err)
 	}
@@ -201,7 +208,7 @@ func findMapperDeviceForPartition(c sdkConfig.Config, label string) (string, err
 	mapperPath := fmt.Sprintf("/dev/mapper/%s", baseName)
 
 	// Get list of active encrypted mapper devices to verify it's unlocked
-	dmOutput, err := utils.SH("dmsetup ls --target crypt")
+	dmOutput, err := utils.SHStdout("dmsetup ls --target crypt")
 	if err != nil {
 		return "", fmt.Errorf("failed to list dm-crypt devices: %w", err)
 	}
@@ -281,7 +288,7 @@ func restoreOEM(c sdkConfig.Config, backupPath string) error {
 	c.Logger.Logger.Info().Str("device", devicePath).Str("mountpoint", constants.OEMDir).Msg("Mounting OEM partition")
 
 	// First check what filesystem is on the device
-	fsType, _ := utils.SH(fmt.Sprintf("blkid -s TYPE -o value %s", devicePath))
+	fsType, _ := utils.SHStdout(fmt.Sprintf("blkid -s TYPE -o value %s", devicePath))
 	c.Logger.Logger.Info().Str("device", devicePath).Str("fs_type", strings.TrimSpace(fsType)).Msg("Filesystem type on mapper device")
 
 	mountOut, err := utils.SH(fmt.Sprintf("mount %s %s", devicePath, constants.OEMDir))
