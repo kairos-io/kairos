@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 
 	"github.com/kairos-io/kairos/v4/sdk/bus"
@@ -29,6 +30,10 @@ func Reload() {
 type Bus struct {
 	*pluggable.Manager
 	registered bool
+	// loadedPaths are the directories LoadProviders actually read the
+	// providers from, so that a later Initialize can tell whether it is asking
+	// for something different.
+	loadedPaths []string
 	// mu guards providerErrs. Providers run concurrently, so the response
 	// handler that appends to it runs on several goroutines at once.
 	mu sync.Mutex
@@ -44,7 +49,14 @@ func (b *Bus) LoadProviders(paths ...string) {
 		wd, _ := os.Getwd()
 		paths = []string{"/system/providers", "/usr/local/system/providers", wd}
 	}
+	b.loadedPaths = paths
 	b.Manager.Autoload("agent-provider", paths...).Register()
+}
+
+// LoadedPaths returns the directories the providers currently on the bus were
+// loaded from.
+func (b *Bus) LoadedPaths() []string {
+	return b.loadedPaths
 }
 
 func (b *Bus) HasRegisteredPlugins() bool {
@@ -78,8 +90,22 @@ func (b *Bus) Publish(event pluggable.EventType, obj interface{}) (*pluggable.Ma
 	return m, errors.Join(b.providerErrs...)
 }
 
+// Initialize loads the providers found in paths, or in the default provider
+// directories when paths is empty, and subscribes the response handlers.
+//
+// It takes effect once per bus. Registering subscribes every provider loaded
+// so far to every event, so a second registration would make each provider
+// already on the bus run twice for the same event. The directories of the
+// first call are therefore the ones the process uses, and a later call asking
+// for different ones is reported instead of being dropped in silence. A
+// command that wants specific provider directories has to be the one that
+// initializes the bus.
 func (b *Bus) Initialize(paths ...string) {
 	if b.registered {
+		if len(paths) > 0 && !slices.Equal(paths, b.loadedPaths) {
+			fmt.Printf("warning: the bus already loaded its providers from %v, so %v is ignored\n",
+				b.loadedPaths, paths)
+		}
 		return
 	}
 

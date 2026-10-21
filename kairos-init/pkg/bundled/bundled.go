@@ -358,6 +358,24 @@ omit_dracutmodules+=" plymouth "`
 //
 // It is wired into initrd.target.wants, never initrd.target.requires; see the
 // module-setup script for why that distinction is load-bearing.
+//
+// Recovery and the automatic state reset get no animation, the same as in
+// SplashService. That unit tests the /run/cos sentinels, but this one cannot:
+// immucore writes them from inside the initramfs, after this unit has already
+// started. So the negated ConditionKernelCommandLine= lines below test the
+// command line words that immucore's boot-state detection (sdk/state,
+// getNonUKIBootState) reads to pick recovery_mode and autoreset_mode:
+//
+//   - root=LABEL=COS_SYSTEM and root=live:LABEL=COS_RECOVERY are the two
+//     roots BootArgsCfg gives the recovery image (a .img file or a squashfs).
+//     immucore matches COS_SYSTEM and COS_RECOVERY as substrings, systemd
+//     matches whole words, so these are the exact words GRUB writes.
+//   - kairos.reset is the statereset entry. It also boots the recovery image,
+//     so the root= lines already cover it, but immucore reads kairos.reset
+//     ahead of every other marker, so this unit tests it too.
+//
+// Trusted boot is not affected: a UKI has no dracut-built initramfs, so this
+// unit is never installed there.
 const SplashServiceDracut = `[Unit]
 Description=Kairos boot splash (initramfs)
 DefaultDependencies=no
@@ -366,6 +384,9 @@ Before=initrd.target
 Conflicts=initrd-switch-root.target
 Conflicts=emergency.target
 ConditionKernelCommandLine=splash
+ConditionKernelCommandLine=!root=LABEL=COS_SYSTEM
+ConditionKernelCommandLine=!root=live:LABEL=COS_RECOVERY
+ConditionKernelCommandLine=!kairos.reset
 ConditionPathExists=/usr/bin/kairos-splash
 
 [Service]
@@ -462,14 +483,56 @@ install() {
 // between switch-root, where the initramfs unit is killed, and the login
 // prompt.
 //
-// A oneshot ordered Before=getty.target means getty waits for it, so the
-// animation is never half-overwritten by a login prompt appearing on top of
-// it. That also means it adds its own runtime to the boot, which is why it is
-// the one part of the splash with a --duration: SplashDuration of animation,
-// bounded again by TimeoutStartSec in case the console misbehaves.
+// A oneshot ordered before getty means getty waits for it, so the animation is
+// never half-overwritten by a login prompt appearing on top of it. That also
+// means it adds its own runtime to the boot, which is why it is the one part of
+// the splash with a --duration: SplashDuration of animation, bounded again by
+// TimeoutStartSec in case the console misbehaves.
+//
+// Before=getty.target alone does not do that. systemd's own getty@.service
+// carries Before=getty.target too, so the two units are siblings of that target
+// with no order between them: getty@tty1.service starts while the splash is
+// still animating and the login prompt lands on top of it. The unit the splash
+// shares a console with is getty@tty1.service, so that is the one to order
+// against. getty.target stays, because it is what keeps the whole getty set
+// after the splash on a system that puts a getty somewhere else as well.
 //
 // RemainAfterExit keeps a second `systemctl start` a no-op rather than a
 // replay of the animation.
+//
+// DefaultDependencies=no is what makes the animation continuous across
+// switch-root. The default dependencies put After=basic.target on the unit,
+// and basic.target is the whole of sysinit plus sockets: on a measured boot
+// the initramfs animation was killed at 11.23 s and this unit only started at
+// 13.96 s, so the console sat blank with systemd status on it for 2.7 s in
+// between. Nothing the splash draws needs any of that work. The binary is in
+// the root image immucore mounted before switch-root, the /run/cos sentinels
+// the conditions read were written in the initramfs and /run survives the
+// switch, and /dev/tty1 comes from devtmpfs at kernel init.
+//
+// The one thing it does need is systemd-vconsole-setup.service, which loads
+// the console font and keymap. It carries Before=sysinit.target, so it still
+// runs well inside the gap, and ordering after it keeps the block-art glyphs
+// from being painted with a font that is about to be replaced under them.
+//
+// systemd-sysctl.service is the second. The splash reads kernel.printk when it
+// starts and writes the old value back when it exits, so a sysctl applied from
+// /etc/sysctl.d during the animation would be overwritten on exit and lost
+// until the next boot. basic.target used to order the two, and stock systemd
+// declares no edge between sysctl and vconsole-setup, so dropping the default
+// dependencies leaves nothing holding them apart. systemd-sysctl.service is
+// also Before=sysinit.target, so this costs about as little as the first edge.
+//
+// Dropping the default dependencies also drops the two that stop a unit at
+// shutdown, so they are written out again. Without them a cosmetic oneshot
+// with RemainAfterExit=yes is still "active" while the system goes down, and
+// systemd has no order in which to stop it.
+//
+// Starting this early means the unit is now reliably on screen before a DRM
+// driver binds and fbcon switches resolution, instead of racing it by about
+// 70 ms as it did before. The animation has to follow a console that changes
+// size underneath it for that to look right, which is why this change belongs
+// after the TIOCGWINSZ poll in internal/splash.
 //
 // The conditions are the boots that own tty1 themselves, or that a human is
 // watching for output, and so must not have a logo drawn over them: the live
@@ -479,7 +542,13 @@ install() {
 // themselves out of a recovery boot.
 const SplashService = `[Unit]
 Description=Kairos boot splash
+DefaultDependencies=no
+After=systemd-vconsole-setup.service
+After=systemd-sysctl.service
+Conflicts=shutdown.target
+Before=shutdown.target
 Before=getty.target
+Before=getty@tty1.service
 ConditionKernelCommandLine=splash
 ConditionPathExists=/usr/bin/kairos-splash
 ConditionPathExists=!/run/cos/live_mode
@@ -563,12 +632,28 @@ else
   set fallback="0 1 2"
 fi
 
-insmod all_video
+# Some GRUB builds compile the video drivers into the core image and ship no
+# all_video.mod. Loading the module there prints "file not found" on every
+# boot, so only load it when the file is present.
+if [ -f "${prefix}/${grub_cpu}-${grub_platform}/all_video.mod" ]; then
+  insmod all_video
+fi
 insmod loopback
 insmod squash4
 insmod serial
 
 loadfont unicode
+# rmmod lives in the minicmd module. Some GRUB builds, such as Hadron's, do not
+# embed it, and a missing command prints "can't find command" on every boot.
+# GRUB looks up a built-in command before a script function, so this no-op
+# only runs where the real rmmod does not exist. Such builds do not embed tpm
+# either, so there is nothing to remove.
+# The body has to be a command that every build has. true and echo live in
+# modules a build can leave out, the same way this one left out minicmd. set is
+# registered by the GRUB kernel itself, so it is there in every image.
+function rmmod {
+  set kairos_rmmod_noop=1
+}
 if [ "${grub_platform}" = "efi" ]; then
     ## workaround for grub2-efi bug: https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1851311
     rmmod tpm
@@ -736,6 +821,29 @@ function setKernelCmd {
     # or adding kairos.splash=0 at the boot menu, turns the animation off
     # without touching a unit file.
     set baseCmd="console=tty1 splash net.ifnames=1 rd.cos.oemlabel=COS_OEM rd.cos.oemtimeout=10 panic=5 rd.emergency=reboot rd.shell=0 systemd.crash_reboot=yes"
+    # quiet goes on the entries that animate, and only on those. Most of the
+    # text the splash exists to replace is printed before it can draw at all:
+    # the kernel prints from its first line, and systemd prints unit status
+    # from the moment it starts, while the initramfs unit has to wait for udev
+    # to make /dev/tty1. No unit ordering closes that window, so the command
+    # line has to.
+    #
+    # This is not silence. quiet lowers the kernel console level to
+    # CONSOLE_LOGLEVEL_QUIET, 4 in a stock build, so KERN_ERR and worse still
+    # reach tty1 and the serial console, and systemd reads it as
+    # SHOW_STATUS_ERROR, which still prints a unit that fails. The journal is
+    # untouched, and anything after $kernelcmd in the menuentry still wins, so
+    # adding loglevel=7 at the boot menu brings the full log back.
+    #
+    # Recovery and the automatic state reset stay verbose: they are where an
+    # operator goes to read the boot, and the booted-system animation that
+    # would otherwise hide it is already refused there by SplashService, which
+    # tests the /run/cos recovery_mode and autoreset_mode sentinels. They are
+    # also the two entries that set label=COS_SYSTEM, which is what tells them
+    # apart here.
+    if test "${label}" != "COS_SYSTEM"; then
+        set baseCmd="$baseCmd quiet"
+    fi
     if [ -n "$recoverylabel" ]; then
         set baseRootCmd="root=live:LABEL=$recoverylabel rd.live.dir=/ rd.live.squashimg=$img"
     else

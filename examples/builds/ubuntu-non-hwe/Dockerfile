@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 AS base-kairos
+FROM ubuntu:22.04@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956 AS base-kairos
 ARG VERSION=v0.0.1
 
 RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init \

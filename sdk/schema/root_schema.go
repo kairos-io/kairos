@@ -21,6 +21,8 @@ type RootSchema struct {
 	GrubOptionsSchema  `json:"grub_options,omitempty"`
 	Install            InstallSchema `json:"install,omitempty"`
 	Kcrypt             KcryptSchema  `json:"kcrypt,omitempty"`
+	Upgrade            UpgradeSchema `json:"upgrade,omitempty"`
+	Reset              ResetSchema   `json:"reset,omitempty"`
 	Options            []interface{} `json:"options,omitempty" description:"Various options."`
 	// Users is not required. An admin user may instead be defined in a yip
 	// stage (stages.<stage>[].users) or waived with install.nousers, and the
@@ -28,6 +30,7 @@ type RootSchema struct {
 	// agent/pkg/config). An explicit empty list is still rejected.
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
+	KubeVIP                   KubeVIPSchema            `json:"kubevip,omitempty"`
 	Debug                     bool                     `json:"debug,omitempty" mapstructure:"debug"`
 	Strict                    bool                     `json:"strict,omitempty" mapstructure:"strict"`
 	CloudInitPaths            []string                 `json:"cloud-init-paths,omitempty" mapstructure:"cloud-init-paths"`
@@ -97,7 +100,13 @@ func (kc *KConfig) validate() {
 		return
 	}
 
-	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
+	nullableSchemaJSON, err := withNullableProperties(generatedSchemaJSON)
+	if err != nil {
+		kc.ValidationError = err
+		return
+	}
+
+	sch, err := jsonschema.CompileString(InProcessSchemaID, nullableSchemaJSON)
 	if err != nil {
 		kc.ValidationError = err
 		return
@@ -105,6 +114,96 @@ func (kc *KConfig) validate() {
 
 	if err = sch.Validate(kc.parsed); err != nil {
 		kc.ValidationError = err
+	}
+}
+
+// withNullableProperties returns the generated schema with every property also
+// accepting null, so that `ssh_authorized_keys:` with its entries commented out
+// validates the same as a config that does not mention the key at all.
+//
+// YAML reads a key with nothing under it as an explicit null, and the reflector
+// gives each key one concrete type, so null matched none of them. No other
+// reader of the config can tell the two apart: yaml.Unmarshal gives the Go
+// field its zero value either way. The validator was the only place that did,
+// and it rejected the shape the examples and the documentation teach, where an
+// optional list is shown as a key with its entries commented out.
+//
+// Only the members of a "properties" map are widened. An "items" schema is left
+// alone, because a null entry of a sequence is a real mistake rather than a
+// shorter list, so `users:\n  -\n` keeps failing. "required" is left alone too:
+// a required key written blank is caught by its own keyword, not by the type.
+func withNullableProperties(schemaJSON string) (string, error) {
+	var doc interface{}
+	if err := json.Unmarshal([]byte(schemaJSON), &doc); err != nil {
+		return "", fmt.Errorf("reading the generated schema: %w", err)
+	}
+
+	allowNullInProperties(doc)
+
+	widened, err := json.Marshal(doc)
+	if err != nil {
+		return "", fmt.Errorf("writing the widened schema: %w", err)
+	}
+
+	return string(widened), nil
+}
+
+// allowNullInProperties walks a schema document and widens every property
+// subschema it finds, wherever it is nested: the root object, a definition, an
+// items schema of its own, all of them reach their keys through "properties".
+func allowNullInProperties(node interface{}) {
+	switch t := node.(type) {
+	case map[string]interface{}:
+		properties, _ := t["properties"].(map[string]interface{})
+		for name, property := range properties {
+			allowNullInProperties(property)
+			properties[name] = alsoNull(property)
+		}
+		for key, value := range t {
+			if key == "properties" {
+				continue
+			}
+			allowNullInProperties(value)
+		}
+	case []interface{}:
+		for _, value := range t {
+			allowNullInProperties(value)
+		}
+	}
+}
+
+// alsoNull returns the subschema with null added to the values it accepts.
+//
+// A schema that states its own type gets null appended to that type, which
+// keeps the description and the rest of the keywords in place and keeps the
+// validator's message readable ("expected string or null, but got number").
+// Anything else, a $ref to a definition in particular, has to be wrapped:
+// draft-07 ignores the keywords that sit beside a $ref, so a type added next
+// to one would be dropped on the floor.
+func alsoNull(property interface{}) interface{} {
+	schema, ok := property.(map[string]interface{})
+	if !ok {
+		// A boolean schema. true already accepts null, false accepts nothing
+		// and is meant to.
+		return property
+	}
+
+	switch declared := schema["type"].(type) {
+	case string:
+		schema["type"] = []interface{}{declared, "null"}
+		return schema
+	case []interface{}:
+		for _, t := range declared {
+			if t == "null" {
+				return schema
+			}
+		}
+		schema["type"] = append(declared, "null")
+		return schema
+	}
+
+	return map[string]interface{}{
+		"anyOf": []interface{}{schema, map[string]interface{}{"type": "null"}},
 	}
 }
 
