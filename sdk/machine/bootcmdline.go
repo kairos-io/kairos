@@ -123,10 +123,33 @@ func DotStringToYAML(s string) ([]byte, error) {
 	return unstructured.ToYAML(stringToMap(s))
 }
 
+// DotStringToYAMLBestEffort is DotStringToYAML for callers that would rather
+// get the tokens that did convert than nothing at all. Tokens that cannot be
+// turned into YAML (e.g. keys starting with a digit, like 8250.nr_uarts=0)
+// are skipped: when anything else converted, the partial YAML is returned
+// with a nil error and the conversion error is passed to onSkip, if set.
+// When nothing converted the error is returned as DotStringToYAML does.
+func DotStringToYAMLBestEffort(s string, onSkip func(error)) ([]byte, error) {
+	out, err := DotStringToYAML(s)
+	if err == nil || isEmptyYAMLMap(out) {
+		return out, err
+	}
+	if onSkip != nil {
+		onSkip(err)
+	}
+	return out, nil
+}
+
+func isEmptyYAMLMap(b []byte) bool {
+	t := strings.TrimSpace(string(b))
+	return t == "" || t == "{}"
+}
+
 // applyKairosConfigStanza parses a "KEY=VALUE" payload (KEY may use
 // dot notation with numeric segments for list indices) and writes it into
 // root. Payloads without '=' set the key to the literal string "true", so
-// bare-flag stanzas like kairos.config=install.auto behave sensibly.
+// bare-flag stanzas like kairos.config=install.auto behave sensibly. A
+// payload with a list index above unstructured.MaxListIndex is skipped.
 func applyKairosConfigStanza(root map[string]interface{}, payload string) {
 	parts := strings.SplitN(payload, "=", 2)
 	value := "true"
@@ -138,6 +161,11 @@ func applyKairosConfigStanza(root map[string]interface{}, payload string) {
 		return
 	}
 	segs := strings.Split(key, ".")
+	for _, seg := range segs[1:] {
+		if idx, err := strconv.Atoi(seg); err == nil && idx > unstructured.MaxListIndex {
+			return
+		}
+	}
 	// The root is always a map keyed by the first segment (numeric first
 	// segments are treated as string keys, since the top level is a map).
 	first := segs[0]
