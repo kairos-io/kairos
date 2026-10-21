@@ -119,8 +119,17 @@ func (c *Config) IsKubernetesConfigured() bool {
 type KubeVIP struct {
 	EIP         string `yaml:"eip,omitempty"`
 	ManifestURL string `yaml:"manifest_url,omitempty"`
-	Interface   string `yaml:"interface,omitempty"`
-	Enabled     *bool  `yaml:"enabled,omitempty"`
+	// ManifestSHA256 is the expected sha256 digest (lowercase hex) of the
+	// content at ManifestURL. ManifestURL is an operator-supplied,
+	// arbitrary source with no identity Kairos can know in advance, so
+	// there is nothing to pin in code the way kairos-io's own release
+	// artifacts can be; this field lets the operator supply that pin
+	// themselves. When set, the download is verified against it and fails
+	// closed on a mismatch. When unset, the download proceeds unverified,
+	// same as before this field existed.
+	ManifestSHA256 string `yaml:"manifest_sha256,omitempty"`
+	Interface      string `yaml:"interface,omitempty"`
+	Enabled        *bool  `yaml:"enabled,omitempty"`
 	// DeprecatedEnable carries the `enable` spelling. UnmarshalYAML folds it
 	// into Enabled, so every reader has to use Enabled; this field only
 	// records that the deprecated spelling is the one the user wrote.

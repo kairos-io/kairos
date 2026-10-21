@@ -7,19 +7,164 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 
+	httpimpl "github.com/kairos-io/kairos/v4/agent/pkg/implementations/http"
 	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/bus"
+	sdkhttp "github.com/kairos-io/kairos/v4/sdk/types/http"
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/verify"
 	"github.com/mudler/go-pluggable"
 )
 
 const (
 	K3s = "k3s"
 	K0s = "k0s"
+
+	k3sInstallScriptURL = "https://get.k3s.io"
+
+	// k3sInstallScriptSumsURL is published by k3s-io/k3s itself, alongside
+	// install.sh in the same repo, specifically so this script can be
+	// verified (added in k3s-io/k3s#8312). get.k3s.io serves the master
+	// branch's install.sh byte-for-byte, so checking the download against
+	// this sibling file catches a compromised or spoofed get.k3s.io without
+	// k3s needing to sign anything new.
+	k3sInstallScriptSumsURL = "https://raw.githubusercontent.com/k3s-io/k3s/master/install.sh.sha256sum"
+
+	// k0sStableVersionURL is what get.k0s.sh itself resolves K0S_VERSION
+	// from when the caller doesn't set one. Resolving it here too — instead
+	// of leaving it to the script — means the exact version string is known
+	// up front, so the matching release's sha256sums.txt can be fetched
+	// before anything is installed.
+	k0sStableVersionURL = "https://docs.k0sproject.io/stable.txt"
+
+	// k0sBinaryDest is where the verified k0s binary is written directly;
+	// the OpenRC/systemd unit content in services.K0sServices hardcodes this
+	// same path.
+	k0sBinaryDest = "/usr/bin/k0s"
 )
+
+// downloadK3sInstaller fetches the k3s install script from scriptURL and
+// verifies it against the sha256 digest published at sumsURL before writing
+// it to dest. It fails closed: a fetch error, a parse error, or a digest
+// mismatch all return an error and leave dest untouched.
+func downloadK3sInstaller(client sdkhttp.Client, l loggerpkg.KairosLogger, scriptURL, sumsURL, dest string) error {
+	sums, err := verify.FetchChecksums(client, l, sumsURL)
+	if err != nil {
+		return fmt.Errorf("fetch %s: %w", sumsURL, err)
+	}
+	want, err := verify.ChecksumFromSumsFile(sums, "install.sh")
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", sumsURL, err)
+	}
+	return verify.VerifiedDownload(client, l, scriptURL, dest, want)
+}
+
+// resolveK0sVersion returns version unchanged if set, otherwise resolves
+// k0s's current stable release the same way get.k0s.sh resolves K0S_VERSION
+// internally when it isn't set — a plain fetch of stableURL. Resolving it
+// here (rather than leaving it to the script k0s ships) is what lets the
+// caller know which release's sha256sums.txt to fetch and verify against
+// before anything is installed. stableURL is a parameter (production callers
+// pass k0sStableVersionURL) so tests can point it at a local server instead
+// of the real https://docs.k0sproject.io/stable.txt.
+func resolveK0sVersion(client sdkhttp.Client, l loggerpkg.KairosLogger, stableURL, version string) (string, error) {
+	if version != "" {
+		return version, nil
+	}
+	body, err := verify.FetchChecksums(client, l, stableURL)
+	if err != nil {
+		return "", fmt.Errorf("resolve stable k0s version from %s: %w", stableURL, err)
+	}
+	resolved := strings.TrimSpace(string(body))
+	if resolved == "" {
+		return "", fmt.Errorf("%s returned an empty version", stableURL)
+	}
+	return resolved, nil
+}
+
+// k0sReleaseTag percent-encodes the "+" in a k0s version (e.g.
+// "v1.36.4+k0s.0") for use as a release-tag URL path segment. GitHub's own
+// release links for k0sproject/k0s escape it the same way (e.g.
+// ".../download/v1.36.4%2Bk0s.0/sha256sums.txt").
+func k0sReleaseTag(version string) string {
+	return strings.ReplaceAll(version, "+", "%2B")
+}
+
+// k0sReleaseURLs builds the sha256sums.txt URL and the binary-name prefix
+// (everything up to, but not including, the "k0s-<version>-<arch>" filename)
+// for version's k0sproject/k0s release. Pulled out as a pure function so the
+// URL shape (including the "+" percent-encoding) is unit testable without a
+// network call.
+func k0sReleaseURLs(version string) (sumsURL, binaryURLPrefix string) {
+	tag := k0sReleaseTag(version)
+	sumsURL = fmt.Sprintf("https://github.com/k0sproject/k0s/releases/download/%s/sha256sums.txt", tag)
+	binaryURLPrefix = fmt.Sprintf("https://github.com/k0sproject/k0s/releases/download/%s/", tag)
+	return sumsURL, binaryURLPrefix
+}
+
+// k0sArch maps runtime.GOARCH onto the arch suffix k0sproject/k0s publishes
+// release binaries under, mirroring _detect_arch in get.k0s.sh.
+func k0sArch(goarch string) (string, error) {
+	switch goarch {
+	case "amd64", "arm64", "arm":
+		return goarch, nil
+	default:
+		return "", fmt.Errorf("unsupported architecture for k0s: %s", goarch)
+	}
+}
+
+// downloadVerifiedK0sBinaryAt fetches sumsURL (k0sproject/k0s's own
+// sha256sums.txt for one release), finds the entry for
+// "k0s-<version>-<arch>", and downloads+verifies that binary from
+// binaryURLPrefix+"k0s-<version>-<arch>" to dest. Split out from
+// downloadVerifiedK0sBinary so tests can point both URLs at a local server.
+func downloadVerifiedK0sBinaryAt(client sdkhttp.Client, l loggerpkg.KairosLogger, sumsURL, binaryURLPrefix, version, arch, dest string) error {
+	sums, err := verify.FetchChecksums(client, l, sumsURL)
+	if err != nil {
+		return fmt.Errorf("fetch %s: %w", sumsURL, err)
+	}
+	filename := fmt.Sprintf("k0s-%s-%s", version, arch)
+	want, err := verify.ChecksumFromSumsFile(sums, filename)
+	if err != nil {
+		return fmt.Errorf("find checksum for %s in %s: %w", filename, sumsURL, err)
+	}
+	url := binaryURLPrefix + filename
+	if err := verify.VerifiedDownload(client, l, url, dest, want); err != nil {
+		return fmt.Errorf("download %s: %w", url, err)
+	}
+	return nil
+}
+
+// downloadVerifiedK0sBinary resolves version (falling back to k0s's current
+// stable release when unset), fetches that release's own sha256sums.txt —
+// published by k0sproject/k0s alongside every release binary — and
+// downloads+verifies the k0s binary for the running architecture straight
+// from k0sproject/k0s's GitHub release, writing it to dest.
+//
+// This replaces running get.k0s.sh entirely. That script (served from the
+// k0sproject/get GitHub Pages repo, a plain index.html with no published
+// checksum or signature of its own) does nothing but resolve K0S_VERSION and
+// fetch this exact same binary; doing that fetch ourselves, verified, means
+// kairos never has to execute an unverifiable script to get k0s installed.
+func downloadVerifiedK0sBinary(client sdkhttp.Client, l loggerpkg.KairosLogger, version, dest string) (resolvedVersion string, err error) {
+	resolvedVersion, err = resolveK0sVersion(client, l, k0sStableVersionURL, version)
+	if err != nil {
+		return "", err
+	}
+	arch, err := k0sArch(runtime.GOARCH)
+	if err != nil {
+		return "", err
+	}
+	sumsURL, binaryURLPrefix := k0sReleaseURLs(resolvedVersion)
+	if err := downloadVerifiedK0sBinaryAt(client, l, sumsURL, binaryURLPrefix, resolvedVersion, arch, dest); err != nil {
+		return "", err
+	}
+	return resolvedVersion, nil
+}
 
 // BuildEvent handles the buildtime event for the provider. Called by kairos-init during the build process.
 func BuildEvent(e *pluggable.Event) pluggable.EventResponse {
@@ -45,46 +190,58 @@ func BuildEvent(e *pluggable.Event) pluggable.EventResponse {
 	// Now move the logger to the requested log level
 	l.SetLevel(p.LogLevel)
 	l.Logger.Debug().Interface("payload", p).Msg("Payload details")
+	installerFile := filepath.Join(os.TempDir(), "installer.sh")
+	client := httpimpl.NewClient()
+
 	// Download the installer script for the provider
-	var url string
 	switch p.Provider {
 	case K3s:
-		url = "https://get.k3s.io"
-	case K0s:
-		url = "https://get.k0s.sh"
-	}
-
-	installerFile := filepath.Join(os.TempDir(), "installer.sh")
-
-	// Download the installer script
-	switch p.Provider {
-	case K3s, K0s:
-		l.Logger.Info().Msgf("Downloading installer script for %s from %s", p.Provider, url)
-		// TODO: Do it with golang instead of needing curl?
-		out, err := exec.Command("curl", "-sfL", url, "-o", installerFile).CombinedOutput()
-		if err != nil {
-			l.Logger.Error().Err(err).Msgf("Failed to download installer script: %s", string(out))
-			returnData.Error = fmt.Sprintf("Failed to download installer script: %s", string(out))
+		l.Logger.Info().Msgf("Downloading installer script for %s from %s", p.Provider, k3sInstallScriptURL)
+		if err := downloadK3sInstaller(client, l, k3sInstallScriptURL, k3sInstallScriptSumsURL, installerFile); err != nil {
+			l.Logger.Error().Err(err).Msg("Failed to download and verify k3s installer script")
+			returnData.Error = fmt.Sprintf("Failed to download and verify k3s installer script: %s", err)
 			returnData.State = bus.EventResponseError
 			return returnData
 		}
+		// Make the installer script executable
+		if err := os.Chmod(installerFile, 0755); err != nil {
+			l.Logger.Error().Err(err).Msgf("Failed to make installer script executable: %s", installerFile)
+			returnData.Error = fmt.Sprintf("Failed to make installer script executable: %s", err)
+			returnData.State = bus.EventResponseError
+			return returnData
+		}
+	case K0s:
+		// get.k0s.sh (k0sproject/get, a bare GitHub Pages index.html) has no
+		// published checksum or signature of its own, so it is never
+		// downloaded or executed here at all. Its only job — resolve
+		// K0S_VERSION and fetch the matching k0s-<version>-<arch> binary —
+		// is done directly instead, verified against the sha256sums.txt
+		// k0sproject/k0s publishes alongside every release.
+		l.Logger.Info().Msg("Resolving k0s version and downloading its binary directly from k0sproject/k0s (sha256 verified)")
+		resolvedVersion, err := downloadVerifiedK0sBinary(client, l, p.Version, k0sBinaryDest)
+		if err != nil {
+			l.Logger.Error().Err(err).Msg("Failed to download and verify k0s binary")
+			returnData.Error = fmt.Sprintf("Failed to download and verify k0s binary: %s", err)
+			returnData.State = bus.EventResponseError
+			return returnData
+		}
+		if err := os.Chmod(k0sBinaryDest, 0755); err != nil {
+			l.Logger.Error().Err(err).Msgf("Failed to make %s executable", k0sBinaryDest)
+			returnData.Error = fmt.Sprintf("Failed to make %s executable: %s", k0sBinaryDest, err)
+			returnData.State = bus.EventResponseError
+			return returnData
+		}
+		p.Version = resolvedVersion
 	default:
 		// This is not for us, its for another provider or no provider was specified
 		l.Logger.Info().Msg("No valid provider specified or unsupported provider. Skipping buildtime logic.")
 		returnData.State = bus.EventResponseNotApplicable
 		return returnData
 	}
-	// Make the installer script executable
-	err := os.Chmod(installerFile, 0755)
-	if err != nil {
-		l.Logger.Error().Err(err).Msgf("Failed to make installer script executable: %s", installerFile)
-		returnData.Error = fmt.Sprintf("Failed to make installer script executable: %s", err)
-		returnData.State = bus.EventResponseError
-		return returnData
-	}
 
 	// Install the binaries
 	var out []byte
+	var err error
 	switch p.Provider {
 	case K3s:
 		// Prepare environment variables
@@ -117,39 +274,20 @@ func BuildEvent(e *pluggable.Event) pluggable.EventResponse {
 		}
 		out = append(out, out2...)
 	case K0s:
-		env := os.Environ()
-		if p.Version != "" {
-			env = append(env, fmt.Sprintf("K0S_VERSION=%s", p.Version))
-		}
-		l.Logger.Info().Msg("Running k0s installer script")
-		cmd := exec.Command("sh", installerFile)
-		cmd.Env = env
-		out, err = cmd.CombinedOutput()
-		if err != nil {
-			l.Logger.Error().Err(err).Msgf("Failed to run k0s installer script: %s", string(out))
-			returnData.Error = fmt.Sprintf("Failed to run k0s installer script: %s", string(out))
-			returnData.State = bus.EventResponseError
-			return returnData
-		}
-		// move the binary to a decent location t avoid overwriting it with PERSISTENT
-		err = os.Rename("/usr/local/bin/k0s", "/usr/bin/k0s")
-		if err != nil {
-			l.Logger.Error().Err(err).Msg("Failed to move k0s binary to /usr/bin")
-			returnData.Error = fmt.Sprintf("Failed to move k0s binary to /usr/bin: %s", err)
-			returnData.State = bus.EventResponseError
-			return returnData
-		}
-		// Because we change the binary location, the installer script wont produce the proper services
-		// also we are running in a dockerfile so the service manager identification does not work as expected
+		// The verified binary is already in place at k0sBinaryDest (done
+		// above, before this switch); the installer script would have
+		// produced the systemd/OpenRC unit files, but doesn't run here at
+		// all, and wouldn't have worked in a Dockerfile build environment's
+		// service-manager detection anyway — so those are always created
+		// manually.
 		l.Logger.Info().Msg("Creating k0s service file manually")
-		err = services.K0sServices(l)
-		if err != nil {
+		if err := services.K0sServices(l); err != nil {
 			l.Logger.Error().Err(err).Msg("Failed to create k0s service file")
 			returnData.Error = fmt.Sprintf("Failed to create k0s service file: %s", err)
 			returnData.State = bus.EventResponseError
 			return returnData
 		}
-
+		out = []byte(fmt.Sprintf("k0s %s installed to %s (sha256 verified against k0sproject/k0s's sha256sums.txt)\n", p.Version, k0sBinaryDest))
 	}
 	returnData.Data = string(out)
 	returnData.State = bus.EventResponseSuccess

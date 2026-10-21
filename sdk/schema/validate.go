@@ -48,6 +48,18 @@ func Validate(source string) error {
 			return err
 		}
 		defer resp.Body.Close()
+		// An error page is a body like any other, and reading it as the
+		// configuration reports whatever the server happened to send instead of
+		// the fetch that failed. The agent checks this on the same URL before
+		// an install, so validate has to agree with it.
+		//
+		// The URL stays out of the message. The caller passed it, so repeating
+		// it adds nothing, and it can carry credentials in its userinfo or in a
+		// signed query that would then reach stderr and the installer log.
+		// install and the collector report the status alone for the same reason.
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("could not read the configuration: %s", resp.Status)
+		}
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
