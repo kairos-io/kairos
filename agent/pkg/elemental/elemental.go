@@ -584,7 +584,18 @@ func (e *Elemental) imageFromIndex(index ggcrv1.ImageIndex) (ggcrv1.Image, error
 	}
 
 	var candidates []ggcrv1.Image
+	seen := map[string]struct{}{}
 	for _, descriptor := range manifest.Manifests {
+		// `docker save img:v1 img:latest` writes one entry per tag, both at
+		// the same digest. Resolving it twice would leave two candidates for
+		// one image and make the ambiguity error below fire on a layout that
+		// is not ambiguous.
+		digest := descriptor.Digest.String()
+		if _, repeat := seen[digest]; repeat {
+			continue
+		}
+		seen[digest] = struct{}{}
+
 		var img ggcrv1.Image
 
 		switch {
@@ -607,20 +618,40 @@ func (e *Elemental) imageFromIndex(index ggcrv1.ImageIndex) (ggcrv1.Image, error
 		if e.platformMatches(descriptor.Platform) {
 			return img, nil
 		}
+
+		// A descriptor that names a platform and does not match this run is
+		// not a fallback. Deploying it would fill the slot with a rootfs for
+		// the wrong architecture and report success, which is the failure
+		// this whole function exists to stop. Only a descriptor that says
+		// nothing about its platform stays a candidate.
+		if descriptor.Platform != nil {
+			continue
+		}
+
 		candidates = append(candidates, img)
 	}
 
 	switch len(candidates) {
 	case 0:
-		return nil, errors.New("the OCI layout holds no image")
+		return nil, fmt.Errorf("the OCI layout holds no image for %s", e.platformName())
 	case 1:
 		return candidates[0], nil
 	default:
 		return nil, fmt.Errorf(
 			"the OCI layout holds %d images and none of them is built for %s",
-			len(candidates), e.config.Platform.String(),
+			len(candidates), e.platformName(),
 		)
 	}
+}
+
+// platformName is the platform this run targets, for an error message. A run
+// with no platform set is a programming error rather than a user one, so it
+// gets a word instead of an empty string.
+func (e *Elemental) platformName() string {
+	if e.config.Platform == nil {
+		return "the platform of this run"
+	}
+	return e.config.Platform.String()
 }
 
 // platformMatches reports whether a manifest descriptor names the platform this

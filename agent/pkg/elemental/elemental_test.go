@@ -34,6 +34,7 @@ import (
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/gofrs/uuid"
 	"github.com/google/go-containerregistry/pkg/crane"
+	ggcrv1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
@@ -51,6 +52,7 @@ import (
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	Collector "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	SdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/sdk/types/platform"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sanity-io/litter"
@@ -912,6 +914,77 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(os.ReadDir(target)).To(BeEmpty())
 		})
 
+		It("Picks the image built for this run's platform out of a multi-architecture layout", Label("docker"), func() {
+			// This is the shape a containerd-backed `docker save` of a
+			// multi-architecture tag writes: index.json holds a nested index,
+			// and that index one manifest per platform. Nothing reaches the
+			// nested-index branch or the platform selection otherwise.
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			archivePath, bodies := saveMultiArchImage(GinkgoT().TempDir(), "linux/amd64", "linux/arm64")
+			target := GinkgoT().TempDir()
+
+			arm64, err := platform.NewPlatform("linux", "arm64")
+			Expect(err).ToNot(HaveOccurred())
+			config.Platform = arm64
+
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).
+				To(Equal([]byte(bodies["linux/arm64"])), "the amd64 image must not land on an arm64 node")
+		})
+
+		It("Refuses a layout whose only image is for another platform", Label("docker"), func() {
+			// A single non-matching descriptor used to be kept as the sole
+			// candidate and returned, which fills the slot with a rootfs for
+			// the wrong architecture and reports success.
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			archivePath, _ := saveMultiArchImage(GinkgoT().TempDir(), "linux/amd64")
+			target := GinkgoT().TempDir()
+
+			arm64, err := platform.NewPlatform("linux", "arm64")
+			Expect(err).ToNot(HaveOccurred())
+			config.Platform = arm64
+
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("linux/arm64"))
+			Expect(os.ReadDir(target)).To(BeEmpty())
+		})
+
+		It("Unpacks a layout that lists one image under two tags", Label("docker"), func() {
+			// `docker save img:v1 img:latest` writes one index entry per tag,
+			// both at the same digest and both without a platform. Counting
+			// them separately made the ambiguity error fire on a layout that
+			// holds a single image.
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			dir := GinkgoT().TempDir()
+			img := rootfsImage(dir, "layer.tar", "NAME=\"Kairos\"\n")
+
+			layoutDir := filepath.Join(dir, "two-tags-layout")
+			path, err := layout.Write(layoutDir, empty.Index)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(path.AppendImage(img, layout.WithAnnotations(map[string]string{
+				"org.opencontainers.image.ref.name": "kairos:v1",
+			}))).To(Succeed())
+			Expect(path.AppendImage(img, layout.WithAnnotations(map[string]string{
+				"org.opencontainers.image.ref.name": "kairos:latest",
+			}))).To(Succeed())
+
+			archivePath := filepath.Join(dir, "two-tags.tar")
+			Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
+
+			target := GinkgoT().TempDir()
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+		})
+
 		It("Copies image file to target", func() {
 			sourceImg := "/source.img"
 			destFile := filepath.Join(destDir, "active.img")
@@ -1318,12 +1391,35 @@ func realRunner(command string, args ...string) ([]byte, error) {
 func saveRootfsImage(dir, format string) string {
 	GinkgoHelper()
 
-	layerPath := filepath.Join(dir, "layer.tar")
+	img := rootfsImage(dir, "layer.tar", "NAME=\"Kairos\"\n")
+
+	archivePath := filepath.Join(dir, format+".tar")
+	if format == "docker" {
+		Expect(crane.Save(img, "kairos:test", archivePath)).To(Succeed())
+		return archivePath
+	}
+
+	layoutDir := filepath.Join(dir, "layout")
+	path, err := layout.Write(layoutDir, empty.Index)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(path.AppendImage(img)).To(Succeed())
+	Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
+
+	return archivePath
+}
+
+// rootfsImage builds a one layer image whose /etc/os-release holds osRelease,
+// so a spec can tell two images of the same shape apart by what lands in the
+// target.
+func rootfsImage(dir, layerName, osRelease string) ggcrv1.Image {
+	GinkgoHelper()
+
+	layerPath := filepath.Join(dir, layerName)
 	layerFile, err := os.Create(layerPath)
 	Expect(err).ToNot(HaveOccurred())
 
 	writer := tar.NewWriter(layerFile)
-	body := []byte("NAME=\"Kairos\"\n")
+	body := []byte(osRelease)
 	Expect(writer.WriteHeader(&tar.Header{
 		Name: "etc/os-release", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg,
 		// The suite has to be able to restore this ownership without being root.
@@ -1339,17 +1435,45 @@ func saveRootfsImage(dir, format string) string {
 	img, err := mutate.AppendLayers(empty.Image, layer)
 	Expect(err).ToNot(HaveOccurred())
 
-	archivePath := filepath.Join(dir, format+".tar")
-	if format == "docker" {
-		Expect(crane.Save(img, "kairos:test", archivePath)).To(Succeed())
-		return archivePath
+	return img
+}
+
+// saveMultiArchImage writes the archive a containerd-backed `docker save` of a
+// multi-architecture tag produces: an OCI layout whose index.json holds one
+// nested index, and that index one image manifest per platform. Each image
+// carries its own architecture in /etc/os-release, so the spec can name which
+// one was unpacked. The returned paths are the archive and the os-release body
+// of each platform, keyed by "os/arch".
+func saveMultiArchImage(dir string, platforms ...string) (string, map[string]string) {
+	GinkgoHelper()
+
+	bodies := map[string]string{}
+	addendums := []mutate.IndexAddendum{}
+	for i, p := range platforms {
+		parts := strings.SplitN(p, "/", 2)
+		Expect(parts).To(HaveLen(2), "platform %q is not os/arch", p)
+
+		body := fmt.Sprintf("NAME=\"Kairos\"\nARCH=%q\n", parts[1])
+		bodies[p] = body
+
+		img := rootfsImage(dir, fmt.Sprintf("layer-%d.tar", i), body)
+		addendums = append(addendums, mutate.IndexAddendum{
+			Add: img,
+			Descriptor: ggcrv1.Descriptor{
+				Platform: &ggcrv1.Platform{OS: parts[0], Architecture: parts[1]},
+			},
+		})
 	}
 
-	layoutDir := filepath.Join(dir, "layout")
+	nested := mutate.AppendManifests(empty.Index, addendums...)
+
+	layoutDir := filepath.Join(dir, "multiarch-layout")
 	path, err := layout.Write(layoutDir, empty.Index)
 	Expect(err).ToNot(HaveOccurred())
-	Expect(path.AppendImage(img)).To(Succeed())
+	Expect(path.AppendIndex(nested)).To(Succeed())
+
+	archivePath := filepath.Join(dir, "multiarch.tar")
 	Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
 
-	return archivePath
+	return archivePath, bodies
 }
