@@ -1,6 +1,7 @@
 package unstructured
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -113,19 +114,25 @@ func ToYAML(v map[string]interface{}) ([]byte, error) {
 		prefix := "."
 		equal := "="
 		tmplKey := "%s"
-		tmplValue := "\"%s\""
+		tmplValue := "%s"
 
 		// If key has a dash we need to add quotes to it to avoid failure parsing ut
 		if strings.Contains(k, "-") {
 			tmplKey = "\"%s\""
 		}
 
+		valueStr := fmt.Sprintf("%s", value)
 		// support boolean types
-		if value == "true" || value == "false" {
-			tmplValue = "%s"
+		if value != "true" && value != "false" {
+			quoted, err := json.Marshal(valueStr)
+			if err != nil {
+				errs = multierror.Append(errs, err)
+				continue
+			}
+			valueStr = string(quoted)
 		}
 		finalTemplate := prefix + tmplKey + equal + tmplValue
-		newData, err := jq(fmt.Sprintf(finalTemplate, k, value), data)
+		newData, err := jq(fmt.Sprintf(finalTemplate, k, valueStr), data)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 			continue

@@ -552,9 +552,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {test: 'provider-qrcode-install'}
+          # bridge: true marks a leg that needs a second libp2p peer to be
+          # discovered. provider-qrcode-install pairs the runner with the VM
+          # over go-nodepair, provider-decentralized-k8s pairs the two VMs
+          # over edgevpn. The other three legs are single peer.
+          #
+          # On QEMU user-mode networking neither pair can see the other, so
+          # the rendezvous has to go out to the public DHT and back. That
+          # works most of the time, which is what made these two the only
+          # legs here that redden intermittently on master.
+          - {test: 'provider-qrcode-install', bridge: true}
           - {test: 'provider-upgrade-k8s'}
-          - {test: 'provider-decentralized-k8s'}
+          - {test: 'provider-decentralized-k8s', bridge: true}
           - {test: 'provider-k3s-disabled'}
           - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
     name: test-standard / ${{ matrix.test }}
@@ -577,6 +586,7 @@ jobs:
       # since a k0s cell computes the same variant.
       kubernetes_distro: 'k3s'
       release-matcher: ${{ matrix.release-matcher || '' }}
+      use_bridge_network: ${{ matrix.bridge || false }}
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
 
@@ -696,7 +706,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xorriso mtools
       - name: Download PR ISOs
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           # The trailing * also picks up the -uki.iso.zip artifacts.
           pattern: "kairos-hadron-*-amd64-generic*.iso.zip"

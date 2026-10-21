@@ -102,4 +102,33 @@ a:
 			})
 		})
 	})
+
+	Describe("ToYAML", func() {
+		for name, val := range map[string]string{
+			"a double quote":          `a"b`,
+			"a backslash escape":      `C:\new`,
+			"jq string interpolation": `\(1+1)`,
+			"a jq injection payload":  `x" | .evil="y`,
+		} {
+			value := val
+			It("stores a value with "+name+" verbatim", func() {
+				out, err := ToYAML(map[string]interface{}{"foo": value})
+				Expect(err).ToNot(HaveOccurred())
+
+				got := map[string]interface{}{}
+				Expect(yaml.Unmarshal(out, &got)).To(Succeed())
+				Expect(got).To(Equal(map[string]interface{}{"foo": value}), string(out))
+			})
+		}
+
+		It("does not add a second key from an injected value", func() {
+			out, err := ToYAML(map[string]interface{}{"foo": `x" | .evil="y`})
+			Expect(err).ToNot(HaveOccurred())
+
+			got := map[string]interface{}{}
+			Expect(yaml.Unmarshal(out, &got)).To(Succeed())
+			Expect(got).ToNot(HaveKey("evil"))
+			Expect(got).To(HaveLen(1))
+		})
+	})
 })
