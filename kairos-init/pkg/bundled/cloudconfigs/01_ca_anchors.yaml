@@ -1,0 +1,38 @@
+# An operator installs a CA by dropping a certificate into the anchor directory
+# their distribution documents and running the distribution's extract tool. The
+# tool writes a bundle somewhere else, and that bundle is what every TLS client
+# on the machine actually reads.
+#
+# 00_rootfs.yaml persists the two anchor directories, so the certificate itself
+# survives a reboot. The generated bundle does not, and must not: it is image
+# content, and SyncState runs rsync without --delete, so persisting it would
+# keep a root CA the image later distrusts alive forever. Regenerating it here
+# instead means an image update still adds and removes roots, and only what the
+# operator put in the anchor directory is added back on top.
+#
+# Only the Red Hat and SUSE families need this. Debian, Ubuntu and Hadron take
+# their drop-in from /usr/local/share/ca-certificates, which is on the
+# persistent partition, and write into a real /etc/ssl/certs directory, which
+# 00_rootfs.yaml persists. On the Red Hat family /etc/ssl/certs is a symlink
+# into /etc/pki/ca-trust/extracted and nothing in the chain was persisted at
+# all, which is kairos-io/kairos#4755.
+#
+# Runs in the initramfs stage, which immucore runs after the persistent bind
+# mounts are in place (dag_normal_boot.go wires it after OpMountBind), so the
+# anchor directory read here is the persisted one and not the empty one it
+# shadows.
+#
+# Each guard tests for its own family's extract tool and a non-empty anchor
+# directory, so a machine whose operator added nothing pays nothing, and a
+# family that has neither directory never runs either command.
+name: "Re-extract the CA trust store from the persisted anchors"
+stages:
+  initramfs:
+    - if: '[ -x /usr/bin/update-ca-trust ] && [ -n "$(ls -A /etc/pki/ca-trust/source/anchors 2>/dev/null)" ]'
+      name: "Re-extract the Red Hat CA trust store"
+      commands:
+        - update-ca-trust extract
+    - if: '[ -x /usr/sbin/update-ca-certificates ] && [ -n "$(ls -A /etc/pki/trust/anchors 2>/dev/null)" ]'
+      name: "Re-extract the SUSE CA trust store"
+      commands:
+        - update-ca-certificates

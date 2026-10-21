@@ -510,6 +510,40 @@ install() {
 // nothing restores what was underneath. The flag is only on this half: the
 // initramfs unit is followed by the animation continuing in the booted system.
 //
+// DefaultDependencies=no is what makes the animation continuous across
+// switch-root. The default dependencies put After=basic.target on the unit,
+// and basic.target is the whole of sysinit plus sockets: on a measured boot
+// the initramfs animation was killed at 11.23 s and this unit only started at
+// 13.96 s, so the console sat blank with systemd status on it for 2.7 s in
+// between. Nothing the splash draws needs any of that work. The binary is in
+// the root image immucore mounted before switch-root, the /run/cos sentinels
+// the conditions read were written in the initramfs and /run survives the
+// switch, and /dev/tty1 comes from devtmpfs at kernel init.
+//
+// The one thing it does need is systemd-vconsole-setup.service, which loads
+// the console font and keymap. It carries Before=sysinit.target, so it still
+// runs well inside the gap, and ordering after it keeps the block-art glyphs
+// from being painted with a font that is about to be replaced under them.
+//
+// systemd-sysctl.service is the second. The splash reads kernel.printk when it
+// starts and writes the old value back when it exits, so a sysctl applied from
+// /etc/sysctl.d during the animation would be overwritten on exit and lost
+// until the next boot. basic.target used to order the two, and stock systemd
+// declares no edge between sysctl and vconsole-setup, so dropping the default
+// dependencies leaves nothing holding them apart. systemd-sysctl.service is
+// also Before=sysinit.target, so this costs about as little as the first edge.
+//
+// Dropping the default dependencies also drops the two that stop a unit at
+// shutdown, so they are written out again. Without them a cosmetic oneshot
+// with RemainAfterExit=yes is still "active" while the system goes down, and
+// systemd has no order in which to stop it.
+//
+// Starting this early means the unit is now reliably on screen before a DRM
+// driver binds and fbcon switches resolution, instead of racing it by about
+// 70 ms as it did before. The animation has to follow a console that changes
+// size underneath it for that to look right, which is why this change belongs
+// after the TIOCGWINSZ poll in internal/splash.
+//
 // The conditions are the boots that own tty1 themselves, or that a human is
 // watching for output, and so must not have a logo drawn over them: the live
 // ISO (the interactive installer runs there), an automatic state reset, and
@@ -518,6 +552,11 @@ install() {
 // themselves out of a recovery boot.
 const SplashService = `[Unit]
 Description=Kairos boot splash
+DefaultDependencies=no
+After=systemd-vconsole-setup.service
+After=systemd-sysctl.service
+Conflicts=shutdown.target
+Before=shutdown.target
 Before=getty.target
 Before=getty@tty1.service
 ConditionKernelCommandLine=splash
@@ -603,12 +642,28 @@ else
   set fallback="0 1 2"
 fi
 
-insmod all_video
+# Some GRUB builds compile the video drivers into the core image and ship no
+# all_video.mod. Loading the module there prints "file not found" on every
+# boot, so only load it when the file is present.
+if [ -f "${prefix}/${grub_cpu}-${grub_platform}/all_video.mod" ]; then
+  insmod all_video
+fi
 insmod loopback
 insmod squash4
 insmod serial
 
 loadfont unicode
+# rmmod lives in the minicmd module. Some GRUB builds, such as Hadron's, do not
+# embed it, and a missing command prints "can't find command" on every boot.
+# GRUB looks up a built-in command before a script function, so this no-op
+# only runs where the real rmmod does not exist. Such builds do not embed tpm
+# either, so there is nothing to remove.
+# The body has to be a command that every build has. true and echo live in
+# modules a build can leave out, the same way this one left out minicmd. set is
+# registered by the GRUB kernel itself, so it is there in every image.
+function rmmod {
+  set kairos_rmmod_noop=1
+}
 if [ "${grub_platform}" = "efi" ]; then
     ## workaround for grub2-efi bug: https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1851311
     rmmod tpm
