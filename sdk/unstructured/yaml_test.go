@@ -130,5 +130,81 @@ a:
 			Expect(got).ToNot(HaveKey("evil"))
 			Expect(got).To(HaveLen(1))
 		})
+
+		toMap := func(in map[string]interface{}) (map[string]interface{}, error) {
+			GinkgoHelper()
+			out, err := ToYAML(in)
+			m := map[string]interface{}{}
+			Expect(yaml.Unmarshal(out, &m)).To(Succeed())
+			return m, err
+		}
+
+		It("nests dotted keys and turns true and false into booleans", func() {
+			m, err := toMap(map[string]interface{}{"install.partitions.state.size": "100", "install.auto": "true"})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(m).To(Equal(map[string]interface{}{
+				"install": map[string]interface{}{
+					"auto":       true,
+					"partitions": map[string]interface{}{"state": map[string]interface{}{"size": "100"}},
+				},
+			}))
+		})
+
+		It("builds lists from [N] indexes", func() {
+			m, err := toMap(map[string]interface{}{
+				"stages.boot[0].commands[1]": "echo b",
+				"stages.boot[0].name":        "first",
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(m).To(Equal(map[string]interface{}{
+				"stages": map[string]interface{}{
+					"boot": []interface{}{
+						map[string]interface{}{
+							"commands": []interface{}{nil, "echo b"},
+							"name":     "first",
+						},
+					},
+				},
+			}))
+		})
+
+		It("keeps a key that is a jq expression as a literal key", func() {
+			m, err := toMap(map[string]interface{}{`install["device"]`: "/dev/sda"})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(m).To(Equal(map[string]interface{}{`install["device"]`: "/dev/sda"}))
+		})
+
+		It("nests a key that contains a dash", func() {
+			m, err := toMap(map[string]interface{}{"k3s-agent.enabled": "true", "p2p.network-token": "x"})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(m).To(Equal(map[string]interface{}{
+				"k3s-agent": map[string]interface{}{"enabled": true},
+				"p2p":       map[string]interface{}{"network-token": "x"},
+			}))
+		})
+
+		It("rejects a list index above 1024 and keeps the other keys", func() {
+			m, err := toMap(map[string]interface{}{"a[1025]": "x", "b[99999999999999999999]": "x", "c[1024]": "y"})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(`"a[1025]"`))
+			Expect(err.Error()).To(ContainSubstring(`"b[99999999999999999999]"`))
+			Expect(m).To(HaveLen(1))
+			Expect(m["c"]).To(HaveLen(1025))
+		})
+
+		It("skips a malformed key, names it and keeps the value out of the error", func() {
+			m, err := toMap(map[string]interface{}{
+				"a..b":          "secret-value",
+				"8250.nr_uarts": "0",
+				"hostname":      "box",
+			})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(`"a..b"`))
+			Expect(err.Error()).To(ContainSubstring(`"8250.nr_uarts"`))
+			Expect(err.Error()).ToNot(ContainSubstring("secret-value"))
+			Expect(m).To(HaveKeyWithValue("hostname", "box"))
+			Expect(m).ToNot(HaveKey("a"))
+			Expect(m).ToNot(HaveKey("8250"))
+		})
 	})
 })
