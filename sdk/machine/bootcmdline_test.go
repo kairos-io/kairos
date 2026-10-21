@@ -6,6 +6,7 @@ import (
 	. "github.com/kairos-io/kairos/v4/sdk/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 )
 
 var _ = Describe("BootCMDLine", func() {
@@ -104,6 +105,18 @@ var _ = Describe("BootCMDLine", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(string(y)).To(ContainSubstring("hostname: b"))
 			Expect(string(y)).ToNot(ContainSubstring("hostname: a"))
+		})
+
+		It("skips a stanza whose list index is above 1024", func() {
+			y, err := KairosCmdlineYAMLFromString(
+				`kairos.config=a.1025=x kairos.config=b.1024=y kairos.config=hostname=box`,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			got := map[string]interface{}{}
+			Expect(yaml.Unmarshal(y, &got)).To(Succeed())
+			Expect(got).ToNot(HaveKey("a"))
+			Expect(got).To(HaveKeyWithValue("hostname", "box"))
+			Expect(got["b"]).To(HaveLen(1025))
 		})
 	})
 

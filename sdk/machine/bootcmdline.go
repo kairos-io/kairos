@@ -148,7 +148,8 @@ func isEmptyYAMLMap(b []byte) bool {
 // applyKairosConfigStanza parses a "KEY=VALUE" payload (KEY may use
 // dot notation with numeric segments for list indices) and writes it into
 // root. Payloads without '=' set the key to the literal string "true", so
-// bare-flag stanzas like kairos.config=install.auto behave sensibly.
+// bare-flag stanzas like kairos.config=install.auto behave sensibly. A
+// payload with a list index above unstructured.MaxListIndex is skipped.
 func applyKairosConfigStanza(root map[string]interface{}, payload string) {
 	parts := strings.SplitN(payload, "=", 2)
 	value := "true"
@@ -160,6 +161,11 @@ func applyKairosConfigStanza(root map[string]interface{}, payload string) {
 		return
 	}
 	segs := strings.Split(key, ".")
+	for _, seg := range segs[1:] {
+		if idx, err := strconv.Atoi(seg); err == nil && idx > unstructured.MaxListIndex {
+			return
+		}
+	}
 	// The root is always a map keyed by the first segment (numeric first
 	// segments are treated as string keys, since the top level is a map).
 	first := segs[0]
