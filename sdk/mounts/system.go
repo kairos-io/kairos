@@ -3,7 +3,9 @@ package mounts
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
+	"github.com/kairos-io/kairos/v4/sdk/blockdev"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 )
@@ -17,6 +19,12 @@ import (
 // now, in sdk/machine, and these are the label-free wrappers the
 // state.PartitionState callers in sdk/system want.
 
+// ErrReadOnlyDevice is returned when the caller asked to write to a partition on
+// media the kernel refuses writes to. It lets a caller tell "this cannot be
+// persisted, and no remount will change that" from an ordinary mount failure;
+// the two callers today simply propagate it.
+var ErrReadOnlyDevice = errors.New("device is read-only")
+
 // PrepareWrite mounts partition at mountpath so the caller can write to it.
 //
 // A partition that is already mounted read only is remounted read write where
@@ -26,6 +34,22 @@ import (
 //
 // A call that returns an error has left the mount table as it found it.
 func PrepareWrite(partition state.PartitionState, mountpath string) error {
+	// Checked before the remount below, because that remount is the wrong answer
+	// here. PartitionState.IsReadOnly is derived from the mount options (ghw
+	// reads /proc/mounts and looks for "rw"), so it means "this mount is ro",
+	// for which remounting rw is a perfectly good fix. Hardware write protection
+	// is a different thing that no remount can undo, and attempting it is
+	// refused with a bare EACCES that says nothing about why.
+	if partition.Name != "" {
+		device := partition.Name
+		if !filepath.IsAbs(device) {
+			device = filepath.Join("/dev", device)
+		}
+		if ro, err := blockdev.ReadOnly(device); err == nil && ro {
+			return fmt.Errorf("%w: %s is write-protected, so remounting it read-write cannot succeed", ErrReadOnlyDevice, device)
+		}
+	}
+
 	if !remountsInPlace(partition) {
 		return Mount(partition, mountpath)
 	}

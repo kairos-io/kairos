@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -78,10 +79,64 @@ type keyCapturer interface {
 // itself on the navigation stack, and esc would lead back into it.
 type BackMsg struct{}
 
+// shellKey hands the terminal to a shell from any page that does not keep the
+// key for itself. Typing exit returns to the page it was pressed on.
+const shellKey = "ctrl+t"
+
+// shellFinishedMsg reports that the shell the TUI handed the terminal to has
+// exited.
+type shellFinishedMsg struct{ err error }
+
+// shellCommand builds the shell the TUI suspends itself for. It is a var so a
+// spec can drive the handover without starting a real shell.
+var shellCommand = func() *exec.Cmd {
+	return exec.Command("/bin/sh", "-c", `echo 'Type "exit" to go back to the installer.'; exec /bin/sh -i`)
+}
+
+// startShell hands the terminal to a shell the same way the welcome page
+// hands it to the pairing install. bubbletea releases the terminal while the
+// shell runs and restores the TUI, on the same page, when it exits. Leaving
+// the installer instead would have the unit start it again from the first
+// page.
+func startShell() tea.Cmd {
+	return tea.ExecProcess(shellCommand(), func(err error) tea.Msg {
+		return shellFinishedMsg{err: err}
+	})
+}
+
 // skipper is a page that had nothing to show and moved on by itself. Going
 // back passes over it, or it would move on again at once.
 type skipper interface {
 	Skipped() bool
+}
+
+// summaryDetourStart reports the stack entry goBack starts its search from.
+// That is the top of the stack everywhere except on the summary page, where
+// it is the install options page.
+//
+// The summary is a review screen rather than a step, so the page an operator
+// wants behind it is the one where the branch to it was taken. Choosing
+// Customize Further leaves the customization menu on the stack, plus one more
+// entry for every step entered from it and one for every return to the menu,
+// so walking back to the install options a page at a time costs a press per
+// visit. Reaching the summary through Start Install stacks only the options
+// page, and there one press already worked. Everywhere else esc keeps its
+// one-page-at-a-time meaning, because stepping back to correct a single
+// answer is worth one press too.
+//
+// A summary reached without passing the install options page, which is what
+// the quick install mode does, goes back one page like any other.
+func summaryDetourStart(stack []string) int {
+	top := len(stack) - 1
+	if mainModel.currentPageID != summaryPageID {
+		return top
+	}
+	for i := top; i >= 0; i-- {
+		if stack[i] == installOptionsPageID {
+			return i
+		}
+	}
+	return top
 }
 
 // goBack pops the navigation stack to the last page that is not skipped and
@@ -90,7 +145,7 @@ type skipper interface {
 // nowhere to go back to.
 func goBack() (tea.Cmd, bool) {
 	stack := mainModel.navigationStack
-	for i := len(stack) - 1; i >= 0; i-- {
+	for i := summaryDetourStart(stack); i >= 0; i-- {
 		for _, p := range mainModel.pages {
 			if p.ID() != stack[i] {
 				continue
@@ -178,6 +233,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BackMsg:
 		cmd, _ := goBack()
 		return mainModel, cmd
+	case shellFinishedMsg:
+		// A shell exits with the status of the last command run in it, so a
+		// non-zero exit says nothing about the installer.
+		if msg.err != nil {
+			mainModel.log.Debugf("shell exited: %s", msg.err)
+		}
+		return mainModel, nil
 	case extensionsLoadedMsg:
 		// Whichever page is showing: the operator may have left the step
 		// while the catalog was being read.
@@ -270,6 +332,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+d":
 			mainModel.log.Debug("User requested debug bundle")
 			return mainModel, func() tea.Msg { return GoToPageMsg{PageID: DebugBundlePageID} }
+		case shellKey:
+			mainModel.log.Debug("User requested a shell")
+			return mainModel, startShell()
 		case "esc":
 			if cmd, ok := goBack(); ok {
 				return mainModel, cmd
@@ -437,9 +502,9 @@ func (m Model) View() string {
 			fullHelp = help + " • ctrl+c: quit"
 		} else if _, ok := mainModel.pages[currentIdx].(*stepPage); ok {
 			// The step page says esc itself, and q types a q in its fields.
-			fullHelp = help + " • ctrl+c: quit"
+			fullHelp = help + " • " + shellKey + ": shell • ctrl+c: quit"
 		} else {
-			fullHelp = help + " • ESC: back • q/ctrl+c: quit"
+			fullHelp = help + " • ESC: back • " + shellKey + ": shell • q/ctrl+c: quit"
 		}
 	}
 

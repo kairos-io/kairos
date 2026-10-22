@@ -14,6 +14,7 @@ import (
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/state"
@@ -31,7 +32,7 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			var sentinel string
 
 			internalUtils.KLog.Logger.Debug().Msg("Will now create /run/cos if not exists")
-			err := internalUtils.CreateIfNotExists("/run/cos/")
+			err := internalUtils.CreateIfNotExists(sdkConstants.SentinelDir)
 			if err != nil {
 				internalUtils.KLog.Logger.Err(err).Msg("failed to create /run/cos")
 				return err
@@ -64,7 +65,7 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			internalUtils.KLog.Logger.Debug().Str("BootState", string(runtime.BootState)).Msg("The BootState was")
 
 			internalUtils.KLog.Logger.Info().Str("to", sentinel).Msg("Setting sentinel file")
-			err = os.WriteFile(filepath.Join("/run/cos/", sentinel), []byte("1"), os.ModePerm)
+			err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, sentinel), []byte("1"), os.ModePerm)
 			if err != nil {
 				return err
 			}
@@ -75,7 +76,20 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// when kairos.ram is present) so existing gates keep firing.
 			if s.InRAM {
 				internalUtils.KLog.Logger.Info().Str("to", cnst.InRAMSentinelName).Msg("Setting in-RAM sentinel file")
-				if err = os.WriteFile(filepath.Join("/run/cos/", cnst.InRAMSentinelName), []byte("1"), os.ModePerm); err != nil {
+				if err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, cnst.InRAMSentinelName), []byte("1"), os.ModePerm); err != nil {
+					return err
+				}
+			}
+
+			// Write-protected media gets its own additive sentinel, for the same
+			// reason as the in-RAM one: the BootState sentinel above is still
+			// active_mode, so existing gates keep firing, and a stage that must
+			// not touch the disk has something to gate on. The shipped
+			// 00_rootfs.yaml uses it to skip growing the persistent partition,
+			// which otherwise opens the whole disk O_RDWR on every boot.
+			if s.WriteProtected {
+				internalUtils.KLog.Logger.Info().Str("to", cnst.WriteProtectedSentinelName).Msg("Setting read-only media sentinel file")
+				if err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, cnst.WriteProtectedSentinelName), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 			}
@@ -84,14 +98,29 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// removable/network media but must behave like an installed
 			// Active system, so they get uki_boot_mode, never
 			// uki_install_mode (which would fire the installer stages).
+			ukiInstallMedium := false
 			cmdline, err := os.ReadFile(internalUtils.GetHostProcCmdline())
 			if err != nil {
 				return fmt.Errorf("reading kernel cmdline: %w", err)
 			}
 			if strings.Contains(string(cmdline), "rd.immucore.uki") {
-				ukiSentinel := internalUtils.UkiSentinel(state.EfiBootFromInstall(internalUtils.KLog.Logger), s.InRAM)
+				bootedFromInstall := state.EfiBootFromInstall(internalUtils.KLog.Logger)
+				ukiSentinel := internalUtils.UkiSentinel(bootedFromInstall, s.InRAM)
 				internalUtils.KLog.Logger.Info().Str("to", ukiSentinel).Msg("Setting sentinel file")
-				if err := os.WriteFile(filepath.Join("/run/cos/", ukiSentinel), []byte("1"), os.ModePerm); err != nil {
+				if err := os.WriteFile(filepath.Join(sdkConstants.SentinelDir, ukiSentinel), []byte("1"), os.ModePerm); err != nil {
+					return err
+				}
+				ukiInstallMedium = internalUtils.UkiInstallMedium(bootedFromInstall, s.InRAM)
+			}
+
+			// Translate this boot's install intent into sentinels too, so that
+			// the installer cloud-config gates on a file on every medium
+			// rather than grepping /proc/cmdline on the GRUB path and reading
+			// a file on Trusted Boot. See kairos-io/kairos#5459.
+			for _, sentinel := range state.InstallIntentSentinels(
+				string(cmdline), ukiInstallMedium, runtime.BootState == state.LiveCD) {
+				internalUtils.KLog.Logger.Info().Str("to", sentinel).Msg("Setting install intent sentinel file")
+				if err := os.WriteFile(filepath.Join("/run/cos/", sentinel), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 			}
@@ -223,6 +252,11 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 					s.StateDir = cnst.PersistentStateTarget
 				}
 
+				s.CowBase = internalUtils.CowSpec(env["WRITE_PROTECTED_COW"])
+				if s.CowBase == "" {
+					s.CowBase = internalUtils.GetCowBase(s.OverlayBase)
+				}
+
 				addLine := func(d string) {
 					dat := strings.Split(d, ":")
 					if len(dat) == 2 {
@@ -267,17 +301,11 @@ func (s *State) MountOemDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 					return err
 				}
 				operation := func(_ context.Context) error {
-					fstab, err := op.MountOPWithFstab(
+					fstab, err := op.MountOPWithFstabFn(
 						source,
 						s.path("/oem"),
 						internalUtils.DiskFSType(source),
-						[]string{
-							"rw",
-							"suid",
-							"dev",
-							"exec",
-							"async",
-						}, time.Duration(internalUtils.GetOemTimeout())*time.Second)
+						s.oemMountOptions, time.Duration(internalUtils.GetOemTimeout())*time.Second)
 					for _, f := range fstab {
 						s.fstabs = append(s.fstabs, f)
 					}
@@ -327,7 +355,7 @@ func (s *State) MountBaseOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) er
 			TimedCallback(cnst.OpMountBaseOverlay,
 				func(_ context.Context) error {
 					operation, err := op.BaseOverlay(schema.Overlay{
-						Base:        "/run/overlay",
+						Base:        cnst.OverlayBaseDir,
 						BackingBase: s.OverlayBase,
 					})
 					if err != nil {
@@ -360,7 +388,7 @@ func (s *State) MountCustomOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) 
 					internalUtils.KLog.Logger.Debug().Strs("dirs", s.OverlayDirs).Msg("Mounting overlays")
 					for _, p := range s.OverlayDirs {
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Overlay mount start")
-						operation := op.MountWithBaseOverlay(p, s.Rootdir, "/run/overlay")
+						operation := op.MountWithBaseOverlay(p, s.Rootdir, cnst.OverlayBaseDir)
 						err := operation.Run()
 						// A path that is missing from the OS image cannot be mounted, but it
 						// must not take the whole step down with it: OpMountBind depends on
@@ -397,14 +425,6 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 
 			for what, where := range s.CustomMounts {
 				internalUtils.KLog.Logger.Debug().Str("what", what).Str("where", where).Msg("Custom mount start")
-				// TODO: scan for the custom mount disk to know the underlying fs and set it proper
-				fstype := "ext4"
-				mountOptions := []string{"ro"}
-				// TODO: Are custom mounts always rw?ro?depends? Clarify.
-				// Persistent needs to be RW
-				if strings.Contains(what, "COS_PERSISTENT") {
-					mountOptions = []string{"rw"}
-				}
 				// If `what` is a /dev/disk/by-label/<X> path (the common
 				// case from cos-layout.env's VOLUMES entries), resolve to
 				// the concrete device path first, since the by-label symlink
@@ -423,6 +443,8 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 					}
 					source = resolved
 				}
+
+				target, mountOptions := s.customMountPlan(what, where)
 				// The 30s timeout covers the window between cryptsetup
 				// creating the mapper (kernel side) and udev finishing the
 				// /dev/mapper/<name> node MountOPWithFstab tries to open.
@@ -434,10 +456,10 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				// up and log a warning. If resolveMountSource failed above,
 				// we already `continue`d, so this path is only reached with
 				// a resolved concrete source.
-				fstab, err2 := op.MountOPWithFstab(
+				fstab, err2 := op.MountOPWithFstabFn(
 					source,
-					s.path(where),
-					fstype,
+					target,
+					"ext4",
 					mountOptions,
 					30*time.Second,
 				)
@@ -451,18 +473,53 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				}
 				internalUtils.KLog.Logger.Debug().Str("what", what).Str("where", where).Msg("Custom mount done")
 			}
-			internalUtils.KLog.Logger.Warn().Err(err.ErrorOrNil()).Send()
+			// OpMountBind depends on this step and is fatal, so a failure here
+			// stops the boot unless the cmdline says otherwise. Name it: the
+			// step used to end in a bare warning with no message, which said
+			// nothing on a clean boot and nothing useful on a broken one.
+			if mountErr := err.ErrorOrNil(); mountErr != nil {
+				internalUtils.KLog.Logger.Error().Err(mountErr).Int("failed", err.Len()).
+					Msg("Some custom mounts did not mount. The persistent state binds are backed by them, so the boot stops here instead of carrying on without persistence.")
 
-			return err.ErrorOrNil()
+				return onMountFailure(cnst.OpCustomMounts, mountErr)
+			}
+
+			return nil
 		}),
 	)...)
 }
 
 // MountCustomBindsDagStep will add mounting s.BindMounts
 // mount state is defined over a custom mount (/usr/local/.state for instance, needs to be mounted over a device).
+//
+// The op is registered fatal. These binds are the persistence contract of the
+// node: /home, /root, /opt, /etc/ssh, /etc/systemd, /var/log and the rest of
+// PERSISTENT_STATE_PATHS. Without them the system comes up on a pristine image
+// /etc, with everything it writes landing in the ephemeral overlay, so SSH host
+// keys regenerate on every boot and a k3s or k0s node loses its state
+// directory.
+//
+// Nothing used to report that. OpOverlayMount and OpCustomMounts each collect a
+// multierror across a loop, so one extra volume with the wrong label took the
+// whole step down, herd then skipped this node (it never executes a node whose
+// dependency errored), and because no op in the chain was fatal g.Run still
+// returned nil and the boot carried on to a login prompt.
+//
+// Fatal makes g.Run return instead, carrying the error of whichever step broke.
+// The boot stops at the IMMUCORE BOOT FAILED banner, which is also persisted
+// under constants.LogDir, rather than handing the operator a machine that has
+// quietly stopped persisting anything. A half mounted node is an inconsistency
+// to fix, not one to boot through.
+//
+// Stopping is the default, not the only option. onMountFailure runs the
+// constants.StageMountFailure cloud-init stage first, so a distribution can
+// define its own recovery for this state, and constants.CmdlineIgnoreMountFailure
+// on the kernel cmdline turns the halt back into the old carry-on behaviour
+// for an operator who wants the node more than the diagnosis.
 func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpMountBind,
-		append(opts, herd.WithDeps(cnst.OpOverlayMount, cnst.OpCustomMounts, cnst.OpLoadConfig),
+		append(opts, herd.FatalOp,
+			herd.WithDeps(cnst.OpOverlayMount, cnst.OpCustomMounts, cnst.OpLoadConfig),
 			TimedCallback(cnst.OpMountBind,
 				func(_ context.Context) error {
 					var err *multierror.Error
@@ -483,8 +540,22 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 						}
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount end")
 					}
-					internalUtils.KLog.Logger.Warn().Err(err.ErrorOrNil()).Send()
-					return err.ErrorOrNil()
+
+					// Say what failed and what it costs. The step used to end in
+					// a bare warning with no message, emitted on every boot
+					// including the ones where every bind worked, which is a
+					// large part of why this class of failure went unnoticed.
+					// multierror.Error.Len has a value receiver, so it panics on
+					// the nil accumulator a clean boot leaves behind. Ask
+					// ErrorOrNil first.
+					if bindErr := err.ErrorOrNil(); bindErr != nil {
+						internalUtils.KLog.Logger.Error().Err(bindErr).Int("failed", err.Len()).
+							Msg("Some persistent state binds did not mount. Those paths would be ephemeral and their contents lost on reboot, so the boot stops here instead.")
+
+						return onMountFailure(cnst.OpMountBind, bindErr)
+					}
+
+					return nil
 				},
 			),
 		)...)
