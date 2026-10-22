@@ -64,7 +64,7 @@ require (
 	github.com/jezek/xgb v1.1.0 // indirect
 	github.com/kairos-io/kairos/v4 v4.0.0-00010101000000-000000000000
 	github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237 // indirect
-	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/koron/go-ssdp v0.0.6 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect

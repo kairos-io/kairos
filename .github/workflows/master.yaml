@@ -253,6 +253,7 @@ jobs:
           - {test: 'cis'}
           - {test: 'sysext'}
           - {test: 'cmdline-config-url'}
+          - {test: 'write-protected'}
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
