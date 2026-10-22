@@ -866,7 +866,7 @@ jobs:
           INPUTS_OCI_CONTEXT_NAME: ${{ inputs.oci_context_name }}
 
       - name: Build Kairos image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
@@ -1128,7 +1128,7 @@ jobs:
       # kind of small lie that costs someone an afternoon.
       - name: Push Kairos image
         if: inputs.registry_domain != ''
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
@@ -1365,7 +1365,7 @@ jobs:
 
       - name: Create OCI artifact from RAW image
         if: inputs.raw && inputs.registry_domain != ''
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_IMG_PATH }}
