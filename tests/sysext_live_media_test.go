@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -12,32 +13,42 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-// The extension the ISO ships. tests/assets/sysext-grub is mounted as the
-// auroraboot --overlay-iso directory by _build-iso.yaml on non-trusted-boot
-// cells, so the image in it lands at the ISO root and therefore under
-// /run/initramfs/live while the installer runs. Its work.sysext.raw is
-// verity-only (unsigned) so systemd-sysext can activate it on a boot with
-// no test signing key enrolled.
+// The extension the ISO ships. The generated test extension directory is
+// mounted as the auroraboot --overlay-iso directory by the CI workflows on
+// non-trusted-boot cells, so the image in it lands at the ISO root and
+// therefore under /run/initramfs/live while the installer runs. Its
+// work.sysext.raw is verity-only (unsigned) so systemd-sysext can activate
+// it on a boot with no test signing key enrolled.
 const liveMediaExtension = "work.sysext.raw"
 
 // The hierarchy list the kairos drop-in installs, spelled out so that
 // `systemd-sysext status` reports on what the boot merged instead of on its
 // own defaults. /usr/local is deliberately not in it: it is the persistent
-// partition mount, and a merge would turn it read-only.
-const sysextHierarchiesEnv = `SYSTEMD_SYSEXT_HIERARCHIES="/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"`
+// partition mount, and a merge would turn it read-only. Kept in step with
+// kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml, which is what the
+// booted node actually reads.
+var sysextHierarchies = []string{
+	"/usr/bin",
+	"/usr/share",
+	"/usr/lib",
+	"/usr/include",
+	"/usr/src",
+	"/usr/sbin",
+}
+
+var sysextHierarchiesEnv = fmt.Sprintf("SYSTEMD_SYSEXT_HIERARCHIES=%q",
+	strings.Join(sysextHierarchies, ":"))
 
 // Both test extensions carry their payload at /usr/bin/hello.sh, which is a
 // merged hierarchy, so a successful merge puts the script on the host's PATH.
 // Running it is the strongest proof the overlay went up: it needs the image to
 // be accepted by the boot's image policy, merged, and visible to a fresh
-// process. The payload used to live at /usr/local/bin/hello.sh, which stopped
-// being a merged hierarchy when /usr/local came off the list; the images were
-// regenerated rather than the assertion weakened. See each asset's README for
-// the rebuild recipe.
+// process. internal/testartifacts builds both images with that payload.
 const (
 	mergedExtensionHierarchy = "/usr/bin"
 	mergedExtensionCommand   = "hello.sh"
 	mergedExtensionOutput    = "Hello world"
+	mergedExtensionPath      = mergedExtensionHierarchy + "/" + mergedExtensionCommand
 )
 
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
@@ -127,6 +138,31 @@ users:
 				out, err := vm.Sudo(mergedExtensionCommand)
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).To(ContainSubstring(mergedExtensionOutput))
+			})
+
+			// The merge puts the extension's own files under /usr, where CIS
+			// DIL 6.1.11 and 6.1.12 audit them. systemd-repart keeps the uid
+			// and gid of the tree it packs, so an extension built by an
+			// unprivileged process ships files owned by a user the node does
+			// not have, and the only symptom is the cis suite failing on an
+			// unrelated change.
+			By("merging files the node has a user and a group for", func() {
+				out, err := vm.Sudo("stat -c %U:%G " + mergedExtensionPath)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(Equal("root:root"))
+
+				// Each hierarchy is overlaid separately, so /usr itself is not
+				// a mount point and `find /usr -xdev` stops at the top of it,
+				// before reaching anything the merge brought in. Start at the
+				// hierarchies themselves. A node that does not carry one of
+				// them, /usr/src for instance, is skipped rather than failed,
+				// but a find that cannot run still fails the spec.
+				out, err = vm.Sudo(fmt.Sprintf(
+					`for d in %s; do [ -d "$d" ] || continue; find "$d" -xdev \( -nouser -o -nogroup \) || exit 1; done`,
+					strings.Join(sysextHierarchies, " ")))
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(BeEmpty(),
+					"merged files with no passwd or group entry")
 			})
 		})
 	})
