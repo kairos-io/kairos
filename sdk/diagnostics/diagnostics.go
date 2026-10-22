@@ -29,10 +29,12 @@ type Runner interface {
 }
 
 // FS is the subset of sdk/types/fs.KairosFS that collection needs: the files
-// that are read verbatim, and the probe for EFI.
+// that are read verbatim, the /proc walk behind the process list, and the
+// probe for EFI.
 type FS interface {
 	ReadFile(name string) ([]byte, error)
 	Stat(name string) (fs.FileInfo, error)
+	ReadDir(name string) ([]fs.DirEntry, error)
 }
 
 // OSFS reads the running machine. It is what a command collecting its own
@@ -41,6 +43,9 @@ type OSFS struct{}
 
 // ReadFile reads name from the host filesystem.
 func (OSFS) ReadFile(name string) ([]byte, error) { return os.ReadFile(name) }
+
+// ReadDir lists name on the host filesystem.
+func (OSFS) ReadDir(name string) ([]fs.DirEntry, error) { return os.ReadDir(name) }
 
 // Stat stats name on the host filesystem.
 func (OSFS) Stat(name string) (fs.FileInfo, error) { return os.Stat(name) }
@@ -111,17 +116,16 @@ func BootMode(fsys FS) string {
 
 // systemBody is who the machine is and what is running on it.
 //
-// The process list deliberately leaves out command line arguments. A debug
-// bundle is made to be sent to somebody else, and a Kubernetes node runs its
-// agents with the cluster join token on the command line, so `ps aux` would
-// put a credential in every bundle. The columns here answer the question the
-// list is for, which is what is running and for how long.
+// The process list and the uptime are read from /proc rather than run as
+// commands, because `ps` and `uptime` are either absent or a different
+// program on the minimal flavours. See processSection for why that also
+// settles the question of command line arguments in a bundle.
 func systemBody(r Runner, fsys FS) string {
 	var b strings.Builder
 	b.WriteString(Section(r, "hostname", "hostname"))
 	b.WriteString(Section(r, "uname", "uname", "-a"))
-	b.WriteString(Section(r, "uptime", "uptime"))
-	b.WriteString(Section(r, "processes", "ps", "-eo", "pid,ppid,stat,etime,comm"))
+	b.WriteString(uptimeSection(fsys))
+	b.WriteString(processSection(fsys))
 	b.WriteString(Section(r, "ip addr", "ip", "a"))
 	b.WriteString(FileSection(fsys, "/etc/resolv.conf"))
 	return b.String()
