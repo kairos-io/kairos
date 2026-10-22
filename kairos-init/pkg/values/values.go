@@ -136,7 +136,6 @@ const (
 	CleanupStep          = "cleanup"          // Cleans up the system of unneeded packages and files
 	ServicesStep         = "services"         // Creates and enables required services
 	KernelStep           = "kernel"           // Installs the kernel
-	KubernetesStep       = "kubernetes"       // Installs the kubernetes provider
 	CloudconfigsStep     = "cloudconfigs"     // Installs the cloud-configs for the system
 	BrandingStep         = "branding"         // Applies the branding for the system
 	GrubStep             = "grub"             // Configures the grub bootloader
@@ -152,8 +151,8 @@ const (
 // StepsInfo returns a slice of StepInfo containing the steps and their descriptions
 func StepsInfo() []StepInfo {
 	steps := map[string]string{
-		InitStage:            "The full init stage, which includes kairosRelease, kubernetes, initrd, services, sshHardening, workarounds, cleanup and cisHardening steps",
-		InstallStage:         "The full install stage, which includes installPackages, kubernetes, cloudconfigs, branding, grub, services, kairosBinaries, providerBinaries, initramfsConfigs and miscellaneous steps",
+		InitStage:            "The full init stage, which includes kairosRelease, kernel, initramfsConfigs, initrd, services, sshHardening, workarounds, cleanup and cisHardening steps",
+		InstallStage:         "The full install stage, which includes installPackages, installKernel, branding, grub, miscellaneous, cloudconfigs, kairosBinaries, providerBinaries and buildProvider steps",
 		InstallPackagesStep:  "installs the base system packages",
 		InstallKernelStep:    "installs the kernel packages",
 		InitrdStep:           "generates the initrd",
@@ -162,7 +161,6 @@ func StepsInfo() []StepInfo {
 		CleanupStep:          "cleans up the system of unneeded packages and files",
 		ServicesStep:         "creates and enables required services",
 		KernelStep:           "installs the kernel",
-		KubernetesStep:       "installs the kubernetes provider",
 		CloudconfigsStep:     "installs the cloud-configs for the system",
 		BrandingStep:         "applies the branding for the system",
 		GrubStep:             "configures the grub bootloader",

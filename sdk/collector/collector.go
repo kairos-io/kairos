@@ -4,6 +4,7 @@ package collector
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -23,6 +25,11 @@ import (
 )
 
 const DefaultHeader = "#cloud-config"
+
+// ErrCmdlineTokensSkipped is wrapped into the error ParseCmdLine returns when
+// it skipped generic cmdline tokens that could not be turned into YAML. The
+// Config returned with it holds every other token and is usable.
+var ErrCmdlineTokensSkipped = errors.New("skipped cmdline tokens")
 
 // configURLAttempts is how many times a config_url fetch is tried before the
 // node gives up and boots without the remote config.
@@ -201,7 +208,11 @@ func mergeSlices(sliceA, sliceB []interface{}) ([]interface{}, error) {
 	for _, vB := range sliceB {
 		found := false
 		for _, vA := range sliceA {
-			if vA == vB {
+			// vA/vB can hold uncomparable dynamic types (e.g. []interface{}
+			// decoded from a nested config value), and == panics at runtime
+			// on those. reflect.DeepEqual gives the same answer == would for
+			// every comparable type this handled before, without panicking.
+			if reflect.DeepEqual(vA, vB) {
 				found = true
 			}
 		}
@@ -214,7 +225,37 @@ func mergeSlices(sliceA, sliceB []interface{}) ([]interface{}, error) {
 	return sliceA, nil
 }
 
+// asConfigValues normalizes a map value into ConfigValues. yaml.Unmarshal
+// recreates our named ConfigValues type at every nesting level, but the
+// json.Unmarshal fallback in parseReaders (and other readers below) only ever
+// produces plain map[string]interface{}, which fails a direct type assertion
+// to ConfigValues.
+//
+// Only string-keyed maps convert. A caller merging YAML that used a
+// non-string key (e.g. `1: a`, which yaml.Unmarshal decodes into a
+// map[interface{}]interface{}) gets an error instead of a silent key
+// collision from stringifying two different keys to the same string.
+func asConfigValues(v interface{}) (ConfigValues, error) {
+	if cv, ok := v.(ConfigValues); ok {
+		return cv, nil
+	}
+	rv := reflect.ValueOf(v)
+	if rv.Type().Key().Kind() != reflect.String {
+		return nil, fmt.Errorf("cannot merge %s: non-string map keys", rv.Type())
+	}
+	result := make(ConfigValues, rv.Len())
+	for _, key := range rv.MapKeys() {
+		result[key.String()] = rv.MapIndex(key).Interface()
+	}
+	return result, nil
+}
+
 func deepMergeMaps(a, b ConfigValues) (ConfigValues, error) {
+	// a is nil when a source decoded to an empty document (e.g. an empty
+	// config file); writing into a nil map panics, so allocate one.
+	if a == nil {
+		a = ConfigValues{}
+	}
 	// go through all items in b and merge them to a
 	for k, v := range b {
 		current, ok := a[k]
@@ -237,7 +278,7 @@ func deepMergeMaps(a, b ConfigValues) (ConfigValues, error) {
 // DeepMerge takes two data structures and merges them together deeply. The results can vary depending on how the
 // arguments are passed since structure B will always overwrite what's on A.
 func DeepMerge(a, b interface{}) (interface{}, error) {
-	if a == nil && b != nil {
+	if a == nil {
 		return b, nil
 	}
 
@@ -264,7 +305,15 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 	}
 
 	if typeA.Kind() == reflect.Map {
-		return deepMergeMaps(a.(ConfigValues), b.(ConfigValues))
+		cvA, err := asConfigValues(a)
+		if err != nil {
+			return ConfigValues{}, err
+		}
+		cvB, err := asConfigValues(b)
+		if err != nil {
+			return ConfigValues{}, err
+		}
+		return deepMergeMaps(cvA, cvB)
 	}
 
 	// for any other type, b should take precedence
@@ -316,7 +365,7 @@ func Scan(o *Options, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	if o.MergeBootCMDLine {
 		cConfig, err := ParseCmdLine(o.BootCMDLineFile, filter)
 		o.SoftErr("parsing cmdline", err)
-		if err == nil { // best-effort
+		if err == nil || errors.Is(err, ErrCmdlineTokensSkipped) { // best-effort
 			configs = append(configs, cConfig)
 		}
 	}
@@ -381,7 +430,7 @@ func parseFiles(dir []string, nologs bool) Configs {
 			continue
 		}
 
-		b, err := os.ReadFile(f)
+		b, err := readConfigFile(f)
 		if err != nil {
 			if !nologs {
 				fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
@@ -397,9 +446,33 @@ func parseFiles(dir []string, nologs bool) Configs {
 		}
 
 		var newConfig Config
-		err = yaml.Unmarshal(b, &newConfig.Values)
-		if err != nil && !nologs {
-			fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
+		// Name the file for the same reason the oversize branch above does:
+		// the parse error says "line 4", and a scanned directory holds more
+		// than one config, so a line number on its own identifies nothing.
+		//
+		// What happens to the file depends on how much of it yaml decoded.
+		// A syntax error leaves Values nil, so the file contributes nothing
+		// and is skipped rather than appended: an appended config still
+		// carries Sources, and that is what Config.String() prints under
+		// "# Sources:". An operator reading `kairos-agent config` would see
+		// the broken file listed there and take it for one that was applied.
+		//
+		// A *yaml.TypeError is different. yaml reports it and still fills
+		// the map with everything it could decode, so a file with, say, a
+		// duplicate key under `install:` keeps its `users:` block. Dropping
+		// it would take the SSH keys off a node that boots today, so keep
+		// what was decoded and say which file was only partly applied.
+		if err = yaml.Unmarshal(b, &newConfig.Values); err != nil {
+			var typeErr *yaml.TypeError
+			if !errors.As(err, &typeErr) || newConfig.Values == nil {
+				if !nologs {
+					fmt.Printf("warning: skipping %s: it does not parse, so none of its settings were applied. %s\n", f, err.Error())
+				}
+				continue
+			}
+			if !nologs {
+				fmt.Printf("warning: %s parsed with errors, so some of its settings were not applied. %s\n", f, err.Error())
+			}
 		}
 		newConfig.Sources = []string{f}
 
@@ -428,7 +501,7 @@ func parseReaders(readers []io.Reader, nologs bool) Configs {
 			err = json.Unmarshal(read, &newConfig.Values)
 			if err != nil {
 				if !nologs {
-					fmt.Printf("Error unmarshalling config(error: %s): %s", err.Error(), string(read))
+					fmt.Printf("Error unmarshalling config: %s", err.Error())
 				}
 				continue
 			}
@@ -438,6 +511,67 @@ func parseReaders(readers []io.Reader, nologs bool) Configs {
 	}
 
 	return result
+}
+
+// readConfigFile reads a candidate config file and refuses anything that is
+// not a regular file.
+//
+// os.ReadFile opens without O_NONBLOCK, and opening a FIFO for reading blocks
+// in open(2) until a writer arrives. A FIFO named like a config in a scanned
+// directory therefore parks the whole boot: the scan never returns, the stage
+// runner keeps its shutdown inhibitor, and the node can be neither reached nor
+// rebooted until someone deletes the file from recovery media
+// (kairos-io/kairos#4865). A character device has the same shape of problem,
+// and /dev/zero named like a config reads until memory runs out.
+//
+// O_NONBLOCK makes the open return immediately whatever the file turns out to
+// be, so the fstat that follows can reject the types that are not configs. The
+// flag does not change reads from a regular file, so the common path behaves
+// as it did.
+//
+// O_NOFOLLOW is deliberately not set. A symlink pointing at a real config is a
+// layout Kairos already supports, and following it lands on the regular file
+// the fstat wants; a symlink pointing at a FIFO is caught by that same fstat.
+// Planting the file needs root-equivalent write access to a scanned path, so
+// this is a robustness guard rather than a privilege boundary.
+func readConfigFile(f string) ([]byte, error) {
+	file, err := os.OpenFile(f, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if !stat.Mode().IsRegular() {
+		return nil, fmt.Errorf("it is %s, not a regular file", fileTypeName(stat.Mode()))
+	}
+
+	return io.ReadAll(file)
+}
+
+// fileTypeName names a file type the way an operator reading a boot console
+// would, rather than as the mode bits ("p---------").
+func fileTypeName(m os.FileMode) string {
+	switch {
+	case m&os.ModeNamedPipe != 0:
+		return "a named pipe"
+	case m&os.ModeSocket != 0:
+		return "a socket"
+	case m&os.ModeCharDevice != 0:
+		return "a character device"
+	case m&os.ModeDevice != 0:
+		return "a block device"
+	case m&os.ModeDir != 0:
+		return "a directory"
+	case m&os.ModeIrregular != 0:
+		return "an irregular file"
+	default:
+		return "not a regular file"
+	}
 }
 
 // fileSize returns the size of f in bytes. An error means the caller could not
@@ -490,6 +624,12 @@ func listFiles(dir string) ([]string, error) {
 // by a stray generic token with the same key. Call MergeConfigURL on
 // the result to recursively pull any remote config referenced through
 // config_url.
+//
+// A generic token that cannot be turned into YAML (e.g. a key starting
+// with a digit such as 8250.nr_uarts=0) is skipped: the rest of the
+// cmdline is still parsed and returned together with an error wrapping
+// ErrCmdlineTokensSkipped, so callers can report it without losing the
+// usable values. Any other error means the Config is not usable.
 func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	result := &Config{Sources: []string{"cmdline"}, Values: ConfigValues{}}
 
@@ -502,9 +642,9 @@ func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, 
 	}
 	s := string(dat)
 
-	genericYAML, err := machine.DotStringToYAML(s)
-	if err != nil {
-		return result, err
+	genericYAML, genericErr := machine.DotStringToYAML(s)
+	if genericErr != nil {
+		genericErr = fmt.Errorf("%w: %w", ErrCmdlineTokensSkipped, genericErr)
 	}
 	if len(genericYAML) > 0 {
 		filteredYAML, err := filter(genericYAML)
@@ -530,7 +670,7 @@ func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, 
 		}
 	}
 
-	return result, nil
+	return result, genericErr
 }
 
 // ConfigURL returns the value of config_url if set or empty string otherwise.

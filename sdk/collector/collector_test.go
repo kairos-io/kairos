@@ -11,10 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	. "github.com/kairos-io/kairos/v4/sdk/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sys/unix"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,6 +96,40 @@ var _ = Describe("Config Collector", func() {
 			Expect(opts).To(HaveKeyWithValue("foo", "bar"))
 			Expect(c.Values).ToNot(HaveKey("kairos"))
 			Expect(c.Values).ToNot(HaveKey("cos"))
+		})
+
+		It("keeps the rest of the cmdline when one generic token does not parse", func() {
+			path := writeCmdline(
+				`root=X 8250.nr_uarts=0 options.foo=bar kairos.config_url=https://a/x.yaml`,
+			)
+			c, err := ParseCmdLine(path, FilterKeysTest)
+			Expect(err).To(MatchError(ContainSubstring("8250")))
+			Expect(c.Values).To(HaveKeyWithValue("config_url", "https://a/x.yaml"))
+			Expect(c.Values).To(HaveKeyWithValue("root", "X"))
+			opts, ok := c.Values["options"].(ConfigValues)
+			Expect(ok).To(BeTrue())
+			Expect(opts).To(HaveKeyWithValue("foo", "bar"))
+		})
+
+		It("Scan keeps the cmdline config when one generic token does not parse", func() {
+			path := writeCmdline(`root=X 8250.nr_uarts=0 kairos.config=hostname=box`)
+			o := &Options{}
+			Expect(o.Apply(MergeBootLine, WithBootCMDLineFile(path), NoLogs)).To(Succeed())
+			c, err := Scan(o, passthrough)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c.Values).To(HaveKeyWithValue("hostname", "box"))
+			Expect(c.Values).To(HaveKeyWithValue("root", "X"))
+			Expect(c.Sources).To(ContainElement("cmdline"))
+		})
+
+		It("Scan drops the cmdline config when a kairos.config stanza cannot be merged", func() {
+			path := writeCmdline(`options.foo=bar kairos.config=options=disabled`)
+			o := &Options{}
+			Expect(o.Apply(MergeBootLine, WithBootCMDLineFile(path), NoLogs)).To(Succeed())
+			c, err := Scan(o, passthrough)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c.Values).ToNot(HaveKey("options"))
+			Expect(c.Sources).ToNot(ContainElement("cmdline"))
 		})
 
 		It("Scan wires ParseCmdLine when MergeBootCMDLine is set", func() {
@@ -719,6 +755,98 @@ info:
 				}))
 			})
 		})
+
+		Context("nil map on one side (e.g. an empty config file)", func() {
+			var a ConfigValues // nil, as produced by yaml.Unmarshal on an empty document
+			b := ConfigValues{"key": "value"}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"key": "value"}))
+			})
+		})
+
+		Context("both sources set the same key to null", func() {
+			// Both sides recurse into DeepMerge(nil, nil) for "outer". The old
+			// guard (`a == nil && b != nil`) skipped the early return here,
+			// falling through to reflect.TypeOf(nil).Kind(), which panics on
+			// a nil Type.
+			a := ConfigValues{"outer": nil}
+			b := ConfigValues{"outer": nil}
+
+			It("merges without panicking, keeping the key null", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"outer": nil}))
+			})
+		})
+
+		Context("nested value decoded as plain map[string]interface{} on both sides", func() {
+			// yaml.Unmarshal recreates ConfigValues at every nesting level, but
+			// parseReaders' json.Unmarshal fallback -- and any other caller that
+			// hands DeepMerge a value straight out of encoding/json -- only ever
+			// produces plain map[string]interface{}. A merge of two such nested
+			// maps used to panic with a failed type assertion to ConfigValues.
+			a := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner": 1,
+				},
+			}
+			b := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner2": 2,
+				},
+			}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{
+					"outer": ConfigValues{
+						"inner":  1,
+						"inner2": 2,
+					},
+				}))
+			})
+		})
+
+		Context("nested map with a non-string key (e.g. `1: a` under a yaml key)", func() {
+			// yaml.Unmarshal decodes this to map[interface{}]interface{}.
+			// asConfigValues used to stringify every key with fmt.Sprint,
+			// which would silently collide the integer key 1 with a string
+			// key "1" from another source instead of erroring.
+			a := ConfigValues{
+				"outer": map[interface{}]interface{}{
+					1: "a",
+				},
+			}
+			b := ConfigValues{
+				"outer": map[interface{}]interface{}{
+					2: "b",
+				},
+			}
+
+			It("errors instead of silently coercing the key to a string", func() {
+				_, err := DeepMerge(a, b)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("non-string map keys"))
+			})
+		})
+
+		Context("slices whose items are themselves slices", func() {
+			// mergeSlices compared items with ==, which panics at runtime on
+			// uncomparable dynamic types. A yaml document like "a:\n- - 1\n"
+			// decodes the item into []interface{}, which is uncomparable.
+			a := []interface{}{[]interface{}{1}}
+			b := []interface{}{[]interface{}{2}}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal([]interface{}{[]interface{}{1}, []interface{}{2}}))
+			})
+		})
 	})
 
 	Describe("Scan", func() {
@@ -729,6 +857,7 @@ info:
 			BeforeEach(func() {
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
+				cmdLinePath = writeTestCmdline("BOOT_IMAGE=/vmlinuz root=LABEL=COS_ACTIVE console=tty0 rd.immucore.debug\n")
 				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
 install:
   auto: true
@@ -814,6 +943,7 @@ stages:
 			BeforeEach(func() {
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
+				cmdLinePath = writeTestCmdline("BOOT_IMAGE=/vmlinuz root=LABEL=COS_ACTIVE console=tty0 rd.immucore.debug\n")
 				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
 stages:
   initramfs:
@@ -889,6 +1019,7 @@ stages:
 			BeforeEach(func() {
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
+				cmdLinePath = writeTestCmdline("BOOT_IMAGE=/vmlinuz root=LABEL=COS_ACTIVE console=tty0 rd.immucore.debug\n")
 				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
 
 stages:
@@ -1075,6 +1206,7 @@ stages:
 			BeforeEach(func() {
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
+				cmdLinePath = writeTestCmdline("BOOT_IMAGE=/vmlinuz root=LABEL=COS_ACTIVE console=tty0 rd.immucore.debug\n")
 				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
 install:
   auto: true
@@ -1580,6 +1712,216 @@ name: Mario
 				Expect(string(out)).To(ContainSubstring("no_header.yaml because it has no valid header"))
 			})
 		})
+
+		Context("when a scanned file does not parse", func() {
+			var tmpDir string
+
+			BeforeEach(func() {
+				var err error
+				tmpDir, err = os.MkdirTemp("", "config_unparseable")
+				Expect(err).ToNot(HaveOccurred())
+				DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+				Expect(os.WriteFile(path.Join(tmpDir, "good.yaml"), []byte(`#cloud-config
+name: Mario
+`), os.ModePerm)).To(Succeed())
+
+				// Indentation that yaml rejects, reported as "line 4".
+				Expect(os.WriteFile(path.Join(tmpDir, "broken.yaml"), []byte(`#cloud-config
+install:
+  device: /dev/sda
+   auto: true
+`), os.ModePerm)).To(Succeed())
+			})
+
+			It("names the file in the warning and says nothing was applied", func() {
+				origStdout := os.Stdout
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				os.Stdout = w
+				defer func() { os.Stdout = origStdout }()
+
+				o := &Options{}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+
+				Expect(w.Close()).To(Succeed())
+				out, readErr := io.ReadAll(r)
+				Expect(readErr).ToNot(HaveOccurred())
+
+				Expect(scanErr).ToNot(HaveOccurred())
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+
+				Expect(string(out)).To(ContainSubstring("broken.yaml"))
+				Expect(string(out)).To(ContainSubstring("none of its settings were applied"))
+			})
+
+			It("does not list the unparseable file as a source of the merged config", func() {
+				o := &Options{NoLogs: true}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+				Expect(scanErr).ToNot(HaveOccurred())
+
+				Expect(c.Sources).To(ContainElement(path.Join(tmpDir, "good.yaml")))
+				Expect(c.Sources).ToNot(ContainElement(path.Join(tmpDir, "broken.yaml")))
+
+				s, err := c.String()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(s).ToNot(ContainSubstring("broken.yaml"))
+			})
+
+			// yaml.v3 reports a duplicate key as a *yaml.TypeError and still
+			// fills the map with everything else it decoded. Skipping that
+			// file would take `users:` off a node that boots today, so it is
+			// kept and the warning says it was only partly applied.
+			It("keeps the keys yaml did decode when a nested mapping has a duplicate key", func() {
+				Expect(os.WriteFile(path.Join(tmpDir, "dup.yaml"), []byte(`#cloud-config
+users:
+- name: kairos
+  ssh_authorized_keys:
+  - ssh-rsa AAAAkey
+install:
+  device: /dev/sda
+  device: /dev/sdb
+`), os.ModePerm)).To(Succeed())
+
+				origStdout := os.Stdout
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				os.Stdout = w
+				defer func() { os.Stdout = origStdout }()
+
+				o := &Options{}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+
+				Expect(w.Close()).To(Succeed())
+				out, readErr := io.ReadAll(r)
+				Expect(readErr).ToNot(HaveOccurred())
+
+				Expect(scanErr).ToNot(HaveOccurred())
+				Expect(c.Values).To(HaveKey("users"))
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(c.Sources).To(ContainElement(path.Join(tmpDir, "dup.yaml")))
+
+				Expect(string(out)).To(ContainSubstring("dup.yaml"))
+				Expect(string(out)).To(ContainSubstring("some of its settings were not applied"))
+				Expect(string(out)).ToNot(ContainSubstring("skipping " + path.Join(tmpDir, "dup.yaml")))
+			})
+		})
+
+		// A FIFO named like a config blocks os.ReadFile in open(2) until a
+		// writer shows up, which on a real boot is never: the agent parks in
+		// openat with wchan=wait_for_partner, holds a shutdown inhibitor, and
+		// the node can be neither reached nor rebooted (kairos-io/kairos#4865).
+		Context("when the scanned directory holds a non-regular file (issue kairos-io/kairos#4865)", func() {
+			var tmpDir string
+
+			BeforeEach(func() {
+				var err error
+				tmpDir, err = os.MkdirTemp("", "config_fifo")
+				Expect(err).ToNot(HaveOccurred())
+				DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+				Expect(os.WriteFile(path.Join(tmpDir, "local_config.yaml"), []byte(`#cloud-config
+name: Mario
+`), os.ModePerm)).To(Succeed())
+			})
+
+			scanWithin := func(d time.Duration) *Config {
+				GinkgoHelper()
+				type outcome struct {
+					c   *Config
+					err error
+				}
+				done := make(chan outcome, 1)
+				go func() {
+					defer GinkgoRecover()
+					o := &Options{}
+					Expect(o.Apply(Directories(tmpDir), NoLogs)).To(Succeed())
+					c, err := Scan(o, FilterKeysTest)
+					done <- outcome{c, err}
+				}()
+
+				select {
+				case got := <-done:
+					Expect(got.err).ToNot(HaveOccurred())
+					return got.c
+				case <-time.After(d):
+					Fail("Scan blocked on a non-regular file instead of skipping it")
+					return nil
+				}
+			}
+
+			It("does not block on a FIFO named like a config", func() {
+				Expect(unix.Mkfifo(path.Join(tmpDir, "cluster.kairos.yaml"), 0o644)).To(Succeed())
+
+				c := scanWithin(10 * time.Second)
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+			})
+
+			It("does not block on a FIFO whose name is the only config", func() {
+				Expect(unix.Mkfifo(path.Join(tmpDir, "only.yaml"), 0o644)).To(Succeed())
+				Expect(os.Remove(path.Join(tmpDir, "local_config.yaml"))).To(Succeed())
+
+				scanWithin(10 * time.Second)
+			})
+
+			It("skips a directory that a Walk would not have descended into", func() {
+				// A dangling symlink to a FIFO: Walk reports the link itself,
+				// so the open still lands on the FIFO.
+				Expect(unix.Mkfifo(path.Join(tmpDir, "backing"), 0o644)).To(Succeed())
+				Expect(os.Symlink(path.Join(tmpDir, "backing"), path.Join(tmpDir, "linked.yaml"))).To(Succeed())
+
+				c := scanWithin(10 * time.Second)
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+			})
+
+			// O_NONBLOCK alone is not enough here. Opening /dev/zero never
+			// blocks, so without the fstat the read runs until the machine is
+			// out of memory.
+			It("does not read forever from a character device named like a config", func() {
+				if _, err := os.Stat("/dev/zero"); err != nil {
+					Skip("no /dev/zero")
+				}
+				Expect(os.Symlink("/dev/zero", path.Join(tmpDir, "zero.yaml"))).To(Succeed())
+
+				c := scanWithin(10 * time.Second)
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+			})
+
+			It("says why it skipped the file, in words", func() {
+				Expect(unix.Mkfifo(path.Join(tmpDir, "cluster.kairos.yaml"), 0o644)).To(Succeed())
+
+				origStdout := os.Stdout
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				os.Stdout = w
+				defer func() { os.Stdout = origStdout }()
+
+				done := make(chan struct{})
+				go func() {
+					defer GinkgoRecover()
+					defer close(done)
+					o := &Options{}
+					Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+					_, scanErr := Scan(o, FilterKeysTest)
+					Expect(scanErr).ToNot(HaveOccurred())
+				}()
+
+				Eventually(done, 10*time.Second).Should(BeClosed())
+
+				Expect(w.Close()).To(Succeed())
+				out, readErr := io.ReadAll(r)
+				Expect(readErr).ToNot(HaveOccurred())
+
+				Expect(string(out)).To(ContainSubstring("cluster.kairos.yaml"))
+				Expect(string(out)).To(ContainSubstring("a named pipe"))
+			})
+		})
 	})
 
 	Describe("String", func() {
@@ -1675,6 +2017,17 @@ remote_key_2: remote_value_2
 	Expect(err).ToNot(HaveOccurred())
 
 	return cmdLinePath
+}
+
+// writeTestCmdline writes a cmdline file removed after the spec, so specs that
+// merge the boot cmdline never depend on the host /proc/cmdline.
+func writeTestCmdline(contents string) string {
+	f, err := os.CreateTemp("", "cmdline")
+	Expect(err).ToNot(HaveOccurred())
+	DeferCleanup(func() { _ = os.Remove(f.Name()) })
+	Expect(f.Close()).To(Succeed())
+	Expect(os.WriteFile(f.Name(), []byte(contents), 0o644)).To(Succeed())
+	return f.Name()
 }
 
 // Generic config type with no fields, accepts everything for filtering

@@ -65,8 +65,16 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 		// We need to mount OEM before we run partition unlocking because old installations
 		// may not have the needed KMS configuration in the cmdline.
 		internalUtils.KLog.Logger.Info().Msg("OEM is NOT encrypted: OEM mount will run before kcrypt unlock")
-		kcryptDeps = herd.WithDeps(cnst.OpMountRoot, cnst.OpKcryptUpgrade, cnst.OpMountOEM)
+		kcryptDeps = herd.WithDeps(cnst.OpMountRoot, cnst.OpKcryptUpgrade, cnst.OpMountOEM, cnst.OpEncryptPending)
 		oemMountDeps = herd.WithDeps(cnst.OpMountRoot, cnst.OpLvmActivate)
+		// Encrypt partitions that are configured for encryption but still
+		// plaintext (kcrypt.encrypt_on_boot, kairos-io/kairos#4556), after the
+		// plaintext OEM is mounted (the policy is read from /run/cos/oem) and
+		// before the unlock step opens them. When OEM is encrypted the policy
+		// was already applied at install time, so the step is not registered
+		// on that branch, where it could not read its config before the
+		// unlock it would have to precede.
+		s.LogIfError(s.EncryptPendingDagStep(g, herd.WithDeps(cnst.OpKcryptUpgrade, cnst.OpMountOEM)), "encrypt pending")
 	}
 
 	s.LogIfError(s.RunKcrypt(g, kcryptDeps), "kcrypt unlock")
@@ -85,7 +93,15 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 	// Mount custom overlays loaded from the /run/cos/cos-layout.env file
 	s.LogIfError(s.MountCustomOverlayDagStep(g), "custom overlays mount")
 
-	s.LogIfError(s.MountCustomMountsDagStep(g), "custom mounts mount")
+	// On write-protected media the persistent partition cannot be mounted as
+	// it is, so a copy-on-write snapshot is put over it first and the custom
+	// mounts wait for that. Registered only in that case, so a writable install
+	// keeps exactly the graph it had.
+	if s.WriteProtected {
+		s.LogIfError(s.MountPersistentSnapshotDagStep(g), "persistent snapshot")
+	}
+
+	s.LogIfError(s.MountCustomMountsDagStep(g, s.WriteProtectedSnapshotDeps()...), "custom mounts mount")
 
 	// Mount custom binds loaded from the /run/cos/cos-layout.env file
 	// Depends on mount binds as that usually mounts COS_PERSISTENT

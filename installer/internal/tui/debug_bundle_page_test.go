@@ -6,7 +6,33 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/internal/version"
 )
+
+var _ = Describe("bundleContext", func() {
+	// The bundle is what a user attaches to a bug report, so the version it
+	// records has to be the build's own. A literal local to this package is
+	// never stamped by the Makefile's -ldflags and reports the same string for
+	// every release, which is the bug this guards.
+	It("records the version the build stamps, not a package default", func() {
+		old := version.Version
+		version.Version = "v9.9.9-stamped"
+		DeferCleanup(func() { version.Version = old })
+
+		Expect(bundleContext().Version).To(Equal("v9.9.9-stamped"))
+	})
+
+	It("records the selected disk and install source", func() {
+		old := mainModel.answers
+		mainModel.answers.Disk = "/dev/sdz"
+		mainModel.answers.Source = "oci:quay.io/kairos/fedora:latest"
+		DeferCleanup(func() { mainModel.answers = old })
+
+		ctx := bundleContext()
+		Expect(ctx.Disk).To(Equal("/dev/sdz"))
+		Expect(ctx.Source).To(Equal("oci:quay.io/kairos/fedora:latest"))
+	})
+})
 
 var _ = Describe("formatRetrievalText", func() {
 	It("lists every URL and the local path", func() {
@@ -53,23 +79,29 @@ var _ = Describe("sensitiveDataWarning", func() {
 })
 
 var _ = Describe("formatUSBMenu", func() {
-	mounts := []debugbundle.RemovableMount{
-		{Device: "/dev/sdb1", MountPoint: "/run/media/usb0"},
-		{Device: "/dev/sdc1", MountPoint: "/run/media/usb1"},
+	targets := []debugbundle.Target{
+		{Device: "/dev/sdb1", MountPoint: "/run/media/usb0", SizeBytes: 16 * 1024 * 1024 * 1024},
+		{Device: "/dev/sdc1", Label: "KINGSTON", SizeBytes: 32 * 1024 * 1024 * 1024},
 	}
 
-	It("lists every removable mount with its device and mount point", func() {
-		out := formatUSBMenu(mounts, 0)
+	It("lists every drive with its device, size and mount point", func() {
+		out := formatUSBMenu(targets, 0)
 		Expect(out).To(ContainSubstring("/dev/sdb1"))
+		Expect(out).To(ContainSubstring("16.00 GiB"))
 		Expect(out).To(ContainSubstring("/run/media/usb0"))
 		Expect(out).To(ContainSubstring("/dev/sdc1"))
-		Expect(out).To(ContainSubstring("/run/media/usb1"))
+		Expect(out).To(ContainSubstring("32.00 GiB"))
+	})
+
+	// A drive the user has just plugged in has no mount point, which is the
+	// case the menu exists for. The row has to say so rather than show a gap.
+	It("says an unmounted drive will be mounted, and names its label", func() {
+		out := formatUSBMenu(targets, 0)
+		Expect(out).To(MatchRegexp(`/dev/sdc1.*KINGSTON.*will be mounted`))
 	})
 
 	It("marks the row at the cursor with the selection indicator", func() {
-		out := formatUSBMenu(mounts, 1)
-		lines := []rune(out)
-		_ = lines
+		out := formatUSBMenu(targets, 1)
 		// The cursor row (second device) carries the ">" indicator; the first does not.
 		Expect(out).To(MatchRegexp(`>\s.*/dev/sdc1`))
 		Expect(out).ToNot(MatchRegexp(`>\s.*/dev/sdb1`))

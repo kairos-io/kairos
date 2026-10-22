@@ -20,7 +20,9 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"slices"
 
+	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
@@ -136,7 +138,11 @@ var _ = Describe("Uki reset action", func() {
 	})
 
 	It("fails when the EFI partition can not be remounted RW", func() {
-		// strict mode also surfaces the pre-reset stage errors
+		// strict mode also surfaces the pre-reset stage errors, so the test fs
+		// needs the cmdline every stage reads, otherwise the run stops at the
+		// before-reset hook rather than at the remount
+		Expect(fsutils.MkdirAll(fs, "/proc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/proc/cmdline", []byte(""), os.ModePerm)).To(Succeed())
 		config.Strict = true
 		mounter.ErrorOnMount = true
 		err := reset.Run()
@@ -170,6 +176,73 @@ var _ = Describe("Uki reset action", func() {
 		Expect(err.Error()).To(ContainSubstring("mount"))
 	})
 
+	// UKI nodes are dispatched to this reset implementation, not to
+	// agent/pkg/action.ResetAction, so the re-encryption wiring has to be
+	// checked here through Run, not only through the shared helper.
+	Describe("re-encryption after the format", func() {
+		var encrypted []string
+		var encryptErr error
+		BeforeEach(func() {
+			encrypted, encryptErr = nil, nil
+			orig := action.ResetEncryptFn
+			DeferCleanup(func() { action.ResetEncryptFn = orig })
+			action.ResetEncryptFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition) error {
+				encrypted = append(encrypted, part.FilesystemLabel)
+				return encryptErr
+			}
+		})
+
+		It("runs for every formatted partition, before OEM is mounted back", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			// Run fails later in this harness, after the format branches
+			// that are under test; make sure it is not an earlier failure.
+			err := reset.Run()
+			if err != nil {
+				Expect(err.Error()).ToNot(ContainSubstring("preflight"))
+				Expect(err.Error()).ToNot(ContainSubstring("format"))
+			}
+			Expect(encrypted).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+		})
+
+		It("formats nothing when the preflight refuses", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			orig := action.ResetPreflightFn
+			DeferCleanup(func() { action.ResetPreflightFn = orig })
+			var checked []string
+			action.ResetPreflightFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition, _ bool) error {
+				checked = append(checked, part.FilesystemLabel)
+				if part.FilesystemLabel == constants.OEMLabel {
+					return errors.New("preflight refused")
+				}
+				return nil
+			}
+			Expect(reset.Run()).To(MatchError(ContainSubstring("preflight refused")))
+			Expect(checked).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+			Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(HaveOccurred(),
+				"a partition was formatted although the preflight of a later one refused")
+			Expect(encrypted).To(BeEmpty())
+		})
+
+		It("fails the reset when re-encrypting persistent fails", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			encryptErr = errors.New("no TPM device")
+			Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+			Expect(encrypted).To(Equal([]string{constants.PersistentLabel}),
+				"the reset must stop at the first failed re-encryption, before the OEM branch")
+		})
+
+		It("fails the reset when re-encrypting OEM fails", func() {
+			spec.FormatPersistent = false
+			spec.FormatOEM = true
+			encryptErr = errors.New("no TPM device")
+			Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+			Expect(encrypted).To(Equal([]string{constants.OEMLabel}))
+		})
+	})
+
 	It("fails when formatting the persistent partition fails", func() {
 		spec.FormatPersistent = true
 		runner.ReturnError = errors.New("mkfs error")
@@ -200,6 +273,79 @@ var _ = Describe("Uki reset action", func() {
 		err := reset.Run()
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("copying recovery to active"))
+	})
+
+	// setupBootableEfi mirrors the EFI mountpoint in a real temporary
+	// directory and in the test fs, which is what a reset needs to run all the
+	// way through: conf files are parsed with an os based reader while
+	// artifacts are managed through the config fs.
+	setupBootableEfi := func() {
+		// uki mode so the boot entry selection goes through systemd-boot
+		Expect(fsutils.MkdirAll(fs, "/proc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/proc/cmdline", []byte("rd.immucore.uki"), os.ModePerm)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, "/sys/firmware/efi/efivars", constants.DirPerm)).To(Succeed())
+
+		efiDir := GinkgoT().TempDir()
+		Expect(os.MkdirAll(efiDir+"/loader/entries", 0755)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, efiDir+"/loader/entries", constants.DirPerm)).To(Succeed())
+		writeBoth := func(path, content string) {
+			Expect(os.WriteFile(path, []byte(content), 0644)).To(Succeed())
+			Expect(fs.WriteFile(path, []byte(content), os.ModePerm)).To(Succeed())
+		}
+		writeBoth(efiDir+"/loader/loader.conf", "timeout 5\n")
+		writeBoth(efiDir+"/loader/entries/active+2-1.conf", "title kairos\nefi /EFI/kairos/active.efi\n")
+		writeBoth(efiDir+"/loader/entries/passive+3.conf", "title kairos (fallback)\nefi /EFI/kairos/passive.efi\n")
+		writeBoth(efiDir+"/loader/entries/recovery+1-2.conf", "title kairos recovery\nefi /EFI/kairos/recovery.efi\n")
+		writeBoth(efiDir+"/loader/entries/statereset+2-1.conf", "title kairos state reset (auto)\nefi /EFI/kairos/statereset.efi\n")
+
+		spec.Partitions.EFI.MountPoint = efiDir
+		// the boot entry selection looks the EFI partition up via ghw
+		ghwTest.Clean()
+		ghwTest = ghwMock.GhwMock{}
+		ghwTest.AddDisk(sdkPartitions.Disk{
+			Name: "device",
+			Partitions: []*sdkPartitions.Partition{
+				{
+					Name:            "device1",
+					FilesystemLabel: "COS_GRUB",
+					FS:              "vfat",
+					MountPoint:      efiDir,
+				},
+			},
+		})
+		ghwTest.CreateDevices()
+
+		// recovery artifact to rotate to active in the default UKI dir
+		Expect(fs.WriteFile("/efi/EFI/kairos/recovery.efi", []byte("recovery"), os.ModePerm)).To(Succeed())
+	}
+
+	It("runs before-reset, and runs it before after-reset", func() {
+		// docs/architecture/cloud-init.md does not mark before-reset as GRUB
+		// only, so a Trusted Boot reset has to run it too, in the same place
+		// the GRUB path does: once the partitions are formatted and mounted
+		// and before the image is deployed. See kairos-io/kairos#4806.
+		setupBootableEfi()
+		spec.FormatPersistent = true
+		spec.FormatOEM = true
+
+		Expect(reset.Run()).To(Succeed())
+
+		Expect(cloudInit.ExecStages).To(ContainElement(constants.BeforeResetHook))
+		Expect(cloudInit.ExecStages).To(ContainElement(constants.AfterResetHook))
+		Expect(slices.Index(cloudInit.ExecStages, constants.BeforeResetHook)).
+			To(BeNumerically("<", slices.Index(cloudInit.ExecStages, constants.AfterResetHook)),
+				"before-reset has to run before after-reset")
+	})
+
+	It("does not run before-reset when a partition could not be formatted", func() {
+		// the stage is documented to run once the partitions are ready, so a
+		// format that failed must not reach it
+		spec.FormatOEM = true
+		runner.ReturnError = errors.New("mkfs error")
+
+		Expect(reset.Run()).ToNot(Succeed())
+
+		Expect(cloudInit.ExecStages).ToNot(ContainElement(constants.BeforeResetHook))
 	})
 
 	It("resets successfully selecting the active boot entry", func() {

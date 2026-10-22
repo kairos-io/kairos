@@ -3,16 +3,21 @@ stages:
   rootfs.before:
     - &moveOldUserdata
       name: "Move old datasource to new location"
-      if: '[ -d /oem/userdata ] && [ ! -d /oem/95_userdata ]' # If old userdata exists and new one does not
+      # Not on read-only media: /oem is mounted ro there, so this write fails.
+      if: '[ -d /oem/userdata ] && [ ! -d /oem/95_userdata ] && [ ! -f /run/cos/write_protected ]' # If old userdata exists and new one does not
       commands:
       - mv -f /oem/userdata /oem/95_userdata
     - &removeOldUserdata
       name: "Remove old userdata"
-      if: '[ -d /oem/userdata ] && [ -d /oem/95_userdata ]' # If both exist, remove the old one
+      # Not on read-only media: /oem is mounted ro there, so this write fails.
+      if: '[ -d /oem/userdata ] && [ -d /oem/95_userdata ] && [ ! -f /run/cos/write_protected ]' # If both exist, remove the old one
       commands:
       - rm -rf /oem/userdata
     - &datasource
-      if: '[ ! -e /oem/95_userdata ] && ([ ! -f /run/cos/uki_boot_mode ] || grep -q "kairos.pull_datasources" /proc/cmdline )'
+      # Not on read-only media: the datasource writes its result into /oem,
+      # which is mounted ro there. Userdata has to be in place before the disk is
+      # write-protected; see the read-only media section of immucore/README.md.
+      if: '[ ! -e /oem/95_userdata ] && ([ ! -f /run/cos/uki_boot_mode ] || grep -q "kairos.pull_datasources" /proc/cmdline ) && [ ! -f /run/cos/write_protected ]'
       name: "Pull data from provider"
       datasource:
         providers: ["cdrom", "gcp", "openstack", "aws", "azure", "hetzner", "packet", "vultr", "digitalocean", "metaldata", "vmware", "config-drive", "maas"]

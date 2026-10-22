@@ -1,12 +1,14 @@
 package hook
 
 import (
+	"fmt"
 	"path/filepath"
 	"syscall"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
@@ -36,9 +38,26 @@ func (k CopyLogs) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 
 	_, _ = utils.SH("udevadm trigger --type=all || udevadm trigger")
 	_ = fsutils.MkdirAll(c.Fs, constants.PersistentDir, 0755)
-	err := c.Syscall.Mount(filepath.Join("/dev/disk/by-label", constants.PersistentLabel), constants.PersistentDir, "ext4", 0, "")
+
+	// Resolve the label to a concrete device instead of handing
+	// /dev/disk/by-label/<X> to mount(2). This hook runs right after
+	// Encrypt, while the persistent mapper is still unlocked, so on an
+	// encrypted install the raw crypto_LUKS container and its plaintext
+	// mapper both advertise COS_PERSISTENT and the symlink points at
+	// whichever one udev settled last. Landing on the raw side fails the
+	// mount and drops the install logs on exactly the nodes where they
+	// matter most. See kairos-io/kairos#4403 and kairos-io/kairos#4685.
+	source, err := lookup.MountSourceForLabel(constants.PersistentLabel)
+	if err == nil && source == "" {
+		err = fmt.Errorf("no device carries the %s label", constants.PersistentLabel)
+	}
 	if err != nil {
 		c.Logger.Logger.Warn().Err(err).Msg("could not mount persistent")
+		return nil
+	}
+
+	if err := c.Syscall.Mount(source, constants.PersistentDir, "ext4", 0, ""); err != nil {
+		c.Logger.Logger.Warn().Err(err).Str("source", source).Msg("could not mount persistent")
 		return nil
 	}
 

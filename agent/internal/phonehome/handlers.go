@@ -16,6 +16,8 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/agent/pkg/utils/partitions"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -51,25 +53,48 @@ const (
 
 var selectBootEntry = action.SelectBootEntry
 var rebootScheduler = scheduleReboot
-var persistentDir = constants.PersistentDir
 
+// createArtifactTempFile creates the file an artifact image is downloaded
+// into. It lives on the persistent partition: /tmp is a tmpfs sized from RAM,
+// and an image can be larger than it.
 func createArtifactTempFile(config *sdkConfig.Config, artifactID string) (*os.File, error) {
-	if config == nil || config.Mounter == nil {
-		return nil, fmt.Errorf("cannot verify the persistent partition mount")
+	if config == nil {
+		return nil, fmt.Errorf("cannot look up the persistent partition")
 	}
-	notMounted, err := config.Mounter.IsLikelyNotMountPoint(persistentDir)
+	mountPoint, err := persistentMountPoint(config)
 	if err != nil {
-		return nil, fmt.Errorf("checking persistent partition mount: %w", err)
-	}
-	if notMounted {
-		return nil, fmt.Errorf("persistent partition %s is not mounted", persistentDir)
+		return nil, err
 	}
 
-	tempDir := filepath.Join(persistentDir, "tmp")
+	tempDir := filepath.Join(mountPoint, "tmp")
 	if err := os.MkdirAll(tempDir, 0750); err != nil {
 		return nil, fmt.Errorf("creating persistent temporary directory: %w", err)
 	}
 	return os.CreateTemp(tempDir, fmt.Sprintf("phonehome-upgrade-%s-*.tar", artifactID))
+}
+
+// persistentMountPoint returns where COS_PERSISTENT is mounted on the running
+// system: /usr/local, where immucore mounts it. constants.PersistentDir is
+// only where the agent mounts the partition itself during install and upgrade
+// hooks, and nothing is mounted there while the system runs. The lookup is
+// the one NewUpgradeSpec makes: the plain partition first, then an unlocked
+// encrypted one through device-mapper.
+func persistentMountPoint(config *sdkConfig.Config) (string, error) {
+	parts, err := partitions.GetAllPartitions(&config.Logger)
+	if err != nil {
+		return "", fmt.Errorf("listing partitions: %w", err)
+	}
+	part := spec.GetPartitionByNameOrLabel("", sdkConstants.PersistentLabel, parts)
+	if part == nil && config.Fs != nil {
+		part = partitions.GetPartitionViaDM(config.Fs, sdkConstants.PersistentLabel)
+	}
+	if part == nil {
+		return "", fmt.Errorf("no persistent partition (%s) found", sdkConstants.PersistentLabel)
+	}
+	if part.MountPoint == "" {
+		return "", fmt.Errorf("persistent partition %s is not mounted", sdkConstants.PersistentLabel)
+	}
+	return part.MountPoint, nil
 }
 
 // DefaultCommandHandler returns a CommandHandler that handles all phone-home commands.
@@ -110,7 +135,7 @@ func DefaultCommandHandler(serverURL string, apiKey func() string, isAllowed fun
 			return string(out), err
 
 		case commandUpgrade, commandUpgradeRecovery:
-			return handleUpgrade(ctx, cmd, serverURL, apiKey(), systemConfig, retries, retryInterval)
+			return handleUpgrade(ctx, cmd, serverURL, apiKey(), systemConfig, retries, retryInterval, isAllowed)
 
 		case commandReset:
 			return handleReset(cmd, systemConfig)
@@ -173,10 +198,30 @@ func handleUnregister(stop func()) (string, error) {
 }
 
 // handleUpgrade downloads the image (if artifact-based) and runs kairos-agent upgrade.
-func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKey string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {
+//
+// isAllowed is the same policy predicate the dispatcher applied to cmd.Command.
+// It is consulted a second time here because an upgrade carrying an
+// `extensions` argument performs the work of the separately named `extension`
+// command, which is not one of the safe defaults.
+func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKey string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration, isAllowed func(string) bool) (string, error) {
 	source := cmd.Args[argSource]
 	if source == "" {
 		return "", fmt.Errorf("upgrade requires 'source' arg")
+	}
+
+	// Read and vet the bundle before anything is downloaded, so a command that
+	// is going to be refused costs the node no network and no disk.
+	bundled, err := parseBundledExtensions(cmd.Args[argExtensions])
+	if err != nil {
+		return "", err
+	}
+	// Installing an extension ships code to the node, which is why `extension`
+	// is opt-in rather than one of the safe defaults. Riding along with an
+	// upgrade does not change what it does, so it needs the same grant.
+	// Without this, the default policy, which permits `upgrade`, installs and
+	// enables whatever extension the server names.
+	if len(bundled) > 0 && (isAllowed == nil || !isAllowed(commandExtension)) {
+		return "", fmt.Errorf("this %s carries bundled extensions, and command %q is not permitted by the phonehome policy; add it to phonehome.allowed_commands in cloud-config to opt in", cmd.Command, commandExtension)
 	}
 
 	// If source is "artifact:<id>", download the container image tar from the server.
@@ -199,20 +244,18 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 		source = "oci:" + source
 	}
 
+	recovery := isRecoveryUpgrade(cmd)
+
 	args := []string{"upgrade", "--source", source}
-	if cmd.Command == commandUpgradeRecovery || cmd.Args[argRecovery] == argTrue {
+	if recovery {
 		args = append(args, "--recovery")
 	}
 
 	// Install bundled extensions before the OS upgrade. Each install overwrites
 	// the .raw in place, so retrying the same compound command after a partial
 	// failure is safe.
-	bundled, err := parseBundledExtensions(cmd.Args[argExtensions])
-	if err != nil {
-		return "", err
-	}
 	scope := constants.BootActive
-	if cmd.Command == commandUpgradeRecovery {
+	if recovery {
 		scope = constants.BootRecovery
 	}
 	for _, e := range bundled {
@@ -231,13 +274,23 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 	}
 	Logger.Infof("kairos-agent upgrade completed: %s", string(out))
 
-	// Reboot after successful upgrade so the new image takes effect.
-	// Do NOT reboot for recovery upgrades (recovery doesn't need reboot).
-	if cmd.Command != commandUpgradeRecovery {
-		rebootScheduler()
+	// Reboot after successful upgrade so the new image takes effect. A recovery
+	// upgrade does not touch the running system, so it needs no reboot.
+	if recovery {
+		return string(out) + "\nRecovery image upgraded. No reboot needed.", nil
 	}
 
+	rebootScheduler()
+
 	return string(out) + "\nUpgrade complete. Rebooting in 10s...", nil
+}
+
+// isRecoveryUpgrade reports whether an upgrade command targets the recovery
+// image. Two encodings reach us: the dedicated `upgrade-recovery` command, and
+// an `upgrade` carrying `recovery: "true"`. Every decision that follows from
+// the answer has to read it from here, or the two encodings behave differently.
+func isRecoveryUpgrade(cmd CommandData) bool {
+	return cmd.Command == commandUpgradeRecovery || cmd.Args[argRecovery] == argTrue
 }
 
 func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {

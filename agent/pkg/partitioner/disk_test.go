@@ -234,7 +234,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			for i, p := range gptParts {
 				Expect(p.Size).To(Equal(uint64(parts[i].Size)*mib), "partition %s", p.Name)
 				Expect((p.End-p.Start+1)*sectorSize).To(Equal(p.Size), "partition %s", p.Name)
-				Expect((p.End + 1) % uint64(mib/sectorSize)).To(BeZero(), "partition %s ends on sector %d, not 1MiB aligned", p.Name, p.End)
+				Expect((p.End+1)%uint64(mib/sectorSize)).To(BeZero(), "partition %s ends on sector %d, not 1MiB aligned", p.Name, p.End)
 			}
 		})
 
@@ -306,6 +306,41 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
 			Expect(gptParts[0].GUID).To(Equal(uuid.NewV5(uuid.NamespaceURL, sdkConstants.OEMLabel).String()))
+		})
+
+		// An extra partition needs a name but not a filesystem label, and the
+		// cloud-config schema does not even describe the label key, so in
+		// practice extra partitions arrive unlabelled. Seeding the UUID with
+		// the empty string gave every one of them the same constant PARTUUID,
+		// on the same disk and on every machine.
+		ginkgo.It("falls back to the partition name when there is no filesystem label", func() {
+			parts := partitions.PartitionList{
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
+				{Name: "data", Size: 10, FS: "ext4"},
+				{Name: "logs", Size: 10, FS: "ext4"},
+			}
+			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
+			Expect(gptParts).To(HaveLen(3))
+
+			Expect(gptParts[1].GUID).To(Equal(uuid.NewV5(uuid.NamespaceURL, "data").String()))
+			Expect(gptParts[2].GUID).To(Equal(uuid.NewV5(uuid.NamespaceURL, "logs").String()))
+			Expect(gptParts[1].GUID).ToNot(Equal(gptParts[2].GUID))
+			Expect(gptParts[1].GUID).ToNot(Equal(uuid.NewV5(uuid.NamespaceURL, "").String()))
+		})
+
+		ginkgo.It("keeps the UUID a labelled partition already had", func() {
+			// The built-in partitions all carry a label, so their PARTUUIDs
+			// must not move: an installed system looks itself up by them.
+			for _, label := range []string{
+				sdkConstants.OEMLabel, sdkConstants.RecoveryLabel,
+				sdkConstants.StateLabel, sdkConstants.PersistentLabel,
+			} {
+				parts := partitions.PartitionList{
+					{Name: "part", FilesystemLabel: label, Size: 10, FS: "ext4"},
+				}
+				gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
+				Expect(gptParts[0].GUID).To(Equal(uuid.NewV5(uuid.NamespaceURL, label).String()))
+			}
 		})
 	})
 })
@@ -628,4 +663,47 @@ func TestBug4257ExactDiskFromReport(t *testing.T) {
 		last.Start, last.End, onDiskSize, last.Name)
 	t.Logf("lastDataSector=%d diskSectors=%d", lastDataSector, diskSectors)
 	t.Logf("img path (kept in temp dir for inspection): %s", imgPath)
+}
+
+// TestNewDiskBackendRecordsPath pins the one property of the backend that
+// go-diskfs needs in order to recover from a busy device: Backend.Path().
+//
+// When BLKRRPART cannot make the kernel re-read the table, go-diskfs falls
+// back to per-partition BLKPG reconciliation, and the first thing that
+// fallback does is read Backend.Path(); an empty path makes it give up with
+// "backend has no path; cannot reconcile partitions", which turns a transient
+// EBUSY into a failed install (kairos-io/kairos#5134). diskfs.Open leaves the
+// path empty, so NewDisk has to build the backend itself.
+func TestNewDiskBackendRecordsPath(t *testing.T) {
+	const diskBytes int64 = 64 * 1024 * 1024
+
+	imgPath := filepath.Join(t.TempDir(), "disk.img")
+	f, err := os.Create(imgPath)
+	if err != nil {
+		t.Fatalf("create img: %v", err)
+	}
+	if err := f.Truncate(diskBytes); err != nil {
+		t.Fatalf("truncate img: %v", err)
+	}
+	_ = f.Close()
+
+	d, err := NewDisk(imgPath)
+	if err != nil {
+		t.Fatalf("NewDisk: %v", err)
+	}
+	defer func() { _ = d.Close() }()
+
+	if got := d.Backend.Path(); got != imgPath {
+		t.Fatalf("Backend.Path() = %q, want %q; the BLKPG fallback refuses to run without it", got, imgPath)
+	}
+
+	// The disk must still be writable: NewDisk is expected to keep the
+	// read-write exclusive open that diskfs.Open defaulted to.
+	parts := partitions.PartitionList{
+		{Name: sdkConstants.EfiPartName, FS: sdkConstants.EfiFs, FilesystemLabel: sdkConstants.EfiLabel, Size: 16},
+		{Name: sdkConstants.OEMPartName, FilesystemLabel: sdkConstants.OEMLabel, Size: 16},
+	}
+	if err := d.NewPartitionTable(sdkConstants.GPT, parts); err != nil {
+		t.Fatalf("NewPartitionTable on a path-backed disk: %v", err)
+	}
 }

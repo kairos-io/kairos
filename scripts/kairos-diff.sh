@@ -6,18 +6,59 @@ KAIROS_SLUG="kairos-io/kairos"
 KAIROS_INIT_SLUG="kairos-io/kairos-init"
 
 # Components merged into the monorepo on 2026-08-19..21 (provider on 2026-08-31)
-# and their subpath in this repo. Ordering here is the order they were archived
-# externally and is followed by the render loop below.
+# and their subpath(s) in this repo. Ordering here is the order they were
+# archived externally and is followed by the render loop below. A value may
+# hold more than one space-separated path when the component's source is not
+# one contiguous directory.
+#
+# kcrypt-discovery-challenger is "kcrypt/discovery kcrypt/cmd/discovery
+# kcrypt/pkg/attestation", not the whole "kcrypt" tree: kcrypt/challenger is a
+# separate, still-external component (kcrypt-challenger, see README.md), and
+# kcrypt/api, kcrypt/config and kcrypt/controllers belong to it too. The plain
+# "kcrypt" subpath used before this would have folded kcrypt-challenger's own
+# changes into this component's section.
 declare -A INTREE_SUBPATH=(
   [kairos-init]="kairos-init"
   [kairos-agent]="agent"
   [immucore]="immucore"
   [kairos-sdk]="sdk"
-  [kcrypt-discovery-challenger]="kcrypt"
+  [kcrypt-discovery-challenger]="kcrypt/discovery kcrypt/cmd/discovery kcrypt/pkg/attestation"
   [provider-kairos]="provider"
 )
 
 declare -A COMPONENT_SLUG_HINT=()
+
+# Every external component this script tracks by name that is NOT an
+# in-tree path. Declared here (not down in the main body) because
+# load_gomod_versions_from_content needs it, and populate_dep_versions runs
+# well before the main body would otherwise declare it.
+declare -a fixed_components=(
+  kairos-init
+  kairos-agent
+  immucore
+  kairos-sdk
+  kcrypt-discovery-challenger
+  provider-kairos
+  edgevpn
+  entities
+  go-pluggable
+  yip
+  xpasswd
+)
+
+# True when component is one this script already tracks by name -- either an
+# in-tree path or a fixed external component. Used to keep a brand-new,
+# purely transitive go.mod dependency out of the release notes as noise,
+# without hiding a component already reported on.
+is_known_component() {
+  local component="$1"
+  [[ -n "${INTREE_SUBPATH[$component]:-}" ]] && return 0
+  local fc
+  for fc in "${fixed_components[@]}"; do
+    [[ "$fc" == "$component" ]] && return 0
+  done
+  return 1
+}
 
 KAIROS_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -121,14 +162,20 @@ git_repo_ok() {
     git -C "$KAIROS_REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1
 }
 
+# subpaths may be more than one space-separated path (see INTREE_SUBPATH);
+# true when at least one of them exists at ref.
 intree_present_at() {
   local ref="$1"
-  local subpath="$2"
-  if git_repo_ok && git -C "$KAIROS_REPO_ROOT" cat-file -e "${ref}:${subpath}" 2>/dev/null; then
-    return 0
-  fi
-  # Fall back to gh api. contents/ returns 200 on a directory too.
-  gh api "repos/${KAIROS_SLUG}/contents/${subpath}?ref=${ref}" >/dev/null 2>&1
+  local subpaths="$2"
+  local subpath
+  for subpath in $subpaths; do
+    if git_repo_ok && git -C "$KAIROS_REPO_ROOT" cat-file -e "${ref}:${subpath}" 2>/dev/null; then
+      return 0
+    fi
+    # Fall back to gh api. contents/ returns 200 on a directory too.
+    gh api "repos/${KAIROS_SLUG}/contents/${subpath}?ref=${ref}" >/dev/null 2>&1 && return 0
+  done
+  return 1
 }
 
 get_intree_content() {
@@ -199,6 +246,15 @@ load_gomod_versions_from_content() {
       version="${BASH_REMATCH[3]}"
       rest="${module#github.com/*/}"
       component="${rest%%/*}"
+      # go.mod lists every dependency, not just the ones this script already
+      # tracks. A "// indirect" line is a transitive dependency of a
+      # dependency (e.g. edgevpn pulling in mudler/water); only report one
+      # for a component we don't already know about when it is not marked
+      # indirect, so a new transitive dependency several levels removed does
+      # not show up as its own release-notes section.
+      if [[ "$line" == *"// indirect"* ]] && ! is_known_component "$component"; then
+        continue
+      fi
       if [[ -z "$(get_assoc_entry "$map_name" "$component")" ]]; then
         set_assoc_entry "$map_name" "$component" "$version"
       fi
@@ -311,11 +367,12 @@ collect_changes_gh() {
   _format_commit_lines "$slug" "$commit_lines"
 }
 
-# Commits touching <subpath> in the from..to range on this repo. Uses git log
-# on the local checkout when available (fast, no rate limit) and falls back to
+# Commits touching <subpaths> (one or more space-separated paths, see
+# INTREE_SUBPATH) in the from..to range on this repo. Uses git log on the
+# local checkout when available (fast, no rate limit) and falls back to
 # paging repos/kairos-io/kairos/commits?path=... otherwise.
 collect_intree_changes() {
-  local subpath="$1"
+  local subpaths="$1"
   local from_ref="$2"
   local to_ref="$3"
 
@@ -323,22 +380,38 @@ collect_intree_changes() {
   if git_repo_ok && \
      git -C "$KAIROS_REPO_ROOT" rev-parse --verify --quiet "$from_ref" >/dev/null && \
      git -C "$KAIROS_REPO_ROOT" rev-parse --verify --quiet "$to_ref" >/dev/null; then
+    # git log accepts multiple pathspecs directly and unions them, so the
+    # unquoted expansion below (one word per path) is deliberate.
+    # shellcheck disable=SC2086
     commit_lines="$(git -C "$KAIROS_REPO_ROOT" log --no-merges \
-      --format='%H|%s|%an||%ae' "${from_ref}..${to_ref}" -- "$subpath" 2>/dev/null || true)"
+      --format='%H|%s|%an||%ae' "${from_ref}..${to_ref}" -- $subpaths 2>/dev/null || true)"
   else
-    # Paged fallback: list commits touching the path on to_ref, bounded to
-    # those newer than from_ref's committer timestamp. from_ref itself may not
-    # touch the path, so a SHA sentinel is not reliable.
+    # Paged fallback: the GitHub API's commits?path= takes one path per call,
+    # so a multi-path component needs one paginated walk per path, deduped by
+    # sha (a commit can touch more than one of them). Bounded to commits newer
+    # than from_ref's committer timestamp; from_ref itself may not touch the
+    # path, so a SHA sentinel is not reliable.
     local from_date
     from_date="$(gh api "repos/${KAIROS_SLUG}/commits/${from_ref}" --jq '.commit.committer.date' 2>/dev/null || true)"
-    local page=1 raw
     local since_arg=""
     [[ -n "$from_date" ]] && since_arg="&since=${from_date}"
-    while [[ "$page" -le 20 ]]; do
-      raw="$(gh api "repos/${KAIROS_SLUG}/commits?sha=${to_ref}&path=${subpath}${since_arg}&per_page=100&page=${page}" --jq '.[] | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>/dev/null || true)"
-      [[ -z "$raw" ]] && break
-      commit_lines+="${raw}"$'\n'
-      page=$((page + 1))
+    declare -A seen_sha=()
+    local subpath page raw sha rest
+    for subpath in $subpaths; do
+      page=1
+      while [[ "$page" -le 20 ]]; do
+        raw="$(gh api "repos/${KAIROS_SLUG}/commits?sha=${to_ref}&path=${subpath}${since_arg}&per_page=100&page=${page}" --jq '.[] | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>/dev/null || true)"
+        [[ -z "$raw" ]] && break
+        while IFS= read -r line; do
+          [[ -z "$line" ]] && continue
+          sha="${line%%|*}"
+          rest="${line#*|}"
+          [[ -n "${seen_sha[$sha]:-}" ]] && continue
+          seen_sha["$sha"]=1
+          commit_lines+="${sha}|${rest}"$'\n'
+        done <<<"$raw"
+        page=$((page + 1))
+      done
     done
   fi
 
@@ -567,20 +640,6 @@ _old_init="$(extract_kairos_init_version "$OLD_REF" 2>/dev/null || true)"
 _new_init="$(extract_kairos_init_version "$NEW_REF" 2>/dev/null || true)"
 [[ -n "$_old_init" ]] && old_deps[kairos-init]="$_old_init"
 [[ -n "$_new_init" ]] && new_deps[kairos-init]="$_new_init"
-
-declare -a fixed_components=(
-  kairos-init
-  kairos-agent
-  immucore
-  kairos-sdk
-  kcrypt-discovery-challenger
-  provider-kairos
-  edgevpn
-  entities
-  go-pluggable
-  yip
-  xpasswd
-)
 
 declare -A component_seen=()
 declare -a all_components=()
