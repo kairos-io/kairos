@@ -113,7 +113,7 @@ on:
       # Core build parameters
       base_image:
         type: string
-        default: "ghcr.io/kairos-io/hadron:v0.0.4"
+        default: "ghcr.io/kairos-io/hadron:v0.6.2"
 
       model:
         type: string
