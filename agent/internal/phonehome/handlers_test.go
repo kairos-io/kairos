@@ -79,6 +79,11 @@ var _ = Describe("artifact upgrade download", func() {
 	// unlocked device-mapper device.
 	It("creates the temporary image on an encrypted persistent partition", func() {
 		mountPoint := GinkgoT().TempDir()
+		// The mount point is read only once the parent disk resolves, and
+		// it resolves on the real filesystem under /dev/disk/by-path.
+		// Climbing out of that directory lands on a temporary one that
+		// exists on any host.
+		parentDisk := GinkgoT().TempDir()
 		Expect(os.Setenv("GHW_CHROOT", "")).To(Succeed())
 		DeferCleanup(func() { Expect(os.Unsetenv("GHW_CHROOT")).To(Succeed()) })
 		fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
@@ -86,7 +91,8 @@ var _ = Describe("artifact upgrade download", func() {
 			"/sys/block/dm-0/slaves/vda5/dev": "8:5\n",
 			"/run/udev/data/b253:0": fmt.Sprintf("E:ID_FS_LABEL=%s\nE:ID_FS_TYPE=ext4\nE:DM_NAME=vda5\n",
 				sdkConstants.PersistentLabel),
-			"/proc/mounts": fmt.Sprintf("/dev/mapper/vda5 %s ext4 rw 0 0\n", mountPoint),
+			"/run/udev/data/b8:0": "E:ID_PATH=../../.." + parentDisk + "\n",
+			"/proc/mounts":        fmt.Sprintf("/dev/mapper/vda5 %s ext4 rw 0 0\n", mountPoint),
 		})
 		Expect(err).ToNot(HaveOccurred())
 		DeferCleanup(cleanup)
