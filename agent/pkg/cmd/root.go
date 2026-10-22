@@ -23,6 +23,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	installer "github.com/kairos-io/kairos/v4/agent/pkg/extensions"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
+	"github.com/kairos-io/kairos/v4/agent/pkg/progress"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
@@ -1833,7 +1834,36 @@ func Run() int {
 	// as notify, then have nowhere to put it. Each command that uses the bus
 	// initializes it, with the directories that command resolved.
 
-	app := &cli.App{
+	return runApp(newApp(), os.Args)
+}
+
+// runApp runs app with args and returns a process exit code. A fatal error is
+// written to stderr, so stdout carries only what the command was asked to
+// produce and a machine-readable output format stays parseable on failure.
+//
+// The same error also goes out as a progress error event, which is the only
+// thing an installer frontend reads. sdk/agentrun runs this binary as
+// `kairos-agent manual-install` and shows the frontend its stdout, so a
+// failure that never reaches the install action (the config scan,
+// CheckConfigForUsers, CheckConfigForExtraPartitions, installSpec.Sanitize,
+// validateSource, checkRoot) would otherwise reach the browser as nothing but
+// "exit status 1". Emitting here rather than inside InstallAction.Run covers
+// those, covers the UKI install action, which never emitted at all, and
+// cannot emit the same failure twice, because every install path returns its
+// error to this one place. The event is a no-op unless KAIROS_AGENT_PROGRESS
+// is set.
+func runApp(app *cli.App, args []string) int {
+	if err := app.Run(args); err != nil {
+		progress.EmitError(err.Error())
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
+}
+
+// newApp builds the kairos-agent CLI.
+func newApp() *cli.App {
+	return &cli.App{
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "strict-validation",
@@ -1887,13 +1917,6 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		},
 		Commands: cmds,
 	}
-
-	err := app.Run(os.Args)
-	if err != nil {
-		fmt.Println(err)
-		return 1
-	}
-	return 0
 }
 
 func checkRoot() error {
