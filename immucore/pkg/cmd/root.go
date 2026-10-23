@@ -47,20 +47,31 @@ func NewApp() *cli.App {
 			return err
 		}
 
+		// WriteProtected answers false on boots the layout does not apply to (UKI,
+		// live media), so every DAG sees a consistent answer from one place.
+		writeProtected := utils.WriteProtected()
+		rootMountMode := rootMountModeFor(writeProtected, utils.RootRW())
+
 		st = &state.State{
-			Rootdir:       utils.GetRootDir(),
-			TargetDevice:  targetDevice,
-			TargetImage:   targetImage,
-			RootMountMode: utils.RootRW(),
-			OverlayBase:   utils.GetOverlayBase(),
-			InRAM:         utils.BootInRAM(),
+			Rootdir:        utils.GetRootDir(),
+			TargetDevice:   targetDevice,
+			TargetImage:    targetImage,
+			RootMountMode:  rootMountMode,
+			OverlayBase:    utils.GetOverlayBase(),
+			InRAM:          utils.BootInRAM(),
+			WriteProtected: writeProtected,
 		}
 
 		// normalBoot tracks whether we took the full active/passive/recovery mount
 		// pipeline. Only that path should drop to an emergency shell on failure:
-		// live media intentionally disables immucore, and UKI already drops to a
-		// shell from inside its own steps.
-		var normalBoot bool
+		// live media intentionally disables immucore.
+		//
+		// ukiBoot tracks the trusted boot DAG. It usually takes the console from
+		// inside its own steps, but a fatal op (the persistent state binds) stops
+		// the graph before OpUkiInit is reached, and under UKI immucore is the
+		// init, so returning the error there would exit pid 1 and panic the
+		// kernel with nothing on screen. That path takes the console below.
+		var normalBoot, ukiBoot bool
 		switch {
 		case st.InRAM && utils.IsUKI():
 			// Trusted boot in-RAM: the UKI is already the whole system in
@@ -68,6 +79,7 @@ func NewApp() *cli.App {
 			// st.InRAM to add partition provisioning (encrypted with the TPM
 			// policy) and to skip the removable-media unlock/sentinel gates.
 			utils.KLog.Logger.Info().Msg("UKI booting in-RAM (kairos.ram) with OEM+persistent from disk!")
+			ukiBoot = true
 			err = dag.RegisterUKI(st, g)
 		case st.InRAM:
 			// kairos.ram must win over DisableImmucore below: an in-RAM boot
@@ -83,6 +95,7 @@ func NewApp() *cli.App {
 			err = dag.RegisterLiveMedia(st, g)
 		case utils.IsUKI():
 			utils.KLog.Logger.Info().Msg("UKI booting!")
+			ukiBoot = true
 			err = dag.RegisterUKI(st, g)
 		default:
 			utils.KLog.Logger.Info().Msg("Booting on active/passive/recovery.")
@@ -133,6 +146,16 @@ func NewApp() *cli.App {
 				utils.KLog.Logger.Err(werr).Msg("writing failure summary")
 			}
 		}
+
+		// Under UKI immucore is the init. A fatal op stops the graph before
+		// OpUkiInit, so the step that would normally take the console never
+		// runs, and returning here would exit pid 1. Print, persist and take
+		// the console from here instead. DropToEmergencyShellWithError does
+		// not return on a host with a shell.
+		if err != nil && ukiBoot {
+			utils.DropToEmergencyShellWithError(st.FailureReason(g))
+		}
+
 		return err
 	}
 	app.Flags = []cli.Flag{
@@ -145,8 +168,15 @@ func NewApp() *cli.App {
 
 // Run runs the immucore CLI with os.Args and returns a process exit code.
 func Run() int {
-	if err := NewApp().Run(os.Args); err != nil {
-		fmt.Println(err)
+	return runApp(NewApp(), os.Args)
+}
+
+// runApp runs app with args and returns a process exit code. A fatal error is
+// written to stderr, next to the boot-failure summary the action already
+// prints there, so stdout carries only what the command was asked to produce.
+func runApp(app *cli.App, args []string) int {
+	if err := app.Run(args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	return 0
@@ -208,4 +238,17 @@ func haltTerminated(sig os.Signal) {
 	// point, so stop the process rather than letting a half-mounted root come
 	// up.
 	os.Exit(1)
+}
+
+// rootMountModeFor is the mode the root filesystems are mounted with.
+// rd.immucore.debugrw asks for read-write, which on write-protected media
+// cannot be granted: the kernel refuses the write open with EACCES and there is
+// nothing to fall back to, so the request is ignored there.
+func rootMountModeFor(writeProtected bool, requested string) string {
+	if writeProtected && requested != "ro" {
+		utils.KLog.Logger.Warn().
+			Msg("Ignoring the request to mount root RW: the media is write-protected")
+		return "ro"
+	}
+	return requested
 }

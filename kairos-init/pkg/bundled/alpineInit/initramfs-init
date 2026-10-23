@@ -340,7 +340,7 @@ done
 rd_break pre-modprobe
 # load available drivers to get access to media
 ebegin "Loading boot drivers"
-modprobe -a ahci virtio_blk virtio_net virtio_console virtio_pci nvme overlay usb_storage libata cdrom sr_mod iso9660 loop squashfs simpledrm ext4 tpm dm_mod dm_crypt 2> /dev/null
+modprobe -a ahci virtio_blk virtio_net virtio_console virtio_pci nvme overlay usb_storage libata cdrom sr_mod iso9660 loop squashfs simpledrm ext4 tpm dm_mod dm_crypt dm_snapshot 2> /dev/null
 if [ -f "$ROOT"/etc/modules ] ; then
 	sed 's/\#.*//g' < /etc/modules |
 	while read module args; do

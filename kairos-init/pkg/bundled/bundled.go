@@ -80,6 +80,7 @@ i18n_install_all="yes"
 show_modules="yes"
 install_items+=" /etc/hosts "
 add_dracutmodules+=" livenet dmsquash-live immucore network "
+add_drivers+=" dm_snapshot "
 `
 
 // ImmucoreGeneratorDracut is the dracut generator script that is used to generate the sysroot.mount file
@@ -340,6 +341,13 @@ const (
 // Kairos drives plymouth: an encrypted boot asks for its passphrase on the
 // console through kcrypt, and immucore's failure screen paints there too, so
 // both are better off with plymouth out of the picture.
+//
+// Omitting it does cost something that is not obvious from this line: dracut's
+// plymouth module is what pulls the drm (or simpledrm) module in, through its
+// depends(), and both of those have a check() that returns 255, so neither is
+// ever included on its own. Without plymouth an initramfs therefore has no KMS
+// driver at all. The kairos-splash module's installkernel() brings back the
+// few drivers the animation needs.
 const SplashDracutConfig = `add_dracutmodules+=" kairos-splash "
 omit_dracutmodules+=" plymouth "`
 
@@ -435,6 +443,36 @@ depends() {
     return 0
 }
 
+# Without a KMS driver the initramfs has no framebuffer, so /dev/tty1 is the
+# firmware text console: 80x25 cells on a BIOS VGA machine. The booted system
+# binds a real driver and fbcon switches to the panel resolution, 160x50 on the
+# same screen, so the second half of the animation is drawn into cells less than
+# half the size and the logo visibly shrinks at switch-root. Pulling a driver in
+# here gives both halves the same console geometry.
+#
+# dracut's own drm module is not the way to do that. Kairos builds with
+# hostonly="no" (see ImmucoreConfigDracut), and with no host to narrow it down
+# that module installs every KMS driver under drivers/gpu/drm: tens of megabytes
+# of initramfs for a logo. The three below are the small drivers that cover the
+# displays an image is most often watched on: a firmware framebuffer and the two
+# emulated adapters QEMU offers. Hardware with a native driver keeps it in the
+# root filesystem and takes the console over after switch-root, which is the
+# handover simpledrm exists for.
+#
+#   - simpledrm, for the framebuffer EFI hands over.
+#   - bochs, for QEMU -vga std. bochs-drm is the same driver's name before
+#     Linux 6.4, listed as well because kairos-init builds on base images whose
+#     kernels straddle the rename.
+#   - virtio-gpu, for QEMU and the cloud hypervisors that use virtio.
+#
+# instmods is optional unless called with -c, so a kernel built without one of
+# these skips it instead of failing the image build. hostonly='' keeps that
+# decision independent of the hardware the image happens to be built on, the
+# same way dracut's own simpledrm module does it.
+installkernel() {
+    hostonly='' instmods simpledrm bochs bochs-drm virtio-gpu
+}
+
 install() {
     declare initdir=${initdir}
     declare moddir=${moddir}
@@ -500,6 +538,40 @@ install() {
 // RemainAfterExit keeps a second `systemctl start` a no-op rather than a
 // replay of the animation.
 //
+// DefaultDependencies=no is what makes the animation continuous across
+// switch-root. The default dependencies put After=basic.target on the unit,
+// and basic.target is the whole of sysinit plus sockets: on a measured boot
+// the initramfs animation was killed at 11.23 s and this unit only started at
+// 13.96 s, so the console sat blank with systemd status on it for 2.7 s in
+// between. Nothing the splash draws needs any of that work. The binary is in
+// the root image immucore mounted before switch-root, the /run/cos sentinels
+// the conditions read were written in the initramfs and /run survives the
+// switch, and /dev/tty1 comes from devtmpfs at kernel init.
+//
+// The one thing it does need is systemd-vconsole-setup.service, which loads
+// the console font and keymap. It carries Before=sysinit.target, so it still
+// runs well inside the gap, and ordering after it keeps the block-art glyphs
+// from being painted with a font that is about to be replaced under them.
+//
+// systemd-sysctl.service is the second. The splash reads kernel.printk when it
+// starts and writes the old value back when it exits, so a sysctl applied from
+// /etc/sysctl.d during the animation would be overwritten on exit and lost
+// until the next boot. basic.target used to order the two, and stock systemd
+// declares no edge between sysctl and vconsole-setup, so dropping the default
+// dependencies leaves nothing holding them apart. systemd-sysctl.service is
+// also Before=sysinit.target, so this costs about as little as the first edge.
+//
+// Dropping the default dependencies also drops the two that stop a unit at
+// shutdown, so they are written out again. Without them a cosmetic oneshot
+// with RemainAfterExit=yes is still "active" while the system goes down, and
+// systemd has no order in which to stop it.
+//
+// Starting this early means the unit is now reliably on screen before a DRM
+// driver binds and fbcon switches resolution, instead of racing it by about
+// 70 ms as it did before. The animation has to follow a console that changes
+// size underneath it for that to look right, which is why this change belongs
+// after the TIOCGWINSZ poll in internal/splash.
+//
 // The conditions are the boots that own tty1 themselves, or that a human is
 // watching for output, and so must not have a logo drawn over them: the live
 // ISO (the interactive installer runs there), an automatic state reset, and
@@ -508,6 +580,11 @@ install() {
 // themselves out of a recovery boot.
 const SplashService = `[Unit]
 Description=Kairos boot splash
+DefaultDependencies=no
+After=systemd-vconsole-setup.service
+After=systemd-sysctl.service
+Conflicts=shutdown.target
+Before=shutdown.target
 Before=getty.target
 Before=getty@tty1.service
 ConditionKernelCommandLine=splash
@@ -593,12 +670,28 @@ else
   set fallback="0 1 2"
 fi
 
-insmod all_video
+# Some GRUB builds compile the video drivers into the core image and ship no
+# all_video.mod. Loading the module there prints "file not found" on every
+# boot, so only load it when the file is present.
+if [ -f "${prefix}/${grub_cpu}-${grub_platform}/all_video.mod" ]; then
+  insmod all_video
+fi
 insmod loopback
 insmod squash4
 insmod serial
 
 loadfont unicode
+# rmmod lives in the minicmd module. Some GRUB builds, such as Hadron's, do not
+# embed it, and a missing command prints "can't find command" on every boot.
+# GRUB looks up a built-in command before a script function, so this no-op
+# only runs where the real rmmod does not exist. Such builds do not embed tpm
+# either, so there is nothing to remove.
+# The body has to be a command that every build has. true and echo live in
+# modules a build can leave out, the same way this one left out minicmd. set is
+# registered by the GRUB kernel itself, so it is there in every image.
+function rmmod {
+  set kairos_rmmod_noop=1
+}
 if [ "${grub_platform}" = "efi" ]; then
     ## workaround for grub2-efi bug: https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1851311
     rmmod tpm

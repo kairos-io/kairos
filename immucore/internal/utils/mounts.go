@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/deniswernert/go-fstab"
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
@@ -298,11 +299,65 @@ func CleanSysrootForFstab(path string) string {
 	return cleaned
 }
 
+// ReadOnlyMountOptions returns the options that mount a filesystem of this type
+// without writing to the device.
+//
+// "ro" on its own is not enough, which is the whole reason this exists. A dirty
+// ext4 journal is replayed even on a read-only mount unless noload is given, and
+// replaying it is a write: on write-protected media the mount then fails, and on
+// media that only refuses writes silently it corrupts. xfs spells the same thing
+// norecovery, and requires ro alongside it.
+//
+// Anything else gets a bare "ro" and a line in the log. btrfs has nologreplay
+// (since 4.9, spelled rescue=nologreplay from 5.9), and an option the running
+// kernel does not know makes mount(2) fail outright rather than degrade, so
+// guessing costs more than it saves.
+func ReadOnlyMountOptions(fstype string) []string {
+	switch fstype {
+	case "ext3", "ext4":
+		return []string{"ro", "noload"}
+	case "ext2":
+		// No journal, so nothing to replay, and the kernel rejects noload on an
+		// ext2-type mount outright ("Mount option(s) incompatible with ext2",
+		// EINVAL). The active and passive images are ext2, so this is the path
+		// the root image takes.
+		return []string{"ro"}
+	case "xfs":
+		return []string{"ro", "norecovery"}
+	default:
+		KLog.Logger.Debug().Str("type", fstype).
+			Msg("No journal-recovery option known for this filesystem, mounting plain ro")
+		return []string{"ro"}
+	}
+}
+
 // Fsck will run fsck over the device
 // options are set on cmdline, but they are for systemd-fsck,
 // so we need to interpret ourselves.
+// On write-protected media it does nothing: see the gate at the top of the body.
 func Fsck(device string) error {
 	if device == "tmpfs" {
+		return nil
+	}
+	// A repairing fsck is a write, and the defaults below are a repairing fsck
+	// (fsck.mode=auto with fsck.repair=preen). On write-protected media that is
+	// the first write of the boot, and it happens here, before the mount, so no
+	// mount option can prevent it. fsck.mode=skip was always the manual way out;
+	// read-only media now implies it.
+	//
+	// Two gates, because neither covers the other. The global one catches what
+	// the per-device probe cannot answer for: the loop image, where device is a
+	// file path rather than a block device and the ioctl returns ENOTTY. The
+	// per-device one catches a write-protected disk in some custom VOLUMES entry
+	// even when the global answer was forced off.
+	if WriteProtected() {
+		KLog.Logger.Info().Str("what", device).
+			Msg("Skipping fsck: booting on write-protected media, and a repairing fsck would write to it")
+		return nil
+	}
+	if ro, err := deviceReadOnly(device); err == nil && ro {
+		KLog.Logger.Info().Str("what", device).
+			Msg("Skipping fsck: the kernel reports this device as read-only, and fsck would write to it")
 		return nil
 	}
 	mode := CleanupSlice(ReadCMDLineArg("fsck.mode="))
@@ -396,6 +451,34 @@ func GetOemTimeout() int {
 		return 5
 	}
 	return converted
+}
+
+// GetCowBase returns the size spec of the tmpfs that backs the copy-on-write
+// store of the persistent snapshot on read-only media. rd.immucore.write_protected.cow= on the
+// cmdline wins; otherwise the store is sized like the base overlay, so one
+// number sizes both unless the operator says otherwise. A base overlay backed
+// by a device is no use here, since on read-only media that device is the
+// frozen disk, so anything but a tmpfs spec falls back to the default.
+func GetCowBase(overlayBase string) string {
+	if v := CleanupSlice(ReadCMDLineArg(cnst.CmdlineCow)); len(v) > 0 {
+		return CowSpec(v[0])
+	}
+	if strings.HasPrefix(overlayBase, "tmpfs:") {
+		return overlayBase
+	}
+	return "tmpfs:25%"
+}
+
+// CowSpec normalises a store spec to the OVERLAY grammar the mount code parses:
+// tmpfs:<size>, LABEL=<label> or UUID=<uuid>. A bare size such as 2G or 25% is
+// the short form for a tmpfs of that size, since the prefix carries no
+// information until there is a second RAM-backed store type to choose from.
+func CowSpec(spec string) string {
+	spec = strings.TrimSpace(spec)
+	if spec == "" || strings.ContainsAny(spec, ":=") {
+		return spec
+	}
+	return "tmpfs:" + spec
 }
 
 // GetOverlayBase parses the cdmline and gets the overlay config

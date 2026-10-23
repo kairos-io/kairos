@@ -209,7 +209,9 @@ func (v *Validator) Validate() error {
 			// dependency is on the BMC controller hardware/firmware, not the server chipset.
 			// Check both the canonical underscored name and the dashed variant since
 			// lsinitrd may render the module filename with either form.
-			for _, module := range []string{"xhci_pci_renesas"} {
+			// dm_snapshot is what immucore stacks over the persistent partition on
+			// write-protected media; without it such a unit cannot boot.
+			for _, module := range []string{"xhci_pci_renesas", "dm_snapshot"} {
 				dashed := strings.ReplaceAll(module, "_", "-")
 				found := ""
 				if strings.Contains(string(out), module) {

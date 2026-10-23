@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/kairos/v4/internal/version"
@@ -10,6 +11,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/sanity-io/litter"
 	"github.com/spf13/viper"
@@ -124,27 +126,10 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	result.Logger.Logger.Info().Str("version", version.Version).Msg("Kairos Agent")
 	result.Logger.Logger.Debug().Str("version", version.Version).Str("go", runtime.Version()).Msg("Kairos Agent")
 
-	// Try to load the kairos version from the kairos-release file
-	// Best effort, if it fails, we just ignore it
-	f, err := result.Fs.Open("/etc/os-release")
-	defer func() { _ = f.Close() }()
-	osRelease, err := godotenv.Parse(f)
-	if err == nil {
-		v := osRelease["KAIROS_VERSION"]
-		if v != "" {
-			result.Logger.Logger.Info().Str("version", v).Msg("Kairos System")
-		} else {
-			// Fallback into os-release
-			f, err = result.Fs.Open("/etc/os-release")
-			defer func() { _ = f.Close() }()
-			osRelease, err = godotenv.Parse(f)
-			if err == nil {
-				v = osRelease["KAIROS_VERSION"]
-				if v != "" {
-					result.Logger.Logger.Info().Str("version", v).Msg("Kairos System")
-				}
-			}
-		}
+	// Try to load the kairos version from the kairos-release file, falling
+	// back to os-release. Best effort, if it fails, we just ignore it.
+	if v := kairosVersion(result.Fs, kairosReleaseFile, osReleaseFile); v != "" {
+		result.Logger.Logger.Info().Str("version", v).Msg("Kairos System")
 	}
 
 	// Log the boot mode
@@ -160,7 +145,121 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	}
 
 	litter.Config.HideZeroValues = true
-	result.Logger.Debugf("Loaded config: %s", litter.Sdump(result))
+	result.Logger.Debugf("Loaded config: %s", RedactedConfigDump(result))
 
 	return result, nil
+}
+
+// RedactedConfigDump returns a redacted snapshot of configuration data only.
+// Runtime services and providers are excluded from the diagnostic output.
+func RedactedConfigDump(result *sdkConfig.Config) string {
+	if err := validateRegistryAuthKeys(result.Collector.Values); err != nil {
+		return err.Error()
+	}
+	data, err := yaml.Marshal(map[string]interface{}{
+		"config":    result,
+		"collector": result.Collector.Values,
+	})
+	if err != nil {
+		return "configuration diagnostic unavailable"
+	}
+	var snapshot map[string]interface{}
+	if err := yaml.Unmarshal(data, &snapshot); err != nil {
+		return "configuration diagnostic unavailable"
+	}
+	return litter.Sdump(redactConfigValues(snapshot))
+}
+
+func isSensitiveConfigKey(key string) bool {
+	key = strings.ToLower(key)
+	if key == "ssh_authorized_keys" {
+		return false
+	}
+	for _, part := range []string{"auth", "passwd", "password", "token", "secret"} {
+		if strings.Contains(key, part) {
+			return true
+		}
+	}
+	return false
+}
+
+func redactConfigValues(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case collector.ConfigValues:
+		out := collector.ConfigValues{}
+		for key, child := range typed {
+			if isSensitiveConfigKey(key) {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case map[string]interface{}:
+		out := map[string]interface{}{}
+		for key, child := range typed {
+			if isSensitiveConfigKey(key) {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case map[interface{}]interface{}:
+		out := map[interface{}]interface{}{}
+		for key, child := range typed {
+			if text, ok := key.(string); ok && isSensitiveConfigKey(text) {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(typed))
+		for i, child := range typed {
+			out[i] = redactConfigValues(child)
+		}
+		return out
+	default:
+		return value
+	}
+}
+
+const (
+	// kairosReleaseFile is where kairos-init writes KAIROS_VERSION and the
+	// rest of the KAIROS_ keys. It is the file to read the running system's
+	// version from.
+	kairosReleaseFile = "/etc/kairos-release"
+	// osReleaseFile is the distribution's own file. Images built before
+	// kairos-init carried the KAIROS_ keys here, so it stays as a fallback.
+	// sdk/utils.OSRelease reads the same pair in the same order.
+	osReleaseFile = "/etc/os-release"
+)
+
+// kairosVersion returns KAIROS_VERSION from the first of paths that carries a
+// non-empty one, and an empty string when none does.
+//
+// Best effort: this only feeds a log line, so a path that cannot be opened or
+// parsed is skipped rather than reported. Each file is closed as soon as it
+// has been parsed, so a caller can call this without leaking a descriptor.
+func kairosVersion(fs sdkFs.KairosFS, paths ...string) string {
+	for _, path := range paths {
+		f, err := fs.Open(path)
+		if err != nil {
+			continue
+		}
+
+		release, err := godotenv.Parse(f)
+		_ = f.Close()
+		if err != nil {
+			continue
+		}
+
+		if v := release["KAIROS_VERSION"]; v != "" {
+			return v
+		}
+	}
+
+	return ""
 }

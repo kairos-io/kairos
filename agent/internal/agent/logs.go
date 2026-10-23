@@ -13,6 +13,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/diagnostics"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -24,6 +25,9 @@ import (
 type LogsResult struct {
 	Journal map[string][]byte `yaml:"-"`
 	Files   map[string][]byte `yaml:"-"`
+	// Diagnostics is the machine state sdk/diagnostics collects, in the
+	// order it returns the groups.
+	Diagnostics []diagnostics.Group `yaml:"-"`
 }
 
 // LogsCollector handles the collection of logs from various sources
@@ -70,10 +74,25 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			"cos-setup-fs",
 			"cos-setup-network",
 			"cos-setup-reconcile",
+			// Written and enabled by 31_hosts.yaml. A hostname set at runtime
+			// that never reached the persistent partition is accounted for
+			// nowhere else. The path unit is named too: when it refuses to
+			// start, the oneshot simply never runs and says nothing.
+			"kairos-persist-hostname",
+			"kairos-persist-hostname.path",
 			"k3s",
 			"k3s-agent",
 			"k0scontroller",
 			"k0sworker",
+			// 99_sysext.yaml clears the ExecStart of both units and replaces
+			// it with a Kairos image policy, and the agent restarts them
+			// whenever an extension is enabled, disabled or removed. The
+			// drop-in sets TimeoutStartSec=10 precisely because the unit can
+			// fail when no key unlocks an extension, and when it does this
+			// journal is the only record of why a system extension is not
+			// merged.
+			"systemd-sysext",
+			"systemd-confext",
 		},
 		Files: []string{
 			"/var/log/kairos/*.log",
@@ -152,6 +171,12 @@ func (lc *LogsCollector) Collect() (*LogsResult, error) {
 		}
 	}
 
+	// The state of the machine itself: who it is, what is running, what is
+	// mounted, what hardware it has. A journal says what the agent did; these
+	// say what it did it on, and without them a bundle cannot answer why a
+	// disk, a network or a boot mode behaved the way it did.
+	result.Diagnostics = diagnostics.Collect(lc.config.Runner, lc.config.Fs)
+
 	return result, nil
 }
 
@@ -207,6 +232,21 @@ func (lc *LogsCollector) CreateTarball(result *LogsResult, outputPath string) er
 		}
 		if _, err := tw.Write(content); err != nil {
 			return fmt.Errorf("failed to write file content: %w", err)
+		}
+	}
+
+	// Add the machine diagnostics to the tarball
+	for _, group := range result.Diagnostics {
+		header := &tar.Header{
+			Name: fmt.Sprintf("diagnostics/%s.log", group.Name),
+			Mode: constants.FilePerm,
+			Size: int64(len(group.Body)),
+		}
+		if err := tw.WriteHeader(header); err != nil {
+			return fmt.Errorf("failed to write diagnostics header: %w", err)
+		}
+		if _, err := tw.Write([]byte(group.Body)); err != nil {
+			return fmt.Errorf("failed to write diagnostics content: %w", err)
 		}
 	}
 
