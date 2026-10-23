@@ -26,19 +26,19 @@ import (
 	"golang.org/x/term"
 )
 
-func Reset(reboot, unattended, resetOem bool, dir ...string) error {
+func Reset(reboot, unattended, resetOem, strictValidations bool, dir ...string) error {
 	// In both cases we want
 	if internalutils.UkiBootMode() == internalutils.UkiHDD {
-		return resetUki(reboot, unattended, resetOem, dir...)
+		return resetUki(reboot, unattended, resetOem, strictValidations, dir...)
 	} else if internalutils.UkiBootMode() == internalutils.UkiRemovableMedia {
 		return fmt.Errorf("reset is not supported on removable media, please run reset from the installed system recovery entry")
 	} else {
-		return reset(reboot, unattended, resetOem, dir...)
+		return reset(reboot, unattended, resetOem, strictValidations, dir...)
 	}
 }
 
-func reset(reboot, unattended, resetOem bool, dir ...string) error {
-	cfg, err := sharedReset(reboot, unattended, resetOem, dir...)
+func reset(reboot, unattended, resetOem, strictValidations bool, dir ...string) error {
+	cfg, err := sharedReset(reboot, unattended, resetOem, strictValidations, dir...)
 	if err != nil {
 		return err
 	}
@@ -69,8 +69,8 @@ func reset(reboot, unattended, resetOem bool, dir ...string) error {
 	return hook.Run(*cfg, resetSpec, hook.FinishReset...)
 }
 
-func resetUki(reboot, unattended, resetOem bool, dir ...string) error {
-	cfg, err := sharedReset(reboot, unattended, resetOem, dir...)
+func resetUki(reboot, unattended, resetOem, strictValidations bool, dir ...string) error {
+	cfg, err := sharedReset(reboot, unattended, resetOem, strictValidations, dir...)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func abortedResetExitCode(shell func() error) int {
 
 // sharedReset is the common reset code for both uki and non-uki
 // sets the config, runs the event handler, publish the envent and gets the config
-func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig.Config, err error) {
+func sharedReset(reboot, unattended, resetOem, strictValidations bool, dir ...string) (c *sdkConfig.Config, err error) {
 	bus.Manager.Initialize()
 	var optionsFromEvent map[string]string
 
@@ -199,8 +199,7 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 	}
 	cliConf := string(d)
 
-	// cliconf goes last so it can override the rest of the config files
-	c, err = config.Scan(collector.Directories(dir...), collector.Readers(strings.NewReader(cliConf)))
+	c, err = scanResetConfig(cliConf, strictValidations, dir...)
 	if err != nil {
 		return c, err
 	}
@@ -215,6 +214,19 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 	utils.SetEnv(c.Env)
 
 	return c, nil
+}
+
+// scanResetConfig reads the cloud config a reset will run with. cliConf goes
+// last so the command line options override the config files, and
+// strictValidations decides whether a config that does not match the schema
+// stops the reset or only prints a warning, as it does for install and
+// upgrade.
+func scanResetConfig(cliConf string, strictValidations bool, dir ...string) (*sdkConfig.Config, error) {
+	return config.Scan(
+		collector.Directories(dir...),
+		collector.Readers(strings.NewReader(cliConf)),
+		collector.StrictValidation(strictValidations),
+	)
 }
 
 // ExtraConfigReset is the struct that holds the reset options that come from flags and events
