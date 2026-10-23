@@ -2,7 +2,6 @@ package validation_test
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -75,12 +74,7 @@ var _ = Describe("Bundled VM cloudconfig", func() {
 				command := strings.ReplaceAll(condition, "/sys/class/dmi/id/sys_vendor", sysVendorPath)
 				command = strings.ReplaceAll(command, "/sys/class/dmi/id/product_name", productNamePath)
 				command = strings.ReplaceAll(command, guestAgentChannel, channelPath)
-				err := exec.Command("sh", "-c", command).Run()
-				if test.matched {
-					Expect(err).NotTo(HaveOccurred(), test.name)
-				} else {
-					Expect(err).To(HaveOccurred(), test.name)
-				}
+				Expect(guardPassesExpr(command)).To(Equal(test.matched), test.name)
 			}
 		}
 	})
