@@ -31,3 +31,17 @@ func guessInterface(pconfig *providerConfig.Config) string {
 	}
 	return ""
 }
+
+// appendUserArgs folds the `args:` a Kubernetes block carries into the ones
+// the role generated for it. `replace_args: true` means the block takes the
+// command line over, so the generated ones are dropped.
+//
+// Every path that builds a k3s or k0s command line goes through here, so the
+// two distributions cannot drift apart on what `args:` means.
+func appendUserArgs(generated, user []string, replace bool) []string {
+	if replace {
+		return user
+	}
+
+	return append(generated, user...)
+}
