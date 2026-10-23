@@ -50,6 +50,22 @@ fi`)
 		Expect(string(content)).To(Equal("#cloud-config\nusers:\n  - name: corrected\n"))
 	})
 
+	It("saves a configuration emptied down to its header", func() {
+		// Clearing /oem/90_custom.yaml is a normal edit. The loop below
+		// reopens the editor until the draft validates, so a schema that
+		// calls an empty document invalid leaves no way out of it except
+		// typing the old keys back in.
+		dir := GinkgoT().TempDir()
+		path := writeCloudConfig(dir, validCloudConfig, 0644)
+		editor := writeEditor(dir, "empty-editor", "printf '%s' '#cloud-config\n' > \"$1\"")
+
+		Expect(editCloudInit(path, editor, &bytes.Buffer{})).To(Succeed())
+
+		content, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(content)).To(Equal("#cloud-config\n"))
+	})
+
 	It("does not save unchanged content", func() {
 		dir := GinkgoT().TempDir()
 		path := writeCloudConfig(dir, validCloudConfig, 0644)
