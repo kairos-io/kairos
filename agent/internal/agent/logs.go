@@ -89,6 +89,17 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			// merged.
 			"systemd-sysext",
 			"systemd-confext",
+			// The p2p provider writes and enables one of these two at
+			// bootstrap: edgevpn@kairos when the node joins the VPN,
+			// edgevpn when it only needs the API to co-ordinate. They are
+			// the network itself, so a bundle taken because a node never
+			// joined had nothing in it about the network. The instance name
+			// is the provider's EdgeVPNDefaultInstance, which no other value
+			// is ever passed. Spelled out rather than imported: the constant
+			// lives in provider/internal/services, which this package cannot
+			// reach.
+			"edgevpn",
+			"edgevpn@kairos",
 		},
 		Files: []string{
 			"/var/log/kairos/*.log",
