@@ -16,6 +16,20 @@ import (
 const (
 	seqEnter = "\x1b[?1049h\x1b[?25l\x1b[2J\x1b[H" // alt screen, hide cursor, clear
 	seqLeave = "\x1b[0m\x1b[?25h\x1b[?1049l"       // reset, show cursor, main screen
+	// seqClear wipes the console the animation hands back, and is sent
+	// after seqLeave rather than being folded into it because there is one
+	// case that must not be cleared: see ClearOnExit.
+	//
+	// The attribute reset is repeated here, because the one in seqLeave
+	// does not necessarily survive the sequence that follows it: on a
+	// terminal that implements private mode 1049, leaving the alternate
+	// screen restores the cursor and its attributes as they were when the
+	// splash entered.
+	//
+	// Erase-in-display 2 is the visible screen only. 3 would take the
+	// scroll-back with it, and the boot messages the splash drew over are
+	// exactly what somebody pressing Shift+PageUp is looking for.
+	seqClear = "\x1b[0m\x1b[2J\x1b[H" // reset, clear the screen, home
 )
 
 // Frame rate and animation constants.
@@ -69,6 +83,25 @@ type Options struct {
 	// Seed makes the particle orbits reproducible. Zero derives one from
 	// the clock.
 	Seed uint32
+	// ClearOnExit wipes the console on the way out, so that whatever the
+	// animation drew over does not reappear when it ends.
+	//
+	// The booted-system unit sets it and the initramfs unit does not. The
+	// booted one is the last thing on the console before the login prompt,
+	// and getty does not clear: systemd's getty@.service runs agetty with
+	// --noclear on purpose, so that boot messages stay readable. Whatever
+	// is on the screen when the splash ends is therefore still there under
+	// the prompt. The initramfs one is followed by switch-root and by the
+	// booted splash, which clears on entry anyway, so clearing there would
+	// only add a black frame in the middle of the animation.
+	//
+	// The one console this must never touch is the kernel log the user
+	// asked to see: pressing Escape leaves the animation and streams
+	// /dev/kmsg onto the console, and the splash can reach its Duration
+	// while that is still on screen. Run skips the clear in that mode,
+	// which is the reason it cannot be done by the unit instead, with
+	// systemd's own TTYVTDisallocate=.
+	ClearOnExit bool
 }
 
 // ErrNoBranding reports that the branding directory is absent, which is how a
@@ -118,7 +151,12 @@ func Run(o Options) error {
 	}
 
 	_, _ = io.WriteString(o.Out, seqEnter)
-	defer func() { _, _ = io.WriteString(o.Out, seqLeave) }()
+	defer func() {
+		_, _ = io.WriteString(o.Out, seqLeave)
+		if o.ClearOnExit && (m == nil || m.Mode() == ModeSplash) {
+			_, _ = io.WriteString(o.Out, seqClear)
+		}
+	}()
 
 	tick := time.NewTicker(o.Frame)
 	defer tick.Stop()
