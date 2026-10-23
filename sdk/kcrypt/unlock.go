@@ -10,6 +10,7 @@ import (
 	"github.com/anatol/luks.go"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -55,7 +56,6 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 	// Try to unlock with retries - the luks.go library sometimes has timing issues
 	// when unlocking multiple partitions in sequence
 	var dev luks.Device
-	var unlockErr error
 	maxRetries := 3
 
 	defer func() {
@@ -64,9 +64,9 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 		}
 	}()
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	attempt := 0
+	unlockErr := retry.Do(func() error {
 		if attempt > 0 {
-			time.Sleep(time.Duration(attempt) * time.Second)
 			// Just settle, no trigger - we're waiting for pending events before retrying
 			if err := UdevAdmSettle(logger, 10*time.Second); err != nil {
 				if logger != nil {
@@ -76,35 +76,35 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 				}
 			}
 		}
+		attempt++
 
-		dev, unlockErr = luks.Open(device)
-		if unlockErr != nil {
+		var err error
+		dev, err = luks.Open(device)
+		if err != nil {
 			if logger != nil {
 				logger.Logger.Warn().
-					Int("attempt", attempt+1).
+					Int("attempt", attempt).
 					Int("max_retries", maxRetries).
 					Str("device", device).
-					Err(unlockErr).
+					Err(err).
 					Msg("Failed to open device")
 			}
-
-			continue
+			return err
 		}
 
 		// Try to unlock
-		unlockErr = dev.Unlock(0, []byte(password), mapper)
-		if unlockErr != nil {
+		err = dev.Unlock(0, []byte(password), mapper)
+		if err != nil {
 			_ = dev.Close() // Close on error so that the next retry opens it again
 			if logger != nil {
 				logger.Logger.Warn().
-					Int("attempt", attempt+1).
+					Int("attempt", attempt).
 					Int("max_retries", maxRetries).
 					Str("device", device).
-					Err(unlockErr).
+					Err(err).
 					Msg("Failed to unlock device")
 			}
-
-			continue
+			return err
 		}
 
 		// Success! Close the device handle immediately to release the file descriptor
@@ -112,8 +112,8 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 		if logger != nil {
 			logger.Logger.Debug().Str("device", device).Msg("Successfully unlocked")
 		}
-		break
-	}
+		return nil
+	}, retry.Config{Attempts: uint(maxRetries), Delay: retry.Linear(1*time.Second, 0)})
 
 	// If all retries failed, return the error
 	if unlockErr != nil {
