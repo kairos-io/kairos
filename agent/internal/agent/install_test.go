@@ -1,10 +1,13 @@
 package agent
 
 import (
+	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
@@ -37,7 +40,7 @@ var _ = Describe("prepareConfiguration", func() {
 		err = os.WriteFile(filepath.Join(temp, "config.yaml"), content, 0644)
 		Expect(err).ToNot(HaveOccurred())
 
-		source, err := prepareConfiguration(filepath.Join(temp, "config.yaml"))
+		source, err := prepareConfiguration(filepath.Join(temp, "config.yaml"), &http.Client{})
 		Expect(err).ToNot(HaveOccurred())
 
 		var cfg sdkConfig.Config
@@ -53,7 +56,7 @@ var _ = Describe("prepareConfiguration", func() {
 		}))
 		defer ts.Close()
 
-		source, err := prepareConfiguration(ts.URL)
+		source, err := prepareConfiguration(ts.URL, &http.Client{})
 		Expect(err).ToNot(HaveOccurred())
 
 		var cfg sdkConfig.Config
@@ -61,6 +64,34 @@ var _ = Describe("prepareConfiguration", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cfg.ConfigURL).To(Equal(ts.URL))
+	})
+
+	It("gives up on a server that accepts the connection and never answers", func() {
+		released := make(chan struct{})
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			<-released
+		}))
+		defer ts.Close()
+		defer close(released)
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := prepareConfiguration(ts.URL, &http.Client{Timeout: 150 * time.Millisecond})
+			done <- err
+		}()
+
+		var err error
+		Eventually(done, "10s").Should(Receive(&err))
+		Expect(err).To(HaveOccurred())
+
+		var netErr net.Error
+		Expect(errors.As(err, &netErr)).To(BeTrue(), "expected a net.Error, got %v", err)
+		Expect(netErr.Timeout()).To(BeTrue(), "expected a timeout, got %v", err)
+	})
+
+	It("bounds the request manual-install makes", func() {
+		Expect(manualInstallPreflightClient().Timeout).ToNot(BeZero())
+		Expect(manualInstallPreflightClient().Timeout).To(Equal(time.Second * constants.HTTPTimeout))
 	})
 })
 
