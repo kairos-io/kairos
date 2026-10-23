@@ -17,7 +17,7 @@ on:
   workflow_call:
     inputs:
       base_image:
-        description: 'Base OCI image the trusted-boot Kairos flavor was built on top of (e.g. ghcr.io/kairos-io/hadron-trusted:v0.6.2)'
+        description: 'Base OCI image the trusted-boot Kairos flavor was built on top of (e.g. ghcr.io/kairos-io/hadron-trusted:v0.6.3)'
         type: string
         required: true
 
