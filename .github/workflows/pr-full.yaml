@@ -683,9 +683,9 @@ jobs:
   # live at the top of scripts/iso-size-diff.sh. It lives here and not in
   # pr.yaml because the smoke run there builds no UKI ISO.
   #
-  # This only lives in pr.yaml. The durable "sizes over time" history
-  # (the hadron size-history.sh pattern ported to ISOs) is tracked
-  # separately in #3816 and will land as its own follow-up.
+  # This size signal only runs on pull requests. The durable "sizes over
+  # time" history (the hadron size-history.sh pattern ported to ISOs) is
+  # tracked separately in #4716 and will land as its own follow-up.
   size-diff:
     name: iso-size-diff
     needs: build-iso
