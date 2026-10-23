@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/sdk/blockdev"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"golang.org/x/term"
 )
@@ -507,6 +510,201 @@ func RootRW() string {
 		return "rw"
 	}
 	return "ro"
+}
+
+// writeProtectedMode is what the cmdline asks for. The feature is opt-in: a
+// unit that was never told about write-protected media boots exactly as it
+// always did, frozen disk or not.
+type writeProtectedMode int
+
+const (
+	// writeProtectedOff: the stanza is absent or =0. Nothing is probed.
+	writeProtectedOff writeProtectedMode = iota
+	// writeProtectedDetect: the stanza is present. The device is asked, and
+	// the layout applies only if it says it is write-protected. This is the
+	// form to bake into an install: the writable first boot stays ordinary
+	// and the layout switches on by itself once the disk is frozen, which
+	// matters because /oem/grubenv cannot be edited after that.
+	writeProtectedDetect
+	// writeProtectedForce: =force. The layout applies without asking, for
+	// testing it on a writable disk.
+	writeProtectedForce
+)
+
+// parseWriteProtected reads rd.immucore.write_protected from the kernel
+// cmdline:
+//   - absent, =0, =false, =no      -> off
+//   - bare token, =1, =true, =auto -> detect
+//   - =force                       -> force
+//
+// The last one on the cmdline wins. Any other value counts as detect, with a
+// warning, since its presence is the intent and detect cannot make a writable
+// disk ephemeral.
+//
+// Uses exact-token matching, not ReadCMDLineArg's HasPrefix, for the reason
+// ParseAutoCreateDisk gives: a prefix match would read a typo such as
+// rd.immucore.write_protectedx as the flag. The same rule keeps
+// rd.immucore.write_protected.cow=, the sub-key for the store size, from being
+// read as the flag.
+//
+// A cmdline that cannot be read is reported as off, because the gate cannot be
+// seen, and says so.
+func parseWriteProtected() writeProtectedMode {
+	cmdline, err := os.ReadFile(GetHostProcCmdline())
+	if err != nil {
+		KLog.Logger.Warn().Err(err).Msg("Could not read the kernel cmdline; the write-protected media layout stays off")
+		return writeProtectedOff
+	}
+
+	mode := writeProtectedOff
+	key := constants.CmdlineWriteProtected
+	for _, tok := range strings.Fields(string(cmdline)) {
+		if tok == key {
+			mode = writeProtectedDetect
+			continue
+		}
+		if !strings.HasPrefix(tok, key+"=") {
+			continue
+		}
+		switch v := strings.TrimPrefix(tok, key+"="); v {
+		case "0", "false", "no":
+			mode = writeProtectedOff
+		case "", "1", "true", "auto":
+			mode = writeProtectedDetect
+		case "force":
+			mode = writeProtectedForce
+		default:
+			KLog.Logger.Warn().Str("value", v).Msg("Unknown value for " + key + ", reading it as enabled")
+			mode = writeProtectedDetect
+		}
+	}
+	return mode
+}
+
+// deviceReadOnly is a seam for the tests. Nothing else reassigns it.
+var deviceReadOnly = blockdev.ReadOnly
+
+// writeProtectedRetryDelay and writeProtectedRetryAttempts bound how long detection
+// waits for a label to appear, the same ten seconds GetState allows for the
+// same symlinks. Vars so the tests do not have to wait it out.
+var (
+	writeProtectedRetryDelay    = time.Second
+	writeProtectedRetryAttempts = uint(10)
+)
+
+// writeProtectedCandidates are the devices the probe tries, in order, stopping at
+// the first one that answers.
+//
+// The persistent partition first, because it is the one whose writability the
+// layout turns on, and because custom partitioning can put it on a different
+// disk than the rest. Its LUKS sibling next, for an encrypted install where the
+// plaintext label only appears on the mapper after the unlock step, which runs
+// later than this. The state and recovery partitions last: write protection is a
+// whole-disk property, so on the ordinary single-disk install they give the same
+// answer as persistent would, and one of them is always present.
+//
+// These are built as plain by-label paths rather than asked of GetState(), which
+// panics after ten seconds of retries when it cannot resolve a label. That is
+// fine where GetState() is called today, inside the normal-boot mount steps, but
+// this function runs on every boot including live media and rd.immucore.disable,
+// where there is no state label to find. A path that does not exist simply fails
+// to open and we move on to the next candidate.
+func writeProtectedCandidates() []string {
+	labels := []string{
+		sdkConstants.PersistentLabel,
+		sdkConstants.PersistentLUKSLabel,
+		sdkConstants.StateLabel,
+		sdkConstants.RecoveryLabel,
+	}
+	candidates := make([]string, 0, len(labels))
+	for _, l := range labels {
+		candidates = append(candidates, filepath.Join("/dev/disk/by-label", l))
+	}
+	return candidates
+}
+
+// WriteProtected reports whether this deployment is on write-protected media, in
+// which case the persistent partition is mounted through a copy-on-write
+// snapshot whose store is in RAM instead of being mounted directly.
+//
+// The answer cannot change while immucore runs, and Fsck asks it once per mount
+// attempt inside a retry loop, so it is memoized the same way blkidIsBusyBox is:
+// a var rather than a bare sync.OnceValue call, so that a test can answer for
+// it, wrapping a named body so that resetting it re-arms this same function
+// rather than a copy.
+var WriteProtected = sync.OnceValue(detectWriteProtected)
+
+// detectWriteProtected works out whether the write-protected media layout
+// applies to this boot: only when the cmdline enables it, and then only when
+// the device says it is write-protected, unless the cmdline forces it.
+func detectWriteProtected() bool {
+	// The layout is only registered by the normal-boot and in-RAM DAGs, so the
+	// question is not asked anywhere else, and every step that consults the
+	// answer sees a consistent one. UKI could not answer it anyway: udevd is
+	// started by the UKI DAG's own step, so no label exists before the DAG
+	// runs. Live media must not carry it at all, or booting an installer ISO
+	// on a unit with a frozen disk attached would write the sentinel and skip
+	// the cdrom datasource stage. In-RAM boots carry live:LABEL on the cmdline
+	// too, which is why DisableImmucore alone is not the test.
+	if IsUKI() || (!BootInRAM() && DisableImmucore()) {
+		KLog.Logger.Debug().Msg("Read-only media layout is not applicable to this boot; not probing")
+		return false
+	}
+
+	switch parseWriteProtected() {
+	case writeProtectedOff:
+		KLog.Logger.Debug().Msg("Write-protected media layout not enabled on the cmdline; not probing")
+		return false
+	case writeProtectedForce:
+		KLog.Logger.Warn().Msg("Write-protected media layout forced on the cmdline")
+		return true
+	}
+
+	// The candidates are udev symlinks. immucore.service is ordered after
+	// systemd-udev-settle, which is usually enough, but settle does not wait
+	// for a slow USB or SD enumeration and the ordering is a soft Wants=. So
+	// the first answer is waited for, briefly, rather than concluded from one
+	// look: the price of guessing "writable" on frozen media is a boot that
+	// fails late, and the price of waiting is a few seconds on a boot with no
+	// Kairos disk at all.
+	candidates := writeProtectedCandidates()
+	var answer bool
+	err := retry.Do(
+		func() error {
+			for _, device := range candidates {
+				ro, err := deviceReadOnly(device)
+				if err != nil {
+					KLog.Logger.Debug().Str("device", device).Err(err).
+						Msg("Could not ask this device whether it is read-only, trying the next one")
+					continue
+				}
+				answer = ro
+				return nil
+			}
+			return errors.New("no candidate device answered")
+		},
+		retry.Delay(writeProtectedRetryDelay),
+		retry.Attempts(writeProtectedRetryAttempts),
+		retry.DelayType(retry.FixedDelay),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, _ error) {
+			KLog.Logger.Debug().Uint("try", n).Msg("No block device has answered whether it is read-only yet, waiting for udev")
+		}),
+	)
+	if err != nil {
+		// Nothing answered. Report writable, which is what every install before
+		// this existed did, but say so: on genuinely write-protected media this
+		// is the line that explains why the boot then behaved as if the disk
+		// were writable.
+		KLog.Logger.Warn().Strs("tried", candidates).
+			Msg("No block device could say whether it is read-only, assuming writable media")
+		return false
+	}
+	if answer {
+		KLog.Logger.Warn().
+			Msg("Device is write-protected: mounting the persistent partition through a copy-on-write snapshot held in RAM")
+	}
+	return answer
 }
 
 // GetState returns the disk-by-label of the state partition to mount

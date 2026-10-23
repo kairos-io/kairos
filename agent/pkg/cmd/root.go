@@ -23,6 +23,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	installer "github.com/kairos-io/kairos/v4/agent/pkg/extensions"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
+	"github.com/kairos-io/kairos/v4/agent/pkg/progress"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
@@ -56,19 +57,84 @@ const (
 	extTypeCtxKey ctxKey = "extType"
 )
 
-// ReleasesToOutput gets a semver.Collection and outputs it in the given format
-// Only used here.
+// Output formats accepted by "upgrade list-releases --output".
+const (
+	outputFormatTerminal = "terminal"
+	outputFormatJSON     = "json"
+	outputFormatYAML     = "yaml"
+)
+
+// ReleasesToOutput renders the releases in the given format. The terminal
+// format returns one release per element, so that the caller prints them one
+// per line. The machine readable formats return a single element holding the
+// whole document.
 func ReleasesToOutput(rels []string, output string) []string {
+	// Marshal an empty list as "[]" rather than "null", so that a caller
+	// parsing the document always gets a list back.
+	if rels == nil {
+		rels = []string{}
+	}
+
 	switch strings.ToLower(output) {
-	case "yaml":
+	case outputFormatYAML:
 		d, _ := yaml.Marshal(rels)
 		return []string{string(d)}
-	case "json":
+	case outputFormatJSON:
 		d, _ := json.Marshal(rels)
 		return []string{string(d)}
 	default:
 		return rels
 	}
+}
+
+// parseReleasesOutput validates the --output value of list-releases. An empty
+// value keeps the terminal format, so that the flag stays optional. An unknown
+// value is refused instead of falling back to the terminal format, so that a
+// typo in a script is visible rather than quietly producing the wrong format.
+func parseReleasesOutput(output string) (string, error) {
+	switch strings.ToLower(output) {
+	case "":
+		return outputFormatTerminal, nil
+	case outputFormatTerminal, outputFormatJSON, outputFormatYAML:
+		return strings.ToLower(output), nil
+	default:
+		return "", fmt.Errorf("unknown output format %q, use one of %q, %q or %q",
+			output, outputFormatJSON, outputFormatYAML, outputFormatTerminal)
+	}
+}
+
+// releasesNotes returns the writer the human readable lines of list-releases go
+// to. In a machine readable format they go to stderr, so that stdout carries
+// the document and nothing else.
+func releasesNotes(format string) io.Writer {
+	if format == outputFormatTerminal {
+		return os.Stdout
+	}
+
+	return os.Stderr
+}
+
+// printReleases writes the releases in the requested format.
+func printReleases(w io.Writer, rels []string, format string) {
+	for _, r := range ReleasesToOutput(rels, format) {
+		fmt.Fprintln(w, r)
+	}
+}
+
+// printProviderReleases writes the releases the providers answered with and
+// reports whether there were any. A true result means the providers have
+// answered the question and the registry does not need to be consulted. The
+// header goes to notes rather than to w, so that it does not land in the middle
+// of a machine readable document.
+func printProviderReleases(w, notes io.Writer, tags []string, format string) bool {
+	if len(tags) == 0 {
+		return false
+	}
+
+	fmt.Fprintln(notes, "Available releases from provider:")
+	printReleases(w, tags, format)
+
+	return true
 }
 
 var sourceFlag = cli.StringFlag{
@@ -145,22 +211,40 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				Name:        "list-releases",
 				Description: `List all available releases versions`,
 				Before: func(c *cli.Context) error {
+					// Refuse an unusable format before anything is printed.
+					format, err := parseReleasesOutput(c.String("output"))
+					if err != nil {
+						return err
+					}
+					notes := releasesNotes(format)
+
 					// Check if the registry is set in the OS release and warn that its deprecated
 					registryAndOrg, err := sdkUtils.OSRelease("REGISTRY_AND_ORG")
 					if err == nil {
-						fmt.Println("Warning: The 'REGISTRY_AND_ORG' OS release variable is deprecated. Use the '--registry' flag instead.")
-						fmt.Println("Warning: Using the values from 'REGISTRY_AND_ORG' instead of the flag.")
+						fmt.Fprintln(notes, "Warning: The 'REGISTRY_AND_ORG' OS release variable is deprecated. Use the '--registry' flag instead.")
+						fmt.Fprintln(notes, "Warning: Using the values from 'REGISTRY_AND_ORG' instead of the flag.")
 						_ = c.Set("registry", registryAndOrg)
 
 					}
-					fmt.Printf("Using registry: %s\n", c.String("registry"))
+					fmt.Fprintf(notes, "Using registry: %s\n", c.String("registry"))
 					return nil
 				},
 				Action: func(c *cli.Context) error {
+					format, err := parseReleasesOutput(c.String("output"))
+					if err != nil {
+						return err
+					}
+					notes := releasesNotes(format)
+
 					if utils.IsUki() {
-						fmt.Println("You are running in \"trusted boot\" mode")
-						fmt.Println("Upgrading your OS requires a new image to be built an signed")
-						fmt.Println("Read the docs on how to do so: https://kairos.io/docs/upgrade/trustedboot/")
+						fmt.Fprintln(notes, "You are running in \"trusted boot\" mode")
+						fmt.Fprintln(notes, "Upgrading your OS requires a new image to be built an signed")
+						fmt.Fprintln(notes, "Read the docs on how to do so: https://kairos.io/docs/upgrade/trustedboot/")
+						// Still emit the document, so that a caller asking for
+						// a machine readable format always gets one.
+						if format != outputFormatTerminal {
+							printReleases(os.Stdout, nil, format)
+						}
 						return nil
 					}
 
@@ -168,7 +252,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 					if err != nil {
 						return err
 					}
-					fmt.Printf("Current image:\n%s\n\n", currentImage)
+					fmt.Fprintf(notes, "Current image:\n%s\n\n", currentImage)
 
 					var tags []string
 					tags, err = getReleasesFromProvider(c.Bool("pre"))
@@ -176,18 +260,19 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 						return err
 					}
 
-					if printProviderReleases(os.Stdout, tags) {
+					// Provider returns tags. Print and return.
+					if printProviderReleases(os.Stdout, notes, tags, format) {
 						return nil
 					}
 
 					if c.Bool("all") {
-						fmt.Println("Available releases (all):")
+						fmt.Fprintln(notes, "Available releases (all):")
 						tags, err = agent.ListAllReleases(c.Bool("pre"), c.String("registry"))
 						if err != nil {
 							return err
 						}
 					} else {
-						fmt.Println("Available releases with higher version:")
+						fmt.Fprintln(notes, "Available releases with higher version:")
 						tags, err = agent.ListNewerReleases(c.Bool("pre"), c.String("registry"))
 						if err != nil {
 							return err
@@ -195,13 +280,16 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 					}
 
 					if len(tags) == 0 {
-						fmt.Println("No newer releases found")
+						fmt.Fprintln(notes, "No newer releases found")
+						// An empty list is still a valid answer, so emit the
+						// document rather than leaving stdout empty.
+						if format != outputFormatTerminal {
+							printReleases(os.Stdout, nil, format)
+						}
 						return nil
 					}
 
-					for _, r := range tags {
-						fmt.Println(r)
-					}
+					printReleases(os.Stdout, tags, format)
 
 					return nil
 				},
@@ -339,7 +427,7 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 				// real fix is for the provider CLI to derive its default from
 				// the APILISTEN the provider already writes to
 				// /etc/systemd/system.conf.d/edgevpn-kairos.env, which belongs
-				// in kairos-io/provider-kairos.
+				// in provider/ (formerly kairos-io/provider-kairos).
 				Value: "",
 			},
 		},
@@ -1740,9 +1828,42 @@ func beforeSysextConfext(c *cli.Context) error {
 // It is called from the standalone kairos-agent binary and from the multi-call
 // kairos binary.
 func Run() int {
-	bus.Manager.Initialize()
+	// The bus is not initialized here. Initializing it before the command line
+	// is parsed loads the providers from the default directories, and the
+	// commands that read a provider directory out of the configuration, such
+	// as notify, then have nowhere to put it. Each command that uses the bus
+	// initializes it, with the directories that command resolved.
 
-	app := &cli.App{
+	return runApp(newApp(), os.Args)
+}
+
+// runApp runs app with args and returns a process exit code. A fatal error is
+// written to stderr, so stdout carries only what the command was asked to
+// produce and a machine-readable output format stays parseable on failure.
+//
+// The same error also goes out as a progress error event, which is the only
+// thing an installer frontend reads. sdk/agentrun runs this binary as
+// `kairos-agent manual-install` and shows the frontend its stdout, so a
+// failure that never reaches the install action (the config scan,
+// CheckConfigForUsers, CheckConfigForExtraPartitions, installSpec.Sanitize,
+// validateSource, checkRoot) would otherwise reach the browser as nothing but
+// "exit status 1". Emitting here rather than inside InstallAction.Run covers
+// those, covers the UKI install action, which never emitted at all, and
+// cannot emit the same failure twice, because every install path returns its
+// error to this one place. The event is a no-op unless KAIROS_AGENT_PROGRESS
+// is set.
+func runApp(app *cli.App, args []string) int {
+	if err := app.Run(args); err != nil {
+		progress.EmitError(err.Error())
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
+}
+
+// newApp builds the kairos-agent CLI.
+func newApp() *cli.App {
+	return &cli.App{
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "strict-validation",
@@ -1796,13 +1917,6 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		},
 		Commands: cmds,
 	}
-
-	err := app.Run(os.Args)
-	if err != nil {
-		fmt.Println(err)
-		return 1
-	}
-	return 0
 }
 
 func checkRoot() error {
@@ -1973,6 +2087,8 @@ func (rc *releaseCollector) releases() []string {
 }
 
 func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
+	bus.Manager.Initialize()
+
 	rc := &releaseCollector{}
 	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 		rc.collect(r.Data)
@@ -1985,22 +2101,6 @@ func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
 	}
 
 	return rc.releases(), nil
-}
-
-// printProviderReleases writes every release the providers answered with and
-// reports whether there were any. A true result means the providers have
-// answered the question and the registry does not need to be consulted.
-func printProviderReleases(w io.Writer, tags []string) bool {
-	if len(tags) == 0 {
-		return false
-	}
-
-	fmt.Fprintln(w, "Available releases from provider:")
-	for _, r := range tags {
-		fmt.Fprintln(w, r)
-	}
-
-	return true
 }
 
 func moreThanOneEnabled(bools ...bool) bool {

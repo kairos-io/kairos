@@ -35,13 +35,25 @@ type InstallSchema struct {
 	Passive         Image               `json:"passive,omitempty"`
 	// Keys below are decoded into InstallSpec and InstallUkiSpec by
 	// unmarshallFullSpec(cfg, "install", spec), not into types/config.Config.
-	Firmware                string   `json:"firmware,omitempty" enum:"[\"efi\",\"bios\"]" description:"Firmware to install for. Defaults to what the installing machine reports, so set it only to install for a machine other than the one running the installer"`
-	PartTable               string   `json:"part-table,omitempty" enum:"[\"gpt\"]" description:"Partition table to write. Only gpt is supported, for both efi and bios firmware"`
-	CloudInit               []string `json:"cloud-init,omitempty" description:"Extra cloud-config files to copy onto the installed system, on top of the config that drove the install. Each entry is one file, given as a path or as a URL to download. A directory is not copied"`
-	Iso                     string   `json:"iso,omitempty" description:"URL or path of an ISO to install from, instead of the running installation medium"`
-	Tty                     string   `json:"tty,omitempty" description:"Console the installed system gets a getty on, in addition to the default one" examples:"[\"ttyS0\",\"tty1\"]"`
-	SkipEntries             []string `json:"skip-entries,omitempty" description:"Trusted Boot only: boot entries to leave out of the installed system. Added to the entries Kairos skips by default"`
-	AllowInsecureRegistries bool     `json:"allow-insecure-registries,omitempty" description:"Pull the install image from a registry served over plain HTTP or presenting an untrusted certificate"`
+	Firmware                string              `json:"firmware,omitempty" enum:"[\"efi\",\"bios\"]" description:"Firmware to install for. Defaults to what the installing machine reports, so set it only to install for a machine other than the one running the installer"`
+	PartTable               string              `json:"part-table,omitempty" enum:"[\"gpt\"]" description:"Partition table to write. Only gpt is supported, for both efi and bios firmware"`
+	CloudInit               []string            `json:"cloud-init,omitempty" description:"Extra cloud-config files to copy onto the installed system, on top of the config that drove the install. Each entry is one file, given as a path or as a URL to download. A directory is not copied"`
+	Iso                     string              `json:"iso,omitempty" description:"URL or path of an ISO to install from, instead of the running installation medium"`
+	Tty                     string              `json:"tty,omitempty" description:"Console the installed system gets a getty on, in addition to the default one" examples:"[\"ttyS0\",\"tty1\"]"`
+	SkipEntries             []string            `json:"skip-entries,omitempty" description:"Trusted Boot only: boot entries to leave out of the installed system. Added to the entries Kairos skips by default"`
+	AllowInsecureRegistries bool                `json:"allow-insecure-registries,omitempty" description:"Pull the install image from a registry served over plain HTTP or presenting an untrusted certificate"`
+	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
+}
+
+// RegistryAuthSchema describes one explicit registry credential form. Exactly
+// one form is accepted by the agent at runtime.
+type RegistryAuthSchema struct {
+	File          string `json:"file,omitempty" description:"Path to a YAML credential object available before the operation starts. Cannot be combined with inline credentials."`
+	Username      string `json:"username,omitempty" description:"Registry username. Must be provided with password."`
+	Password      string `json:"password,omitempty" description:"Registry password."`
+	Auth          string `json:"auth,omitempty" description:"Base64 encoded username:password."`
+	IdentityToken string `json:"identity-token,omitempty" description:"Registry identity token."`
+	RegistryToken string `json:"registry-token,omitempty" description:"Registry bearer token."`
 }
 
 // OEMFileSchema represents one entry of the install.oem_files block. The file

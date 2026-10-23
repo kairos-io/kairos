@@ -113,7 +113,7 @@ on:
       # Core build parameters
       base_image:
         type: string
-        default: "ghcr.io/kairos-io/hadron:v0.0.4"
+        default: "ghcr.io/kairos-io/hadron:v0.6.3"
 
       model:
         type: string
@@ -286,12 +286,25 @@ on:
       custom_tag_format:
         type: string
         required: false
-        description: "Custom tag format using variables like $FLAVOR, $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $K8S, $UKI, $COMMIT_SHA. If not provided, uses default format."
+        description: |
+          Custom tag format using variables like $FLAVOR, $FLAVOR_RELEASE,
+          $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO,
+          $KUBERNETES_VERSION, $K8S, $UKI, $COMMIT_SHA. $K8S is
+          `-<kubernetes_distro>` whenever kubernetes_distro is set, with
+          `-<sanitized kubernetes_version>` appended when
+          kubernetes_version is not `auto`, and empty otherwise. If not
+          provided, uses default format.
 
       custom_artifact_format:
         type: string
         required: false
-        description: "Custom artifact filename format using variables like $FLAVOR, $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $K8S, $UKI, $COMMIT_SHA. If not provided, uses auroraboot's default naming."
+        description: |
+          Custom artifact filename format using variables like $FLAVOR,
+          $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION,
+          $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $K8S, $UKI,
+          $COMMIT_SHA. $K8S follows the same rule as in
+          custom_tag_format. If not provided, uses auroraboot's default
+          naming.
 
       custom_job_name_format:
         type: string
@@ -645,15 +658,33 @@ jobs:
           UKI="$UKI_SUFFIX"
           COMMIT_SHA="${{ github.sha }}"
 
-          # Set kubernetes suffix (leading dash) if a k8s distro+version
-          # pair was passed; empty otherwise. Consumers use this in
+          # Set kubernetes suffix (leading dash) if a k8s distro was
+          # passed; empty otherwise. Consumers use this in
           # custom_tag_format so cells without k8s don't get a stray dash
-          # (e.g. `...-generic--v4.3.0`) and cells with k8s get the
-          # distro+version pair disambiguating them from each other and
-          # from the no-k8s cell.
+          # (e.g. `...-generic--v4.3.0`) and cells with k8s get a segment
+          # disambiguating them from each other and from the no-k8s cell.
+          #
+          # Gated on the distro, not the version: the distro is known
+          # whether or not the caller pinned a version, and it is the
+          # distro that tells two otherwise-identical cells apart. Gating
+          # on the version instead made `kubernetes_version: auto` (which
+          # resolves to the empty string above so kairos-init picks the
+          # version) drop the distro from the tag entirely, so a k3s cell
+          # and a k0s cell sharing an arch/model pushed to the same tag
+          # and whichever finished last silently won.
+          #
+          # The version is appended only when pinned, so `auto` yields
+          # `-k0s` rather than a trailing bare dash.
+          #
+          # reusable-qemu-test.yaml and _uki-test.yaml reconstruct this
+          # same segment in shell to find the image under test. Keep all
+          # three in lockstep.
           K8S=""
-          if [[ -n "$KUBERNETES_VERSION" ]]; then
-            K8S="-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION"
+          if [[ -n "$KUBERNETES_DISTRO" ]]; then
+            K8S="-$KUBERNETES_DISTRO"
+            if [[ -n "$SANITIZED_KUBERNETES_VERSION" ]]; then
+              K8S="$K8S-$SANITIZED_KUBERNETES_VERSION"
+            fi
           fi
 
           # custom_tag_format and custom_artifact_format name the variables
@@ -671,11 +702,7 @@ jobs:
           }
 
           # Generate default tag
-          if [[ -n "$KUBERNETES_VERSION" ]]; then
-            DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION$UKI"
-          else
-            DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$UKI"
-          fi
+          DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI"
 
           # Use custom tag format if provided, otherwise use default
           if [[ -n "${INPUTS_CUSTOM_TAG_FORMAT}" ]]; then
@@ -718,9 +745,7 @@ jobs:
             DEFAULT_ARTIFACT_NAME="kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION"
 
             # Append kubernetes distro and version if defined
-            if [[ -n "$KUBERNETES_DISTRO" ]]; then
-              DEFAULT_ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION"
-            fi
+            DEFAULT_ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME$K8S"
 
             # Append UKI suffix if trusted boot is enabled
             DEFAULT_ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME$UKI"
@@ -754,6 +779,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "kubernetes_version=$KUBERNETES_VERSION" >> $GITHUB_OUTPUT
           echo "kubernetes_distro=$KUBERNETES_DISTRO" >> $GITHUB_OUTPUT
+          echo "k8s=$K8S" >> $GITHUB_OUTPUT
           echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
           echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
@@ -806,7 +832,7 @@ jobs:
           INPUTS_SINGLE_EFI_CMDLINE: ${{ inputs.single_efi_cmdline }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           platforms: linux/${{ inputs.arch }}
 
@@ -820,7 +846,7 @@ jobs:
 
       - name: Download OCI build context
         if: inputs.oci_context_artifact != ''
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           name: ${{ inputs.oci_context_artifact }}
           path: ${{ runner.temp }}/oci-context
@@ -840,7 +866,7 @@ jobs:
           INPUTS_OCI_CONTEXT_NAME: ${{ inputs.oci_context_name }}
 
       - name: Build Kairos image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
@@ -877,9 +903,30 @@ jobs:
             echo "path=" >> $GITHUB_OUTPUT
           fi
 
+      # `fail-build: false` only stops grype failing on findings. The action
+      # downloads the grype release asset at run time, so it can also fail for
+      # reasons that say nothing about the image: a 500 from the release CDN, a
+      # checksum mismatch on a truncated download, a vulnerability database
+      # that will not fetch. Those used to fail this job, and every scan step
+      # runs before "Push Kairos image", so a build that was told not to gate
+      # on scanning never published its image.
+      #
+      # Whether a scanner is allowed to fail the job follows from whether its
+      # findings gate the build in the mode we are running in:
+      #
+      #   mode          grype gates   trivy gates
+      #   legacy        yes           no
+      #   enforce       yes           yes
+      #   report-only   no            no
+      #
+      # A scan that gates fails closed: if it cannot run we do not know whether
+      # the image is clean, so the build has to stop. A scan that gates nothing
+      # must not be able to fail the build at all. Findings are still handled
+      # exactly as before, by the parse and enforce steps below.
       - name: Run Grype security scan
         if: inputs.grype
         id: grype
+        continue-on-error: ${{ inputs.security_scan_mode == 'report-only' }}
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         with:
           image: ${{ steps.setup.outputs.image_tag }}
@@ -894,14 +941,22 @@ jobs:
         id: grype-results
         env:
           STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
+          INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
         run: |
-          # Check if the JSON file exists and is not empty
+          # Check if the JSON file exists and is not empty. This is the
+          # scanner-did-not-run case: either the step above was tolerated by
+          # continue-on-error, or it reported success without producing output.
           if [[ ! -f "${STEPS_GRYPE_OUTPUTS_JSON}" ]] || [[ ! -s "${STEPS_GRYPE_OUTPUTS_JSON}" ]]; then
+            echo "critical_count=0" >> $GITHUB_OUTPUT
+            echo "status=error" >> $GITHUB_OUTPUT
+            if [[ "${INPUTS_SECURITY_SCAN_MODE}" == "report-only" ]]; then
+              echo "::warning title=Grype scan did not run::The Grype scan produced no results, so this image was not scanned by Grype. The build is not gated on Grype in report-only mode, so it continues."
+              exit 0
+            fi
             echo "❌ Error: Grype JSON output file is missing or empty"
             echo "   Expected file: ${STEPS_GRYPE_OUTPUTS_JSON}"
             echo "   This indicates the Grype scan failed or didn't produce output"
-            echo "critical_count=0" >> $GITHUB_OUTPUT
-            echo "status=error" >> $GITHUB_OUTPUT
+            echo "   Grype gates the build in '${INPUTS_SECURITY_SCAN_MODE}' mode, so this is a failure."
             exit 1
           fi
 
@@ -920,9 +975,12 @@ jobs:
             echo "✅ Grype found no critical vulnerabilities."
           fi
 
+      # Trivy findings only gate the build in 'enforce' mode, so 'legacy' and
+      # 'report-only' tolerate a Trivy that cannot run.
       - name: Run Trivy security scan
         if: inputs.trivy
         id: trivy-scan
+        continue-on-error: ${{ inputs.security_scan_mode != 'enforce' }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ steps.setup.outputs.image_tag }}
@@ -935,11 +993,18 @@ jobs:
         if: inputs.trivy
         id: trivy-results
         shell: bash
+        env:
+          INPUTS_SECURITY_SCAN_MODE: ${{ inputs.security_scan_mode }}
         run: |
           if [[ ! -f "trivy.json" ]] || [[ ! -s "trivy.json" ]]; then
-            echo "❌ Error: Trivy JSON output file is missing or empty"
             echo "critical_count=0" >> $GITHUB_OUTPUT
             echo "status=error" >> $GITHUB_OUTPUT
+            if [[ "${INPUTS_SECURITY_SCAN_MODE}" != "enforce" ]]; then
+              echo "::warning title=Trivy scan did not run::The Trivy scan produced no results, so this image was not scanned by Trivy. The build is not gated on Trivy in '${INPUTS_SECURITY_SCAN_MODE}' mode, so it continues."
+              exit 0
+            fi
+            echo "❌ Error: Trivy JSON output file is missing or empty"
+            echo "   Trivy gates the build in 'enforce' mode, so this is a failure."
             exit 1
           fi
 
@@ -1037,8 +1102,14 @@ jobs:
           STEPS_GRYPE_OUTPUTS_JSON: ${{ steps.grype.outputs.json }}
           STEPS_TRIVY_RESULTS_OUTPUTS_CRITICAL_COUNT: ${{ steps.trivy-results.outputs.critical_count }}
 
+      # SARIF generation and upload only feed the GitHub Security tab. Nothing
+      # downstream gates on them, so they must not be able to fail the job and
+      # block the push. The one exception is grype_sarif_fail_build, which is
+      # the caller asking for findings to fail the job, and which is left
+      # intact.
       - name: Run Trivy SARIF scan
         if: inputs.trivy_sarif
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ steps.setup.outputs.image_tag }}
@@ -1050,6 +1121,7 @@ jobs:
 
       - name: Generate Grype SARIF
         if: inputs.grype_sarif
+        continue-on-error: ${{ !inputs.grype_sarif_fail_build }}
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439  # v7.4.2
         with:
           image: ${{ steps.setup.outputs.image_tag }}
@@ -1061,8 +1133,11 @@ jobs:
           fail-build: ${{ inputs.grype_sarif_fail_build }}
           config: ${{ steps.grype-config.outputs.path }}
 
+      # The hashFiles guards keep the filter and upload steps from failing on a
+      # SARIF file the step above did not manage to write.
       - name: Filter Grype SARIF to critical
-        if: inputs.grype_sarif
+        if: inputs.grype_sarif && hashFiles('grype.sarif') != ''
+        continue-on-error: true
         uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433  # v1
         with:
           input: grype.sarif
@@ -1070,33 +1145,42 @@ jobs:
           severity: critical
 
       - name: Filter Trivy SARIF to critical
-        if: inputs.trivy_sarif
+        if: inputs.trivy_sarif && hashFiles('trivy.sarif') != ''
+        continue-on-error: true
         uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433  # v1
         with:
           input: trivy.sarif
           output: trivy.sarif
           severity: critical
 
+      # The category sub-partitions one tool's results for one artifact.
+      # Two uploads of the same tool sharing it within a run are rejected
+      # as a misconfiguration, so it has to carry every axis the matrix
+      # varies -- including $K8S, since `variant` collapses k3s and k0s to
+      # `standard`. Trivy and Grype below share a value on purpose: they
+      # are different tools, so they are different partitions.
       - name: Upload Trivy scan results to GitHub Security tab
-        if: inputs.trivy_sarif
-        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63  # v4.38.0
+        if: inputs.trivy_sarif && hashFiles('trivy.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4.39.1
         with:
           sarif_file: 'trivy.sarif'
-          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
+          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ steps.setup.outputs.k8s }}${{ inputs.trusted_boot && '-uki' || '' }}
 
       - name: Upload Grype scan results to GitHub Security tab
-        if: inputs.grype_sarif
-        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63  # v4.38.0
+        if: inputs.grype_sarif && hashFiles('grype.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4.39.1
         with:
           sarif_file: 'grype.sarif'
-          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
+          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ steps.setup.outputs.k8s }}${{ inputs.trusted_boot && '-uki' || '' }}
 
       # The step name no longer promises an SBOM, because `sbom` is now an
       # input. A step called "with SBOM" that pushed without one would be the
       # kind of small lie that costs someone an afternoon.
       - name: Push Kairos image
         if: inputs.registry_domain != ''
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_PATH }}
@@ -1333,7 +1417,7 @@ jobs:
 
       - name: Create OCI artifact from RAW image
         if: inputs.raw && inputs.registry_domain != ''
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: ${{ env.DOCKERFILE_IMG_PATH }}
@@ -1396,7 +1480,7 @@ jobs:
         if: inputs.cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
         with:
-          cosign-release: "v3.1.3"
+          cosign-release: "v3.1.4"
 
       - name: Sign image and artifact checksums with cosign
         if: inputs.cosign && inputs.registry_domain != ''
@@ -1680,7 +1764,7 @@ jobs:
 
       - name: Upload ISO artifacts
         if: inputs.iso
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.iso.zip
           path: |
@@ -1693,7 +1777,7 @@ jobs:
         # keys of the build whose ISO it installs. They are throwaway keys,
         # kept for one day.
         if: inputs.generate_test_keys && inputs.iso
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.test-keys
           path: ${{ steps.test-artifacts.outputs.keys_dir }}
@@ -1702,7 +1786,7 @@ jobs:
 
       - name: Upload RAW artifacts
         if: inputs.raw
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ steps.setup.outputs.artifact_name }}.raw.zip
           path: |
