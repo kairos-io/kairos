@@ -1,9 +1,11 @@
 package bus
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
+	"sync"
 
 	"github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/mudler/go-pluggable"
@@ -32,6 +34,12 @@ type Bus struct {
 	// providers from, so that a later Initialize can tell whether it is asking
 	// for something different.
 	loadedPaths []string
+	// mu guards providerErrs. Providers run concurrently, so the response
+	// handler that appends to it runs on several goroutines at once.
+	mu sync.Mutex
+	// providerErrs holds the errors providers reported during the most recent
+	// Publish. Publish returns them so the caller can decide what to do.
+	providerErrs []error
 }
 
 // LoadProviders autoloads the agent providers from the given paths. When no
@@ -53,6 +61,33 @@ func (b *Bus) LoadedPaths() []string {
 
 func (b *Bus) HasRegisteredPlugins() bool {
 	return len(b.Plugins) > 0
+}
+
+// Publish sends the event to every registered provider and returns the first
+// failure it meets: the publishing error, or the errors the providers
+// themselves reported.
+//
+// A provider that fails must not end the process: that would skip every other
+// provider and every deferred cleanup the caller has in flight, in the middle
+// of an install, an upgrade or a reset.
+//
+// The underlying Publish runs every provider in its own goroutine and only
+// returns once all of them have answered, so the errors are complete by the
+// time it does, but they are collected under b.mu rather than in order.
+func (b *Bus) Publish(event pluggable.EventType, obj interface{}) (*pluggable.Manager, error) {
+	b.mu.Lock()
+	b.providerErrs = nil
+	b.mu.Unlock()
+
+	m, err := b.Manager.Publish(event, obj)
+	if err != nil {
+		return m, err
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return m, errors.Join(b.providerErrs...)
 }
 
 // Initialize loads the providers found in paths, or in the default provider
@@ -89,9 +124,11 @@ func (b *Bus) Initialize(paths ...string) {
 				)
 			}
 			if r.Errored() {
-				err := fmt.Sprintf("Provider %s at %s had an error: %s", p.Name, p.Executable, r.Error)
+				err := fmt.Errorf("provider %s at %s had an error: %s", p.Name, p.Executable, r.Error)
 				fmt.Println(err)
-				os.Exit(1)
+				b.mu.Lock()
+				b.providerErrs = append(b.providerErrs, err)
+				b.mu.Unlock()
 			}
 
 			if r.State != "" {
