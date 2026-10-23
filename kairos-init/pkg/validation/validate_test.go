@@ -1,8 +1,10 @@
 package validation_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/validation"
@@ -483,6 +485,79 @@ var _ = Describe("Validator", func() {
 			// We don't assert on the result here since it depends on the actual system state
 			// This test is mainly to ensure the validation doesn't panic
 			GinkgoWriter.Printf("Validation result: %v\n", err)
+		})
+	})
+
+	Describe("ValidateInitrdContents", func() {
+		// A trimmed lsinitrd listing. The real one is thousands of lines;
+		// these are the entries the check looks for.
+		const listing = `Version: dracut-059
+
+Arguments: --force
+
+dracut modules:
+systemd
+28immucore
+=========================================================================
+drwxr-xr-x   1 root     root            0 Oct  6 10:00 usr/bin
+-rwxr-xr-x   1 root     root     24117248 Oct  6 10:00 usr/bin/immucore
+-rw-r--r--   1 root     root         1024 Oct  6 10:00 usr/lib/systemd/system/immucore.service
+-rw-r--r--   1 root     root        32768 Oct  6 10:00 usr/lib/modules/6.12.0/kernel/drivers/usb/host/xhci-pci-renesas.ko.xz
+=========================================================================
+`
+
+		It("accepts a listing that carries immucore", func() {
+			validator := validation.NewValidator(createTestLogger())
+
+			Expect(validator.ValidateInitrdContents(listing)).To(Succeed())
+		})
+
+		It("reports immucore when the listing does not carry it", func() {
+			validator := validation.NewValidator(createTestLogger())
+
+			err := validator.ValidateInitrdContents("usr/bin/sh\nusr/bin/udevadm\n")
+
+			Expect(err).To(MatchError(ContainSubstring("[INITRD] did not find immucore in the initrd")))
+		})
+
+		It("does not fail when the kernel module is absent, because that check is warn only", func() {
+			validator := validation.NewValidator(createTestLogger())
+
+			Expect(validator.ValidateInitrdContents("usr/bin/immucore\n")).To(Succeed())
+		})
+
+		// Why the caller must hand this function lsinitrd's stdout and
+		// nothing else: diagnostics do not mention immucore either, so
+		// searching them reports the binary as missing from an initrd that
+		// was never read. That phantom line used to be appended on top of
+		// the real failure and named the wrong culprit.
+		It("reports immucore missing when handed lsinitrd's diagnostics instead of a listing", func() {
+			validator := validation.NewValidator(createTestLogger())
+
+			err := validator.ValidateInitrdContents("lsinitrd: /boot/initrd does not exist\n")
+
+			Expect(err).To(MatchError(ContainSubstring("[INITRD] did not find immucore in the initrd")))
+		})
+	})
+
+	Describe("DescribeCommandError", func() {
+		It("names the reason the command wrote to stderr", func() {
+			_, err := exec.Command("sh", "-c", "echo 'lsinitrd: /boot/initrd does not exist' >&2; exit 1").Output()
+			Expect(err).To(HaveOccurred())
+
+			Expect(validation.DescribeCommandError(err)).To(ContainSubstring("exit status 1"))
+			Expect(validation.DescribeCommandError(err)).To(ContainSubstring("/boot/initrd does not exist"))
+		})
+
+		It("falls back to the error itself when the command wrote no stderr", func() {
+			_, err := exec.Command("sh", "-c", "exit 3").Output()
+			Expect(err).To(HaveOccurred())
+
+			Expect(validation.DescribeCommandError(err)).To(Equal("exit status 3"))
+		})
+
+		It("returns a non exit error unchanged", func() {
+			Expect(validation.DescribeCommandError(errors.New("boom"))).To(Equal("boom"))
 		})
 	})
 })
