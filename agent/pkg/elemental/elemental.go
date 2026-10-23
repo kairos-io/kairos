@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -555,8 +556,8 @@ func (e *Elemental) imageFromOCILayoutArchive(archivePath string) (ggcrv1.Image,
 	}
 	release := func() { _ = e.config.Fs.RemoveAll(tmpDir) }
 
-	// tar and the layout reader both work on the real filesystem, so they need
-	// the path the configured filesystem maps this directory to.
+	// The extraction and the layout reader both work on the real filesystem,
+	// so they need the path the configured filesystem maps this directory to.
 	extractDir, err := e.config.Fs.RawPath(tmpDir)
 	if err != nil {
 		release()
@@ -564,9 +565,9 @@ func (e *Elemental) imageFromOCILayoutArchive(archivePath string) (ggcrv1.Image,
 	}
 
 	e.config.Logger.Infof("Extracting %s to %s", archivePath, extractDir)
-	if out, err := e.config.Runner.Run("tar", "-xf", archivePath, "-C", extractDir); err != nil {
+	if err := extractOCILayoutArchive(archivePath, extractDir); err != nil {
 		release()
-		return nil, noop, fmt.Errorf("extracting %s: %w: %s", archivePath, err, string(out))
+		return nil, noop, fmt.Errorf("extracting %s: %w", archivePath, err)
 	}
 
 	index, err := layout.ImageIndexFromPath(extractDir)
@@ -582,6 +583,64 @@ func (e *Elemental) imageFromOCILayoutArchive(archivePath string) (ggcrv1.Image,
 	}
 
 	return img, release, nil
+}
+
+// extractOCILayoutArchive unpacks the archive at archivePath under dir. An OCI
+// layout holds only regular files and directories, so any other kind of entry
+// is refused, and so is an entry whose name is absolute or climbs out of dir.
+// Doing this in Go rather than through tar keeps the ocifile source from
+// depending on a tar binary on the running system.
+func extractOCILayoutArchive(archivePath, dir string) error {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	tr := tar.NewReader(f)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		if !filepath.IsLocal(hdr.Name) {
+			return fmt.Errorf("entry %q points outside the archive", hdr.Name)
+		}
+		target := filepath.Join(dir, hdr.Name)
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			if err := writeArchiveEntry(target, tr); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("entry %q is not a regular file or a directory, which an OCI layout does not hold", hdr.Name)
+		}
+	}
+}
+
+// writeArchiveEntry creates path and copies the current archive entry into it.
+func writeArchiveEntry(path string, r io.Reader) error {
+	out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, r); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 // imageFromIndex picks the image to deploy out of an index. An index that
