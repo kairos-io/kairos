@@ -413,6 +413,7 @@ jobs:
           - {test: 'upgrade-with-cli'}
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
+          - {test: 'cis'}
           - {test: 'sysext'}
           - {test: 'cmdline-config-url'}
           - {test: 'write-protected'}
