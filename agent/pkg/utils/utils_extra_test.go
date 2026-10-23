@@ -110,13 +110,24 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			err := utils.ConcatFiles(fs, []string{"/src.txt"}, "/missing-dir/target.txt")
 			Expect(err).To(HaveOccurred())
 		})
-		It("stops on a missing source", func() {
-			// NOTE: the error from fs.Open inside the loop is shadowed by the
-			// `:=` declaration, so ConcatFiles currently returns nil even
-			// though the source could not be read. This test documents the
-			// current behavior while covering the break path.
+		It("returns the error and removes the target when a source is missing", func() {
 			err := utils.ConcatFiles(fs, []string{"/does-not-exist.txt"}, "/target.txt")
-			Expect(err).ToNot(HaveOccurred())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does-not-exist.txt"))
+			Expect(fsutils.Exists(fs, "/target.txt")).To(BeFalse())
+		})
+		It("returns the error and removes the target when a source is a directory", func() {
+			Expect(fs.Mkdir("/srcdir", constants.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile("/srcdir/a.yaml", []byte("#cloud-config\n"), constants.FilePerm)).To(Succeed())
+			err := utils.ConcatFiles(fs, []string{"/srcdir"}, "/target.txt")
+			Expect(err).To(HaveOccurred())
+			Expect(fsutils.Exists(fs, "/target.txt")).To(BeFalse())
+		})
+		It("removes the target when a later source is missing, keeping no partial file", func() {
+			Expect(fs.WriteFile("/one.txt", []byte("one"), constants.FilePerm)).To(Succeed())
+			err := utils.ConcatFiles(fs, []string{"/one.txt", "/missing.txt"}, "/target.txt")
+			Expect(err).To(HaveOccurred())
+			Expect(fsutils.Exists(fs, "/target.txt")).To(BeFalse())
 		})
 	})
 
