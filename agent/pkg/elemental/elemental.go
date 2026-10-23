@@ -156,7 +156,7 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 				// So this works for "normal" devices that have the "expected" partitions (i.e. /dev/sda has /dev/sda1, /dev/sda2)
 				// And "weird" devices that have special subdevices like mmc or nvme
 				// i.e. /dev/mmcblk0 has /dev/mmcblk0p1, /dev/mmcblk0p2
-				device, err := filepath.EvalSymlinks(fmt.Sprintf("/dev/disk/by-partlabel/%s", configPart.Name))
+				device, err := partLabelDevice(configPart.Name)
 				if err != nil {
 					e.config.Logger.Errorf("Failed finding partition %s by partition label: %s", configPart.FilesystemLabel, err)
 				}
@@ -166,10 +166,20 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 					return err
 				}
 				syscall.Sync()
+				if partitioner.IsESP(configPart) {
+					if err := partitioner.CheckESP(e.config.Logger, e.config.Fs, device); err != nil {
+						e.config.Logger.Errorf("%s", err)
+						return err
+					}
+				}
 			}
 		}
 	}
 	return nil
+}
+
+var partLabelDevice = func(name string) (string, error) {
+	return filepath.EvalSymlinks(fmt.Sprintf("/dev/disk/by-partlabel/%s", name))
 }
 
 // MountPartitions mounts configured partitions. Partitions with an unset mountpoint are not mounted.

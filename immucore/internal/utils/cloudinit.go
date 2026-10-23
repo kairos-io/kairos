@@ -121,8 +121,12 @@ func KairosConfigURIFromString(s string) string {
 // kairos-sdk/machine. Unlike yip's built-in schema.DotNotationModifier it skips
 // Kairos-owned prefixes (kairos.config=, kairos.config_url=, cos.setup=) so those
 // tokens are not double-processed here — they flow through KairosConfigURIFromCmdline.
+// Tokens the SDK cannot convert (e.g. 8250.nr_uarts=0) are skipped and logged at
+// debug level instead of failing the whole cmdline.
 func SDKDotNotationModifier(s []byte) ([]byte, error) {
-	return machine.DotStringToYAML(string(s))
+	return machine.DotStringToYAMLBestEffort(string(s), func(err error) {
+		KLog.Debugf("skipped /proc/cmdline tokens that cannot be converted to YAML: %s", err)
+	})
 }
 
 // RunYipStageInline runs a yip stage whose full YAML document is passed as a
