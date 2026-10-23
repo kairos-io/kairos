@@ -1111,14 +1111,14 @@ jobs:
       # are different tools, so they are different partitions.
       - name: Upload Trivy scan results to GitHub Security tab
         if: inputs.trivy_sarif
-        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63  # v4.38.0
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4.39.1
         with:
           sarif_file: 'trivy.sarif'
           category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ steps.setup.outputs.k8s }}${{ inputs.trusted_boot && '-uki' || '' }}
 
       - name: Upload Grype scan results to GitHub Security tab
         if: inputs.grype_sarif
-        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63  # v4.38.0
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4.39.1
         with:
           sarif_file: 'grype.sarif'
           category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ steps.setup.outputs.k8s }}${{ inputs.trusted_boot && '-uki' || '' }}
