@@ -53,8 +53,22 @@ func RegisterInRAMBoot(s *state.State, g *herd.Graph) error {
 		oemMountDeps = herd.WithDeps(cnst.OpEnsurePartitions, cnst.OpKcryptUnlock)
 	} else {
 		internalUtils.KLog.Logger.Info().Msg("OEM is NOT encrypted: OEM mount will run before kcrypt unlock")
-		kcryptDeps = herd.WithDeps(cnst.OpEnsurePartitions, cnst.OpKcryptUpgrade, cnst.OpMountOEM)
+		kcryptDeps = herd.WithDeps(cnst.OpEnsurePartitions, cnst.OpKcryptUpgrade, cnst.OpMountOEM, cnst.OpEncryptPending)
 		oemMountDeps = herd.WithDeps(cnst.OpEnsurePartitions)
+		// Encrypt partitions that are configured for encryption but still
+		// plaintext (kcrypt.encrypt_on_boot, kairos-io/kairos#4556), after
+		// the plaintext OEM is mounted (the policy is read from
+		// /run/cos/oem) and before the unlock step opens them, as normal
+		// boot does. This path needs it more than normal boot does:
+		// ensure-partitions may have just created COS_OEM and
+		// COS_PERSISTENT, and it only encrypts what it creates under UKI,
+		// so on a GRUB in-RAM boot this is the only step that can encrypt
+		// them. Hence the explicit dependency on ensure-partitions.
+		// When OEM is encrypted the policy was already applied at install
+		// time, so the step is not registered on that branch, where it
+		// could not read its config before the unlock it would have to
+		// precede.
+		s.LogIfError(s.EncryptPendingDagStep(g, herd.WithDeps(cnst.OpEnsurePartitions, cnst.OpKcryptUpgrade, cnst.OpMountOEM)), "encrypt pending")
 	}
 
 	s.LogIfError(s.RunKcrypt(g, kcryptDeps), "kcrypt unlock")
