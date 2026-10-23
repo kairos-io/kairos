@@ -17,7 +17,6 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
-	sdkutils "github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 type InstallAction struct {
@@ -139,7 +138,7 @@ func (i *InstallAction) Run() (err error) {
 
 		if filepath.Ext(filename) == ".conf" {
 			// Extract the values
-			conf, err := sdkutils.SystemdBootConfReader(path)
+			conf, err := utils.SystemdBootConfReader(i.cfg.Fs, path)
 			if err != nil {
 				i.cfg.Logger.Errorf("Error reading conf file to extract values %s: %s", path, err)
 				return err

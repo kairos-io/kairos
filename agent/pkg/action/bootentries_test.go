@@ -10,6 +10,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/internal/testartifacts"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -24,8 +25,12 @@ import (
 
 // TODO: Mock the syscall.StatFS to simulate and test RO/RW partitions and how it mounts it and unmounts it
 
-// Keep a reference to the original version probe before any test overrides it
-var origGetSystemdBootMajorVersion = getSystemdBootMajorVersion
+// sdBootImage returns a systemd-boot stand-in whose PE MajorImageVersion is
+// major, so a spec can give the version probe a binary to read instead of
+// replacing the probe.
+func sdBootImage(major uint16) []byte {
+	return testartifacts.MinimalPE(testartifacts.PEOptions{MajorImageVersion: major})
+}
 
 var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 	var config *sdkConfig.Config
@@ -108,9 +113,8 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			err = fs.WriteFile("/proc/cmdline", []byte("rd.immucore.uki"), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
-			// Reset the version probe to the default (0 = unknown → 257+ behaviour)
-			// so tests are isolated from each other.
-			getSystemdBootMajorVersion = func(_ string) uint16 { return 0 }
+			// No systemd-boot binary is planted on the ESP, so the version probe
+			// reads nothing and reports 0, which is the unknown and 257+ path.
 		})
 		Context("ListBootEntries", func() {
 			It("fails to list the boot entries when there is no loader.conf", func() {
@@ -434,7 +438,12 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			// systemd-boot 256 requires the boot assessment suffix in the EFI variable entry ID.
 			Context("systemd-boot 256 workaround", func() {
 				BeforeEach(func() {
-					getSystemdBootMajorVersion = func(_ string) uint16 { return 256 }
+					// Plant a systemd-boot 256 binary on the ESP, under the name
+					// the configured architecture asks for, so the probe reads
+					// the version out of the test filesystem.
+					Expect(fs.WriteFile(
+						filepath.Join("/efi/EFI/BOOT", cnst.GetSystemdBootFallBackEfi(config.Arch)),
+						sdBootImage(256), os.ModePerm)).To(Succeed())
 				})
 
 				It("includes the assessment suffix in the EFI var for a default installation", func() {
@@ -588,7 +597,40 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 
 	Context("getSystemdBootMajorVersion", func() {
 		It("returns 0 when the systemd-boot binary cannot be read", func() {
-			Expect(origGetSystemdBootMajorVersion("/nonexistent")).To(Equal(uint16(0)))
+			Expect(getSystemdBootMajorVersion(config, "/nonexistent")).To(Equal(uint16(0)))
+		})
+
+		It("says which path it could not read, so 0 is not silent", func() {
+			config.Arch = cnst.ArchRiscv64
+			Expect(getSystemdBootMajorVersion(config, "/efi")).To(Equal(uint16(0)))
+			Expect(memLog.String()).To(ContainSubstring("/efi/EFI/BOOT/BOOTRISCV64.EFI"))
+		})
+
+		DescribeTable("reads the binary the architecture names",
+			func(arch, name string) {
+				config.Arch = arch
+				Expect(fs.WriteFile(filepath.Join("/efi/EFI/BOOT", name), sdBootImage(257), os.ModePerm)).To(Succeed())
+
+				Expect(getSystemdBootMajorVersion(config, "/efi")).To(Equal(uint16(257)))
+			},
+			Entry("amd64", cnst.ArchAmd64, "BOOTX64.EFI"),
+			Entry("arm64", cnst.ArchArm64, "BOOTAA64.EFI"),
+			Entry("riscv64", cnst.ArchRiscv64, "BOOTRISCV64.EFI"),
+		)
+
+		It("reads the version the binary carries, so 256 is told apart from 257", func() {
+			name := filepath.Join("/efi/EFI/BOOT", cnst.GetSystemdBootFallBackEfi(config.Arch))
+			Expect(fs.WriteFile(name, sdBootImage(256), os.ModePerm)).To(Succeed())
+
+			Expect(getSystemdBootMajorVersion(config, "/efi")).To(Equal(uint16(256)))
+		})
+
+		It("does not find the amd64 binary when the config says riscv64", func() {
+			Expect(fs.WriteFile("/efi/EFI/BOOT/BOOTX64.EFI", sdBootImage(257), os.ModePerm)).To(Succeed())
+			config.Arch = cnst.ArchRiscv64
+
+			Expect(getSystemdBootMajorVersion(config, "/efi")).To(Equal(uint16(0)))
+			Expect(memLog.String()).To(ContainSubstring("/efi/EFI/BOOT/BOOTRISCV64.EFI"))
 		})
 	})
 
