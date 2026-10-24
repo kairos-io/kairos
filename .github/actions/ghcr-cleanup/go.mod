@@ -10,7 +10,7 @@ module github.com/kairos-io/kairos/.github/actions/ghcr-cleanup
 go 1.26.0
 
 require (
-	github.com/onsi/ginkgo/v2 v2.32.2
+	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.43.0
 )
 
