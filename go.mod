@@ -32,7 +32,7 @@ require (
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/mdns v1.0.7
 	github.com/itchyny/gojq v0.12.19
-	github.com/jaypipes/ghw v0.25.0
+	github.com/jaypipes/ghw v0.26.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kairos-io/go-nodepair v0.3.0
 	github.com/kairos-io/tpm-helpers v0.0.0-20260922065406-012adaae3798
