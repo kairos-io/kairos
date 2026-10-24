@@ -11,7 +11,7 @@ require (
 	github.com/mudler/edgevpn v0.35.5
 	github.com/mudler/go-processmanager v0.1.2
 	github.com/onsi/ginkgo/v2 v2.32.2
-	github.com/onsi/gomega v1.43.0
+	github.com/onsi/gomega v1.44.0
 	github.com/spectrocloud/peg v0.0.0-20260813125620-d8627da0983c
 	golang.org/x/crypto v0.57.0
 	gopkg.in/yaml.v3 v3.0.1
