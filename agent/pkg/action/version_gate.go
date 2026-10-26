@@ -63,8 +63,10 @@ func RefuseIfTargetIsDowngrade(currentStr, targetStr string) error {
 }
 
 // gitDescribeSuffix matches the "-<commits>-g<sha>" that `git describe`
-// appends after the tag, and the optional "-dirty" after that.
-var gitDescribeSuffix = regexp.MustCompile(`^(.+)-([0-9]+)-g[0-9a-f]+(-dirty)?$`)
+// appends after the tag, and the optional "-dirty" after that. It also
+// matches the "+<commits>.g<sha>" form the root Makefile stamps since
+// (BINARY_VERSION), so builds past the same tag stay ordered.
+var gitDescribeSuffix = regexp.MustCompile(`^(.+)(?:-([0-9]+)-|\+([0-9]+)\.)g[0-9a-f]+(-dirty)?$`)
 
 // parseKairosInitVersionForCompare splits a `git describe` version into
 // the tag it was built from and how many commits past that tag it is, so
@@ -73,7 +75,7 @@ var gitDescribeSuffix = regexp.MustCompile(`^(.+)-([0-9]+)-g[0-9a-f]+(-dirty)?$`
 func parseKairosInitVersionForCompare(s string) (*semver.Version, int, error) {
 	tag, ahead := s, 0
 	if m := gitDescribeSuffix.FindStringSubmatch(s); m != nil {
-		n, err := strconv.Atoi(m[2])
+		n, err := strconv.Atoi(m[2] + m[3])
 		if err != nil {
 			return nil, 0, err
 		}
