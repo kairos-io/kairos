@@ -117,10 +117,13 @@ jobs:
           ]'
           cells=$(jq -c --argjson e "$extras" '. + $e' <<<"$cells")
           if [[ "$SCOPE" == "full" ]]; then
+            # fedorariscv/base:42 is left out for now: under QEMU it runs
+            # 2h+ and holds master (and with it the release) pending. Add
+            #   {"platform":"riscv64","base_image":"fedorariscv/base:42","model":"generic","fips":false}
+            # back here to bring it back.
             riscv_extras='[
               {"platform":"riscv64","base_image":"ubuntu:24.04","model":"generic","fips":false},
-              {"platform":"riscv64","base_image":"debian:13","model":"generic","fips":false},
-              {"platform":"riscv64","base_image":"fedorariscv/base:42","model":"generic","fips":false}
+              {"platform":"riscv64","base_image":"debian:13","model":"generic","fips":false}
             ]'
             cells=$(jq -c --argjson e "$riscv_extras" '. + $e' <<<"$cells")
           fi

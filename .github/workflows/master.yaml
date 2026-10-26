@@ -78,10 +78,11 @@ jobs:
       matrix_scope: full
 
   # Flavor smoke matrix. Same shape as pr-full.yaml's build-flavors, with
-  # matrix_scope: full so the riscv64 cells (ubuntu:24.04, debian:13,
-  # fedorariscv:42) also run -- their kairos-init tarball only exists
-  # at this scope. Runs in parallel with build-image-kairos-init /
-  # build-iso / test-* for the same reason as in pr-full.yaml.
+  # matrix_scope: full so the riscv64 cells (ubuntu:24.04, debian:13)
+  # also run -- their kairos-init tarball only exists at this scope.
+  # fedorariscv:42 is disabled for now, see _build-flavors.yaml. Runs in
+  # parallel with build-image-kairos-init / build-iso / test-* for the
+  # same reason as in pr-full.yaml.
   build-flavors:
     needs: build-kairos-init
     uses: ./.github/workflows/_build-flavors.yaml
