@@ -77,8 +77,8 @@ reason = "no-fix-available: golang.org/x/crypto. No fixed version published at a
 # These are package overrides, not IgnoredVulns: an IgnoredVulns entry drops an
 # advisory ID for the whole scan, which would also hide it in the binaries built
 # from this repo. An override matches one package at one version, and only the
-# prebuilt edgevpn carries these versions (this repo builds with Go 1.26.9 and
-# x/net v0.60.0). Covers 15 advisories: GO-2026-6599, -6600, -6603, -6604,
+# prebuilt edgevpn carries these versions (this repo builds with Go 1.27.3 and
+# x/net v0.61.0). Covers 15 advisories: GO-2026-6599, -6600, -6603, -6604,
 # -6605, -6607, -6608, -6609, -6610, -6611, -6612, -6613 and -6617 (stdlib and
 # x/net) and GHSA-g35j-m5xg-vh3q / GO-2026-6099 (webtransport-go).
 # ---------------------------------------------------------------------------
@@ -106,3 +106,16 @@ version = "0.10.0"
 ignore = true
 effectiveUntil = 2026-11-19
 reason = "upstream-fix-pending: webtransport-go v0.10.0, fixed in v0.11.1 (CVE-2026-57497, GHSA-g35j-m5xg-vh3q / GO-2026-6099). Only in the prebuilt edgevpn v0.35.5 binary, built with Go 1.26.7; no newer edgevpn release yet. Fix is mudler/edgevpn#1083."
+
+# The same prebuilt edgevpn v0.35.5 also carries labstack/echo/v4 v4.15.4 (its
+# api package). provider-kairos, the other binary that links echo/v4, is built
+# here and now carries v4.16.1. edgevpn master is still on v4.15.4 and has no
+# PR bumping it; drop this with the section above once an edgevpn release
+# carries echo v4.16.1 or later.
+[[PackageOverrides]]
+name = "github.com/labstack/echo/v4"
+ecosystem = "Go"
+version = "4.15.4"
+ignore = true
+effectiveUntil = 2026-11-19
+reason = "upstream-fix-pending: labstack/echo/v4 v4.15.4, fixed in v4.16.1 (GHSA-9969-6676-49h5, GHSA-cxf3-9h37-7rr8, GHSA-f48p-c9v4-h7xv, GHSA-h7wr-284f-5qvc). Only in the prebuilt edgevpn v0.35.5 binary; edgevpn master has not taken the bump yet."
