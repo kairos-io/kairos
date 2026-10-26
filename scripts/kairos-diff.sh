@@ -298,16 +298,15 @@ populate_dep_versions() {
   load_makefile_versions_from_content "$makefile" "$map_name"
   load_gomod_versions_from_content "$gomod" "$map_name"
 
-  # Post-migration Makefile writes EDGEVPN_VERSION := $(shell cat EDGEVPN_VERSION),
-  # which is only meaningful at make-time. The truth is in the sidecar file.
+  # The edgevpn binary kairos-init bundles is pinned in the sidecar file. The
+  # Makefile only says $(shell cat EDGEVPN_VERSION), and go.mod pins the
+  # edgevpn library, which can be a different version. So the file wins
+  # whenever the ref has it.
   if [[ "$intree" == "1" ]]; then
-    local current
-    current="$(get_assoc_entry "$map_name" "edgevpn")"
-    # shellcheck disable=SC2016 # literal '$(shell' match, not command substitution
-    if [[ -z "$current" || "$current" == *'$(shell'* ]]; then
-      local edgevpn_file
-      edgevpn_file="$(get_intree_content "$kairos_ref" "kairos-init/EDGEVPN_VERSION" 2>/dev/null | head -n 1 | tr -d '[:space:]')"
-      [[ -n "$edgevpn_file" ]] && set_assoc_entry "$map_name" "edgevpn" "$edgevpn_file"
+    local edgevpn_file
+    edgevpn_file="$(get_intree_content "$kairos_ref" "kairos-init/EDGEVPN_VERSION" 2>/dev/null | head -n 1 | tr -d '[:space:]')"
+    if [[ -n "$edgevpn_file" ]]; then
+      set_assoc_entry "$map_name" "edgevpn" "$edgevpn_file"
     fi
   fi
 }
@@ -594,6 +593,11 @@ append_component_section() {
   fi
   append_section_changes "$out_file" "$heading" "$body"
 }
+
+# Sourced (by scripts/kairos-diff_test.sh): define the functions, run nothing.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
 
 OLD_REF=""
 NEW_REF=""

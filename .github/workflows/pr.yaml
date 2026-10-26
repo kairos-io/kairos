@@ -49,6 +49,17 @@ jobs:
   lint:
     uses: ./.github/workflows/_lint.yaml
 
+  # scripts/kairos-diff.sh writes the release notes. Its test needs only git.
+  kairos-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the release notes diff script
+        run: scripts/kairos-diff_test.sh
+
   # The slim pipeline only builds and tests a non-FIPS amd64 ISO, so the
   # builds below skip arm64 and FIPS (pr-full.yaml keeps both).
   build-kairos:
