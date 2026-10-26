@@ -44,6 +44,7 @@ import (
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
+	"github.com/mholt/archives"
 )
 
 // Elemental is the struct meant to self-contain most utils and actions related to Elemental, like installing or applying selinux
@@ -585,11 +586,13 @@ func (e *Elemental) imageFromOCILayoutArchive(archivePath string) (ggcrv1.Image,
 	return img, release, nil
 }
 
-// extractOCILayoutArchive unpacks the archive at archivePath under dir. An OCI
-// layout holds only regular files and directories, so any other kind of entry
-// is refused, and so is an entry whose name is absolute or climbs out of dir.
-// Doing this in Go rather than through tar keeps the ocifile source from
-// depending on a tar binary on the running system.
+// ociLayoutExtractTimeout bounds how long unpacking a local OCI layout archive
+// may take, so a stalled read fails the install instead of hanging it.
+const ociLayoutExtractTimeout = 30 * time.Minute
+
+// extractOCILayoutArchive unpacks the archive at archivePath under dir. Doing
+// this in Go rather than through tar keeps the ocifile source from depending
+// on a tar binary on the running system.
 func extractOCILayoutArchive(archivePath, dir string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
@@ -597,46 +600,50 @@ func extractOCILayoutArchive(archivePath, dir string) error {
 	}
 	defer func() { _ = f.Close() }()
 
-	tr := tar.NewReader(f)
-	for {
-		hdr, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), ociLayoutExtractTimeout)
+	defer cancel()
 
-		if !filepath.IsLocal(hdr.Name) {
-			return fmt.Errorf("entry %q points outside the archive", hdr.Name)
-		}
-		target := filepath.Join(dir, hdr.Name)
-
-		switch hdr.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o755); err != nil {
-				return err
-			}
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-				return err
-			}
-			if err := writeArchiveEntry(target, tr); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("entry %q is not a regular file or a directory, which an OCI layout does not hold", hdr.Name)
-		}
+	writeEntry := func(_ context.Context, entry archives.FileInfo) error {
+		return writeOCILayoutEntry(dir, entry)
 	}
+	return archives.Tar{}.Extract(ctx, f, writeEntry)
 }
 
-// writeArchiveEntry creates path and copies the current archive entry into it.
-func writeArchiveEntry(path string, r io.Reader) error {
+// writeOCILayoutEntry writes one archive entry under dir. An OCI layout holds
+// only regular files and directories, so any other kind of entry is refused,
+// and so is an entry whose name is absolute or climbs out of dir.
+func writeOCILayoutEntry(dir string, entry archives.FileInfo) error {
+	name := entry.NameInArchive
+	if !filepath.IsLocal(name) {
+		return fmt.Errorf("entry %q points outside the archive", name)
+	}
+	target := filepath.Join(dir, name)
+
+	if entry.IsDir() {
+		return os.MkdirAll(target, 0o755)
+	}
+	if !entry.Mode().IsRegular() {
+		return fmt.Errorf("entry %q is not a regular file or a directory, which an OCI layout does not hold", name)
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	return copyArchiveEntry(target, entry)
+}
+
+// copyArchiveEntry creates path and copies the archive entry into it.
+func copyArchiveEntry(path string, entry archives.FileInfo) error {
+	in, err := entry.Open()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = in.Close() }()
+
 	out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, r); err != nil {
+	if _, err := io.Copy(out, in); err != nil {
 		_ = out.Close()
 		return err
 	}
