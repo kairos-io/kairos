@@ -79,8 +79,10 @@ func (c *RemoteAttestationClient) HandleChallenge(challenge *Challenge, pcrs []i
 		return nil, err
 	}
 
-	// Generate PCR quote
-	pcrQuote, err := c.akm.GeneratePCRQuote(pcrs)
+	// Generate PCR quote. The activation secret is the nonce: the server
+	// made it fresh for this exchange and only this TPM could recover it,
+	// so a quote recorded on an earlier boot does not verify.
+	pcrQuote, err := c.akm.GeneratePCRQuote(pcrs, secret)
 	if err != nil {
 		return nil, err
 	}
