@@ -251,6 +251,21 @@ jobs:
             cat "${output_file}"
           } > combined_body.md
 
+          # GitHub rejects a release body over 125000 characters with HTTP 422
+          # (v4.3.0 did). Byte count is an upper bound on the character count.
+          # When the diff does not fit, attach it as a release asset and link it.
+          if [ "$(wc -c < combined_body.md)" -gt 125000 ]; then
+            echo "Release body would exceed 125000 characters. Attaching ${output_file} as an asset instead."
+            gh release upload "$CURRENT_TAG" "${output_file}" --repo "${{ github.repository }}" --clobber
+            {
+              cat current_body.md
+              echo
+              echo "$header"
+              echo
+              echo "The full list is too long for the release description. See [${output_file}](${{ github.server_url }}/${{ github.repository }}/releases/download/${CURRENT_TAG}/${output_file})."
+            } > combined_body.md
+          fi
+
           gh release edit "$CURRENT_TAG" --repo "${{ github.repository }}" --notes-file combined_body.md
           echo "appended=true" >> "$GITHUB_OUTPUT"
         env:
