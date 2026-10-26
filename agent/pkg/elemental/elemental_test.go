@@ -819,12 +819,10 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		It("Deploys an squashfs image from a directory", func() {
 			img.FS = cnst.SquashFs
 			Expect(el.DeployImage(img, true)).To(BeNil())
-			Expect(runner.MatchMilestones([][]string{
-				{
-					"mksquashfs", "/tmp/elemental-tmp", "/tmp/elemental/image.img",
-					"-b", "1024k", "-comp", "gzip",
-				},
-			}))
+			// The source is a temp directory with a random suffix, so assert
+			// the arguments that are fixed. There is no -comp: Sanitize drops
+			// the compression options unless squash-no-compression is off.
+			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
 		})
 		It("Deploys a file image and mounts it", func() {
 			sourceImg := "/source.img"
@@ -865,12 +863,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			img.FS = cnst.SquashFs
 			_, err := el.DeployImage(img, true)
 			Expect(err).NotTo(BeNil())
-			Expect(runner.MatchMilestones([][]string{
-				{
-					"mksquashfs", "/tmp/elemental-tmp", "/tmp/elemental/image.img",
-					"-b", "1024k", "-comp", "gzip",
-				},
-			}))
+			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
 		})
 		It("Fails formatting the image", func() {
 			cmdFail = "mkfs.ext2"
@@ -924,14 +917,14 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			config.Cosign = true
 			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
 			Expect(err).To(BeNil())
-			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}}))
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}})).To(BeNil())
 		})
 		It("Fails cosign validation", Label("cosign"), func() {
 			runner.ReturnError = errors.New("cosign error")
 			config.Cosign = true
 			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
 			Expect(err).NotTo(BeNil())
-			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}}))
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}})).To(BeNil())
 		})
 		It("Unpacks a docker save archive to target", Label("docker"), func() {
 			runner.ClearCmds()
@@ -1051,7 +1044,12 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(err).To(BeNil())
 			_, err = e.DumpSource(destFile, sdkImages.NewFileSrc(sourceImg))
 			Expect(err).To(BeNil())
-			Expect(runner.IncludesCmds([][]string{{cnst.Rsync}}))
+			// A file source is copied in process by utils.CopyFile. rsync is
+			// only reached for a directory source, so nothing is shelled out
+			// here and the assertion is on the file that landed.
+			Expect(runner.IncludesCmds([][]string{{cnst.Rsync}})).NotTo(BeNil())
+			_, err = fs.Stat(destFile)
+			Expect(err).To(BeNil())
 		})
 		It("Fails to copy, source file is not present", func() {
 			_, err := e.DumpSource("whatever", sdkImages.NewFileSrc("/source.img"))
@@ -1127,7 +1125,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			c := elemental.NewElemental(config)
 			Expect(c.SelinuxRelabel("/", true)).To(BeNil())
-			Expect(runner.CmdsMatch([][]string{{}}))
+			Expect(runner.CmdsMatch([][]string{})).To(BeNil())
 		})
 		It("does nothing if the policy file is not found", func() {
 			err := fs.Remove(policyFile)
@@ -1135,7 +1133,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			c := elemental.NewElemental(config)
 			Expect(c.SelinuxRelabel("/", true)).To(BeNil())
-			Expect(runner.CmdsMatch([][]string{{}}))
+			Expect(runner.CmdsMatch([][]string{})).To(BeNil())
 		})
 		It("relabels the current root", func() {
 			c := elemental.NewElemental(config)
@@ -1188,8 +1186,15 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			sbin, err := fs.RawPath("/usr/sbin")
 			Expect(err).ShouldNot(HaveOccurred())
 
-			path := os.Getenv("PATH")
-			os.Setenv("PATH", fmt.Sprintf("%s:%s", sbin, path))
+			// PATH is replaced, not prepended: a host that ships its own
+			// chcon would otherwise keep satisfying CommandExists after the
+			// mock is removed, and "does nothing if chcon is not available"
+			// would run the command it asserts never runs.
+			origPath := os.Getenv("PATH")
+			os.Setenv("PATH", sbin)
+			DeferCleanup(func() {
+				os.Setenv("PATH", origPath)
+			})
 			_, err = fs.Create("/usr/sbin/chcon")
 			Expect(err).ShouldNot(HaveOccurred())
 			err = fs.Chmod("/usr/sbin/chcon", 0o777)
@@ -1213,7 +1218,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		It("does nothing if the image does not exist", func() {
 			c := elemental.NewElemental(config)
 			c.LabelStateImage(filepath.Join(stateDir, cnst.PassiveImgFile))
-			Expect(runner.CmdsMatch([][]string{{}}))
+			Expect(runner.CmdsMatch([][]string{})).To(BeNil())
 		})
 		It("does nothing if chcon is not available", func() {
 			imgFile := filepath.Join(stateDir, cnst.PassiveImgFile)
@@ -1224,7 +1229,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			c := elemental.NewElemental(config)
 			c.LabelStateImage(imgFile)
-			Expect(runner.CmdsMatch([][]string{{}}))
+			Expect(runner.CmdsMatch([][]string{})).To(BeNil())
 		})
 		It("does not raise on chcon failure", func() {
 			imgFile := filepath.Join(stateDir, cnst.PassiveImgFile)
@@ -1433,6 +1438,18 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		})
 	})
 })
+
+// squashfsArgs returns the mksquashfs arguments after the source directory.
+// DeployImage builds that directory with a random suffix, so a spec can only
+// assert on the destination and the options that follow it.
+func squashfsArgs(runner *v1mock.FakeRunner) []string {
+	for _, cmd := range runner.Cmds() {
+		if cmd[0] == "mksquashfs" {
+			return cmd[2:]
+		}
+	}
+	return nil
+}
 
 // realRunner lets a spec that needs a command to have actually run use the fake
 // runner for its bookkeeping and the host for the work.
