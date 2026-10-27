@@ -177,6 +177,43 @@ kubevip:
 		Expect(manifest).To(ContainSubstring(":9100"))
 	})
 
+	// kube-vip exits with "multiple kube-vip modes detected" when more than
+	// one of these is on, leaving the node without its VIP.
+	enabledModes := func() []string {
+		var modes []string
+		if initConfig.EnableARP {
+			modes = append(modes, "ARP")
+		}
+		if initConfig.EnableBGP {
+			modes = append(modes, "BGP")
+		}
+		if initConfig.EnableWireguard {
+			modes = append(modes, "Wireguard")
+		}
+		if initConfig.EnableRoutingTable {
+			modes = append(modes, "RoutingTable")
+		}
+		return modes
+	}
+
+	It("runs kube-vip in BGP mode only when kubevip.enableBGP is set", func() {
+		cfg := decode("kubevip:\n  eip: 192.168.1.10\n  enableBGP: true\n")
+
+		manifest, err := generateKubeVIP("pod", "eth0", "192.168.1.10", cfg)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabledModes()).To(Equal([]string{"BGP"}))
+		Expect(manifest).To(MatchRegexp(`name: vip_arp\s+value: "false"`))
+	})
+
+	It("keeps ARP as the default mode", func() {
+		cfg := decode("kubevip:\n  eip: 192.168.1.10\n")
+
+		manifest, err := generateKubeVIP("pod", "eth0", "192.168.1.10", cfg)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabledModes()).To(Equal([]string{"ARP"}))
+		Expect(manifest).To(MatchRegexp(`name: vip_arp\s+value: "true"`))
+	})
+
 	It("keeps kubevip.interface pointing at the interface the provider reads", func() {
 		cfg := decode("kubevip:\n  eip: 192.168.1.10\n  interface: ens18\n")
 
