@@ -59,9 +59,8 @@ var cisAccountFiles = []cisAccountFile{
 // SELinux enforcing on RHEL is left for a follow-up ticket. pam_faillock and
 // pam_pwquality are wired into the PAM stack with each distro's own tool
 // (pam-auth-update on Debian/Ubuntu, authselect on the RHEL family,
-// pam-config for pwquality on SUSE); Hadron's system-auth loads faillock
-// itself, but Hadron ships no pam_pwquality.so, so pwquality.conf has no
-// effect there. SUSE gets no faillock (pam-config has no module for it) and
+// pam-config for pwquality on SUSE); Hadron's system-auth loads faillock and
+// pwquality itself. SUSE gets no faillock (pam-config has no module for it) and
 // Alpine images do not authenticate through PAM.
 func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Stage {
 	if config.ContainsSkipStep(values.CISHardeningStep) {
@@ -337,6 +336,18 @@ func getCISBenchmarkGapStages() []schema.Stage {
 				"grep -qE '^password[[:space:]].*pam_unix\\.so.*remember=' /etc/pam.d/system-auth || " +
 					"sed -i -E 's/^(password[[:space:]]+[^[:space:]]+[[:space:]]+pam_unix\\.so)[[:space:]]+(.*[^[:space:]])[[:space:]]*$/\\1 \\2 remember=5/' /etc/pam.d/system-auth",
 				"[ -e /etc/security/opasswd ] || install -m 0600 /dev/null /etc/security/opasswd",
+			},
+		},
+		{
+			// CIS 5.3.1. Hadron's system-auth already loads pam_pwquality
+			// with try_first_pass retry=3, but pads the module name into a
+			// column, and the benchmark wants a single space after
+			// pam_pwquality.so.
+			Name:     "Single-space the pam_pwquality arguments in the Hadron PAM stack",
+			OnlyIfOs: "Hadron.*",
+			If:       "test -f /etc/pam.d/system-auth",
+			Commands: []string{
+				"sed -i -E 's/^(password[[:space:]]+requisite[[:space:]]+pam_pwquality\\.so)[[:space:]]+/\\1 /' /etc/pam.d/system-auth",
 			},
 		},
 		{
