@@ -156,6 +156,7 @@ var BasePackagesModels = ModelPackageMap{
 					"packagekit-tools",
 					"parted",
 					"passwd",
+					"patch",
 					"pigz",
 					"pkg-config",
 					"policykit-1",

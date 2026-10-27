@@ -55,12 +55,6 @@ func TestBasePackagesExclude(t *testing.T) {
 			system:  System{Distro: OpenSUSETumbleweed, Family: SUSEFamily, Arch: ArchARM64, Version: "20250101"},
 			missing: "tmux",
 		},
-		{
-			name:    "orin nx without patch",
-			model:   OrinNX,
-			system:  System{Distro: Ubuntu, Family: DebianFamily, Arch: ArchARM64, Version: "22.04"},
-			missing: "patch",
-		},
 	}
 
 	for _, tc := range cases {
