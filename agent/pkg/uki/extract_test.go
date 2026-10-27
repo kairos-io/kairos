@@ -156,4 +156,3 @@ func buildRealCpio(t cpioHelperT, files map[string]cpioFile) []byte {
 	}
 	return stdout.Bytes()
 }
-

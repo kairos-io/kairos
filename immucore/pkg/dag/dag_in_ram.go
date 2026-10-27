@@ -73,8 +73,14 @@ func RegisterInRAMBoot(s *state.State, g *herd.Graph) error {
 	// Mount custom overlays loaded from the /run/cos/cos-layout.env file
 	s.LogIfError(s.MountCustomOverlayDagStep(g), "custom overlays mount")
 
+	// An in-RAM node keeps its persistent state on the local disk, so a
+	// write-protected disk needs the same snapshot here as on a normal boot.
+	if s.WriteProtected {
+		s.LogIfError(s.MountPersistentSnapshotDagStep(g), "persistent snapshot")
+	}
+
 	// Mount custom mounts — this is what mounts COS_PERSISTENT rw at /usr/local.
-	s.LogIfError(s.MountCustomMountsDagStep(g), "custom mounts mount")
+	s.LogIfError(s.MountCustomMountsDagStep(g, s.WriteProtectedSnapshotDeps()...), "custom mounts mount")
 
 	// Bind mounts backed by the persistent-state target (COS_PERSISTENT).
 	s.LogIfError(s.MountCustomBindsDagStep(g), "custom binds mount")

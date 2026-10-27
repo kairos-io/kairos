@@ -60,6 +60,18 @@ func (r *FakeRunner) ClearCmds() {
 	r.cmds = [][]string{}
 }
 
+// Cmds returns a copy of the commands the runner recorded, in order. Specs
+// that have to assert on an argument the test cannot predict -- a path with a
+// random suffix, say -- read them here, because CmdsMatch, IncludesCmds and
+// MatchMilestones all compare literal prefixes.
+func (r FakeRunner) Cmds() [][]string {
+	out := make([][]string, len(r.cmds))
+	for i, cmd := range r.cmds {
+		out[i] = append([]string(nil), cmd...)
+	}
+	return out
+}
+
 // CmdsMatch matches the commands list in order. Note HasPrefix is being used to evaluate the
 // match, so expecting initial part of the command is enough to get a match.
 // It facilitates testing commands with dynamic arguments (aka temporary files)
