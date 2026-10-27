@@ -5,6 +5,8 @@ users:
 - name: kairos
   # Set with: --set "kairos.password=<your password>"
   passwd: "[[[.kairos.password]]]"
+  groups:
+  - admin
   ssh_authorized_keys:
   # Set with: --set "github.user=<your github user>"
   - "github:[[[.github.user]]]"
