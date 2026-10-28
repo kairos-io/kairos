@@ -10,6 +10,11 @@ import (
 const (
 	K3sDistro = "k3s"
 	K0sDistro = "k0s"
+
+	// RoleNone is the value the Kairos schema used to advertise as the
+	// default for p2p.role. No role handler was ever registered for it, so
+	// it is treated as "no hardcoded role".
+	RoleNone = "none"
 )
 
 // DeprecatedKey names a key spelling that is still accepted, and the spelling
@@ -113,6 +118,17 @@ func (p *P2P) UnmarshalYAML(value *yaml.Node) error {
 // `disable_dht: true` turns it off.
 func (p P2P) IsDHTEnabled() bool {
 	return p.DHTEnabled == nil || *p.DHTEnabled
+}
+
+// HardcodedRole returns the role the user pinned this node to, or the empty
+// string when the node has to take its role from the p2p ledger. `none` maps
+// to the empty string: it was the schema's advertised default, so it is in the
+// wild, and nothing ever implemented it as a role.
+func (p P2P) HardcodedRole() string {
+	if p.Role == RoleNone {
+		return ""
+	}
+	return p.Role
 }
 
 func (p P2P) IsAutoEnabled() bool {
