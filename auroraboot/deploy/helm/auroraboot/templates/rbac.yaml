@@ -1,0 +1,42 @@
+{{- include "auroraboot.requireHost" . -}}
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "auroraboot.fullname" . }}
+  namespace: {{ include "auroraboot.builderNamespace" . }}
+  labels:
+    {{- include "auroraboot.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["build.kairos.io"]
+    resources: ["osartifacts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "auroraboot.fullname" . }}
+  namespace: {{ include "auroraboot.builderNamespace" . }}
+  labels:
+    {{- include "auroraboot.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "auroraboot.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "auroraboot.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end -}}

@@ -1,0 +1,100 @@
+name: Build AuroraBoot
+
+# Reusable step: the AuroraBoot binary, built natively for linux/amd64 and
+# linux/arm64 and packed as auroraboot_<version>_linux_<arch>.tar.gz, the file
+# name AuroraBoot releases have always had. Each architecture uploads the
+# workflow artifact auroraboot-linux-<arch>, which _upload-release.yaml
+# attaches to the GitHub release.
+#
+# The build needs cgo, because sbctl pulls in go-piv (libpcsclite) and the
+# server uses go-sqlite3, and it embeds the web UI through the `ui` build tag.
+# Each architecture builds on a runner of its own, so there is no cross
+# toolchain to keep.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version compiled into the binary and used in the archive name, e.g. v4.5.1'
+        type: string
+        default: 'dev'
+
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref)'
+        type: string
+        default: ''
+
+      caller-vetted-ref:
+        description: |
+          Caller assertion required to unlock actions/checkout's
+          `allow-unsafe-pr-checkout` opt-in. Set to `true` ONLY if
+          the caller has its own authorization gate in front of
+          this workflow -- e.g. a `pull_request_target` pipeline
+          whose `authorize` job pins the run to a GitHub
+          Environment that requires maintainer review before the
+          fork's `ref` is fetched. Without such a gate, leaving
+          this false keeps the `pull_request_target` + fork-ref
+          combination blocked at checkout time (the guard
+          described at https://gh.io/securely-using-pull_request_target).
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-26.04}
+          - {arch: arm64, runner: ubuntu-26.04-arm}
+    name: build / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: auroraboot/go.mod
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: auroraboot/ui/package-lock.json
+
+      - name: Install libpcsclite
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite-dev
+
+      - name: Build the web UI
+        working-directory: auroraboot/ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build and pack the binary
+        env:
+          VERSION: ${{ inputs.version }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/bin dist/archives
+          (cd auroraboot && CGO_ENABLED=1 go build -tags ui -ldflags "-s -w -X main.version=${VERSION}" -o "$GITHUB_WORKSPACE/dist/bin/auroraboot" .)
+          tar -czf "dist/archives/auroraboot_${VERSION#v}_linux_${ARCH}.tar.gz" -C dist/bin auroraboot
+          ls -l dist/archives
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: auroraboot-linux-${{ matrix.arch }}
+          path: dist/archives/*

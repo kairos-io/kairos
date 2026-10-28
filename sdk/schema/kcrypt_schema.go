@@ -5,12 +5,16 @@ package schema
 // encrypted and unlocked: locally against the TPM, or remotely through a
 // kcrypt-challenger key management server.
 type KcryptSchema struct {
-	_             struct{}               `title:"Kairos Schema: Kcrypt block" description:"The kcrypt block configures partition encryption: local TPM settings, the optional challenger key management server, and the boot time encryption opt-in."`
-	Challenger    KcryptChallengerSchema `json:"challenger,omitempty"`
-	NVIndex       string                 `json:"nv_index,omitempty" description:"TPM NV index where the encoded key blob is stored for local TPM encryption."`
-	CIndex        string                 `json:"c_index,omitempty" description:"TPM NV index used as the RSA certificate index for local TPM encryption."`
-	TPMDevice     string                 `json:"tpm_device,omitempty" description:"Path of the TPM device to use, when the default does not fit."`
-	EncryptOnBoot bool                   `json:"encrypt_on_boot,omitempty" description:"Encrypt the partitions listed in install.encrypted_partitions that are still plaintext on boot, before they are mounted. Encrypting destroys the current contents of those partitions. With this set, a partition that cannot be encrypted halts the boot instead of continuing on plaintext."`
+	_                  struct{}               `title:"Kairos Schema: Kcrypt block" description:"The kcrypt block configures partition encryption: local TPM settings, the optional challenger key management server, and the boot time encryption opt-in."`
+	Challenger         KcryptChallengerSchema `json:"challenger,omitempty"`
+	NVIndex            string                 `json:"nv_index,omitempty" description:"TPM NV index where the encoded key blob is stored for local TPM encryption."`
+	CIndex             string                 `json:"c_index,omitempty" description:"TPM NV index used as the RSA certificate index for local TPM encryption."`
+	TPMDevice          string                 `json:"tpm_device,omitempty" description:"Path of the TPM device to use, when the default does not fit."`
+	Method             string                 `json:"method,omitempty" enum:"[\"\",\"passphrase\"]" description:"How the partitions are encrypted and unlocked. passphrase: with a passphrase a person chose, read from passphrase_file at install time and asked for on the console at every boot; no TPM or key server is needed. Leave empty for the TPM or the challenger."`
+	PassphraseFile     string                 `json:"passphrase_file,omitempty" description:"File that holds the passphrase when method is passphrase. Read once, when the partitions are encrypted. Keep it out of the configuration and delete it after the install: the install configuration is saved to the unencrypted OEM partition."`
+	PassphraseFallback bool                   `json:"passphrase_fallback,omitempty" description:"When the TPM or the challenger cannot unlock a partition, ask for a passphrase on the console before failing the boot. The partition needs a passphrase in one of its LUKS keyslots."`
+	PassphraseTimeout  int                    `json:"passphrase_timeout,omitempty" description:"Seconds the passphrase_fallback prompt waits before the boot fails. Defaults to 300."`
+	EncryptOnBoot      bool                   `json:"encrypt_on_boot,omitempty" description:"Encrypt the partitions listed in install.encrypted_partitions that are still plaintext on boot, before they are mounted. Encrypting destroys the current contents of those partitions. With this set, a partition that cannot be encrypted halts the boot instead of continuing on plaintext."`
 }
 
 // KcryptChallengerSchema represents the kcrypt.challenger block: the remote

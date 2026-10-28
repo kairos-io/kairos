@@ -1041,39 +1041,40 @@ var _ = Describe("GetSourceSize", Label("GetSourceSize"), func() {
 		Expect(memLog.String()).ToNot(ContainSubstring(filepath.Join(tempDir, "host", "one")))
 		Expect(memLog.String()).ToNot(ContainSubstring(filepath.Join(tempDir, "host", "two")))
 	})
-	It("Counts the kubernetes host dir when calculating the sizes if not set", func() {
+	It("Skips the dirs that the copy excludes, relative to the source", func() {
 		sizeBefore, err := config.GetSourceSize(conf, imageSource)
 		Expect(err).To(BeNil())
 		Expect(sizeBefore).ToNot(BeZero())
 
-		Expect(os.Mkdir(filepath.Join(tempDir, "host"), os.ModePerm)).ToNot(HaveOccurred())
-		Expect(createFileOfSizeInMB(filepath.Join(tempDir, "host", "what.txt"), 200)).ToNot(HaveOccurred())
+		for _, dir := range []string{"run", "sys", "proc", "dev", "mnt", "tmp", "host"} {
+			Expect(os.MkdirAll(filepath.Join(tempDir, dir, "sub"), os.ModePerm)).ToNot(HaveOccurred())
+			Expect(createFileOfSizeInMB(filepath.Join(tempDir, dir, "sub", "what.txt"), 200)).ToNot(HaveOccurred())
+		}
 
 		sizeAfter, err := config.GetSourceSize(conf, imageSource)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(sizeAfter).ToNot(Equal(sizeBefore))
-		Expect(sizeAfter).ToNot(BeZero())
-		// Size is 2 files of 200 + 100MB on top, normalized from bytes to MB
-		// So take those 200MB, converts to bytes by multiplying them (400*1024*1024), then back to MB by dividing
-		// what we get (/1024/1024) then we finish by adding and extra 100MB on top, like the GetSourceSize does internally
-		Expect(sizeAfter).To(Equal(int64(400 + 100)))
+		Expect(sizeAfter).To(Equal(sizeBefore))
 	})
-	It("Does not skip the dirs if outside of kubernetes", func() {
-		sizeBefore, err := config.GetSourceSize(conf, imageSource)
-		Expect(err).To(BeNil())
-		Expect(sizeBefore).ToNot(BeZero())
-
-		// Not inside kubernetes so it should count this dir
-		Expect(os.Mkdir(filepath.Join(tempDir, "run"), os.ModePerm)).ToNot(HaveOccurred())
-		Expect(createFileOfSizeInMB(filepath.Join(tempDir, "run", "what.txt"), 200)).ToNot(HaveOccurred())
+	It("Counts a dir whose name only starts with the name of an excluded dir", func() {
+		// The excluded names are matched as whole path elements. /sysroot starts with /sys
+		// but is a different dir that belongs to the system, so it must be counted.
+		// A plain string prefix check would skip it and undersize the image.
+		Expect(os.Mkdir(filepath.Join(tempDir, "sysroot"), os.ModePerm)).ToNot(HaveOccurred())
+		Expect(createFileOfSizeInMB(filepath.Join(tempDir, "sysroot", "what.txt"), 200)).ToNot(HaveOccurred())
 
 		sizeAfter, err := config.GetSourceSize(conf, imageSource)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(sizeAfter).ToNot(Equal(sizeBefore))
-		Expect(sizeAfter).ToNot(BeZero())
 		Expect(sizeAfter).To(Equal(int64(400 + 100)))
 	})
+	It("Keeps counting the siblings after an excluded entry that is not a directory", func() {
+		Expect(os.Symlink("var/tmp", filepath.Join(tempDir, "tmp"))).To(Succeed())
+		Expect(os.Mkdir(filepath.Join(tempDir, "usr"), os.ModePerm)).To(Succeed())
+		Expect(createFileOfSizeInMB(filepath.Join(tempDir, "usr", "what.txt"), 200)).To(Succeed())
 
+		sizeAfter, err := config.GetSourceSize(conf, imageSource)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sizeAfter).To(Equal(int64(400 + 100)))
+	})
 	It("calculates size for ocifile sources with 2x multiplier", func() {
 		// Create a test OCI tar file
 		ociTarFile := filepath.Join(tempDir, "test-image.tar")

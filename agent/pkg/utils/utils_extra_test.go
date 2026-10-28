@@ -42,6 +42,14 @@ import (
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
+// writeGrubModules writes every module copyGrubModules requires into dir.
+func writeGrubModules(fs vfs.FS, dir string) {
+	ExpectWithOffset(1, fsutils.MkdirAll(fs, dir, constants.DirPerm)).To(Succeed())
+	for _, m := range constants.GetGrubModules() {
+		ExpectWithOffset(1, fs.WriteFile(filepath.Join(dir, m), []byte(""), constants.FilePerm)).To(Succeed())
+	}
+}
+
 // failingMounter wraps the fake mounter to error out on IsLikelyNotMountPoint
 type failingMounter struct {
 	*v1mock.ErrorMounter
@@ -581,7 +589,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte(""), constants.FilePerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/grub.efi"), []byte(""), constants.FilePerm)).To(Succeed())
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			// One font present, the others missing so the warn path runs too.
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/unicode.pf2"), []byte("font"), constants.FilePerm)).To(Succeed())
 			// A font that matches by name but cannot be read (it is a dir),
@@ -607,7 +615,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte(""), constants.FilePerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/grub.efi"), []byte(""), constants.FilePerm)).To(Succeed())
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			// Debian and Ubuntu keep the fonts in an arch free directory,
 			// which is where every .pf2 of theirs lives.
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/grub/"), constants.DirPerm)).To(Succeed())
@@ -630,6 +638,13 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("did not find grub modules"))
 		})
+		It("fails in efi mode when one of the grub modules is missing", func() {
+			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			grub := utils.NewGrub(config)
+			err := grub.Install(target, rootDir, bootDir, constants.GrubConf, "", true, "")
+			Expect(err).To(MatchError(ContainSubstring("squash4.mod")))
+		})
 		It("fails in bios mode when the root dir does not exist", func() {
 			grub := utils.NewGrub(config)
 			err := grub.Install(target, "/nonexistent-root", bootDir, constants.GrubConf, "", false, "")
@@ -638,7 +653,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 		})
 		It("skips unreadable shim files in efi mode", func() {
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			// A shim path which stats fine but cannot be read as a file
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), constants.DirPerm)).To(Succeed())
 
@@ -649,7 +664,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 		})
 		It("fails in efi mode when the shim target cannot be written", func() {
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/efi/x86_64/"), constants.DirPerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte("shim"), constants.FilePerm)).To(Succeed())
 			// Block the shim write target with a directory
@@ -662,7 +677,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 		})
 		It("fails in efi mode when the shim fallback target cannot be written", func() {
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/efi/x86_64/"), constants.DirPerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte("shim"), constants.FilePerm)).To(Succeed())
 			// Block the fallback efi write target with a directory
@@ -675,7 +690,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 		})
 		It("skips unreadable grub efi files in efi mode", func() {
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/efi/x86_64/"), constants.DirPerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte("shim"), constants.FilePerm)).To(Succeed())
 			// A grub efi path which stats fine but cannot be read as a file
@@ -688,7 +703,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 		})
 		It("fails in efi mode when the grub efi target cannot be written", func() {
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/efi/x86_64/"), constants.DirPerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte("shim"), constants.FilePerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/grub.efi"), []byte("grub"), constants.FilePerm)).To(Succeed())
@@ -702,7 +717,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 		})
 		It("fails in efi mode when the efi grub.cfg cannot be written", func() {
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/share/efi/x86_64/"), constants.DirPerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/", constants.SignedShim), []byte("shim"), constants.FilePerm)).To(Succeed())
 			Expect(fs.WriteFile(filepath.Join(rootDir, "/usr/share/efi/x86_64/grub.efi"), []byte("grub"), constants.FilePerm)).To(Succeed())
@@ -716,7 +731,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 		})
 		It("fails in efi mode when the EFI dir cannot be created", func() {
 			Expect(fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)).To(Succeed())
-			Expect(fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)).To(Succeed())
+			writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 			// Block the EFI dir with a file
 			Expect(fsutils.MkdirAll(fs, filepath.Dir(constants.EfiDir), constants.DirPerm)).To(Succeed())
 			Expect(fs.WriteFile(constants.EfiDir, []byte(""), constants.FilePerm)).To(Succeed())

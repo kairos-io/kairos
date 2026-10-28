@@ -40,6 +40,25 @@ var _ = Describe("Kubernetes blocks", func() {
 				Expect(properties).To(HaveKey(block), "%q is read by provider config.Config but is not in RootSchema", block)
 			}
 		})
+
+		It("declares kubevip.manifest_sha256 as a string", func() {
+			generated, err := GenerateSchema(RootSchema{}, "")
+			Expect(err).ToNot(HaveOccurred())
+
+			var root struct {
+				Definitions map[string]struct {
+					Properties map[string]struct {
+						Type string `json:"type"`
+					} `json:"properties"`
+				} `json:"definitions"`
+			}
+			Expect(json.Unmarshal([]byte(generated), &root)).To(Succeed())
+
+			kubevip, ok := root.Definitions["SchemaKubeVIPSchema"]
+			Expect(ok).To(BeTrue(), "generated root schema has no SchemaKubeVIPSchema definition")
+			Expect(kubevip.Properties).To(HaveKey("manifest_sha256"))
+			Expect(kubevip.Properties["manifest_sha256"].Type).To(Equal("string"))
+		})
 	})
 
 	Context("with a value of the wrong type", func() {
@@ -61,6 +80,10 @@ var _ = Describe("Kubernetes blocks", func() {
 
 		It("rejects a kubevip.interface boolean, which the provider reads as a string", func() {
 			Expect(validates("kubevip:\n  interface: true\n")).To(BeFalse())
+		})
+
+		It("rejects a non-string kubevip.manifest_sha256", func() {
+			Expect(validates("kubevip:\n  manifest_sha256: 1234\n")).To(BeFalse())
 		})
 	})
 
@@ -96,7 +119,7 @@ var _ = Describe("Kubernetes blocks", func() {
 		})
 
 		It("accepts every kubevip key the provider reads", func() {
-			Expect(validates("kubevip:\n  eip: 192.168.1.110\n  manifest_url: https://example.com/kube-vip.yaml\n  interface: ens18\n  enable: true\n  static_pod: true\n  version: v0.6.4\n  image: ghcr.io/kube-vip/kube-vip:v0.6.4\n")).To(BeTrue())
+			Expect(validates("kubevip:\n  eip: 192.168.1.110\n  manifest_url: https://example.com/kube-vip.yaml\n  manifest_sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n  interface: ens18\n  enable: true\n  static_pod: true\n  version: v0.6.4\n  image: ghcr.io/kube-vip/kube-vip:v0.6.4\n")).To(BeTrue())
 		})
 	})
 })

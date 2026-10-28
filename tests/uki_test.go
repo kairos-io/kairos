@@ -94,6 +94,12 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 				Expect(err).ToNot(HaveOccurred(), out)
 			})
 
+			By("Checking the recovery hostname resolves locally", func() {
+				out, err := vm.Sudo("getent hosts cos-recovery")
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(out).To(ContainSubstring("127.0.0.1"))
+			})
+
 			By("Checking sysext was not copied during boot", func() {
 				out, err := vm.Sudo("stat /.extra/sysext")
 				Expect(err).To(HaveOccurred(), out)

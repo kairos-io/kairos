@@ -38,6 +38,7 @@ type listPrerequisitesInput struct {
 
 type listPrerequisitesOutput struct {
 	Checks []prereqs.Check `json:"checks" jsonschema:"the checks the installed prerequisite plugins reported"`
+	Error  string          `json:"error,omitempty" jsonschema:"what a check plugin that failed reported, when one did"`
 }
 
 type applyPrerequisitesInput struct {
@@ -47,6 +48,7 @@ type applyPrerequisitesInput struct {
 
 type applyPrerequisitesOutput struct {
 	Results []prereqs.ApplyResult `json:"results" jsonschema:"the outcome the plugins reported for each decision"`
+	Error   string                `json:"error,omitempty" jsonschema:"what a check plugin that failed reported, when one did"`
 }
 
 type installOptionsInput struct{}
@@ -167,18 +169,21 @@ func (s *Server) listDisks(_ context.Context, _ *mcp.CallToolRequest, _ listDisk
 
 func (s *Server) listPrerequisites(_ context.Context, _ *mcp.CallToolRequest, in listPrerequisitesInput) (*mcp.CallToolResult, listPrerequisitesOutput, error) {
 	found, err := s.gatherChecks(in.Config)
-	// Gather returns what it collected alongside a parse error from one
-	// plugin, so report both rather than throwing the good checks away.
+	// Gather returns what it collected alongside the error from a failing
+	// plugin, so report both rather than throwing the good checks away. The
+	// call is still a tool error: a check that never ran is not a pass.
+	out := listPrerequisitesOutput{Checks: found}
 	if err != nil {
-		s.log.Logger.Warn().Err(err).Msg("A prerequisite plugin returned something unparseable")
+		s.log.Logger.Warn().Err(err).Msg("A prerequisite plugin failed")
+		out.Error = err.Error()
 	}
 
 	if len(found) == 0 {
-		msg := "No prerequisite checks were reported. Either no check plugins are installed, or they found nothing to report."
+		out.Checks = []prereqs.Check{}
 		if err != nil {
-			msg = fmt.Sprintf("%s A plugin also failed: %v", msg, err)
+			return errorResult("A prerequisite plugin failed: %v", err), out, nil
 		}
-		return textResult("%s", msg), listPrerequisitesOutput{Checks: []prereqs.Check{}}, nil
+		return textResult("No prerequisite checks were reported. Either no check plugins are installed, or they found nothing to report."), out, nil
 	}
 
 	lines := make([]string, 0, len(found))
@@ -191,9 +196,10 @@ func (s *Server) listPrerequisites(_ context.Context, _ *mcp.CallToolRequest, in
 	}
 	if err != nil {
 		lines = append(lines, fmt.Sprintf("A plugin also failed: %v", err))
+		return errorResult("%s", strings.Join(lines, "\n")), out, nil
 	}
 
-	return textResult("%s", strings.Join(lines, "\n")), listPrerequisitesOutput{Checks: found}, nil
+	return textResult("%s", strings.Join(lines, "\n")), out, nil
 }
 
 func (s *Server) applyPrerequisites(_ context.Context, _ *mcp.CallToolRequest, in applyPrerequisitesInput) (*mcp.CallToolResult, applyPrerequisitesOutput, error) {
@@ -202,8 +208,10 @@ func (s *Server) applyPrerequisites(_ context.Context, _ *mcp.CallToolRequest, i
 	}
 
 	results, err := s.applyDecisions(in.Decisions, in.Config)
+	out := applyPrerequisitesOutput{Results: results}
 	if err != nil {
 		s.log.Logger.Warn().Err(err).Msg("A prerequisite plugin failed to apply")
+		out.Error = err.Error()
 	}
 
 	lines := make([]string, 0, len(results))
@@ -220,12 +228,13 @@ func (s *Server) applyPrerequisites(_ context.Context, _ *mcp.CallToolRequest, i
 	}
 	if err != nil {
 		lines = append(lines, fmt.Sprintf("A plugin also failed: %v", err))
+		return errorResult("%s", strings.Join(lines, "\n")), out, nil
 	}
 	if len(lines) == 0 {
 		lines = append(lines, "No plugin claimed any of these decisions.")
 	}
 
-	return textResult("%s", strings.Join(lines, "\n")), applyPrerequisitesOutput{Results: results}, nil
+	return textResult("%s", strings.Join(lines, "\n")), out, nil
 }
 
 func (s *Server) installOptions(_ context.Context, _ *mcp.CallToolRequest, _ installOptionsInput) (*mcp.CallToolResult, installOptionsOutput, error) {

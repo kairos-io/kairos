@@ -42,7 +42,7 @@ func JSONSchema(version string) (string, error) {
 func Validate(source string) error {
 	var yaml string
 
-	if strings.HasPrefix(source, "http") {
+	if isHTTPURL(source) {
 		resp, err := http.Get(source)
 		if err != nil {
 			return err
@@ -99,4 +99,12 @@ func Validate(source string) error {
 	}
 
 	return nil
+}
+
+// isHTTPURL reports whether source is an http or https URL. A bare
+// "http" prefix is not enough: a local file named httpd.yaml would be
+// fetched instead of read.
+func isHTTPURL(source string) bool {
+	lower := strings.ToLower(source)
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
 }
