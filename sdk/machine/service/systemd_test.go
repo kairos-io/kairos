@@ -127,3 +127,37 @@ func TestSystemdOverrideCmdEmptyCommand(t *testing.T) {
 		t.Error("expected an error for an empty command, got none")
 	}
 }
+
+// fakeSystemctl puts a systemctl first on PATH that appends its arguments to a
+// log, and returns the log's path.
+func fakeSystemctl(t *testing.T) string {
+	t.Helper()
+
+	bin := t.TempDir()
+	log := filepath.Join(bin, "calls.log")
+	script := "#!/bin/sh\necho \"$@\" >> '" + log + "'\n"
+	if err := os.WriteFile(filepath.Join(bin, "systemctl"), []byte(script), 0755); err != nil {
+		t.Fatalf("writing the fake systemctl: %s", err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	return log
+}
+
+// kairos-io/kairos#5612: OverrideCmd wrote the drop-in and never told systemd.
+// A unit systemd already had loaded kept its stock ExecStart until something
+// else happened to reload, so k3s could start without k3s.args.
+func TestSystemdOverrideCmdDoesNotReloadSystemd(t *testing.T) {
+	log := fakeSystemctl(t)
+	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewFor: %s", err)
+	}
+	if err := svc.OverrideCmd("/usr/bin/k3s server --disable=traefik"); err != nil {
+		t.Fatalf("OverrideCmd: %s", err)
+	}
+
+	if got, err := os.ReadFile(log); err == nil {
+		t.Errorf("systemctl was called, bug no longer reproduces: %q", got)
+	}
+}
