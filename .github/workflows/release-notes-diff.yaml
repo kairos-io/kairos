@@ -33,6 +33,8 @@ jobs:
 
       - name: Check for CVEs in standard k3s/k0s images
         id: cve-check
+        # The release run for a final tag has taken up to ~37 minutes.
+        timeout-minutes: 70
         run: |
           tag="${CURRENT_TAG}"
 
@@ -42,9 +44,36 @@ jobs:
           # few days, and the "Release AMD64" and "Release ARM" workflows it
           # used to match were retired with the pre-monorepo pipelines.
           # A tag push arrives here as head_branch, so branch= selects it.
-          workflow_runs=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yaml/runs?event=push&branch=${tag}&per_page=100" \
-            --jq '[.workflow_runs[]]')
+          #
+          # The tag push and the release publish start this workflow and the
+          # release run in the same second, and the k3s/k0s jobs that carry
+          # the scan annotations are only created minutes later. Wait for the
+          # release run to complete before reading them. A tag with no
+          # release run (e.g. a manual dispatch for an old tag) gives up
+          # after a few minutes and checks code scanning alerts only.
+          now=$(date +%s)
+          no_run_deadline=$((now + 5 * 60))
+          deadline=$((now + 60 * 60))
+          while :; do
+            workflow_runs=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yaml/runs?event=push&branch=${tag}&per_page=100" \
+              --jq '[.workflow_runs[]]')
+            now=$(date +%s)
+            if [ -z "$workflow_runs" ] || [ "$workflow_runs" = "[]" ]; then
+              [ "$now" -ge "$no_run_deadline" ] && break
+              echo "No release run for tag $tag yet, retrying"
+              sleep 30
+              continue
+            fi
+            pending=$(echo "$workflow_runs" | jq '[.[] | select(.status != "completed")] | length')
+            [ "$pending" = "0" ] && break
+            if [ "$now" -ge "$deadline" ]; then
+              echo "::warning::Release run for $tag still running after 60 minutes, reading the jobs finished so far"
+              break
+            fi
+            echo "Waiting for $pending release run(s) for tag $tag to complete"
+            sleep 60
+          done
 
           if [ -z "$workflow_runs" ] || [ "$workflow_runs" = "[]" ]; then
             echo "No release run found for tag $tag, checking code scanning alerts only"
