@@ -45,7 +45,7 @@ require (
 	github.com/labstack/echo/v5 v5.4.2
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.2
-	github.com/moby/sys/mountinfo v0.7.2
+	github.com/moby/sys/mountinfo v0.7.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/mudler/edgevpn v0.35.3
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
@@ -72,7 +72,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/zcalusic/sysinfo v1.2.1
 	golang.org/x/mod v0.42.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.47.0
