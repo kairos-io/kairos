@@ -123,7 +123,11 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	}
 	// Then any user provided source
 	if cfg.Install.Source != "" {
-		activeImg.Source, _ = sdkImages.NewSrcFromURI(cfg.Install.Source)
+		src, err := sdkImages.NewSrcFromURI(cfg.Install.Source)
+		if err != nil {
+			return nil, fmt.Errorf("invalid install.source %q: %w", cfg.Install.Source, err)
+		}
+		activeImg.Source = src
 	}
 	// If we dont have any just an empty source so the sanitation fails
 	// TODO: Should we directly fail here if we got no source instead of waiting for the Sanitize() to fail?
@@ -757,7 +761,11 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 	}
 	// Then any user provided source
 	if cfg.Install.Source != "" {
-		activeImg.Source, _ = sdkImages.NewSrcFromURI(cfg.Install.Source)
+		src, err := sdkImages.NewSrcFromURI(cfg.Install.Source)
+		if err != nil {
+			return nil, fmt.Errorf("invalid install.source %q: %w", cfg.Install.Source, err)
+		}
+		activeImg.Source = src
 	}
 	// If we dont have any just an empty source so the sanitation fails
 	// TODO: Should we directly fail here if we got no source instead of waiting for the Sanitize() to fail?
@@ -866,6 +874,11 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 	if spec.EfiPartition != nil {
 		return nil, fmt.Errorf("upgrade.efi-partition is not configurable: the EFI partition is the one labeled %s on the running system", sdkConstants.EfiLabel)
 	}
+	// Without a source there is nothing to upgrade to. Fail the same way the
+	// regular upgrade does instead of dereferencing a nil source below.
+	if spec.Active.Source == nil || spec.Active.Source.IsEmpty() {
+		return nil, fmt.Errorf(constants.UpgradeNoSourceError)
+	}
 	// Honor upgrade registry options before any image is fetched
 	if err := applyRegistryOptions(cfg, "upgrade", spec.Active.Source); err != nil {
 		return nil, err
@@ -968,6 +981,10 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 	var err error
 	var filesVisited map[string]bool
 
+	if source == nil {
+		return 0, fmt.Errorf("no source to measure")
+	}
+
 	switch {
 	case source.IsDocker():
 		// Docker size is uncompressed! So we double it to be sure that we have enough space
@@ -984,7 +1001,7 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 		// This is always set for pods running under kubernetes
 		_, underKubernetes := os.LookupEnv("KUBERNETES_SERVICE_HOST")
 		// Try to get the HOST_DIR in case we are not using the default one
-		hostDir := k8sutils.GetHostDirForK8s()
+		hostDir := k8sutils.GetHostDirForK8s(config.Fs)
 		config.Logger.Logger.Debug().Bool("status", underKubernetes).Str("hostdir", hostDir).Msg("Kubernetes check")
 		err = fsutils.WalkDirFs(config.Fs, source.Value(), func(path string, d fs.DirEntry, err error) error {
 			// If its empty we are just not setting it, so probably out of the k8s upgrade path

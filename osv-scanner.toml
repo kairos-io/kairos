@@ -38,28 +38,28 @@
 
 [[IgnoredVulns]]
 id = "GO-2024-3218"
-ignoreUntil = 2026-11-10
+ignoreUntil = 2027-02-08
 reason = "no-fix-available: CVE-2023-26248, github.com/libp2p/go-libp2p-kad-dht. No fixed version published. Transitive via provider-kairos."
 
 [[IgnoredVulns]]
 id = "GHSA-q7pp-wcgr-pffx"
-ignoreUntil = 2026-11-10
+ignoreUntil = 2027-02-08
 reason = "no-fix-available: CVE-2023-36308, github.com/disintegration/imaging. No fixed version published; upstream is effectively unmaintained."
 
 [[IgnoredVulns]]
 id = "GO-2026-5298"
-ignoreUntil = 2026-11-10
+ignoreUntil = 2027-02-08
 reason = "no-fix-available: CVE-2026-12681, github.com/google/go-attestation. No fixed version published."
 
 [[IgnoredVulns]]
 id = "GO-2026-4736"
-ignoreUntil = 2026-11-10
-reason = "no-fix-available: CVE-2026-30405, github.com/osrg/gobgp/v3. No fixed version published."
+ignoreUntil = 2027-02-08
+reason = "no-fix-available: CVE-2026-30405, github.com/osrg/gobgp (v4 4.9.0 in the bundle). No fixed version published, latest is v4.11.0. Re-checked 2026-11-10."
 
 [[IgnoredVulns]]
 id = "GO-2026-5932"
-ignoreUntil = 2026-11-10
-reason = "no-fix-available: golang.org/x/crypto. No fixed version published at any of the versions in the bundle."
+ignoreUntil = 2026-11-24
+reason = "prerelease-only-fix: golang.org/x/crypto/openpgp. Fixed only in the untagged x/crypto commit 2f1f834330b2 (0.58.1-0.20261009181718); no tagged release after v0.58.0 yet. Bump x/crypto once a release is tagged."
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ reason = "no-fix-available: golang.org/x/crypto. No fixed version published at a
 # These are package overrides, not IgnoredVulns: an IgnoredVulns entry drops an
 # advisory ID for the whole scan, which would also hide it in the binaries built
 # from this repo. An override matches one package at one version, and only the
-# prebuilt edgevpn carries these versions (this repo builds with Go 1.27.3 and
+# prebuilt edgevpn carries these versions (this repo builds with Go 1.27.4 and
 # x/net v0.61.0). Covers 15 advisories: GO-2026-6599, -6600, -6603, -6604,
 # -6605, -6607, -6608, -6609, -6610, -6611, -6612, -6613 and -6617 (stdlib and
 # x/net) and GHSA-g35j-m5xg-vh3q / GO-2026-6099 (webtransport-go).
@@ -119,3 +119,21 @@ version = "4.15.4"
 ignore = true
 effectiveUntil = 2026-11-19
 reason = "upstream-fix-pending: labstack/echo/v4 v4.15.4, fixed in v4.16.1 (GHSA-9969-6676-49h5, GHSA-cxf3-9h37-7rr8, GHSA-f48p-c9v4-h7xv, GHSA-h7wr-284f-5qvc). Only in the prebuilt edgevpn v0.35.5 binary; edgevpn master has not taken the bump yet."
+
+# ---------------------------------------------------------------------------
+# major-upgrade-required -- fixed only in a new major version.
+# ---------------------------------------------------------------------------
+
+# provider-kairos links labstack/echo/v4 v4.16.1. Both advisories are fixed
+# only in echo v5 (no v4 release carries the fix), so clearing them means
+# moving provider-kairos to echo/v5. Same advisories as AuroraBoot, tracked
+# in https://github.com/kairos-io/kairos/issues/5763.
+[[IgnoredVulns]]
+id = "GHSA-246p-cpwv-v3jq"
+ignoreUntil = 2026-12-03
+reason = "major-upgrade-required: labstack/echo/v4 RealIP() trusts client X-Forwarded-For/X-Real-IP when no IPExtractor is set; fixed only in echo v5.1.0. In the bundle via provider-kairos (echo/v4 v4.16.1). Tracking: kairos-io/kairos#5763."
+
+[[IgnoredVulns]]
+id = "GHSA-99jh-6h7p-pp36"
+ignoreUntil = 2026-12-03
+reason = "major-upgrade-required: labstack/echo/v4 middleware.Proxy issue, fixed only in echo v5.4.0. In the bundle via provider-kairos (echo/v4 v4.16.1). Tracking: kairos-io/kairos#5763."

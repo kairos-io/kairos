@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"testing"
 
+	semver "github.com/hashicorp/go-version"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/yip/pkg/schema"
@@ -388,5 +390,112 @@ func TestDracutNetworkModules(t *testing.T) {
 				t.Errorf("dracutNetworkModules() sysext = %t, want %t", sysext, tt.wantSysext)
 			}
 		})
+	}
+}
+
+// TestKairosReleaseStageDryRunSkipsProviderHooks puts a fake agent-provider
+// plugin in the working directory, which the bus searches, and checks that a
+// dry run builds the kairos-release stage without invoking it.
+func TestKairosReleaseStageDryRunSkipsProviderHooks(t *testing.T) {
+	dir := t.TempDir()
+	callLog := filepath.Join(dir, "calls")
+	plugin := "#!/bin/sh\necho \"$1\" >> " + callLog + "\necho '{\"state\":\"success\",\"data\":\"{\\\"provider\\\":\\\"k3s\\\",\\\"version\\\":\\\"v9.9.9\\\"}\"}'\n"
+	if err := os.WriteFile(filepath.Join(dir, "agent-provider-fake"), []byte(plugin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	oldDryRun, oldVersion := config.DefaultConfig.DryRun, config.DefaultConfig.KairosVersion
+	t.Cleanup(func() {
+		config.DefaultConfig.DryRun = oldDryRun
+		config.DefaultConfig.KairosVersion = oldVersion
+	})
+	config.DefaultConfig.KairosVersion = *semver.Must(semver.NewVersion("1.0.0"))
+
+	for _, tt := range []struct {
+		dryRun     bool
+		wantCalled bool
+	}{
+		{dryRun: true, wantCalled: false},
+		{dryRun: false, wantCalled: true},
+	} {
+		_ = os.Remove(callLog)
+		config.DefaultConfig.DryRun = tt.dryRun
+
+		stage := GetKairosReleaseStage(values.System{}, logger.NewKairosLogger("test", "info", true))
+
+		_, err := os.Stat(callLog)
+		if called := err == nil; called != tt.wantCalled {
+			t.Fatalf("dryRun=%t: provider plugin called=%t, want %t", tt.dryRun, called, tt.wantCalled)
+		}
+		if len(stage) != 1 {
+			t.Fatalf("dryRun=%t: got %d stages, want 1", tt.dryRun, len(stage))
+		}
+		_, hasVersion := stage[0].Environment["KAIROS_SOFTWARE_VERSION"]
+		if hasVersion != tt.wantCalled {
+			t.Fatalf("dryRun=%t: KAIROS_SOFTWARE_VERSION set=%t, want %t", tt.dryRun, hasVersion, tt.wantCalled)
+		}
+	}
+}
+
+// TestGetLatestKernelWithoutInstalledKernel points the kernel lookup at a
+// missing and at an empty modules dir: a dry run gets the placeholder, a real
+// run still fails.
+func TestGetLatestKernelWithoutInstalledKernel(t *testing.T) {
+	oldPath, oldDryRun := kernelModulesPath, config.DefaultConfig.DryRun
+	t.Cleanup(func() {
+		kernelModulesPath = oldPath
+		config.DefaultConfig.DryRun = oldDryRun
+	})
+	l := logger.NewKairosLogger("test", "info", true)
+
+	for _, dir := range map[string]string{
+		"missing": filepath.Join(t.TempDir(), "modules"),
+		"empty":   t.TempDir(),
+	} {
+		kernelModulesPath = dir
+
+		config.DefaultConfig.DryRun = true
+		got, err := getLatestKernel(l)
+		if err != nil {
+			t.Fatalf("dry run with %s: unexpected error: %s", dir, err)
+		}
+		if got != dryRunKernelPlaceholder {
+			t.Fatalf("dry run with %s: got kernel %q, want %q", dir, got, dryRunKernelPlaceholder)
+		}
+		if _, err := GetKernelStage(values.System{}, l); err != nil {
+			t.Fatalf("dry run with %s: GetKernelStage failed: %s", dir, err)
+		}
+
+		config.DefaultConfig.DryRun = false
+		if got, err := getLatestKernel(l); err == nil {
+			t.Fatalf("real run with %s: got kernel %q, want an error", dir, got)
+		}
+		if _, err := GetKernelStage(values.System{}, l); err == nil {
+			t.Fatalf("real run with %s: GetKernelStage did not fail", dir)
+		}
+	}
+}
+
+// TestGetLatestKernelDryRunUsesInstalledKernel checks a dry run still reports
+// the real kernel when one is installed.
+func TestGetLatestKernelDryRunUsesInstalledKernel(t *testing.T) {
+	oldPath, oldDryRun := kernelModulesPath, config.DefaultConfig.DryRun
+	t.Cleanup(func() {
+		kernelModulesPath = oldPath
+		config.DefaultConfig.DryRun = oldDryRun
+	})
+	kernelModulesPath = t.TempDir()
+	if err := os.Mkdir(filepath.Join(kernelModulesPath, "6.12.0-1-generic"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	config.DefaultConfig.DryRun = true
+
+	got, err := getLatestKernel(logger.NewKairosLogger("test", "info", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "6.12.0-1-generic" {
+		t.Fatalf("got kernel %q, want 6.12.0-1-generic", got)
 	}
 }

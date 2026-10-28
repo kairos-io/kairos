@@ -818,11 +818,99 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		})
 		It("Deploys an squashfs image from a directory", func() {
 			img.FS = cnst.SquashFs
-			Expect(el.DeployImage(img, true)).To(BeNil())
+			Expect(el.DeployImage(img, false)).To(BeNil())
 			// The source is a temp directory with a random suffix, so assert
 			// the arguments that are fixed. There is no -comp: Sanitize drops
 			// the compression options unless squash-no-compression is off.
 			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
+		})
+		It("Keeps the squashfs tree until UnmountImage when left mounted", func() {
+			img.FS = cnst.SquashFs
+			mountPoint := img.MountPoint
+			_, err := el.DeployImage(img, true)
+			Expect(err).To(BeNil())
+			Expect(squashfsArgs(runner)).To(BeNil())
+
+			tree := img.MountPoint
+			Expect(tree).ToNot(Equal(mountPoint))
+			Expect(fsutils.Exists(fs, filepath.Join(tree, "tmp"))).To(BeTrue())
+			Expect(fs.WriteFile(filepath.Join(tree, "added.file"), []byte("x"), cnst.FilePerm)).To(Succeed())
+
+			runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+				if cmd == "mksquashfs" {
+					Expect(args[0]).To(Equal(tree))
+					Expect(fsutils.Exists(fs, filepath.Join(tree, "added.file"))).To(BeTrue())
+				}
+				return []byte{}, nil
+			}
+			Expect(el.UnmountImage(img)).To(Succeed())
+			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
+			Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+			Expect(img.MountPoint).To(Equal(mountPoint))
+
+			runner.ClearCmds()
+			Expect(el.UnmountImage(img)).To(Succeed())
+			Expect(squashfsArgs(runner)).To(BeNil())
+		})
+		It("Drops the squashfs tree without building it on DiscardImage", func() {
+			img.FS = cnst.SquashFs
+			mountPoint := img.MountPoint
+			_, err := el.DeployImage(img, true)
+			Expect(err).To(BeNil())
+			tree := img.MountPoint
+			Expect(tree).ToNot(Equal(mountPoint))
+			Expect(fsutils.Exists(fs, tree)).To(BeTrue())
+
+			Expect(el.DiscardImage(img)).To(Succeed())
+			Expect(squashfsArgs(runner)).To(BeNil())
+			Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+			Expect(fsutils.Exists(fs, img.File)).To(BeFalse())
+			Expect(img.MountPoint).To(Equal(mountPoint))
+
+			Expect(el.UnmountImage(img)).To(Succeed())
+			Expect(squashfsArgs(runner)).To(BeNil())
+		})
+		It("Unmounts a mounted image on DiscardImage", func() {
+			_, err := el.DeployImage(img, true)
+			Expect(err).To(BeNil())
+			Expect(img.LoopDevice).ToNot(BeEmpty())
+			notMnt, _ := mounter.IsLikelyNotMountPoint(img.MountPoint)
+			Expect(notMnt).To(BeFalse())
+
+			Expect(el.DiscardImage(img)).To(Succeed())
+			Expect(img.LoopDevice).To(BeEmpty())
+			notMnt, _ = mounter.IsLikelyNotMountPoint(img.MountPoint)
+			Expect(notMnt).To(BeTrue())
+		})
+		It("Removes the squashfs tree when building it on UnmountImage fails", func() {
+			img.FS = cnst.SquashFs
+			_, err := el.DeployImage(img, true)
+			Expect(err).To(BeNil())
+			tree := img.MountPoint
+
+			cmdFail = "mksquashfs"
+			Expect(el.UnmountImage(img)).ToNot(Succeed())
+			Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+		})
+		It("Removes the squashfs tree when deploying it fails", func() {
+			staging := "/staging"
+			Expect(fsutils.MkdirAll(fs, staging, cnst.DirPerm)).To(Succeed())
+			if old, ok := os.LookupEnv("TMPDIR"); ok {
+				DeferCleanup(os.Setenv, "TMPDIR", old)
+			} else {
+				DeferCleanup(os.Unsetenv, "TMPDIR")
+			}
+			Expect(os.Setenv("TMPDIR", staging)).To(Succeed())
+
+			img.FS = cnst.SquashFs
+			mountPoint := img.MountPoint
+			cmdFail = "rsync"
+			_, err := el.DeployImage(img, true)
+			Expect(err).NotTo(BeNil())
+			Expect(img.MountPoint).To(Equal(mountPoint))
+			entries, err := fs.ReadDir(staging)
+			Expect(err).To(BeNil())
+			Expect(entries).To(BeEmpty())
 		})
 		It("Deploys a file image and mounts it", func() {
 			sourceImg := "/source.img"
@@ -861,7 +949,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		It("Fails creating the squashfs filesystem", func() {
 			cmdFail = "mksquashfs"
 			img.FS = cnst.SquashFs
-			_, err := el.DeployImage(img, true)
+			_, err := el.DeployImage(img, false)
 			Expect(err).NotTo(BeNil())
 			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
 		})
@@ -938,6 +1026,46 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
 		})
 
+		It("Refuses a docker save archive built for another platform, and leaves the target alone", Label("docker"), func() {
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			dir := GinkgoT().TempDir()
+			img := rootfsImageFor(dir, "linux", "arm64")
+			archivePath := filepath.Join(dir, "docker.tar")
+			Expect(crane.Save(img, "kairos:test", archivePath)).To(Succeed())
+
+			amd64, err := platform.NewPlatform("linux", "amd64")
+			Expect(err).ToNot(HaveOccurred())
+			config.Platform = amd64
+
+			target := GinkgoT().TempDir()
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("linux/arm64"))
+			Expect(err.Error()).To(ContainSubstring("linux/amd64"))
+			Expect(os.ReadDir(target)).To(BeEmpty())
+		})
+
+		It("Unpacks a docker save archive built for this run's platform", Label("docker"), func() {
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			dir := GinkgoT().TempDir()
+			img := rootfsImageFor(dir, "linux", "arm64")
+			archivePath := filepath.Join(dir, "docker.tar")
+			Expect(crane.Save(img, "kairos:test", archivePath)).To(Succeed())
+
+			arm64, err := platform.NewPlatform("linux", "arm64")
+			Expect(err).ToNot(HaveOccurred())
+			config.Platform = arm64
+
+			target := GinkgoT().TempDir()
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+		})
+
 		It("Unpacks an OCI layout archive to target", Label("docker"), func() {
 			runner.ClearCmds()
 			runner.SideEffect = realRunner
@@ -948,6 +1076,50 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
 			Expect(err).To(BeNil())
 			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+		})
+
+		DescribeTable("Applies --exclude-path to an OCI archive the same way as to a registry image", Label("docker"),
+			func(exclude string, gone, kept []string) {
+				runner.ClearCmds()
+				runner.SideEffect = realRunner
+
+				archivePath := saveTreeImage(GinkgoT().TempDir(),
+					"etc/", "etc/a.conf", "etc/b.conf",
+					"var/", "var/lib/", "var/lib/foo/", "var/lib/foo/data", "var/lib/bar",
+				)
+				target := GinkgoT().TempDir()
+
+				_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath), exclude)
+				Expect(err).To(BeNil())
+				for _, p := range gone {
+					Expect(filepath.Join(target, p)).ToNot(BeAnExistingFile(), "%s should be excluded by %q", p, exclude)
+				}
+				for _, p := range kept {
+					Expect(filepath.Join(target, p)).To(BeAnExistingFile(), "%s should survive %q", p, exclude)
+				}
+			},
+			Entry("/var/lib/foo", "/var/lib/foo",
+				[]string{"var/lib/foo", "var/lib/foo/data"}, []string{"var/lib/bar", "etc/a.conf"}),
+			Entry("var/lib/foo", "var/lib/foo",
+				[]string{"var/lib/foo", "var/lib/foo/data"}, []string{"var/lib/bar", "etc/a.conf"}),
+			Entry("etc/*", "etc/*",
+				[]string{"etc/a.conf", "etc/b.conf"}, []string{"etc", "var/lib/foo/data"}),
+			Entry("/etc/a.conf", "/etc/a.conf",
+				[]string{"etc/a.conf"}, []string{"etc/b.conf", "var/lib/foo/data"}),
+		)
+
+		It("Anchors --exclude-path to the source root for a directory source", func() {
+			var args []string
+			runner.SideEffect = func(cmd string, a ...string) ([]byte, error) {
+				if cmd == cnst.Rsync {
+					args = a
+				}
+				return []byte{}, nil
+			}
+			_, err := e.DumpSource("/dest", sdkImages.NewDirSrc("/source"), "var/lib/foo", "/etc/a.conf", "etc/*/")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(args).To(ContainElements("--exclude=/var/lib/foo", "--exclude=/etc/a.conf", "--exclude=/etc/*"))
+			Expect(args).ToNot(ContainElement("--exclude=var/lib/foo"))
 		})
 
 		It("Refuses an archive that holds no image, and leaves the target alone", Label("docker"), func() {
@@ -1484,6 +1656,50 @@ func saveRootfsImage(dir, format string) string {
 	return archivePath
 }
 
+// saveTreeImage writes an OCI layout archive of a one layer image holding
+// paths, owned by the current user. A path ending in "/" is a directory,
+// anything else a file.
+func saveTreeImage(dir string, paths ...string) string {
+	GinkgoHelper()
+
+	layerPath := filepath.Join(dir, "tree.tar")
+	layerFile, err := os.Create(layerPath)
+	Expect(err).ToNot(HaveOccurred())
+	writer := tar.NewWriter(layerFile)
+	for _, p := range paths {
+		hdr := &tar.Header{Name: p, Uid: os.Getuid(), Gid: os.Getgid()}
+		var body []byte
+		if strings.HasSuffix(p, "/") {
+			hdr.Typeflag = tar.TypeDir
+			hdr.Mode = 0755
+		} else {
+			body = []byte(p)
+			hdr.Typeflag = tar.TypeReg
+			hdr.Mode = 0644
+			hdr.Size = int64(len(body))
+		}
+		Expect(writer.WriteHeader(hdr)).To(Succeed())
+		_, err = writer.Write(body)
+		Expect(err).ToNot(HaveOccurred())
+	}
+	Expect(writer.Close()).To(Succeed())
+	Expect(layerFile.Close()).To(Succeed())
+
+	layer, err := tarball.LayerFromFile(layerPath)
+	Expect(err).ToNot(HaveOccurred())
+	img, err := mutate.AppendLayers(empty.Image, layer)
+	Expect(err).ToNot(HaveOccurred())
+
+	layoutDir := filepath.Join(dir, "tree-layout")
+	path, err := layout.Write(layoutDir, empty.Index)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(path.AppendImage(img)).To(Succeed())
+	archivePath := filepath.Join(dir, "tree.tar.oci")
+	Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
+
+	return archivePath
+}
+
 // rootfsImage builds a one layer image whose /etc/os-release holds osRelease,
 // so a spec can tell two images of the same shape apart by what lands in the
 // target.
@@ -1509,6 +1725,23 @@ func rootfsImage(dir, layerName, osRelease string) ggcrv1.Image {
 	layer, err := tarball.LayerFromFile(layerPath)
 	Expect(err).ToNot(HaveOccurred())
 	img, err := mutate.AppendLayers(empty.Image, layer)
+	Expect(err).ToNot(HaveOccurred())
+
+	return img
+}
+
+// rootfsImageFor is rootfsImage with the OS and architecture recorded in the
+// image config, as a build for that platform would.
+func rootfsImageFor(dir, osName, arch string) ggcrv1.Image {
+	GinkgoHelper()
+
+	img := rootfsImage(dir, "layer.tar", "NAME=\"Kairos\"\n")
+	cfg, err := img.ConfigFile()
+	Expect(err).ToNot(HaveOccurred())
+	cfg = cfg.DeepCopy()
+	cfg.OS = osName
+	cfg.Architecture = arch
+	img, err = mutate.ConfigFile(img, cfg)
 	Expect(err).ToNot(HaveOccurred())
 
 	return img

@@ -31,7 +31,7 @@ func TestSystemdWriteUnitNamesATemplateForAnInstance(t *testing.T) {
 
 func TestSystemdOverrideCmdWritesAReadableDropIn(t *testing.T) {
 	root := t.TempDir()
-	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: root})
+	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: root, NoReload: true})
 	if err != nil {
 		t.Fatalf("NewFor: %s", err)
 	}
@@ -102,7 +102,7 @@ func TestSystemdEnvFileFromTheSpec(t *testing.T) {
 // unit is <name>@<instance>.service.d, not <name>.service.d.
 func TestSystemdOverrideCmdDropInFollowsTheInstance(t *testing.T) {
 	root := t.TempDir()
-	svc, err := NewFor(Systemd, Spec{Name: "getty", Instance: "tty2", Root: root})
+	svc, err := NewFor(Systemd, Spec{Name: "getty", Instance: "tty2", Root: root, NoReload: true})
 	if err != nil {
 		t.Fatalf("NewFor: %s", err)
 	}
@@ -125,5 +125,60 @@ func TestSystemdOverrideCmdEmptyCommand(t *testing.T) {
 	}
 	if err := svc.OverrideCmd("   "); err == nil {
 		t.Error("expected an error for an empty command, got none")
+	}
+}
+
+// fakeSystemctl puts a systemctl first on PATH that appends its arguments to a
+// log, and returns the log's path.
+func fakeSystemctl(t *testing.T) string {
+	t.Helper()
+
+	bin := t.TempDir()
+	log := filepath.Join(bin, "calls.log")
+	script := "#!/bin/sh\necho \"$@\" >> '" + log + "'\n"
+	if err := os.WriteFile(filepath.Join(bin, "systemctl"), []byte(script), 0755); err != nil {
+		t.Fatalf("writing the fake systemctl: %s", err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	return log
+}
+
+// kairos-io/kairos#5612: OverrideCmd wrote the drop-in and never told systemd.
+// A unit systemd already had loaded kept its stock ExecStart until something
+// else happened to reload, so k3s could start without k3s.args.
+func TestSystemdOverrideCmdReloadsSystemd(t *testing.T) {
+	log := fakeSystemctl(t)
+	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewFor: %s", err)
+	}
+	if err := svc.OverrideCmd("/usr/bin/k3s server --disable=traefik"); err != nil {
+		t.Fatalf("OverrideCmd: %s", err)
+	}
+
+	got, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatalf("systemctl was never called, so a loaded unit keeps its old ExecStart: %s", err)
+	}
+	if string(got) != "daemon-reload\n" {
+		t.Errorf("systemctl calls = %q, want a single daemon-reload", got)
+	}
+}
+
+// A Spec with NoReload writes for a system that is not running, where there is
+// no systemd to talk to.
+func TestSystemdOverrideCmdHonoursNoReload(t *testing.T) {
+	log := fakeSystemctl(t)
+	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: t.TempDir(), NoReload: true})
+	if err != nil {
+		t.Fatalf("NewFor: %s", err)
+	}
+	if err := svc.OverrideCmd("/usr/bin/k3s server"); err != nil {
+		t.Fatalf("OverrideCmd: %s", err)
+	}
+
+	if got, err := os.ReadFile(log); err == nil {
+		t.Errorf("systemctl was called despite NoReload: %q", got)
 	}
 }

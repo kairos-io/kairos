@@ -202,9 +202,9 @@ kcrypt:
 
 		AfterEach(func() {
 			// Clean up the TOFU-created SealedVolume
-			// The name format is "tofu-{tpmHash[:8]}-{partitionLabel}"
+			// The name format is "tofu-{tpmHash[:32]}-{partitionLabel}"
 			tpmHash := getTPMHash(vm)
-			tofuName := fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8])
+			tofuName := getSealedVolumeName(tpmHash) + "-cos-persistent-luks"
 			cmd := exec.Command("kubectl", "delete", "sealedvolume", tofuName, "--ignore-not-found")
 			out, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), out)
@@ -223,9 +223,9 @@ kcrypt:
 			verifyPersistentFstabUsesMapper(vm)
 
 			By("Expecting the secret to be created")
-			// TOFU mode creates secrets with name format: "tofu-{tpmHash[:8]}-{partitionLabel}"
+			// TOFU mode creates secrets with name format: "tofu-{tpmHash[:32]}-{partitionLabel}"
 			tpmHash := getTPMHash(vm)
-			expectedSecretName := fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8])
+			expectedSecretName := getSealedVolumeName(tpmHash) + "-cos-persistent-luks"
 			cmd := exec.Command("kubectl", "get", "secrets", expectedSecretName)
 
 			secretOut, err := cmd.CombinedOutput()
@@ -347,9 +347,9 @@ kcrypt:
 
 		AfterEach(func() {
 			// Clean up the TOFU-created SealedVolume
-			// The name format is "tofu-{tpmHash[:8]}-{partitionLabel}"
+			// The name format is "tofu-{tpmHash[:32]}-{partitionLabel}"
 			tpmHash := getTPMHash(vm)
-			tofuName := fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8])
+			tofuName := getSealedVolumeName(tpmHash) + "-cos-persistent-luks"
 			cmd := exec.Command("kubectl", "delete", "sealedvolume", tofuName, "--ignore-not-found")
 			cmd.CombinedOutput() // Ignore errors - cleanup is best effort
 		})

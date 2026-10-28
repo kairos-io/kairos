@@ -9,17 +9,45 @@ name: release
 # a bug in the build process, not something re-running tests here
 # would catch.
 #
+# Triggers: a push of a v* tag (manual releases), or workflow_dispatch
+# on a tag ref (`gh workflow run release.yaml --ref <tag>`, which the
+# weekly release workflow does). The guard job fails the run unless
+# github.ref is a release tag (vX.Y.Z) or a release candidate tag
+# (vX.Y.Z-rcN), and every other job waits on it, so a dispatch on a
+# branch builds and pushes nothing.
+#
 # What runs:
+#   - guard (refuses anything but vX.Y.Z and vX.Y.Z-rcN tags)
+#   - create-release (creates the GH Release as a prerelease if it
+#     does not exist yet, before any job uploads to it)
 #   - unit-tests, lint, vulnerability-scan (fast source-level gates
 #     that are still worth pinning at tag time)
 #   - build-kairos / build-kairos-init / build-kcrypt-challenger
 #     (binaries)
 #   - build-image-kairos-init / build-image-kcrypt-challenger
-#     (pushed directly to quay.io/kairos with the tag + :latest)
+#     (pushed to quay.io/kairos with the tag only)
 #   - build-iso / build-iso-arm / build-iso-k3s / build-iso-k0s
 #     (OS images pushed directly to quay.io/kairos, ISO/RAW artifacts
 #     attached to the GH Release)
 #   - upload-release (binary tarballs attached to the GH Release)
+#   - promote (waits for a maintainer to approve the `release`
+#     environment)
+#   - publish (marks the GH Release as a full release; if the tag is
+#     the highest final vX.Y.Z release it also copies kairos-init
+#     and kcrypt-challenger :<tag> to :latest and marks the GH Release
+#     as Latest; last, it starts release-notes-diff.yaml for the now
+#     final release)
+#
+# Until publish runs, the release stays a prerelease and :latest
+# keeps pointing at the previous release. A rejected or never
+# approved run leaves the prerelease and its tag in place. A release
+# candidate (a tag with a hyphen, such as v4.4.0-rc1) skips promote
+# and publish, so it never becomes Latest. A backport (v4.3.2 after
+# v4.4.0) is promoted to a full release but leaves :latest and
+# Latest on the highest release. This holds only for a branch that
+# carries this file: a tag runs the release.yaml stored at its
+# commit, and an older copy pushes :latest at build time with no
+# approval.
 #
 # Matrix scope vs master: FIPS, UKI, ubuntu-20.04 and the unpinned
 # amd64-standard cells all live in master.yaml, not here. They exist
@@ -29,12 +57,14 @@ name: release
 #
 # Tag scheme: OS images push directly with $FLAVOR_RELEASE-$VARIANT-
 # $ARCH-$MODEL$K8S-$VERSION$UKI (no $FLAVOR- prefix, matches v4.2.0's
-# shape). kairos-init and kcrypt-challenger get :<tag> and :latest.
+# shape). kairos-init and kcrypt-challenger get :<tag> from the build
+# and :latest from publish.
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   # Least-privilege baseline. A job that calls a reusable workflow
@@ -48,13 +78,60 @@ concurrency:
   cancel-in-progress: false   # do NOT cancel a release run mid-way
 
 jobs:
+  # workflow_dispatch can be started on any ref, and the push trigger
+  # matches any tag starting with v. Building from a branch would push
+  # images tagged with the branch name, so stop here unless the ref is
+  # a release tag (vX.Y.Z) or a release candidate tag (vX.Y.Z-rcN).
+  guard:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require a release or release candidate tag
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          re='^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'
+          if [[ ! "$REF" =~ $re ]]; then
+            echo "::error::release.yaml runs only on a vX.Y.Z or vX.Y.Z-rcN tag, not $REF"
+            exit 1
+          fi
+          echo "Releasing $REF"
+
+  # Creates the GH Release as a prerelease, so it is not shown as
+  # Latest while the build runs. reusable-factory.yaml and
+  # _upload-release.yaml only upload to a release that already exists,
+  # which is why every build-iso* job and upload-release need this job.
+  # The weekly release workflow creates the prerelease itself; a tag
+  # pushed by hand gets it here.
+  create-release:
+    needs: [guard]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # gh release create
+    steps:
+      - name: Create the prerelease if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "Release $TAG already exists"
+          else
+            gh release create "$TAG" --repo "$REPO" --verify-tag --prerelease --title "$TAG" --notes "Release $TAG"
+          fi
+
   unit-tests:
+    needs: [guard]
     uses: ./.github/workflows/_unit-tests.yaml
 
   lint:
+    needs: [guard]
     uses: ./.github/workflows/_lint.yaml
 
   vulnerability-scan:
+    needs: [guard]
     uses: ./.github/workflows/release-scan.yml
 
   # Dynamic k3s/k0s matrix pre-steps: query the upstream GitHub API
@@ -62,6 +139,7 @@ jobs:
   # three minors. Feeds build-iso-k3s / build-iso-k0s below. Same
   # jq expression release-legacy.yaml carried before retirement.
   get-k3s-versions:
+    needs: [guard]
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
@@ -91,6 +169,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> "$GITHUB_OUTPUT"
 
   get-k0s-versions:
+    needs: [guard]
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
@@ -126,6 +205,7 @@ jobs:
   # (see master.yaml's own comment). "full" names the architecture set
   # this produces, not which workflow calls it.
   build-kairos:
+    needs: [guard]
     uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: full
@@ -145,7 +225,6 @@ jobs:
     with:
       image_registry: quay.io/kairos
       image_tag: ${{ github.ref_name }}
-      image_extra_tag: latest
       push: true
       registry_login: quay
     secrets:
@@ -156,6 +235,7 @@ jobs:
   # published for downstream consumers (the encryption story), not for
   # anything else in this pipeline to pull.
   build-kcrypt-challenger:
+    needs: [guard]
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:
       matrix_scope: release
@@ -169,7 +249,6 @@ jobs:
     with:
       image_registry: quay.io/kairos
       image_tag: ${{ github.ref_name }}
-      image_extra_tag: latest
       push: true
       registry_login: quay
     secrets:
@@ -185,7 +264,7 @@ jobs:
   # released UKI would prove nothing about who built it. Users build
   # trusted boot images with keys they control.
   build-iso:
-    needs: [build-image-kairos-init, vulnerability-scan]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan]
     strategy:
       fail-fast: false
       matrix:
@@ -225,7 +304,7 @@ jobs:
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   build-iso-arm:
-    needs: [build-image-kairos-init, vulnerability-scan]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan]
     strategy:
       fail-fast: false
       matrix:
@@ -301,7 +380,7 @@ jobs:
   # pushed to quay with tag layout `v0.5.1-standard-amd64-generic-
   # <k3s|k0s>-<k8s-version>-<version>` (matches v4.2.0).
   build-iso-k3s:
-    needs: [build-image-kairos-init, vulnerability-scan, get-k3s-versions]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k3s-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -340,7 +419,7 @@ jobs:
   # and standard-arm64-rpi4 for each of the top-3 k3s minors. k0s was
   # amd64-only in v4.2.0 -- no arm64 k0s counterpart here.
   build-iso-k3s-arm:
-    needs: [build-image-kairos-init, vulnerability-scan, get-k3s-versions]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k3s-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -381,7 +460,7 @@ jobs:
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   build-iso-k0s:
-    needs: [build-image-kairos-init, vulnerability-scan, get-k0s-versions]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k0s-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -420,6 +499,7 @@ jobs:
     # Uploads every tarball to the GitHub Release. Waits on the full
     # build fan-out so a broken cell blocks the tag advance.
     needs:
+      - create-release
       - unit-tests
       - lint
       - vulnerability-scan
@@ -435,3 +515,114 @@ jobs:
     permissions:
       contents: write
       id-token: write
+
+  # Waits for a maintainer to approve the `release` environment. Until
+  # then the GH Release is a prerelease and :latest points at the
+  # previous release. A rejected or expired approval fails this job and
+  # skips publish. Release candidates (a hyphen in the tag, such as
+  # v4.4.0-rc1) skip this job and stay prereleases. The guard job and
+  # the `if:` below together admit only a vX.Y.Z tag here.
+  promote:
+    needs: [upload-release]
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Record the approval
+        env:
+          TAG: ${{ github.ref_name }}
+        run: echo "::notice::$TAG approved"
+
+  # Publishes an approved release. Only the highest final vX.Y.Z
+  # release (by `sort -V`), counting this tag, gets :latest and the
+  # Latest badge. Any other tag, such as a backport v4.3.2 cut after
+  # v4.4.0, becomes a full release with --latest=false and leaves
+  # :latest on the highest release. The comparison uses final releases
+  # and not all tags, so a higher tag that is pending or was rejected
+  # does not keep an approved release off Latest. Releases are read
+  # through the API because this job has no checkout. `docker buildx
+  # imagetools create` copies the manifest by reference, so :latest has
+  # the same digest as :<tag>, as promote-images does in master.yaml.
+  #
+  # Two approved tags would otherwise publish at the same time, and an
+  # older one that read the tag list before a newer tag existed could
+  # finish last and move :latest and Latest back to itself. The
+  # repository-wide group runs one publish at a time. It lives on this
+  # job and not on promote, which can hold a group for days while it
+  # waits for approval. GitHub keeps one pending job per group and
+  # cancels an older pending one, which takes three approvals within the
+  # few seconds a publish lasts.
+  publish:
+    needs: [promote]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-publish-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: write  # gh release edit
+      # gh workflow run release-notes-diff.yaml. Its release trigger does
+      # not fire for a release edited with this job's GITHUB_TOKEN.
+      actions: write
+    steps:
+      - name: Find the highest final release
+        id: highest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          finals=$(gh release list --repo "$REPO" \
+            --exclude-pre-releases --exclude-drafts --limit 200 \
+            --json tagName --jq '.[].tagName')
+          highest=$({ printf '%s\n' "$finals"; echo "$TAG"; } \
+            | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+            | sort -V | tail -n 1)
+          echo "highest=$highest" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == "$highest" ]]; then
+            echo "is_highest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_highest=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG is older than the highest final release $highest, so :latest and Latest stay on $highest"
+          fi
+      - name: Login to quay.io
+        if: steps.highest.outputs.is_highest == 'true'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Point kairos-init and kcrypt-challenger :latest at the tag
+        if: steps.highest.outputs.is_highest == 'true'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for img in kairos-init kcrypt-challenger; do
+            src="quay.io/kairos/${img}:${TAG}"
+            dst="quay.io/kairos/${img}:latest"
+            echo "Promoting $src -> $dst"
+            docker buildx imagetools create -t "$dst" "$src"
+          done
+      - name: Mark the GH Release as a full release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          IS_HIGHEST: ${{ steps.highest.outputs.is_highest }}
+        run: |
+          set -euo pipefail
+          if [[ "$IS_HIGHEST" == "true" ]]; then
+            gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest
+          else
+            gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest=false
+          fi
+      - name: Start the release notes diff
+        # release-notes-diff.yaml diffs against the previous final release
+        # and looks the tag up among final releases, so it runs only once
+        # the release is final.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: gh workflow run release-notes-diff.yaml --repo "$REPO" --ref master -f tag="$TAG"

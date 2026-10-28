@@ -255,13 +255,11 @@ func CheckArtifactSignatureIsValid(fs fs.KairosFS, artifact string, logger sdkLo
 	for _, sig := range sigs {
 		for _, cert := range dbCerts {
 			logger.Logger.Debug().Str("what", artifact).Str("subject", cert.Subject.CommonName).Msg("checking signature")
-			p, err := pkcs7.ParsePKCS7(sig.Certificate)
-			if err != nil {
+			if _, err := pkcs7.ParsePKCS7(sig.Certificate); err != nil {
 				logger.Logger.Info().Str("error", err.Error()).Msg("parsing signature")
 				return err
 			}
-			ok, _ := p.Verify(cert)
-			if ok {
+			if verifyAuthenticodeSignature(binary, sig, cert) {
 				logger.Logger.Info().Str("what", artifact).Str("subject", cert.Subject.CommonName).Msg("verified")
 				return nil
 			}

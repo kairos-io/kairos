@@ -24,7 +24,7 @@ on:
         required: true
 
       image_extra_tag:
-        description: 'Optional second image tag (e.g. "latest" on release), empty otherwise'
+        description: 'Optional second image tag, empty otherwise'
         type: string
         default: ''
 
@@ -112,7 +112,7 @@ jobs:
 
       - name: Login to ghcr.io
         if: inputs.push && inputs.registry_login == 'ghcr'
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -120,7 +120,7 @@ jobs:
 
       - name: Login to quay.io
         if: inputs.push && inputs.registry_login == 'quay'
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
