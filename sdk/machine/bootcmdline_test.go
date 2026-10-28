@@ -172,4 +172,58 @@ var _ = Describe("BootCMDLine", func() {
 			Expect(string(b)).To(ContainSubstring("bar: baz"))
 		})
 	})
+	// kairos#5608: the cmdline is split with shlex and the error is ignored.
+	// These specs pin the CURRENT (wrong) behaviour for raw, non-GRUB lines.
+	Context("kairos#5608 shlex handling (current behaviour)", func() {
+		It("drops a backslash from a raw kairos.config value", func() {
+			y, err := KairosCmdlineYAMLFromString(`kairos.config=users.0.passwd=ab\cd`)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(y)).To(ContainSubstring("passwd: abcd"))
+			Expect(string(y)).ToNot(ContainSubstring(`ab\cd`))
+		})
+
+		It("loses the apostrophe token and every later token, including kairos.config_url, without an error", func() {
+			y, err := KairosCmdlineYAMLFromString(
+				`kairos.config=hostname=before kairos.config=users.0.passwd=it's kairos.config_url=http://example.com/c.yaml`,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(y)).To(ContainSubstring("hostname: before"))
+			Expect(string(y)).ToNot(ContainSubstring("passwd"))
+			Expect(string(y)).ToNot(ContainSubstring("config_url"))
+		})
+
+		It("returns nil, nil when the only stanza has a lone apostrophe", func() {
+			y, err := KairosCmdlineYAMLFromString(`kairos.config=users.0.passwd=it's`)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(y).To(BeNil())
+		})
+
+		It("drops a backslash in the generic DotStringToYAML path", func() {
+			y, err := DotStringToYAML(`foo.bar=ab\cd`)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(y)).To(ContainSubstring("bar: abcd"))
+		})
+
+		It("loses later tokens after a lone apostrophe in the generic DotStringToYAML path", func() {
+			y, err := DotStringToYAML(`first.key=one foo.bar=it's last.key=two`)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(y)).To(ContainSubstring("key: one"))
+			Expect(string(y)).ToNot(ContainSubstring("bar"))
+			Expect(string(y)).ToNot(ContainSubstring("last"))
+		})
+
+		// Must keep passing after the fix: GRUB backslash-escapes \ ' and ".
+		It("decodes a GRUB-escaped cmdline correctly", func() {
+			y, err := KairosCmdlineYAMLFromString(
+				`kairos.config=users.0.passwd=it\'s kairos.config=users.1.passwd=ab\\cd kairos.config_url=http://example.com/c.yaml`,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			var m map[string]interface{}
+			Expect(yaml.Unmarshal(y, &m)).To(Succeed())
+			users := m["users"].([]interface{})
+			Expect(users[0].(map[string]interface{})["passwd"]).To(Equal("it's"))
+			Expect(users[1].(map[string]interface{})["passwd"]).To(Equal(`ab\cd`))
+			Expect(m["config_url"]).To(Equal("http://example.com/c.yaml"))
+		})
+	})
 })
