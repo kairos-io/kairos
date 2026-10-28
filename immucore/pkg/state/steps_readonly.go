@@ -86,7 +86,7 @@ func (s *State) MountPersistentSnapshotDagStep(g *herd.Graph, opts ...herd.OpOpt
 				if err != nil {
 					return fmt.Errorf("mounting the copy-on-write store %s (%s): %w", cnst.PersistentCowDir, s.CowBase, err)
 				}
-				s.fstabs = append(s.fstabs, &store.FstabEntry)
+				s.appendFstab(&store.FstabEntry)
 
 				tmpfsBytes, err := cowTmpfsSize(cnst.PersistentCowDir)
 				if err != nil {

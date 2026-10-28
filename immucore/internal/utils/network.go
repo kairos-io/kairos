@@ -142,12 +142,7 @@ func ParseNetworkdDNS(state string) []string {
 			continue
 		}
 		for _, field := range strings.Fields(value) {
-			// networkd can write "1.1.1.1#cloudflare-dns.com" or
-			// "fe80::1%eth0"; resolv.conf wants the bare address.
-			addr := field
-			if i := strings.IndexAny(addr, "#%"); i >= 0 {
-				addr = addr[:i]
-			}
+			addr := trimDNSSuffix(field)
 			if net.ParseIP(addr) == nil || seen[addr] {
 				continue
 			}
@@ -156,6 +151,30 @@ func ParseNetworkdDNS(state string) []string {
 		}
 	}
 	return servers
+}
+
+// trimDNSSuffix reduces a DNS= entry to the bare address. networkd can write
+// "1.1.1.1#cloudflare-dns.com", "fe80::1%eth0", "9.9.9.9:53" or
+// "[2001:db8::53]:53", optionally followed by "%<ifindex>" and "#<name>";
+// resolv.conf cannot carry a port, a name or an interface, so all of them go.
+func trimDNSSuffix(field string) string {
+	addr := field
+	if i := strings.IndexByte(addr, '#'); i >= 0 {
+		addr = addr[:i]
+	}
+	if rest, ok := strings.CutPrefix(addr, "["); ok {
+		// "[addr]:port" or "[addr%zone]:port"
+		if i := strings.IndexByte(rest, ']'); i >= 0 {
+			addr = rest[:i]
+		}
+	} else if strings.Count(addr, ":") == 1 {
+		// "a.b.c.d:port"; more than one colon is a bare IPv6 address.
+		addr = addr[:strings.IndexByte(addr, ':')]
+	}
+	if i := strings.IndexByte(addr, '%'); i >= 0 {
+		addr = addr[:i]
+	}
+	return addr
 }
 
 // RenderResolvConf renders a minimal resolv.conf for the given servers.

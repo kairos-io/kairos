@@ -23,15 +23,21 @@ name: PR
 # PR's kairos-init installs and boots (qemu `install` and `acceptance`).
 # kairos-init reaches the ISO build as an OCI layout artifact instead of
 # a registry image, because there is no registry this run can push to.
+#
+# merge_group: the same smoke run on each merge queue branch
+# (gh-readonly-queue/master/...), so the queue gets the checks it waits
+# for. Without this trigger nothing reports on a queue branch and every
+# queued PR is dropped with `checks_timed_out`. A merge_group run is not
+# a fork run: it gets a read-write token and the repository secrets. It
+# runs only code that is already approved and queued, and no job here
+# pushes or logs in to a registry.
 
 on:
+  merge_group:
+  # No paths-ignore: these jobs are required checks on master, and a
+  # workflow that never starts never reports them, so a docs-only PR
+  # (#5871) could never enter the merge queue.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - 'LICENSE'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/CODEOWNERS'
 
 permissions:
   contents: read

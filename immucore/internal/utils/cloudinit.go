@@ -9,7 +9,6 @@ import (
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
-	"github.com/mudler/yip/pkg/console"
 	"github.com/mudler/yip/pkg/executor"
 	"github.com/twpayne/go-vfs/v4"
 	"gopkg.in/yaml.v3"
@@ -79,7 +78,7 @@ func RunStage(stage string) error {
 	cmdLineOut, err := os.ReadFile(GetHostProcCmdline())
 	if err == nil {
 		for _, s := range []string{stageBefore, stage, stageAfter} {
-			err = yip.Run(s, vfs.OSFS, console.NewStandardConsole(), string(cmdLineOut))
+			err = yip.Run(s, vfs.OSFS, c, string(cmdLineOut))
 			if err != nil {
 				allErrors = checkYAMLError(allErrors, err)
 			}

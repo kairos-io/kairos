@@ -43,7 +43,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			err := vm.Scp("assets/config.yaml", "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 			By("Manually installing")
-			installOutput, err := vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
+			installOutput, err = vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
 			Expect(err).ToNot(HaveOccurred(), installOutput)
 
 			Expect(installOutput).Should(ContainSubstring("Running after-install hook"))
