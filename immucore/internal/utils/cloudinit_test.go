@@ -10,8 +10,8 @@ import (
 	"sync"
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/utils"
-	"github.com/mudler/yip/pkg/schema"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/mudler/yip/pkg/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v4"
