@@ -147,7 +147,7 @@ func fakeSystemctl(t *testing.T) string {
 // kairos-io/kairos#5612: OverrideCmd wrote the drop-in and never told systemd.
 // A unit systemd already had loaded kept its stock ExecStart until something
 // else happened to reload, so k3s could start without k3s.args.
-func TestSystemdOverrideCmdDoesNotReloadSystemd(t *testing.T) {
+func TestSystemdOverrideCmdReloadsSystemd(t *testing.T) {
 	log := fakeSystemctl(t)
 	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: t.TempDir()})
 	if err != nil {
@@ -157,7 +157,28 @@ func TestSystemdOverrideCmdDoesNotReloadSystemd(t *testing.T) {
 		t.Fatalf("OverrideCmd: %s", err)
 	}
 
+	got, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatalf("systemctl was never called, so a loaded unit keeps its old ExecStart: %s", err)
+	}
+	if string(got) != "daemon-reload\n" {
+		t.Errorf("systemctl calls = %q, want a single daemon-reload", got)
+	}
+}
+
+// A Spec with NoReload writes for a system that is not running, where there is
+// no systemd to talk to.
+func TestSystemdOverrideCmdHonoursNoReload(t *testing.T) {
+	log := fakeSystemctl(t)
+	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: t.TempDir(), NoReload: true})
+	if err != nil {
+		t.Fatalf("NewFor: %s", err)
+	}
+	if err := svc.OverrideCmd("/usr/bin/k3s server"); err != nil {
+		t.Fatalf("OverrideCmd: %s", err)
+	}
+
 	if got, err := os.ReadFile(log); err == nil {
-		t.Errorf("systemctl was called, bug no longer reproduces: %q", got)
+		t.Errorf("systemctl was called despite NoReload: %q", got)
 	}
 }
