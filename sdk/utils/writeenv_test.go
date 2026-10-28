@@ -60,3 +60,41 @@ func TestWriteEnvTightensAnExistingFile(t *testing.T) {
 		t.Errorf("K3S_TOKEN = %q, want the new value written", env["K3S_TOKEN"])
 	}
 }
+
+// godotenv.Unmarshal returns the entries it parsed before the first bad line
+// together with an error. Merging into that partial map and writing it back
+// deletes every entry after the bad line. WriteEnv must refuse instead and
+// leave the file as it found it. See kairos-io/kairos#5607.
+func TestWriteEnvRefusesAFileItCannotParse(t *testing.T) {
+	for name, seed := range map[string]string{
+		"bare words":         "A=1\nfoo bar\nB=2\nC=3\n",
+		"bare export":        "A=1\nexport\nB=2\n",
+		"unterminated quote": "A=1\nQ=\"oops\nB=2\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			envFile := filepath.Join(t.TempDir(), "k3s")
+			if err := os.WriteFile(envFile, []byte(seed), 0644); err != nil {
+				t.Fatalf("seed: %v", err)
+			}
+
+			if err := WriteEnv(envFile, map[string]string{"NEW": "x"}); err == nil {
+				t.Errorf("WriteEnv returned nil for a file it cannot parse")
+			}
+
+			got, err := os.ReadFile(envFile)
+			if err != nil {
+				t.Fatalf("read back: %v", err)
+			}
+			if string(got) != seed {
+				t.Errorf("file was rewritten:\n%s\nwant it untouched:\n%s", got, seed)
+			}
+			info, err := os.Stat(envFile)
+			if err != nil {
+				t.Fatalf("stat: %v", err)
+			}
+			if got, want := info.Mode().Perm(), os.FileMode(0644); got != want {
+				t.Errorf("mode = %04o, want %04o, a refused write changes nothing", got, want)
+			}
+		})
+	}
+}
