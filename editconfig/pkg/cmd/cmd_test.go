@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -84,7 +85,7 @@ fi`)
 		path := filepath.Join(GinkgoT().TempDir(), "config.yaml")
 		editor := `/bin/sh -c 'printf "%s" "#cloud-config" > "$1"' --`
 
-		Expect(runEditor(editor, path)).To(Succeed())
+		Expect(runEditor(editor, path, nil)).To(Succeed())
 		content, err := os.ReadFile(path)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(content)).To(Equal("#cloud-config"))
@@ -117,6 +118,50 @@ fi`)
 		Expect(filepath.Base(string(editedPath))).To(Equal("90_custom.yaml"))
 		Expect(filepath.Dir(string(editedPath))).NotTo(BeADirectory())
 		Expect(loadableConfigs(dir)).To(ConsistOf(path))
+	})
+
+	It("removes the working copy and keeps the original when terminated", func() {
+		dir := GinkgoT().TempDir()
+		path := writeCloudConfig(dir, validCloudConfig, 0644)
+		marker := filepath.Join(dir, "editor-path")
+		editor := writeEditor(dir, "slow-editor", "printf '%s' \"$1\" > "+marker+".tmp\nmv "+marker+".tmp "+marker+"\nexec sleep 30")
+		signals := make(chan os.Signal)
+		result := make(chan error, 1)
+
+		go func() { result <- editCloudInitWithSignals(path, editor, &bytes.Buffer{}, signals) }()
+		Eventually(marker).Should(BeAnExistingFile())
+		signals <- syscall.SIGTERM
+
+		var err error
+		Eventually(result, "10s").Should(Receive(&err))
+		Expect(err).To(MatchError(ContainSubstring("interrupted by terminated")))
+		editedPath, readErr := os.ReadFile(marker)
+		Expect(readErr).NotTo(HaveOccurred())
+		Expect(filepath.Dir(string(editedPath))).NotTo(BeADirectory())
+		Expect(loadableConfigs(dir)).To(ConsistOf(path))
+		content, readErr := os.ReadFile(path)
+		Expect(readErr).NotTo(HaveOccurred())
+		Expect(string(content)).To(Equal(validCloudConfig))
+	})
+
+	It("leaves SIGINT to the editor", func() {
+		dir := GinkgoT().TempDir()
+		path := writeCloudConfig(dir, validCloudConfig, 0644)
+		started := filepath.Join(dir, "started")
+		proceed := filepath.Join(dir, "proceed")
+		editor := writeEditor(dir, "waiting-editor", "touch "+started+"\nwhile [ ! -e "+proceed+" ]; do sleep 0.05; done\nprintf '%s' '#cloud-config\nusers:\n  - name: updated\n' > \"$1\"")
+		signals := make(chan os.Signal)
+		result := make(chan error, 1)
+
+		go func() { result <- editCloudInitWithSignals(path, editor, &bytes.Buffer{}, signals) }()
+		Eventually(started).Should(BeAnExistingFile())
+		signals <- os.Interrupt
+		Expect(os.WriteFile(proceed, nil, 0644)).To(Succeed())
+
+		Eventually(result, "10s").Should(Receive(Succeed()))
+		content, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(content)).To(Equal("#cloud-config\nusers:\n  - name: updated\n"))
 	})
 
 	It("stages saves under a name yip does not load", func() {
