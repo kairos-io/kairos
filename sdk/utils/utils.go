@@ -162,18 +162,27 @@ const EnvFileMode = 0600
 // keeps the mode of a file it truncates, so without the chmod the secrets would
 // stay exposed. Doing it first also means the new token is never on disk at a
 // mode wider than this one, even for an instant.
+//
+// A file that does not parse is left alone and the parse error is returned.
+// godotenv hands back only the entries before the first bad line, so writing
+// that map back would silently delete the rest of the file.
 func WriteEnv(envFile string, config map[string]string) error {
 	content, err := os.ReadFile(envFile)
-	switch {
-	case err == nil:
-		if err := os.Chmod(envFile, EnvFileMode); err != nil {
-			return err
-		}
-	case !os.IsNotExist(err):
+	exists := err == nil
+	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
-	env, _ := godotenv.Unmarshal(string(content))
+	env, err := godotenv.Unmarshal(string(content))
+	if err != nil {
+		return fmt.Errorf("parsing %s: %w", envFile, err)
+	}
+
+	if exists {
+		if err := os.Chmod(envFile, EnvFileMode); err != nil {
+			return err
+		}
+	}
 
 	for key, val := range config {
 		env[key] = val
