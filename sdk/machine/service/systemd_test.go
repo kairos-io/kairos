@@ -31,7 +31,7 @@ func TestSystemdWriteUnitNamesATemplateForAnInstance(t *testing.T) {
 
 func TestSystemdOverrideCmdWritesAReadableDropIn(t *testing.T) {
 	root := t.TempDir()
-	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: root})
+	svc, err := NewFor(Systemd, Spec{Name: "k3s", Root: root, NoReload: true})
 	if err != nil {
 		t.Fatalf("NewFor: %s", err)
 	}
@@ -102,7 +102,7 @@ func TestSystemdEnvFileFromTheSpec(t *testing.T) {
 // unit is <name>@<instance>.service.d, not <name>.service.d.
 func TestSystemdOverrideCmdDropInFollowsTheInstance(t *testing.T) {
 	root := t.TempDir()
-	svc, err := NewFor(Systemd, Spec{Name: "getty", Instance: "tty2", Root: root})
+	svc, err := NewFor(Systemd, Spec{Name: "getty", Instance: "tty2", Root: root, NoReload: true})
 	if err != nil {
 		t.Fatalf("NewFor: %s", err)
 	}

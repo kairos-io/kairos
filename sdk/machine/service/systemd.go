@@ -74,6 +74,11 @@ func (s systemdService) WriteUnit() error {
 // OverrideCmd writes a drop-in that replaces ExecStart. systemd passes
 // arguments in the unit rather than in the env file, so the env file is not
 // involved.
+//
+// A drop-in only takes effect once systemd reloads, so unless the Spec says
+// NoReload this reloads before returning. Without it, a unit systemd has
+// already loaded (another unit with After= on it is enough) is started with
+// its stock ExecStart by the Start that follows.
 func (s systemdService) OverrideCmd(cmd string) error {
 	cmd = strings.TrimSpace(cmd)
 	if cmd == "" {
@@ -81,7 +86,16 @@ func (s systemdService) OverrideCmd(cmd string) error {
 	}
 
 	dir := filepath.Join(s.spec.Root, "/etc/systemd/system", s.unitName()+".service.d")
-	return writeFile(filepath.Join(dir, "override.conf"), fmt.Sprintf(overrideCmdTemplate, cmd), 0600)
+	if err := writeFile(filepath.Join(dir, "override.conf"), fmt.Sprintf(overrideCmdTemplate, cmd), 0600); err != nil {
+		return err
+	}
+
+	if s.spec.NoReload {
+		return nil
+	}
+
+	_, err := utils.SH("systemctl daemon-reload")
+	return err
 }
 
 func (s systemdService) SetEnv(env map[string]string) error {
