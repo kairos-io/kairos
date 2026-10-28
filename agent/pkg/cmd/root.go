@@ -29,6 +29,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
@@ -177,6 +178,8 @@ var cmds = []*cli.Command{
 			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
 			&allowInsecureRegistriesFlag,
 			&cli.BoolFlag{Name: "dry-run", Usage: "Resolve the upgrade and print a summary of what would be done, without changing the system"},
+			&cli.BoolFlag{Name: "diff", Usage: "Experimental. Apply only the changes from the running release, fetched from the source tag with .diff appended. Falls back to the full image"},
+			&cli.StringFlag{Name: "diff-source", Usage: "Experimental. The diff to apply, as an image source (oci:, ocifile:, dir:). Implies --diff"},
 		},
 		Description: `
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
@@ -187,6 +190,8 @@ as a value for the --source flag.
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
 To pull from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate, pass the --allow-insecure-registries flag (or set "upgrade.allow-insecure-registries: true" in the cloud config).
+
+To fetch only what changed since the running release, pass the --diff flag (or set "upgrade.diff: true" in the cloud config). This is experimental. The diff is looked for at the tag of the source image with ".diff" appended, or wherever --diff-source (or "upgrade.diff-source") points. It is applied onto a copy of the booted image, and when there is no diff, it was made for another release, or it does not apply, the full image is used instead. Diff upgrades are not supported for the recovery system or on Trusted Boot.
 
 To check what an upgrade would do before running it, pass the --dry-run flag. It resolves the source (including the cloud config), the image size and where the transition image would be written, checks that the image manifest can be fetched from the registry, prints a summary and exits without changing the system.
 
@@ -335,7 +340,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			}
 
 			return agent.Upgrade(source, c.Bool("strict-validation"), constants.GetUserConfigDirs(),
-				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.StringSlice("exclude-path")...,
+				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.Bool("diff"), c.String("diff-source"), c.StringSlice("exclude-path")...,
 			)
 		},
 	},
@@ -965,6 +970,42 @@ The validate command expects a configuration file as its only argument. Local fi
 				return err
 			}
 			config.Logger.Infof("Image %s downloaded and extracted to %s correctly\n", image, destination)
+			return nil
+		},
+	},
+	{
+		Name:  "diff-generate",
+		Usage: "Experimental: generate the diff a diff upgrade applies",
+		Description: `
+Generate the diff that turns the root filesystem in BASE into the one in TARGET, and write it to OUTPUT as an image archive.
+
+BASE and TARGET are directories, for example two images unpacked with pull-image. Run it as root, so ownership and extended attributes are read in full.
+
+The archive can be applied directly with "upgrade --diff-source ocifile:OUTPUT", or pushed to a registry next to the full image, at its tag with ".diff" appended, where "upgrade --diff" finds it.
+`,
+		UsageText: "diff-generate [--tag REF] BASE TARGET OUTPUT",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "tag",
+				Usage: "Image reference recorded in the archive",
+				Value: "kairos/diff:latest",
+			},
+		},
+		Before: func(c *cli.Context) error {
+			if c.Args().Len() != 3 {
+				cli.HelpPrinter(c.App.Writer, "BASE, TARGET and OUTPUT are required\n\n", c.Command)
+				_ = cli.ShowSubcommandHelp(c)
+				return fmt.Errorf("")
+			}
+			return nil
+		},
+		Action: func(c *cli.Context) error {
+			base, target, output := c.Args().Get(0), c.Args().Get(1), c.Args().Get(2)
+			m, err := diffupgrade.GenerateImage(base, target, output, c.String("tag"))
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Diff written to %s\n  Base: %s\n  Deleted paths: %d\n", output, m.Base, len(m.Deleted))
 			return nil
 		},
 	},

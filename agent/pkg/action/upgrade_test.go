@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
@@ -29,6 +30,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -513,6 +515,138 @@ var _ = Describe("Upgrade Actions test", func() {
 				variables, err := utils.ReadPersistentVariables("/oem/grubenv", config)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(variables["next_entry"]).To(Equal(constants.BootEntryActive))
+			})
+			Context("with a diff upgrade", Label("diff"), func() {
+				const fullRef = "quay.io/kairos/test:v2"
+				const diffRef = fullRef + diffupgrade.TagSuffix
+				var base string
+
+				// writeDiff unpacks a diff for the given base into dest, the
+				// way the extractor would.
+				writeDiff := func(dest, forBase string) error {
+					manifest := fmt.Sprintf(`{"version":1,"base":%q,"deleted":["usr/lib/old"]}`, forBase)
+					for path, content := range map[string]string{
+						"usr/bin/new":            "new",
+						"etc/kairos-release":     "GRUB_ENTRY_NAME=TESTOS\nKAIROS_VERSION=v2\nKAIROS_INIT_VERSION=\"v4.3.0\"\n",
+						diffupgrade.ManifestPath: manifest,
+					} {
+						full := filepath.Join(dest, path)
+						if err := fsutils.MkdirAll(fs, filepath.Dir(full), constants.DirPerm); err != nil {
+							return err
+						}
+						if err := fs.WriteFile(full, []byte(content), constants.FilePerm); err != nil {
+							return err
+						}
+					}
+					return nil
+				}
+
+				BeforeEach(func() {
+					spec.Active.Source = sdkImages.NewDockerSrc(fullRef)
+					spec.Diff = true
+
+					Expect(fsutils.MkdirAll(fs, filepath.Join(spec.Active.MountPoint, "usr/lib"), constants.DirPerm)).To(Succeed())
+					Expect(fs.WriteFile(filepath.Join(spec.Active.MountPoint, "usr/lib/old"), []byte("old"), constants.FilePerm)).To(Succeed())
+					var err error
+					base, err = diffupgrade.Fingerprint(fs, spec.Active.MountPoint)
+					Expect(err).ToNot(HaveOccurred())
+
+					// The transition image starts as a copy of active.img.
+					previous := runner.SideEffect
+					runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+						if command == "cp" {
+							data, err := fs.ReadFile(args[len(args)-2])
+							if err != nil {
+								return nil, err
+							}
+							return nil, fs.WriteFile(args[len(args)-1], data, constants.FilePerm)
+						}
+						return previous(command, args...)
+					}
+				})
+
+				It("builds the transition image from the diff instead of the full image", func() {
+					extractor.SideEffect = func(imageRef, dest, _ string) error {
+						return writeDiff(dest, base)
+					}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+
+					Expect(extractor.WasCalledWithImageRef(diffRef)).To(BeTrue())
+					Expect(extractor.WasCalledWithImageRef(fullRef)).To(BeFalse(), "the full image must not be pulled")
+					Expect(runner.IncludesCmds([][]string{
+						{"cp", "--sparse=always", activeImg, spec.Active.File},
+						{"tune2fs", "-L", spec.Active.Label, spec.Active.File},
+					})).To(Succeed())
+
+					root := spec.Active.MountPoint
+					Expect(fs.ReadFile(filepath.Join(root, "usr/bin/new"))).To(Equal([]byte("new")))
+					_, err := fs.Stat(filepath.Join(root, "usr/lib/old"))
+					Expect(err).To(MatchError(os.ErrNotExist), "deleted paths are removed")
+					_, err = fs.Stat(filepath.Join(root, diffupgrade.ManifestDir))
+					Expect(err).To(MatchError(os.ErrNotExist), "the manifest does not stay on the system")
+
+					// Same swap as a full upgrade: the new image is active,
+					// the old one is passive.
+					Expect(fs.ReadFile(activeImg)).To(Equal([]byte("active")))
+					Expect(fs.ReadFile(passiveImg)).To(Equal([]byte("active")))
+					_, err = fs.Stat(spec.Active.File)
+					Expect(err).To(HaveOccurred(), "the transition image is gone")
+				})
+
+				It("falls back to the full image when the diff is for another release", func() {
+					extractor.SideEffect = func(imageRef, dest, _ string) error {
+						if imageRef == diffRef {
+							return writeDiff(dest, "sha256:another-release")
+						}
+						return nil
+					}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+
+					Expect(memLog.String()).To(ContainSubstring("falling back to the full image"))
+					Expect(memLog.String()).To(ContainSubstring(diffupgrade.ErrBaseMismatch.Error()))
+					Expect(extractor.ClientCalls).To(HaveLen(2))
+					Expect(extractor.ClientCalls[0].ImageRef).To(Equal(diffRef))
+					Expect(extractor.ClientCalls[1].ImageRef).To(Equal(fullRef))
+
+					info, err := fs.Stat(activeImg)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(info.Size()).To(BeNumerically("==", int64(spec.Active.Size*1024*1024)), "active.img is the full image")
+				})
+
+				It("falls back to the full image when the diff cannot be pulled", func() {
+					extractor.SideEffect = func(imageRef, _, _ string) error {
+						if imageRef == diffRef {
+							return fmt.Errorf("MANIFEST_UNKNOWN")
+						}
+						return nil
+					}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+					Expect(memLog.String()).To(ContainSubstring("MANIFEST_UNKNOWN"))
+					Expect(extractor.WasCalledWithImageRef(fullRef)).To(BeTrue())
+				})
+
+				It("falls back to the full image when the source is pinned by digest", func() {
+					spec.Active.Source = sdkImages.NewDockerSrc("quay.io/kairos/test@sha256:" + strings.Repeat("0", 64))
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+					Expect(memLog.String()).To(ContainSubstring("pinned by digest"))
+					Expect(extractor.ClientCalls).To(HaveLen(1))
+				})
+
+				It("uses diff-source when it is set", func() {
+					spec.Diff = false
+					spec.DiffSource = "oci:example.org/custom/diff:latest"
+					extractor.SideEffect = func(imageRef, dest, _ string) error {
+						return writeDiff(dest, base)
+					}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+					Expect(extractor.ClientCalls).To(HaveLen(1))
+					Expect(extractor.ClientCalls[0].ImageRef).To(Equal("example.org/custom/diff:latest"))
+				})
 			})
 		})
 		Describe(fmt.Sprintf("Booting from %s", constants.PassiveLabel), Label("passive_label"), func() {

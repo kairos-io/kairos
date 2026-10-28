@@ -84,14 +84,25 @@ var _ = Describe("generateInstallConfForCLIArgs", func() {
 
 var _ = Describe("generateUpgradeConfForCLIArgs", func() {
 	It("emits allow-insecure-registries when requested", func() {
-		out, err := generateUpgradeConfForCLIArgs("oci:foo", "", true)
+		out, err := generateUpgradeConfForCLIArgs("oci:foo", "", true, false, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring(`"allow-insecure-registries":true`))
 	})
 	It("omits allow-insecure-registries by default", func() {
-		out, err := generateUpgradeConfForCLIArgs("oci:foo", "", false)
+		out, err := generateUpgradeConfForCLIArgs("oci:foo", "", false, false, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).ToNot(ContainSubstring("allow-insecure-registries"))
+	})
+	It("emits the diff keys when requested", func() {
+		out, err := generateUpgradeConfForCLIArgs("oci:foo", "", false, true, "oci:foo:diff")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).To(ContainSubstring(`"diff":true`))
+		Expect(out).To(ContainSubstring(`"diff-source":"oci:foo:diff"`))
+	})
+	It("omits the diff keys by default", func() {
+		out, err := generateUpgradeConfForCLIArgs("oci:foo", "", false, false, "")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).ToNot(ContainSubstring("diff"))
 	})
 })
 

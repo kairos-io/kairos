@@ -157,11 +157,15 @@ func (u *UpgradeAction) Run() (err error) {
 		return err
 	}
 
-	u.Info("deploying image %s to %s", upgradeImg.Source.Value(), upgradeImg.File)
-	_, err = e.DeployImage(&upgradeImg, true, u.spec.ExcludedPaths...)
-	if err != nil {
-		u.Error("Failed deploying image to file '%s': %s", upgradeImg.File, err)
-		return err
+	// A diff upgrade only changes how the transition image is built. When it
+	// cannot be built from a diff, the full image is deployed as usual.
+	if !u.tryDiffDeploy(e, &upgradeImg, bootedFrom) {
+		u.Info("deploying image %s to %s", upgradeImg.Source.Value(), upgradeImg.File)
+		_, err = e.DeployImage(&upgradeImg, true, u.spec.ExcludedPaths...)
+		if err != nil {
+			u.Error("Failed deploying image to file '%s': %s", upgradeImg.File, err)
+			return err
+		}
 	}
 	cleanup.Push(func() error { return e.UnmountImage(&upgradeImg) })
 
