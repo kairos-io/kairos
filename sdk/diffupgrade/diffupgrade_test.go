@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -86,27 +87,30 @@ var _ = Describe("diff upgrades", func() {
 	})
 
 	It("lists only the topmost deleted paths", func() {
-		m, err := diffupgrade.Generate(base, target, &discard{})
+		m, err := diffupgrade.Generate(diffupgrade.Root{Dir: base, Ref: "a:v1"}, diffupgrade.Root{Dir: target, Ref: "a:v2"}, &discard{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(m.Deleted).To(Equal([]string{"usr/lib/gone", "usr/share/olddir"}))
 		expected, err := diffupgrade.Fingerprint(osFS{}, base)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(m.Base).To(Equal(expected))
+		expected, err = diffupgrade.Fingerprint(osFS{}, target)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(m.Target).To(Equal(expected))
+		Expect(m.BaseRef).To(Equal("a:v1"))
+		Expect(m.TargetRef).To(Equal("a:v2"))
 	})
 
 	// unpackOntoBase generates the diff image, unpacks it onto a copy of the
 	// base the way a full image is unpacked, and returns the copy along with
 	// the fingerprint it had before.
 	unpackOntoBase := func() (string, string) {
-		out := filepath.Join(GinkgoT().TempDir(), "diff.tar")
-		_, err := diffupgrade.GenerateImage(base, target, out, "example.org/kairos/test:v1.1.0.diff")
+		img, _, release, err := diffupgrade.NewImage(diffupgrade.Root{Dir: base}, diffupgrade.Root{Dir: target}, GinkgoT().TempDir())
 		Expect(err).ToNot(HaveOccurred())
-
-		img, err := tarball.ImageFromPath(out, nil)
-		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(release)
 		cfg, err := img.ConfigFile()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cfg.Config.Labels).To(HaveKey(diffupgrade.BaseLabel))
+		Expect(cfg.Config.Labels).To(HaveKey(diffupgrade.TargetLabel))
 
 		work := filepath.Join(GinkgoT().TempDir(), "root")
 		Expect(exec.Command("cp", "-a", base, work).Run()).To(Succeed())
@@ -129,6 +133,38 @@ var _ = Describe("diff upgrades", func() {
 		Expect(err).To(MatchError(diffupgrade.ErrBaseMismatch))
 		// Nothing was deleted on a refusal.
 		Expect(filepath.Join(work, "usr/lib/gone")).To(BeAnExistingFile())
+	})
+
+	It("refuses a result that is not the target release", func() {
+		work, fingerprint := unpackOntoBase()
+		// Something else rewrote the release file after the diff landed.
+		Expect(os.WriteFile(filepath.Join(work, "etc/kairos-release"), []byte("tampered"), 0o644)).To(Succeed())
+		Expect(diffupgrade.Apply(osFS{}, work, fingerprint)).To(MatchError(ContainSubstring("expected")))
+	})
+
+	It("tells an image archive from a root filesystem tarball", func() {
+		dir := GinkgoT().TempDir()
+		img, _, release, err := diffupgrade.NewImage(diffupgrade.Root{Dir: base}, diffupgrade.Root{Dir: target}, dir)
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(release)
+		imageArchive := filepath.Join(dir, "image.tar")
+		Expect(tarball.WriteToFile(imageArchive, name.MustParseReference("example.org/a:b").(name.Tag), img)).To(Succeed())
+
+		rootfs := filepath.Join(dir, "rootfs.tar.gz")
+		Expect(exec.Command("tar", "-czf", rootfs, "-C", target, ".").Run()).To(Succeed())
+
+		Expect(diffupgrade.IsImageArchive(imageArchive)).To(BeTrue())
+		Expect(diffupgrade.IsImageArchive(rootfs)).To(BeFalse())
+
+		unpacked := filepath.Join(dir, "unpacked")
+		Expect(os.Mkdir(unpacked, 0o755)).To(Succeed())
+		Expect(diffupgrade.UnpackTarball(rootfs, unpacked)).To(Succeed())
+		// The root directory takes its mode from the tarball, not from
+		// where it is unpacked, so only what is under it is compared.
+		got, want := tree(unpacked), tree(target)
+		delete(got, ".")
+		delete(want, ".")
+		Expect(got).To(Equal(want))
 	})
 
 	It("refuses a manifest that reaches outside the root", func() {

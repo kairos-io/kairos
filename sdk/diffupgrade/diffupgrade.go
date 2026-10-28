@@ -45,6 +45,8 @@ const (
 	// BaseLabel is the image config label that carries Manifest.Base, so the
 	// base of a diff can be read from a registry without pulling it.
 	BaseLabel = "io.kairos.diff.base"
+	// TargetLabel is the image config label that carries Manifest.Target.
+	TargetLabel = "io.kairos.diff.target"
 
 	// fingerprintFile is the file whose checksum identifies a release.
 	fingerprintFile = "etc/kairos-release"
@@ -60,6 +62,13 @@ type Manifest struct {
 	Version int `json:"version"`
 	// Base is the Fingerprint of the release the diff was computed against.
 	Base string `json:"base"`
+	// Target is the Fingerprint of the release the diff produces. Apply
+	// checks it once the diff is applied.
+	Target string `json:"target"`
+	// BaseRef and TargetRef name the images the diff was computed from.
+	// They are informational, the fingerprints are what is checked.
+	BaseRef   string `json:"base-ref,omitempty"`
+	TargetRef string `json:"target-ref,omitempty"`
 	// Deleted lists the paths, relative to the root, that the base has and
 	// the target does not. A deleted directory is listed once, not with its
 	// contents.
@@ -112,8 +121,8 @@ func ReadManifest(fs readFS, root string) (*Manifest, error) {
 // the file it is computed from.
 //
 // Apply checks the manifest against base, removes the deleted paths and then
-// the manifest itself. On error root is in an undefined state and has to be
-// discarded.
+// the manifest itself, and checks that root ended up as the target release. On
+// error root is in an undefined state and has to be discarded.
 func Apply(fs applyFS, root, base string) error {
 	m, err := ReadManifest(fs, root)
 	if err != nil {
@@ -131,7 +140,17 @@ func Apply(fs applyFS, root, base string) error {
 			return fmt.Errorf("removing %s: %w", p, err)
 		}
 	}
-	return fs.RemoveAll(filepath.Join(root, ManifestDir))
+	if err := fs.RemoveAll(filepath.Join(root, ManifestDir)); err != nil {
+		return err
+	}
+	got, err := Fingerprint(fs, root)
+	if err != nil {
+		return err
+	}
+	if got != m.Target {
+		return fmt.Errorf("diff applied but the result is %s, expected %s", got, m.Target)
+	}
+	return nil
 }
 
 // relativePath refuses a manifest entry that would reach outside the root it

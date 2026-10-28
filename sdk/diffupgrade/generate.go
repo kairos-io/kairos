@@ -14,11 +14,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
+
+// Root is one side of a diff: a root filesystem unpacked at Dir, and the
+// name of the image it came from, recorded in the manifest.
+type Root struct {
+	Dir string
+	Ref string
+}
 
 // Generate writes to w the layer of the diff that turns the root filesystem
 // at base into the one at target, and returns its manifest.
@@ -31,34 +38,42 @@ import (
 //
 // Hard links are written as separate files, and sockets are skipped, as a
 // root filesystem image has no use for either.
-func Generate(base, target string, w io.Writer) (*Manifest, error) {
-	fingerprint, err := Fingerprint(osFS{}, base)
+func Generate(base, target Root, w io.Writer) (*Manifest, error) {
+	baseFingerprint, err := Fingerprint(osFS{}, base.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("base: %w", err)
 	}
-	if _, err := Fingerprint(osFS{}, target); err != nil {
+	targetFingerprint, err := Fingerprint(osFS{}, target.Dir)
+	if err != nil {
 		return nil, fmt.Errorf("target: %w", err)
 	}
 
-	deleted, err := deletedPaths(base, target)
+	deleted, err := deletedPaths(base.Dir, target.Dir)
 	if err != nil {
 		return nil, err
 	}
-	m := &Manifest{Version: FormatVersion, Base: fingerprint, Deleted: deleted}
+	m := &Manifest{
+		Version:   FormatVersion,
+		Base:      baseFingerprint,
+		Target:    targetFingerprint,
+		BaseRef:   base.Ref,
+		TargetRef: target.Ref,
+		Deleted:   deleted,
+	}
 
 	tw := tar.NewWriter(w)
-	err = filepath.WalkDir(target, func(path string, _ fs.DirEntry, err error) error {
+	err = filepath.WalkDir(target.Dir, func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, err := filepath.Rel(target, path)
+		rel, err := filepath.Rel(target.Dir, path)
 		if err != nil || rel == "." {
 			return err
 		}
 		if rel == ManifestDir {
 			return fs.SkipDir
 		}
-		changed, err := differs(filepath.Join(base, rel), path)
+		changed, err := differs(filepath.Join(base.Dir, rel), path)
 		if err != nil || !changed {
 			return err
 		}
@@ -67,11 +82,11 @@ func Generate(base, target string, w io.Writer) (*Manifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	rootInfo, err := os.Lstat(target)
+	rootInfo, err := os.Lstat(target.Dir)
 	if err != nil {
 		return nil, err
 	}
-	rootHdr, err := header(target, rootInfo)
+	rootHdr, err := header(target.Dir, rootInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -81,52 +96,53 @@ func Generate(base, target string, w io.Writer) (*Manifest, error) {
 	return m, tw.Close()
 }
 
-// GenerateImage writes the diff between base and target to output as an image
-// archive, the format `docker save` writes, tagged as ref. The archive can be
-// loaded with docker or pushed with any registry client, and the agent reads
-// it directly through an ocifile: source.
-func GenerateImage(base, target, output, ref string) (*Manifest, error) {
-	tag, err := name.NewTag(ref)
+// NewImage builds the diff between base and target as a single layer image,
+// ready to be written to an archive or pushed. The layer is staged in a file
+// under workDir, which the image reads lazily, so release has to be called
+// only once the image has been written out.
+func NewImage(base, target Root, workDir string) (img v1.Image, m *Manifest, release func(), err error) {
+	layerFile, err := os.CreateTemp(workDir, ".diff-layer-*.tar")
 	if err != nil {
-		return nil, fmt.Errorf("parsing %s: %w", ref, err)
+		return nil, nil, nil, err
 	}
+	release = func() { _ = os.Remove(layerFile.Name()) }
+	defer func() {
+		if err != nil {
+			release()
+		}
+	}()
 
-	layerFile, err := os.CreateTemp(filepath.Dir(output), ".diff-layer-*.tar")
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = os.Remove(layerFile.Name()) }()
-
-	m, err := Generate(base, target, layerFile)
+	m, err = Generate(base, target, layerFile)
 	if closeErr := layerFile.Close(); err == nil {
 		err = closeErr
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
 	layer, err := tarball.LayerFromFile(layerFile.Name())
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	img, err := mutate.AppendLayers(empty.Image, layer)
+	img, err = mutate.AppendLayers(empty.Image, layer)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	cfg, err := img.ConfigFile()
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	cfg = cfg.DeepCopy()
 	if cfg.Config.Labels == nil {
 		cfg.Config.Labels = map[string]string{}
 	}
 	cfg.Config.Labels[BaseLabel] = m.Base
+	cfg.Config.Labels[TargetLabel] = m.Target
 	img, err = mutate.ConfigFile(img, cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	return m, tarball.WriteToFile(output, tag, img)
+	return img, m, release, nil
 }
 
 // deletedPaths lists the paths base has and target does not. Below a deleted

@@ -29,7 +29,6 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
-	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
@@ -974,39 +973,41 @@ The validate command expects a configuration file as its only argument. Local fi
 		},
 	},
 	{
-		Name:  "diff-generate",
+		Name:  "generate-diff",
 		Usage: "Experimental: generate the diff a diff upgrade applies",
 		Description: `
-Generate the diff that turns the root filesystem in BASE into the one in TARGET, and write it to OUTPUT as an image archive.
+Generate the diff that turns the BASE release into the TARGET release, for "upgrade --diff".
 
-BASE and TARGET are directories, for example two images unpacked with pull-image. Run it as root, so ownership and extended attributes are read in full.
+BASE and TARGET are each an image reference (pulled from a registry, or from the local daemon), an image archive as docker save writes, a root filesystem tarball (.tar, .tar.gz or .tar.zst), or a directory. Prefix with oci:, ocifile: or dir: to force the kind. Run it as root, so ownership and extended attributes are kept.
 
-The archive can be applied directly with "upgrade --diff-source ocifile:OUTPUT", or pushed to a registry next to the full image, at its tag with ".diff" appended, where "upgrade --diff" finds it.
+Both releases are unpacked under --work-dir, which needs room for two root filesystems.
+
+Pass --push to push the diff to a registry, at the tag of the target with ".diff" appended, where "upgrade --diff" finds it. Otherwise it is written to --output as an image archive, which "upgrade --diff-source ocifile:FILE" applies directly.
+
+$ kairos-agent generate-diff --push quay.io/kairos/hadron:v1.2.0.diff quay.io/kairos/hadron:v1.1.0 quay.io/kairos/hadron:v1.2.0
 `,
-		UsageText: "diff-generate [--tag REF] BASE TARGET OUTPUT",
+		UsageText: "generate-diff [--output FILE] [--push REF] BASE TARGET",
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "tag",
-				Usage: "Image reference recorded in the archive",
-				Value: "kairos/diff:latest",
-			},
+			&cli.StringFlag{Name: "output", Usage: "Write the diff to this image archive. Defaults to diff.tar when --push is not set"},
+			&cli.StringFlag{Name: "push", Usage: "Push the diff to this image reference"},
+			&cli.StringFlag{Name: "platform", Usage: "Platform to pull image references for", Value: fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)},
+			&cli.StringFlag{Name: "work-dir", Usage: "Directory to unpack both releases in", Value: os.TempDir()},
 		},
 		Before: func(c *cli.Context) error {
-			if c.Args().Len() != 3 {
-				cli.HelpPrinter(c.App.Writer, "BASE, TARGET and OUTPUT are required\n\n", c.Command)
+			if c.Args().Len() != 2 {
+				cli.HelpPrinter(c.App.Writer, "BASE and TARGET are required\n\n", c.Command)
 				_ = cli.ShowSubcommandHelp(c)
 				return fmt.Errorf("")
 			}
 			return nil
 		},
 		Action: func(c *cli.Context) error {
-			base, target, output := c.Args().Get(0), c.Args().Get(1), c.Args().Get(2)
-			m, err := diffupgrade.GenerateImage(base, target, output, c.String("tag"))
-			if err != nil {
-				return err
+			output := c.String("output")
+			if output == "" && c.String("push") == "" {
+				output = "diff.tar"
 			}
-			fmt.Printf("Diff written to %s\n  Base: %s\n  Deleted paths: %d\n", output, m.Base, len(m.Deleted))
-			return nil
+			cfg := agentConfig.NewConfig(agentConfig.WithPlatform(c.String("platform")))
+			return agent.GenerateDiff(cfg, c.Args().Get(0), c.Args().Get(1), output, c.String("push"), c.String("work-dir"))
 		},
 	},
 	{

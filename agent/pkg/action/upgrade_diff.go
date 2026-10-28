@@ -55,7 +55,7 @@ func (u *UpgradeAction) diffDeploy(e *elemental.Elemental, upgradeImg *sdkImages
 		return err
 	}
 	if diffSrc.IsFile() {
-		return errors.New("a diff has to be an oci:, ocifile: or dir: source, not file:")
+		return errors.New("file: is not a diff source, use an oci, ocifile or dir source")
 	}
 
 	// The diff applies onto the release that is running. Booted from

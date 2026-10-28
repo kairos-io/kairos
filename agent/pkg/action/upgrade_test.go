@@ -18,6 +18,7 @@ package action_test
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -524,10 +525,12 @@ var _ = Describe("Upgrade Actions test", func() {
 				// writeDiff unpacks a diff for the given base into dest, the
 				// way the extractor would.
 				writeDiff := func(dest, forBase string) error {
-					manifest := fmt.Sprintf(`{"version":1,"base":%q,"deleted":["usr/lib/old"]}`, forBase)
+					release := "GRUB_ENTRY_NAME=TESTOS\nKAIROS_VERSION=v2\nKAIROS_INIT_VERSION=\"v4.3.0\"\n"
+					targetSum := sha256.Sum256([]byte(release))
+					manifest := fmt.Sprintf(`{"version":1,"base":%q,"target":"sha256:%x","deleted":["usr/lib/old"]}`, forBase, targetSum)
 					for path, content := range map[string]string{
 						"usr/bin/new":            "new",
-						"etc/kairos-release":     "GRUB_ENTRY_NAME=TESTOS\nKAIROS_VERSION=v2\nKAIROS_INIT_VERSION=\"v4.3.0\"\n",
+						"etc/kairos-release":     release,
 						diffupgrade.ManifestPath: manifest,
 					} {
 						full := filepath.Join(dest, path)
