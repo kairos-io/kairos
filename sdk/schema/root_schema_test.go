@@ -1,7 +1,12 @@
 package schema_test
 
 import (
+	"fmt"
+	"os"
 	"strings"
+
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"gopkg.in/yaml.v3"
 
 	. "github.com/kairos-io/kairos/v4/sdk/schema"
 	. "github.com/onsi/ginkgo/v2"
@@ -96,6 +101,88 @@ users:
 				Expect(config.HasHeader()).To(BeTrue())
 			})
 		})
+
+		Context("with install.oem_files nested under the root config", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+install:
+  oem_files:
+    - name: foo
+      content: "#cloud-config"`
+			})
+
+			It("is successful", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+			})
+		})
+
+		Context("with an install.oem_files entry missing its content", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+install:
+  oem_files:
+    - name: foo`
+			})
+
+			It("errors", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(ContainSubstring("content"))
+			})
+		})
+	})
+
+	Context("kubevip", func() {
+		var config *KConfig
+		var err error
+		var yaml string
+
+		JustBeforeEach(func() {
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("with a valid kubevip block", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+kubevip:
+  enable: true
+  interface: ens18
+  static_pod: true
+  version: v0.8.0
+  image: ghcr.io/kube-vip/kube-vip`
+			})
+
+			It("validates", func() {
+				Expect(config.IsValid()).To(BeTrue())
+			})
+		})
+
+		Context("with a boolean interface, the pre-fix type", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+kubevip:
+  interface: true`
+			})
+
+			It("fails, because the provider reads interface as an interface name string", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(MatchRegexp("/kubevip/interface"))
+			})
+		})
 	})
 
 	Context("ValidateSemantics", func() {
@@ -176,6 +263,65 @@ users:
 				Expect(err).To(MatchError(ContainSubstring("ssh_authorized_keys")))
 			})
 		})
+
+		// Every one of these keys is declared as ConfigBool or SpecBool.
+		// Those are empty structs, so without an UnmarshalJSON that
+		// accepts a scalar, decoding the config into a RootSchema fails
+		// and ValidateSemantics reports no findings at all, silently
+		// turning off the check above. kairos-agent writes such keys
+		// itself, for instance on `upgrade --allow-insecure-registries`.
+		DescribeTable("keeps the unreachable-SSH error when a yes/no key is set",
+			func(block, key string) {
+				kc = newKC(fmt.Sprintf(`#cloud-config
+install:
+  ssh_hardening: true
+%s:
+  %s: true
+users:
+  - name: kairos
+    passwd: kairos`, block, key))
+
+				_, err := kc.ValidateSemantics()
+				Expect(err).To(MatchError(ContainSubstring("ssh_authorized_keys")))
+			},
+			Entry("upgrade.recovery", "upgrade", "recovery"),
+			Entry("upgrade.reboot", "upgrade", "reboot"),
+			Entry("upgrade.poweroff", "upgrade", "poweroff"),
+			Entry("upgrade.allow-insecure-registries", "upgrade", "allow-insecure-registries"),
+			Entry("reset.reset-persistent", "reset", "reset-persistent"),
+			Entry("reset.reset-oem", "reset", "reset-oem"),
+			Entry("reset.reboot", "reset", "reboot"),
+			Entry("reset.poweroff", "reset", "poweroff"),
+		)
+
+	})
+
+	Context("the text of a validation error", func() {
+		// The validator names the schema document in every error it reports.
+		// Compiling it under a relative resource name made that name resolve
+		// against the working directory, so the operator was told their
+		// configuration disagreed with a file:// path that does not exist on
+		// their machine and that moved with the directory the binary ran in.
+		var validationError error
+
+		BeforeEach(func() {
+			config, err := NewConfigFromYAML("#cloud-config\ninstall:\n  device: 123\n", RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.IsValid()).To(BeFalse())
+			validationError = config.ValidationError
+		})
+
+		It("names the schema document by its identifier", func() {
+			Expect(validationError.Error()).To(ContainSubstring(InProcessSchemaID))
+		})
+
+		It("does not name a path on the machine that ran the validation", func() {
+			Expect(validationError.Error()).ToNot(ContainSubstring("file://"))
+
+			cwd, err := os.Getwd()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(validationError.Error()).ToNot(ContainSubstring(cwd))
+		})
 	})
 
 	Context("GenerateSchema", func() {
@@ -232,5 +378,89 @@ users:
 			})
 		})
 
+		Context("for the real RootSchema's install.oem_files description", func() {
+			var rootSchema string
+
+			BeforeEach(func() {
+				var genErr error
+				rootSchema, genErr = GenerateSchema(RootSchema{}, "")
+				Expect(genErr).ToNot(HaveOccurred())
+			})
+
+			It("no longer advertises the removed /usr/local/cloud-config fallback", func() {
+				// Regression guard for the stale-description bug: the fallback
+				// was deleted from the code (oemFilesDir errors out instead),
+				// but the published schema kept telling users about it.
+				Expect(rootSchema).NotTo(ContainSubstring("/usr/local/cloud-config"))
+			})
+
+			It("still names the OEM partition as the only destination", func() {
+				Expect(rootSchema).To(ContainSubstring("OEM partition"))
+			})
+		})
+
+	})
+
+	// RootSchema is what `kairos-agent print-schema` publishes, and
+	// agent/pkg/config.scan unmarshals the very same cloud-config into
+	// sdk/types/config.Config *before* it validates. So a key the schema
+	// describes with a shape Config cannot hold is not a documentation
+	// slip: it aborts the scan, and every command that scans config with
+	// it. These specs pin the two structs to each other.
+	Context("top-level keys the agent reads", func() {
+		validates := func(y string) (bool, string) {
+			kc, err := NewConfigFromYAML("#cloud-config\nusers:\n  - name: kairos\n"+y, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			if kc.IsValid() {
+				return true, ""
+			}
+			return false, kc.ValidationError.Error()
+		}
+
+		// The runtime holds `options` in a map[string]string. A sequence
+		// makes yaml.Unmarshal fail outright, so the schema must not be
+		// the thing that tells people to write one.
+		It("accepts the options mapping the runtime reads, and rejects a sequence", func() {
+			var c sdkConfig.Config
+			Expect(yaml.Unmarshal([]byte("options:\n  foo: bar\n"), &c)).To(Succeed())
+			Expect(c.Options).To(Equal(map[string]string{"foo": "bar"}))
+			Expect(yaml.Unmarshal([]byte("options:\n  - foo\n"), &sdkConfig.Config{})).
+				To(MatchError(ContainSubstring("cannot unmarshal !!seq into map[string]string")))
+
+			ok, _ := validates("options:\n  foo: bar\n")
+			Expect(ok).To(BeTrue(), "the only shape Config can hold must validate")
+
+			ok, why := validates("options:\n  - foo\n")
+			Expect(ok).To(BeFalse(), "a sequence breaks the scan, so it must not validate")
+			Expect(why).To(ContainSubstring("/options"))
+		})
+
+		// Declared-property specs pass vacuously while the schema accepts
+		// unknown keys, so each of these asserts on a wrong *type* too:
+		// type checks only fire on properties the schema declares.
+		DescribeTable("describes the key, so print-schema completes it",
+			func(good, badType string) {
+				ok, why := validates(good)
+				Expect(ok).To(BeTrue(), why)
+
+				ok, _ = validates(badType)
+				Expect(ok).To(BeFalse(),
+					"a wrong-typed value was accepted, so the key is not a declared property")
+			},
+			Entry("logs", "logs:\n  journal:\n    - kairos-agent\n  files:\n    - /var/log/foo\n", "logs: 5\n"),
+			Entry("bind-pcrs", "bind-pcrs:\n  - \"11\"\n", "bind-pcrs: 11\n"),
+			Entry("bind-public-pcrs", "bind-public-pcrs:\n  - \"7\"\n", "bind-public-pcrs: 7\n"),
+			Entry("options", "options:\n  foo: bar\n", "options: 5\n"),
+		)
+
+		// `logs: 5` is rejected by an empty struct type too, so it does not
+		// prove the two fields under `logs` are declared. This does.
+		It("declares the fields under logs, not just the block", func() {
+			ok, _ := validates("logs:\n  journal: kairos-agent\n")
+			Expect(ok).To(BeFalse(), "a scalar journal was accepted, so LogsSchema.Journal is not declared")
+
+			ok, _ = validates("logs:\n  files: /var/log/foo\n")
+			Expect(ok).To(BeFalse(), "a scalar files was accepted, so LogsSchema.Files is not declared")
+		})
 	})
 })

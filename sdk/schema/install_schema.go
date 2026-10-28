@@ -19,22 +19,58 @@ type InstallSchema struct {
 	Extensions          []ExtensionSchema `json:"extensions,omitempty" description:"System extensions to install onto the node."`
 	GrubOptionsSchema   `json:"grub_options,omitempty"`
 	SelinuxOptions      `json:"selinux,omitempty"`
-	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
+	Source              string `json:"source,omitempty" description:"Container image to install the system from, e.g. oci://quay.io/kairos/opensuse:latest. This is the key the installer reads."`
+	ImageDeprecated     string `json:"image,omitempty" deprecated:"true" description:"Deprecated and ignored: it was never read by the installer. Use source instead"`
+	NoUsers             bool   `json:"nousers,omitempty" description:"Skip the check that the config declares at least one administrative user. Intended for images that provision users by other means."`
 	PowerManagement
 	Partitions      ElementalPartitions `json:"partitions,omitempty"`
 	GrubDefEntry    string              `json:"grub-entry-name,omitempty"`
-	ExtraPartitions []*Partition        `json:"extra-partitions,omitempty"`
+	ExtraPartitions []*ExtraPartition   `json:"extra-partitions,omitempty" description:"Extra partitions to create on the install device, after the Kairos ones"`
 	Force           bool                `json:"force,omitempty"`
 	ExtraDirsRootfs []string            `json:"extra-dirs-rootfs,omitempty"`
 	SSHHardening    bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
+	OEMFiles        []OEMFileSchema     `json:"oem_files,omitempty" description:"Cloud-config files to write into the OEM partition of the installed system, which it reads as /oem, so they are applied on its first boot. The install fails if the target has no mounted OEM partition."`
 	Active          Image               `json:"system,omitempty"`
 	Recovery        Image               `json:"recovery-system,omitempty"`
 	Passive         Image               `json:"passive,omitempty"`
+	// Keys below are decoded into InstallSpec and InstallUkiSpec by
+	// unmarshallFullSpec(cfg, "install", spec), not into types/config.Config.
+	Firmware                string              `json:"firmware,omitempty" enum:"[\"efi\",\"bios\"]" description:"Firmware to install for. Defaults to what the installing machine reports, so set it only to install for a machine other than the one running the installer"`
+	PartTable               string              `json:"part-table,omitempty" enum:"[\"gpt\"]" description:"Partition table to write. Only gpt is supported, for both efi and bios firmware"`
+	CloudInit               []string            `json:"cloud-init,omitempty" description:"Extra cloud-config files to copy onto the installed system, on top of the config that drove the install. Each entry is one file, given as a path or as a URL to download. A directory is not copied"`
+	Iso                     string              `json:"iso,omitempty" description:"URL or path of an ISO to install from, instead of the running installation medium"`
+	Tty                     string              `json:"tty,omitempty" description:"Console the installed system gets a getty on, in addition to the default one" examples:"[\"ttyS0\",\"tty1\"]"`
+	SkipEntries             []string            `json:"skip-entries,omitempty" description:"Trusted Boot only: boot entries to leave out of the installed system. Added to the entries Kairos skips by default"`
+	AllowInsecureRegistries bool                `json:"allow-insecure-registries,omitempty" description:"Pull the install image from a registry served over plain HTTP or presenting an untrusted certificate"`
+	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
 }
 
+// RegistryAuthSchema describes one explicit registry credential form. Exactly
+// one form is accepted by the agent at runtime.
+type RegistryAuthSchema struct {
+	File          string `json:"file,omitempty" description:"Path to a YAML credential object available before the operation starts. Cannot be combined with inline credentials."`
+	Username      string `json:"username,omitempty" description:"Registry username. Must be provided with password."`
+	Password      string `json:"password,omitempty" description:"Registry password."`
+	Auth          string `json:"auth,omitempty" description:"Base64 encoded username:password."`
+	IdentityToken string `json:"identity-token,omitempty" description:"Registry identity token."`
+	RegistryToken string `json:"registry-token,omitempty" description:"Registry bearer token."`
+}
+
+// OEMFileSchema represents one entry of the install.oem_files block. The file
+// lands as <name>.yaml, so name has to be a plain file name.
+type OEMFileSchema struct {
+	Name    string `json:"name,omitempty" required:"true" pattern:"^[^/]+$" description:"File name, without the yaml extension" examples:"[\"foo\"]"`
+	Content string `json:"content,omitempty" required:"true" description:"Content of the file, a cloud-config document"`
+}
+
+// Image describes one of the install block's image slots (system,
+// recovery-system, passive). Mirrors sdk/types/images.Image, which is what the
+// runtime decodes these into: there, URI is marked "deprecated, use Source
+// instead", so `source` is the key to offer and `uri` the one to retire.
 type Image struct {
-	Size   uint   `json:"size,omitempty"`
-	Source string `json:"uri,omitempty"`
+	Size          uint   `json:"size,omitempty"`
+	Source        string `json:"source,omitempty" description:"Container image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest"`
+	URIDeprecated string `json:"uri,omitempty" deprecated:"true" description:"Deprecated: use source instead. Still honoured on system and recovery-system, ignored on passive"`
 }
 
 type Partition struct {
@@ -43,11 +79,31 @@ type Partition struct {
 	FS   string `json:"fs,omitempty"`
 }
 
+// ExtraPartition is one entry of install.extra-partitions. It is a separate
+// type from Partition because the extra partitions are the only ones whose
+// filesystem label comes from the config: SetDefaultLabels overwrites the
+// label of oem, state, recovery and persistent with the constant an installed
+// system looks itself up by.
+type ExtraPartition struct {
+	Name  string `json:"name" required:"true" description:"GPT partition name. The installer looks the device up at /dev/disk/by-partlabel/<name> to format it"`
+	Size  uint   `json:"size,omitempty" description:"Size in MiB. 0, which is also the default, means take whatever is left on the disk, so at most one extra partition can omit it"`
+	FS    string `json:"fs,omitempty" description:"Filesystem to create, e.g. ext4. Use \"-\", \"none\" or \"noformat\" to partition the disk but leave the partition unformatted"`
+	Label string `json:"label,omitempty" description:"Filesystem label to give the partition. Also what the partition UUID is derived from, so two extra partitions that share a label share a PARTUUID"`
+}
+
+// EFIPartition is install.partitions.efi. Only the size is read: the name,
+// filesystem and label of the ESP are fixed by SetFirmwarePartitions, because
+// the bootloader and the installed system find it by them.
+type EFIPartition struct {
+	Size uint `json:"size,omitempty" description:"Size of the EFI system partition in MiB. Defaults to 64. Platforms that stage a firmware capsule on the ESP, such as Jetson Thor, need a larger one"`
+}
+
 type ElementalPartitions struct {
-	OEM        *Partition `json:"oem,omitempty"`
-	Recovery   *Partition `json:"recovery,omitempty"`
-	State      *Partition `json:"state,omitempty"`
-	Persistent *Partition `json:"persistent,omitempty"`
+	EFI        *EFIPartition `json:"efi,omitempty"`
+	OEM        *Partition    `json:"oem,omitempty"`
+	Recovery   *Partition    `json:"recovery,omitempty"`
+	State      *Partition    `json:"state,omitempty"`
+	Persistent *Partition    `json:"persistent,omitempty"`
 }
 
 // BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
@@ -74,8 +130,13 @@ type GrubOptionsSchema struct {
 // SelinuxOptions controls SELinux on the installed system (RHEL and SUSE
 // families). When enabled, the system boots with selinux=1
 // and the kairos-selinux-relabel unit runs on every non-recovery boot.
+//
+// Trusted Boot is supported as well, with one difference: the UKI cmdline is
+// signed when the image is built, so AuroraBoot reads these options from the
+// cloud-config passed to "auroraboot build-uki" rather than from the one the
+// node boots with.
 type SelinuxOptions struct {
-	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). GRUB-only: not supported under UKI"`
+	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). On Trusted Boot the cmdline is signed at build time, so this is read from the cloud-config given to 'auroraboot build-uki', not from the one the node boots with"`
 	Mode    string `json:"mode,omitempty" enum:"[\"enforcing\",\"permissive\"]" description:"SELinux mode: enforcing or permissive (default permissive). Enforcing is applied after the post-boot relabel, not from early boot"`
 }
 

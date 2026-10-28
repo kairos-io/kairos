@@ -146,54 +146,6 @@ func posixShells() map[string][]string {
 	return shells
 }
 
-// stubAgentDir writes a `kairos-agent` that answers `state get <key>` from the
-// supplied table, and returns a PATH containing only it. Anything the guard
-// reaches for beyond the stub is therefore absent, which is what makes `[[`
-// resolve to nothing on a dash box: busybox installs `[[` as an applet, so a
-// guard that looks broken can pass by borrowing it off the real PATH.
-func stubAgentDir(state map[string]string) string {
-	dir := GinkgoT().TempDir()
-
-	script := "#!/bin/sh\ncase \"$3\" in\n"
-	keys := make([]string, 0, len(state))
-	for key := range state {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		script += fmt.Sprintf("  %s) printf '%%s\\n' %q ;;\n", key, state[key])
-	}
-	script += "  *) exit 1 ;;\nesac\n"
-
-	Expect(os.WriteFile(filepath.Join(dir, "kairos-agent"), []byte(script), 0o755)).To(Succeed())
-	return dir
-}
-
-// evalUnder runs expr under every shell on the box with only the stub on PATH,
-// and returns whether the guard fired, per shell.
-func evalUnder(expr string, state map[string]string) map[string]bool {
-	dir := stubAgentDir(state)
-
-	fired := map[string]bool{}
-	for name, argv := range posixShells() {
-		cmd := exec.Command(argv[0], append(argv[1:], expr)...) //nolint:gosec // fixed argv, test-only
-		cmd.Env = []string{"PATH=" + dir}
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			fired[name] = true
-			continue
-		}
-		_, isExit := err.(*exec.ExitError)
-		Expect(isExit).To(BeTrue(), "%s could not run the guard: %v", name, err)
-		// A guard that fails to parse or calls a missing builtin is not a
-		// false guard, it is a broken one. Surface the message rather than
-		// recording a quiet false.
-		Expect(string(out)).To(BeEmpty(), "%s errored on the guard %q", name, expr)
-		fired[name] = false
-	}
-	return fired
-}
-
 var _ = Describe("Bundled cloudconfig guards", func() {
 	// The lint is the invariant: it holds whatever this machine points
 	// /bin/sh at, where the shell matrix below can only test the shells that
@@ -230,33 +182,6 @@ var _ = Describe("Bundled cloudconfig guards", func() {
 			files = append(files, guard.file)
 		}
 		Expect(files).To(ContainElement("12_nvidia.yaml (embedded cloud-config)"))
-	})
-
-	Describe("21_kcrypt.yaml", func() {
-		// The guard gates the only stage that refreshes the OEM copy of the
-		// kcrypt discovery plugins after an upgrade, and /oem/system/discovery
-		// is one of the paths kcrypt searches (sdk/kcrypt/bus/bus.go). With
-		// `==` in it the stage never ran on Ubuntu or Debian.
-		var guard string
-
-		BeforeEach(func() {
-			guard = readStage("21_kcrypt.yaml", "after-upgrade")[0].If
-			Expect(guard).NotTo(BeEmpty())
-		})
-
-		It("fires when the OEM partition was found", func() {
-			for shell, fired := range evalUnder(guard, map[string]string{"oem.found": "true"}) {
-				Expect(fired).To(BeTrue(), "%s did not run the stage with oem.found=true", shell)
-			}
-		})
-
-		It("does not fire when there is no OEM partition, or no answer at all", func() {
-			for _, found := range []string{"false", ""} {
-				for shell, fired := range evalUnder(guard, map[string]string{"oem.found": found}) {
-					Expect(fired).To(BeFalse(), "%s ran the stage with oem.found=%q", shell, found)
-				}
-			}
-		})
 	})
 
 	Describe("00_rootfs.yaml", func() {

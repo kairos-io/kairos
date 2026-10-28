@@ -24,8 +24,24 @@ on:
         type: string
         default: "generic"
       kubernetes_distro:
+        description: |
+          k8s distro baked into the image under test: k3s, k0s, or empty
+          for a core image. Feeds the $K8S segment of the tag this
+          workflow reconstructs to find that image, so it must match the
+          `kubernetes_distro` the build cell was given. Getting it wrong
+          points the suite at a different cell's image.
         required: false
         type: string
+        default: ''
+      kubernetes_version:
+        description: |
+          k8s version baked into the image under test, or "auto" when the
+          build cell let kairos-init choose. Only affects the tag this
+          workflow reconstructs; must match the build cell's
+          `kubernetes_version`.
+        required: false
+        type: string
+        default: 'auto'
       release-matcher:
         description: "The release matcher to use for the latest release. Full regex match"
         required: false
@@ -68,8 +84,9 @@ on:
         description: |
           Registry path (registry/namespace/repo, no tag) where the Kairos
           OS container image was pushed. Combined with the tag suffix
-          `<flavor>-<flavor_release>-<variant>-<arch>-<model>-<sha>` to
-          form the IMAGE_NAME ginkgo tests docker-pull from inside the VM.
+          `<flavor>-<flavor_release>-<variant>-<arch>-<model><k8s>-<sha>`
+          to form the IMAGE_NAME ginkgo tests docker-pull from inside the
+          VM, where `<k8s>` comes from kubernetes_distro/kubernetes_version.
 
           The literal `${flavor}` (bash brace syntax) is expanded to the
           flavor derived from base_image; use it when each flavor lives
@@ -122,10 +139,12 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   test:
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-24.04
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
     # Backstop only. ginkgo's own --timeout below should always fire first,
@@ -142,8 +161,8 @@ jobs:
         id: split
         run: |
           # Split base image for tag generation
-          BASE_IMAGE=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
-          BASE_TAG=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          BASE_IMAGE=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 2 || echo 'latest')
           # Handle special cases for base images with slashes
           # Handle base images with slashes (registry paths)
           # Examples:
@@ -184,27 +203,32 @@ jobs:
           echo "Flavor: $FLAVOR"
           echo "Flavor Release: $FLAVOR_RELEASE"
           echo "Flavor Release Latest: $FLAVOR_RELEASE_LATEST"
+        env:
+          INPUTS_BASE_IMAGE: ${{ inputs.base_image }}
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+          persist-credentials: false
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
-          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
+          # zizmor flags a cache that release runs read. This one only holds
+          # the test suite's Go modules, and nothing built here ships.
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}  # zizmor: ignore[cache-poisoning]
       - name: Set up Docker Buildx for public runners
         if: runner.environment == 'github-hosted'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver-opts: network=host
       - name: Set up Docker Buildx for custom runners
         if: runner.environment == 'self-hosted'
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver-opts: network=host
           buildkitd-config-inline: |
@@ -215,7 +239,7 @@ jobs:
               http = true
       - name: Login to GitHub Container Registry
         if: inputs.test == 'bundles'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -259,15 +283,16 @@ jobs:
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
           LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
-      - name: Install cinc-auditor and openssh-client for the DevSec ssh-baseline profile
+      - name: Install cinc-auditor and openssh-client for the InSpec profile tests
         # cinc-auditor is a FOSS drop-in for chef/inspec (InSpec >= 5 is no
         # longer under an OSS licence). It runs the profile from
         # https://github.com/dev-sec/ssh-baseline against the booted VM over
         # SSH; nothing gets installed inside the image. openssh-client
         # gives us ssh-keygen (for the ephemeral test key) and ssh (for
         # the post-install readiness probe) — the self-hosted runners
-        # don't ship it by default.
-        if: ${{ inputs.test == 'ssh-hardening' }}
+        # don't ship it by default. The cis test runs
+        # https://github.com/dev-sec/cis-dil-benchmark the same way.
+        if: ${{ inputs.test == 'ssh-hardening' || inputs.test == 'cis' }}
         run: |
           sudo apt-get install -y openssh-client
           curl -L https://omnitruck.cinc.sh/install.sh | sudo bash -s -- -P cinc-auditor
@@ -301,23 +326,37 @@ jobs:
           ARCH: ${{ inputs.arch }}
           MODEL: ${{ inputs.model }}
           KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
+          KUBERNETES_VERSION_INPUT: ${{ inputs.kubernetes_version }}
         run: |
           # Match _build-iso.yaml's custom_tag_format:
           # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
-          # Reusable-qemu-test only tests non-UKI, non-per-k8s-version cells
-          # today, so $K8S is derived from what factory-action would produce
-          # for the same kubernetes_distro/version inputs and $UKI stays empty.
-          # $VERSION uses the same `git describe --tags --dirty --always`
-          # rule factory-action's setup step uses so both sides land on the
-          # same tag.
+          # Reusable-qemu-test only tests non-UKI cells today, so $UKI stays
+          # empty. $VERSION uses the same `git describe --tags --dirty
+          # --always` rule factory-action's setup step uses so both sides
+          # land on the same tag.
           VERSION=$(git describe --tags --dirty --always)
           if [[ "$VERSION" =~ ^[a-f0-9]+$ ]]; then
             VERSION="v0.0.0-$VERSION"
           fi
-          # Currently no caller passes kubernetes_version to this reusable,
-          # so K8S stays empty; keep the placeholder wired so future callers
-          # can flip it on without a second edit here.
+          # $K8S derivation, kept identical to reusable-factory.yaml's
+          # setup step (and to _uki-test.yaml). "auto" resolves to the
+          # empty string there so kairos-init picks the version, and the
+          # segment is gated on the distro so it survives that. Change one
+          # copy without the others and the suite pulls a tag nobody
+          # pushed, or worse, another cell's image.
+          if [[ "$KUBERNETES_VERSION_INPUT" == "auto" ]]; then
+            KUBERNETES_VERSION=""
+          else
+            KUBERNETES_VERSION="$KUBERNETES_VERSION_INPUT"
+          fi
+          SANITIZED_KUBERNETES_VERSION="${KUBERNETES_VERSION//+/-}"
           K8S=""
+          if [[ -n "$KUBERNETES_DISTRO" ]]; then
+            K8S="-$KUBERNETES_DISTRO"
+            if [[ -n "$SANITIZED_KUBERNETES_VERSION" ]]; then
+              K8S="$K8S-$SANITIZED_KUBERNETES_VERSION"
+            fi
+          fi
           # Expand the literal `${flavor}` token in the caller-provided
           # prefix. Callers that don't use the token (or take the
           # default) pass through unchanged.
@@ -325,7 +364,7 @@ jobs:
           echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}${K8S}-${VERSION}" >> "$GITHUB_ENV"
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest-with-cli' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}.iso.zip
       - name: Download latest release
@@ -347,7 +386,7 @@ jobs:
       - name: Prepare test bundle
         if: ${{ inputs.test == 'bundles' }}
         id: bundle
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: examples/bundle/Dockerfile
@@ -373,16 +412,19 @@ jobs:
           CPUS: 2
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
           USE_BRIDGE_NETWORK: ${{ inputs.use_bridge_network && '1' || '' }}
+          STEPS_FIND_OVMF_OUTPUTS_FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
+          INPUTS_SUITE_TIMEOUT: ${{ inputs.suite_timeout }}
+          INPUTS_TEST: ${{ inputs.test }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
-            export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
+            export FIRMWARE="${STEPS_FIND_OVMF_OUTPUTS_FIRMWARE}"
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
           fi
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           echo "ISO is: $ISO"
           pushd tests
           go mod download
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "${{ inputs.suite_timeout }}" --label-filter "${{ inputs.test }}" --fail-fast -r ./...
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "${INPUTS_SUITE_TIMEOUT}" --label-filter "${INPUTS_TEST}" --fail-fast -r ./...
           popd
       - name: Run encryption tests
         if: ${{ startsWith(inputs.test, 'encryption-') }}
@@ -398,7 +440,7 @@ jobs:
           # Pick a k3s image
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | grep k3s | head -1 )
           .github/encryption-tests.sh
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         if: failure()
         with:
           name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.test }}.logs.zip

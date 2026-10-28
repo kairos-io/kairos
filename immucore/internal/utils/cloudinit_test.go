@@ -1,6 +1,7 @@
 package utils_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 	"sync"
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/utils"
+	"github.com/mudler/yip/pkg/schema"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v4"
@@ -30,7 +33,7 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 
 	BeforeEach(func() {
 		var err error
-		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{ "/proc/cmdline": "" })
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{"/proc/cmdline": ""})
 		Expect(err).ToNot(HaveOccurred())
 		path, err := fs.RawPath("/proc/cmdline")
 		Expect(err).ToNot(HaveOccurred())
@@ -194,6 +197,47 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 				Expect(uri).To(Equal("/plain"))
 			}
 		})
+
+		It("logs a warning when a stage fails, instead of discarding it silently", func() {
+			// A stage whose command fails must leave a trace: RunStage still
+			// returns nil (see kairos-io/kairos#4868), but it must log the
+			// failure so it is no longer invisible in every channel.
+			srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.WriteString(w, "stages:\n  initramfs:\n    - name: fail-me\n      commands:\n        - /definitely-not-a-real-binary-4868\n")
+			}))
+			defer srv2.Close()
+
+			var logBuf bytes.Buffer
+			oldLogger := utils.KLog
+			utils.KLog = logger.NewBufferLogger(&logBuf)
+			defer func() { utils.KLog = oldLogger }()
+
+			writeCmdline(fmt.Sprintf(`root=LABEL=X kairos.config_url=%s/plain`, srv2.URL))
+			Expect(utils.RunStage("initramfs")).To(BeNil())
+
+			Expect(logBuf.String()).To(ContainSubstring("stage completed with errors"))
+			Expect(logBuf.String()).To(ContainSubstring(`"stage":"initramfs"`))
+		})
+
+		It("does not log spurious errors for cloud-init paths that don't exist yet", func() {
+			// constants.GetCloudInitPaths() lists /system/oem, /oem/ and
+			// /usr/local/cloud-config/, none of which exist in this test
+			// environment (the last one is itself created by a bundled
+			// cloud-config stage, so it never exists on a fresh boot either).
+			// yip treats a missing, non-URL path as literal YAML to parse,
+			// which fails to unmarshal. RunStage must skip those paths before
+			// handing them to yip, or this case alone would log a warning on
+			// every boot even though nothing actually failed.
+			var logBuf bytes.Buffer
+			oldLogger := utils.KLog
+			utils.KLog = logger.NewBufferLogger(&logBuf)
+			defer func() { utils.KLog = oldLogger }()
+
+			writeCmdline("root=LABEL=X quiet")
+			Expect(utils.RunStage("initramfs")).To(BeNil())
+
+			Expect(logBuf.String()).ToNot(ContainSubstring("stage completed with errors"))
+		})
 	})
 
 	Context("SDKDotNotationModifier", func() {
@@ -227,6 +271,29 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 			Expect(err).ToNot(HaveOccurred())
 			var m map[string]interface{}
 			Expect(yaml.Unmarshal(out, &m)).To(Succeed())
+		})
+	})
+
+	Context("SDKDotNotationModifier with digit-leading keys", func() {
+		It("keeps valid tokens and returns no error when a key starts with a digit", func() {
+			// Real-world cmdline token (serial driver option). The SDK cannot turn
+			// it into YAML and skips it, but must not make the whole conversion fail.
+			out, err := utils.SDKDotNotationModifier([]byte("8250.nr_uarts=0 foo.bar=baz"))
+			Expect(err).ToNot(HaveOccurred())
+			var m map[string]interface{}
+			Expect(yaml.Unmarshal(out, &m)).To(Succeed())
+			Expect(m).To(HaveKey("foo"))
+			Expect(m["foo"]).To(HaveKeyWithValue("bar", "baz"))
+		})
+		It("keeps a yip stage when loaded through schema.Load with a digit-leading token", func() {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).ToNot(HaveOccurred())
+			defer cleanup()
+			cfg, err := schema.Load("8250.nr_uarts=0 stages.initramfs[0].name=survivor", fs, nil, utils.SDKDotNotationModifier)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cfg).ToNot(BeNil())
+			Expect(cfg.Stages).To(HaveKey("initramfs"))
+			Expect(cfg.Stages["initramfs"][0].Name).To(Equal("survivor"))
 		})
 	})
 })
