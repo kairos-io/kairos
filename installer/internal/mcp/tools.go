@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/disks"
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 )
@@ -407,4 +408,27 @@ func stepList(steps []string) string {
 	}
 
 	return strings.Join(steps, ", ")
+}
+
+// renderCloudConfig builds the cloud-config an MCP install runs with: the
+// caller's own YAML, with the confirmed device, source and finish action
+// written over it by wizard.Finalize. FinishNone is the MCP spelling of the
+// wizard's empty finish action.
+func renderCloudConfig(device, source, finishAction, extra string) (string, error) {
+	if finishAction == FinishNone {
+		finishAction = ""
+	}
+	out, err := wizard.Finalize(extra, wizard.Overrides{
+		Device: device, Source: source, FinishAction: finishAction, DefaultNoUsers: true,
+	})
+	if err != nil {
+		// The MCP tool argument is named cloud_config, and its callers
+		// already match on this wording.
+		inner := errors.Unwrap(err)
+		if inner == nil {
+			inner = err
+		}
+		return "", fmt.Errorf("cloud_config is not valid YAML: %w", inner)
+	}
+	return out, nil
 }

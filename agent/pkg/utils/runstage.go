@@ -25,23 +25,34 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"gopkg.in/yaml.v3"
 )
 
+// CloudInitPaths returns the paths a stage reads when nothing overrides them:
+// the built-in defaults, followed by whatever the config adds.
+func CloudInitPaths(cfg *sdkConfig.Config) []string {
+	return append(constants.GetCloudInitPaths(), cfg.CloudInitPaths...)
+}
+
 // RunstageAnalyze
 func RunStageAnalyze(cfg *sdkConfig.Config, stage string) error {
-	return runstage(cfg, stage, true)
+	return RunStageWithPaths(cfg, stage, true, CloudInitPaths(cfg))
 }
 
 // RunStage will run yip
 func RunStage(cfg *sdkConfig.Config, stage string) error {
-	return runstage(cfg, stage, false)
+	return RunStageWithPaths(cfg, stage, false, CloudInitPaths(cfg))
 }
 
-func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
+// RunStageWithPaths runs (or analyzes) a stage against exactly cloudInitPaths.
+// The defaults from constants.GetCloudInitPaths() are not added, so a caller
+// that wants them has to ask for them via CloudInitPaths. This is what backs
+// `run-stage --override-cloud-init-paths`, the only way to run one
+// cloud-config without the machine's whole /oem coming along with it.
+func RunStageWithPaths(cfg *sdkConfig.Config, stage string, analyze bool, cloudInitPaths []string) error {
 	var allErrors error
 
-	cloudInitPaths := append(constants.GetCloudInitPaths(), cfg.CloudInitPaths...)
 	cfg.Logger.Debugf("Cloud-init paths set to %v", cloudInitPaths)
 	if analyze {
 		cfg.Logger.Info("Analyze mode, showing DAG")
@@ -119,7 +130,7 @@ func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 	// generic dot-nested KEY=VALUE tokens (e.g. stages.foo[0].name=bar) to YAML
 	// while skipping Kairos-owned prefixes (kairos.config=, kairos.config_url=,
 	// cos.setup=) so those tokens are not double-processed here.
-	cfg.CloudInitRunner.SetModifier(SDKDotNotationModifier)
+	cfg.CloudInitRunner.SetModifier(sdkDotNotationModifierWithLog(cfg.Logger))
 
 	for _, s := range []string{stageBefore, stage, stageAfter} {
 		if analyze {
@@ -183,7 +194,17 @@ func KairosConfigURIFromString(s string) string {
 // machine.DotStringToYAML. Unlike yip's built-in schema.DotNotationModifier it
 // skips Kairos-owned prefixes so those tokens flow exclusively through the
 // KairosCmdlineYAML path instead of being double-processed as generic
-// dot-nested keys.
+// dot-nested keys. Tokens the SDK cannot convert (e.g. 8250.nr_uarts=0) are
+// skipped instead of failing the whole cmdline; runstage logs them at debug
+// level through sdkDotNotationModifierWithLog.
 func SDKDotNotationModifier(s []byte) ([]byte, error) {
-	return machine.DotStringToYAML(string(s))
+	return machine.DotStringToYAMLBestEffort(string(s), nil)
+}
+
+func sdkDotNotationModifierWithLog(l logger.KairosLogger) func([]byte) ([]byte, error) {
+	return func(s []byte) ([]byte, error) {
+		return machine.DotStringToYAMLBestEffort(string(s), func(err error) {
+			l.Debugf("skipped /proc/cmdline tokens that cannot be converted to YAML: %s", err)
+		})
+	}
 }

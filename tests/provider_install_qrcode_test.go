@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,10 +53,21 @@ var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-in
 		Expect(err).ToNot(HaveOccurred(), v)
 		Expect(v).To(ContainSubstring("rd.cos.disable"))
 
+		// The live ISO boots into the interactive installer, whose welcome
+		// page draws a QR code of the web UI address. The pairing QR only
+		// shows up once "a" hands the terminal to the agent's pairing
+		// install, so a URL in the code means the key still has to be sent.
 		var fileName string
-		By("waiting until the qr code is shown")
+		By("waiting until the pairing qr code is shown")
 		Eventually(func() string {
-			fileName = getQRImage(vm)
+			var text string
+			fileName, text = getQRImage(vm)
+			if strings.HasPrefix(text, "http") {
+				fmt.Printf("Found the web UI QR code (%s), starting the pairing install\n", text)
+				Expect(sendKey(vm, "a")).To(Succeed())
+				os.RemoveAll(fileName)
+				return ""
+			}
 
 			return fileName
 		}, 10*time.Minute, 10*time.Second).ShouldNot(BeEmpty())
@@ -82,9 +94,35 @@ var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-in
 	})
 })
 
-// getQRImage returns the path to a screenshot with a QR code or empty
-// if no QR code is found
-func getQRImage(vm VM) string {
+// sendKey presses key on the VM's keyboard through the qemu monitor socket,
+// the same socket peg takes screenshots through.
+func sendKey(vm VM, key string) error {
+	conn, err := net.Dial("unix", filepath.Join(vm.StateDir, "qemu-monitor.sock"))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if _, err := fmt.Fprintf(conn, "sendkey %s\r\n", key); err != nil {
+		return err
+	}
+
+	// Like screendump, the command only takes effect once the monitor's
+	// reply is read, so drain the socket until it goes quiet.
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		return err
+	}
+	b := make([]byte, 1024)
+	for {
+		if _, err := conn.Read(b); err != nil {
+			return nil
+		}
+	}
+}
+
+// getQRImage returns the path to a screenshot with a QR code and the text
+// the code holds, or empty strings if no QR code is found
+func getQRImage(vm VM) (string, string) {
 	var fileName string
 	image.RegisterFormat("ppm", "ppm", ppm.Decode, ppm.DecodeConfig)
 
@@ -120,12 +158,12 @@ func getQRImage(vm VM) string {
 
 	// decode image
 	qrReader := qrcode.NewQRCodeReader()
-	_, err = qrReader.Decode(bmp, nil)
+	result, err := qrReader.Decode(bmp, nil)
 	if err != nil {
 		fmt.Printf("Error decoding QR code from image %s: %s\n", fileName, err.Error())
 		os.RemoveAll(fileName)
 
-		return ""
+		return "", ""
 	}
 
 	// Encode to png because go-nodepair doesn't understand `ppm`
@@ -138,5 +176,5 @@ func getQRImage(vm VM) string {
 	err = os.WriteFile(fileName, buf.Bytes(), os.ModePerm)
 	Expect(err).ToNot(HaveOccurred())
 
-	return fileName
+	return fileName, result.GetText()
 }

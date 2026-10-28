@@ -46,6 +46,28 @@ const (
 	BIOSFLAG   = "bios_grub" // bios_grub flag for BIOS partition
 	LinuxImgFs = "ext2"      // Default filesystem type for Linux IMAGES. Used for active/passive/recovery.img
 	LinuxFs    = "ext4"      // Default filesystem type for Linux PARTITIONS
+	// ExtDisabledFeatures is passed to mkfs as "-O <value>" for every ext
+	// filesystem Kairos creates.
+	//
+	// GRUB reads COS_OEM and COS_RECOVERY before a kernel exists, and its ext2
+	// driver refuses a filesystem carrying an INCOMPAT feature it does not
+	// know, rather than ignoring it. metadata_csum_seed is such a feature:
+	// upstream GRUB only learned to ignore it in 2.12, so the GRUB 2.04 and
+	// 2.06 builds that ship without the backport (Ubuntu 20.04, Ubuntu 22.04,
+	// Debian 12) cannot read the partition at all.
+	//
+	// e2fsprogs 1.47.0 added it to the ext4 defaults, which made readability
+	// depend on which e2fsprogs ran the mkfs. An install formats from inside
+	// the Kairos image, a raw disk build formats from inside the AuroraBoot
+	// container, and the two are not the same vintage. Turning the feature off
+	// here gives one answer everywhere.
+	//
+	// Nothing in Kairos needs it. It only allows changing the filesystem UUID
+	// without rewriting the metadata checksums, and Kairos only ever calls
+	// tune2fs -L. The feature name has been understood by mke2fs since
+	// e2fsprogs 1.43, so "-O ^metadata_csum_seed" is safe on the oldest
+	// e2fsprogs any supported base image ships.
+	ExtDisabledFeatures = "^metadata_csum_seed"
 	// LUKSFs is the filesystem type blkid and ghw report for a LUKS container,
 	// as opposed to the plaintext filesystem inside it. Matching on it is how
 	// callers tell the outer container from the inner ext4 when both carry the
@@ -82,4 +104,19 @@ const (
 // reach it. Shared so the two cannot drift.
 const (
 	DefaultWebUIListenAddress = ":8080"
+)
+
+// Boot-mode sentinels immucore writes under SentinelDir, which downstream
+// cloud-config stages gate on with a yip `if:` and which kairos-agent reads back
+// into its runtime state. Shared so the writer and the readers cannot drift.
+const (
+	SentinelDir = "/run/cos"
+	// WriteProtectedSentinelName marks a boot on write-protected media, where the
+	// persistent partition is mounted through a copy-on-write snapshot in RAM.
+	// Additive: the BootState sentinel is written as well.
+	WriteProtectedSentinelName = "write_protected"
+	// PersistentSnapshotName is the device-mapper name of the copy-on-write
+	// snapshot immucore stacks over the persistent partition on read-only
+	// media. The agent reads its fill level back through this name.
+	PersistentSnapshotName = "kairos-persistent"
 )

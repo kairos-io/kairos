@@ -18,7 +18,6 @@ package uki
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -28,6 +27,7 @@ import (
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/internal/testartifacts"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -72,6 +72,11 @@ var _ = Describe("Uki upgrade action", func() {
 
 		Expect(fsutils.MkdirAll(fs, "/efi/EFI/Kairos", constants.DirPerm)).To(Succeed())
 		Expect(fsutils.MkdirAll(fs, "/source", constants.DirPerm)).To(Succeed())
+		// The KAIROS_INIT_VERSION downgrade gate reads this on the
+		// running system side of the compare; the target side is
+		// stubbed by tests that get far enough to hit prepareFinalize.
+		Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), 0o644)).To(Succeed())
 
 		config = agentConfig.NewConfig(
 			agentConfig.WithFs(fs),
@@ -115,7 +120,11 @@ var _ = Describe("Uki upgrade action", func() {
 	})
 
 	It("fails the active upgrade when the artifact has no valid signature", func() {
-		// strict mode also surfaces the pre-upgrade stage errors
+		// strict mode also surfaces the pre-upgrade stage errors, so the test
+		// fs needs the cmdline every stage reads, otherwise the run stops at
+		// the before-upgrade hook rather than at the signature check
+		Expect(fsutils.MkdirAll(fs, "/proc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/proc/cmdline", []byte(""), os.ModePerm)).To(Succeed())
 		config.Strict = true
 		// the source contains no artifact, so the signature check fails before
 		// any artifact rotation happens
@@ -136,10 +145,13 @@ var _ = Describe("Uki upgrade action", func() {
 			// redirect the efivars lookup to the test fs and install a db that
 			// contains the certificate which signed the test artifact
 			Expect(fsutils.MkdirAll(fs, "/sys/firmware/efi/efivars", constants.DirPerm)).To(Succeed())
-			dbFile := fmt.Sprintf("db-%s", attributes.EFI_IMAGE_SECURITY_DATABASE_GUID.Format())
-			db, err := os.ReadFile("tests/db")
+			signer, err := testartifacts.NewKeyPair("uki upgrade test signer")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", dbFile), db, os.ModePerm)).To(Succeed())
+			signed, err := testartifacts.SignPE(testartifacts.MinimalPE(testartifacts.PEOptions{}), signer)
+			Expect(err).ToNot(HaveOccurred())
+			db, err := testartifacts.CertDBVar(signer.Cert)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(fs.WriteFile(filepath.Join("/sys/firmware/efi/efivars", testartifacts.SignatureDBVarName("db")), db, os.ModePerm)).To(Succeed())
 			oldEfivars := attributes.Efivars
 			rawEfivars, err := fs.(*vfst.TestFS).RawPath("/sys/firmware/efi/efivars")
 			Expect(err).ToNot(HaveOccurred())
@@ -149,9 +161,39 @@ var _ = Describe("Uki upgrade action", func() {
 			})
 
 			// the signed artifact is already in place as the unassigned role
-			signed, err := os.ReadFile("tests/fbx64.signed.efi")
-			Expect(err).ToNot(HaveOccurred())
 			Expect(fs.WriteFile("/efi/EFI/Kairos/"+UnassignedArtifactRole+".efi", signed, os.ModePerm)).To(Succeed())
+
+			// Skip the signer-match check for these rotation-edge tests;
+			// they intentionally corrupt / overwrite active.efi to trigger
+			// specific rotation failures, so a real signer-match would
+			// short-circuit before the test's actual failure path. The
+			// signer-match rule itself has its own coverage.
+			origSigner := requireSameSignerAsBootedFn
+			requireSameSignerAsBootedFn = func(*sdkConfig.Config, string) error { return nil }
+			DeferCleanup(func() { requireSameSignerAsBootedFn = origSigner })
+
+			// The signed test .efi is not a real Kairos UKI, so its
+			// .initrd cannot be walked by the production extractor.
+			// Stub extractFromInitrd for the length of this Describe so
+			// prepareFinalize returns a valid stage (target's
+			// kairos-release satisfies the downgrade gate) and control
+			// flows on to the rotation logic these tests are about.
+			origExtract := extractFromInitrd
+			extractFromInitrd = func(_ string, extractions map[string]string) ([]string, error) {
+				found := []string{}
+				for src, dst := range extractions {
+					var body []byte
+					if src == constants.KairosReleaseFile {
+						body = []byte(`KAIROS_INIT_VERSION="v4.3.0"` + "\n")
+					}
+					if err := os.WriteFile(dst, body, 0o644); err != nil {
+						return found, err
+					}
+					found = append(found, src)
+				}
+				return found, nil
+			}
+			DeferCleanup(func() { extractFromInitrd = origExtract })
 		})
 
 		It("installs the new artifact as active and fails removing the unassigned set", func() {
@@ -196,6 +238,53 @@ var _ = Describe("Uki upgrade action", func() {
 			content, err := fs.ReadFile("/efi/EFI/Kairos/passive.efi")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(string(content)).To(Equal("old active"))
+		})
+	})
+
+	Describe("the documented upgrade stages", func() {
+		// The GRUB upgrade runs before-upgrade and after-upgrade, and
+		// docs/architecture/cloud-init.md does not mark either of them as GRUB
+		// only, so a Trusted Boot upgrade has to run them as well. See
+		// kairos-io/kairos#4806.
+
+		It("runs before-upgrade on an active upgrade", func() {
+			// the source holds no artifact, so the run fails at the signature
+			// check, long after the hook is due
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).To(ContainElement(constants.BeforeUpgradeHook))
+		})
+
+		It("runs before-upgrade on a recovery upgrade", func() {
+			spec.Entry = constants.BootEntryRecovery
+			Expect(spec.RecoveryUpgrade()).To(BeTrue())
+
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).To(ContainElement(constants.BeforeUpgradeHook))
+		})
+
+		It("runs before-upgrade on a single entry upgrade", func() {
+			spec.Entry = "kairos-uki-test-nonexistent-entry"
+
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).To(ContainElement(constants.BeforeUpgradeHook))
+		})
+
+		It("runs before-upgrade only once the EFI partition is mounted RW", func() {
+			// the stage writes to the ESP, so it is no use before the remount
+			mounter.ErrorOnMount = true
+
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).ToNot(ContainElement(constants.BeforeUpgradeHook))
+		})
+
+		It("does not run after-upgrade when the new artifact was not written", func() {
+			Expect(upgrader.Run()).ToNot(Succeed())
+
+			Expect(cloudInit.ExecStages).ToNot(ContainElement(constants.AfterUpgradeHook))
 		})
 	})
 

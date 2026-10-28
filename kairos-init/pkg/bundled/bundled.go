@@ -80,6 +80,7 @@ i18n_install_all="yes"
 show_modules="yes"
 install_items+=" /etc/hosts "
 add_dracutmodules+=" livenet dmsquash-live immucore network "
+add_drivers+=" dm_snapshot "
 `
 
 // ImmucoreGeneratorDracut is the dracut generator script that is used to generate the sysroot.mount file
@@ -194,6 +195,15 @@ install() {
     inst_check_multiple immucore
     # add utils used by yip stages
     inst_check_multiple sync udevadm blkid lsblk e2fsck mount umount rsync cryptsetup gawk awk mkfs.ext2 mkfs.ext3 mkfs.ext4 mkfs.vfat
+    # immucore validates a system extension image against the image policy the
+    # systemd-sysext drop-in enforces before it links the image into
+    # /run/extensions, and systemd-dissect is what evaluates that policy. The
+    # 11systemd-sysext dracut module installs systemd-sysext and
+    # systemd-confext but not systemd-dissect, so without this line the check
+    # has no tool to run and immucore enables every image unvalidated.
+    # Optional, because image policies and systemd-dissect --validate both
+    # arrived in systemd 254 and Kairos builds on flavors older than that.
+    inst_multiple -o systemd-dissect
     # add mkfs.fat using inst_multiple which doesnt check for existence
     # we should remove this as soon as Hadron supports mkfs.fat
     inst_multiple mkfs.fat
@@ -277,6 +287,333 @@ add_drivers+=" xhci_pci_renesas "
 
 // DRACUT stuff ends here
 
+// SPLASH stuff starts here
+//
+// `kairos splash` is painted in two phases so the animation covers the whole
+// boot rather than a slice of it:
+//
+//   1. inside the initramfs, from the moment udev has made /dev/tty1 until
+//      switch-root. That is the 50kairos-splash dracut module below.
+//   2. in the booted system, from switch-root until the login prompt. That is
+//      SplashService, a oneshot ordered Before=getty.target.
+//
+// Both exec SplashBinaryPath, never the multi-call binary by name, so that
+// replacing that one path replaces the animation for both halves of the boot.
+// Both are gated on `splash` being on the kernel command line (BootArgsCfg
+// puts it there) so that removing one token turns the whole thing off without
+// editing a unit.
+
+// Paths
+const (
+	DracutSplashPath              = "/etc/dracut.conf.d/50-kairos-splash.conf"
+	DracutSplashModuleSetupPath   = "/usr/lib/dracut/modules.d/50kairos-splash/module-setup.sh"
+	DracutSplashServicePath       = "/usr/lib/dracut/modules.d/50kairos-splash/kairos-splash.service"
+	DracutSplashImmucoreQuietPath = "/usr/lib/dracut/modules.d/50kairos-splash/immucore-quiet.conf"
+	SplashServicePath             = "/usr/lib/systemd/system/kairos-splash.service"
+
+	// SplashBinaryPath is the one path the whole feature draws through: both
+	// units exec it, and the dracut module both checks for it and copies it
+	// into the initramfs. Nothing here names /usr/bin/kairos.
+	//
+	// By default kairos-init points it at the multi-call binary, whose
+	// "kairos-splash" argv[0] alias dispatches to `kairos splash`. The
+	// indirection is the replacement seam: an image that already has
+	// something at this path keeps it, kairos-init installs no symlink over
+	// it, and the boot animates with that instead. Because kairos-init
+	// rebuilds the initramfs in a later stage than the one that installs
+	// binaries, a downstream Dockerfile that drops its own executable here
+	// and re-runs kairos-init gets it in both halves of the boot with no
+	// further wiring.
+	SplashBinaryPath = "/usr/bin/kairos-splash"
+)
+
+// SplashDracutConfig pulls the splash module into the initramfs.
+//
+// add_dracutmodules+=, not force_add_dracutmodules+=: dracut still runs the
+// module's check(), which is what keeps an image built without
+// SplashBinaryPath (every binary pinned through VersionOverrides, so the
+// multi-call binary the default symlink points at is never written) from
+// getting a unit that cannot exec.
+//
+// plymouth is omitted in the same breath. It claims the console on the same
+// `splash` token this feature puts on the command line, so a base image that
+// happens to ship it would put two things on /dev/tty1 at once. Nothing in
+// Kairos drives plymouth: an encrypted boot asks for its passphrase on the
+// console through kcrypt, and immucore's failure screen paints there too, so
+// both are better off with plymouth out of the picture.
+//
+// Omitting it does cost something that is not obvious from this line: dracut's
+// plymouth module is what pulls the drm (or simpledrm) module in, through its
+// depends(), and both of those have a check() that returns 255, so neither is
+// ever included on its own. Without plymouth an initramfs therefore has no KMS
+// driver at all. The kairos-splash module's installkernel() brings back the
+// few drivers the animation needs.
+const SplashDracutConfig = `add_dracutmodules+=" kairos-splash "
+omit_dracutmodules+=" plymouth "`
+
+// SplashServiceDracut is the initramfs half of the splash.
+//
+// DefaultDependencies=no plus After=systemd-udev-trigger.service is the
+// earliest point at which /dev/tty1 is there to draw on. Before=initrd.target
+// puts the animation on screen while immucore builds the mount DAG, and the
+// two Conflicts= take it back off again:
+//
+//   - initrd-switch-root.target, where the booted-system unit takes over.
+//   - emergency.target, because a console with an animation on it is no use
+//     to someone reading why the boot stopped. immucore's own failure screen
+//     does not go through emergency.target, so HaltWithBanner stops this unit
+//     by name as well.
+//
+// It is wired into initrd.target.wants, never initrd.target.requires; see the
+// module-setup script for why that distinction is load-bearing.
+//
+// Recovery and the automatic state reset get no animation, the same as in
+// SplashService. That unit tests the /run/cos sentinels, but this one cannot:
+// immucore writes them from inside the initramfs, after this unit has already
+// started. So the negated ConditionKernelCommandLine= lines below test the
+// command line words that immucore's boot-state detection (sdk/state,
+// getNonUKIBootState) reads to pick recovery_mode and autoreset_mode:
+//
+//   - root=LABEL=COS_SYSTEM and root=live:LABEL=COS_RECOVERY are the two
+//     roots BootArgsCfg gives the recovery image (a .img file or a squashfs).
+//     immucore matches COS_SYSTEM and COS_RECOVERY as substrings, systemd
+//     matches whole words, so these are the exact words GRUB writes.
+//   - kairos.reset is the statereset entry. It also boots the recovery image,
+//     so the root= lines already cover it, but immucore reads kairos.reset
+//     ahead of every other marker, so this unit tests it too.
+//
+// Trusted boot is not affected: a UKI has no dracut-built initramfs, so this
+// unit is never installed there.
+const SplashServiceDracut = `[Unit]
+Description=Kairos boot splash (initramfs)
+DefaultDependencies=no
+After=systemd-udev-trigger.service
+Before=initrd.target
+Conflicts=initrd-switch-root.target
+Conflicts=emergency.target
+ConditionKernelCommandLine=splash
+ConditionKernelCommandLine=!root=LABEL=COS_SYSTEM
+ConditionKernelCommandLine=!root=live:LABEL=COS_RECOVERY
+ConditionKernelCommandLine=!kairos.reset
+ConditionPathExists=/usr/bin/kairos-splash
+
+[Service]
+Type=simple
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+ExecStart=/usr/bin/kairos-splash
+KillSignal=SIGTERM
+TimeoutStopSec=5s`
+
+// SplashImmucoreQuietDracut keeps immucore's progress off the console so it
+// does not print over the animation, without hiding a mount failure.
+//
+// 28immucore's unit sets StandardOutput=journal+console on both streams. This
+// drop-in splits them: stdout is normal mount progress and goes to the journal
+// only, stderr is how a failure announces itself and stays on the console. A
+// boot that drops to an emergency shell has to say why on the screen.
+const SplashImmucoreQuietDracut = `[Service]
+StandardOutput=journal
+StandardError=journal+console`
+
+// SplashModuleSetupDracut is the dracut module that puts the splash in the
+// initramfs. It mirrors 28immucore, with one deliberate difference called out
+// inline.
+const SplashModuleSetupDracut = `#!/bin/bash
+
+# check() decides whether dracut pulls this module in. The kairos-splash.conf
+# drop-in adds it to the module set, but the check still runs, so an image
+# with no /usr/bin/kairos-splash (every binary pinned through
+# --version-overrides, so the multi-call binary the default symlink points at
+# was never written) gets no module instead of a unit that cannot exec.
+#
+# The check is on /usr/bin/kairos-splash and not on the multi-call binary on
+# purpose: that path is the replacement seam, so an image whose splash is a
+# downstream executable rather than a symlink to kairos passes it too.
+check() {
+    require_binaries /usr/bin/kairos-splash || return 1
+    return 0
+}
+
+# No other dracut module is needed: the binary draws on /dev/tty1 and reads
+# /dev/kmsg, both of which systemd and the kernel provide.
+depends() {
+    return 0
+}
+
+# Without a KMS driver the initramfs has no framebuffer, so /dev/tty1 is the
+# firmware text console: 80x25 cells on a BIOS VGA machine. The booted system
+# binds a real driver and fbcon switches to the panel resolution, 160x50 on the
+# same screen, so the second half of the animation is drawn into cells less than
+# half the size and the logo visibly shrinks at switch-root. Pulling a driver in
+# here gives both halves the same console geometry.
+#
+# dracut's own drm module is not the way to do that. Kairos builds with
+# hostonly="no" (see ImmucoreConfigDracut), and with no host to narrow it down
+# that module installs every KMS driver under drivers/gpu/drm: tens of megabytes
+# of initramfs for a logo. The three below are the small drivers that cover the
+# displays an image is most often watched on: a firmware framebuffer and the two
+# emulated adapters QEMU offers. Hardware with a native driver keeps it in the
+# root filesystem and takes the console over after switch-root, which is the
+# handover simpledrm exists for.
+#
+#   - simpledrm, for the framebuffer EFI hands over.
+#   - bochs, for QEMU -vga std. bochs-drm is the same driver's name before
+#     Linux 6.4, listed as well because kairos-init builds on base images whose
+#     kernels straddle the rename.
+#   - virtio-gpu, for QEMU and the cloud hypervisors that use virtio.
+#
+# instmods is optional unless called with -c, so a kernel built without one of
+# these skips it instead of failing the image build. hostonly='' keeps that
+# decision independent of the hardware the image happens to be built on, the
+# same way dracut's own simpledrm module does it.
+installkernel() {
+    hostonly='' instmods simpledrm bochs bochs-drm virtio-gpu
+}
+
+install() {
+    declare initdir=${initdir}
+    declare moddir=${moddir}
+    declare systemdsystemunitdir=${systemdsystemunitdir}
+
+    # inst_multiple, not inst_simple: it pulls the shared libraries the binary
+    # needs in with it. inst_simple would copy the ELF on its own and it would
+    # fail to exec. It also resolves a symlink and installs the link plus its
+    # target, which is what carries the default /usr/bin/kairos-splash ->
+    # /usr/bin/kairos indirection into the initramfs intact; the unit execs
+    # the link, so the argv[0] alias is what selects the splash sub-tool.
+    inst_multiple /usr/bin/kairos-splash
+
+    # Branding is data, so a downstream that dropped its own wordmark in
+    # /etc/kairos/branding/splash gets it in the initramfs too. Absent or
+    # partial, the binary falls back to the built-in Kairos artwork. The
+    # directory is a variable so a test can point the glob somewhere it is
+    # allowed to write.
+    declare splash_branding_dir=${splash_branding_dir:-/etc/kairos/branding/splash}
+    for artwork in "${splash_branding_dir}"/*; do
+        [ -f "${artwork}" ] || continue
+        inst_simple "${artwork}"
+    done
+
+    inst_simple "${moddir}/kairos-splash.service" "${systemdsystemunitdir}/kairos-splash.service"
+
+    # initrd.target.wants, NOT initrd.target.requires, and deliberately unlike
+    # 28immucore. A .requires entry is a hard dependency: if the splash fails
+    # to activate, most plausibly TTYPath=/dev/tty1 failing to open on a
+    # serial-only console or a kernel built without CONFIG_VT, then
+    # initrd.target never activates and the boot stalls in the initramfs.
+    # immucore is allowed to fail a boot because it mounts the root
+    # filesystem. A logo is not. With .wants the successful case is identical
+    # and the failing case degrades to "no animation".
+    mkdir -p "${initdir}/${systemdsystemunitdir}/initrd.target.wants"
+    ln_r "../kairos-splash.service" "${systemdsystemunitdir}/initrd.target.wants/kairos-splash.service"
+
+    # Drop-in only, so it does not matter whether 28immucore installed
+    # immucore.service before or after this module ran.
+    mkdir -p "${initdir}/${systemdsystemunitdir}/immucore.service.d"
+    inst_simple "${moddir}/immucore-quiet.conf" "${systemdsystemunitdir}/immucore.service.d/10-quiet.conf"
+}
+`
+
+// SplashService is the booted-system half of the splash: it covers the gap
+// between switch-root, where the initramfs unit is killed, and the login
+// prompt.
+//
+// A oneshot ordered before getty means getty waits for it, so the animation is
+// never half-overwritten by a login prompt appearing on top of it. That also
+// means it adds its own runtime to the boot, which is why it is the one part of
+// the splash with a --duration: SplashDuration of animation, bounded again by
+// TimeoutStartSec in case the console misbehaves.
+//
+// Before=getty.target alone does not do that. systemd's own getty@.service
+// carries Before=getty.target too, so the two units are siblings of that target
+// with no order between them: getty@tty1.service starts while the splash is
+// still animating and the login prompt lands on top of it. The unit the splash
+// shares a console with is getty@tty1.service, so that is the one to order
+// against. getty.target stays, because it is what keeps the whole getty set
+// after the splash on a system that puts a getty somewhere else as well.
+//
+// RemainAfterExit keeps a second `systemctl start` a no-op rather than a
+// replay of the animation.
+//
+// DefaultDependencies=no is what makes the animation continuous across
+// switch-root. The default dependencies put After=basic.target on the unit,
+// and basic.target is the whole of sysinit plus sockets: on a measured boot
+// the initramfs animation was killed at 11.23 s and this unit only started at
+// 13.96 s, so the console sat blank with systemd status on it for 2.7 s in
+// between. Nothing the splash draws needs any of that work. The binary is in
+// the root image immucore mounted before switch-root, the /run/cos sentinels
+// the conditions read were written in the initramfs and /run survives the
+// switch, and /dev/tty1 comes from devtmpfs at kernel init.
+//
+// The one thing it does need is systemd-vconsole-setup.service, which loads
+// the console font and keymap. It carries Before=sysinit.target, so it still
+// runs well inside the gap, and ordering after it keeps the block-art glyphs
+// from being painted with a font that is about to be replaced under them.
+//
+// systemd-sysctl.service is the second. The splash reads kernel.printk when it
+// starts and writes the old value back when it exits, so a sysctl applied from
+// /etc/sysctl.d during the animation would be overwritten on exit and lost
+// until the next boot. basic.target used to order the two, and stock systemd
+// declares no edge between sysctl and vconsole-setup, so dropping the default
+// dependencies leaves nothing holding them apart. systemd-sysctl.service is
+// also Before=sysinit.target, so this costs about as little as the first edge.
+//
+// Dropping the default dependencies also drops the two that stop a unit at
+// shutdown, so they are written out again. Without them a cosmetic oneshot
+// with RemainAfterExit=yes is still "active" while the system goes down, and
+// systemd has no order in which to stop it.
+//
+// Starting this early means the unit is now reliably on screen before a DRM
+// driver binds and fbcon switches resolution, instead of racing it by about
+// 70 ms as it did before. The animation has to follow a console that changes
+// size underneath it for that to look right, which is why this change belongs
+// after the TIOCGWINSZ poll in internal/splash.
+//
+// The conditions are the boots that own tty1 themselves, or that a human is
+// watching for output, and so must not have a logo drawn over them: the live
+// ISO (the interactive installer runs there), an automatic state reset, and
+// recovery. `/run/cos/recovery_mode` is the sentinel immucore writes for the
+// recovery entry, and the same test the bundled cloud-configs use to keep
+// themselves out of a recovery boot.
+const SplashService = `[Unit]
+Description=Kairos boot splash
+DefaultDependencies=no
+After=systemd-vconsole-setup.service
+After=systemd-sysctl.service
+Conflicts=shutdown.target
+Before=shutdown.target
+Before=getty.target
+Before=getty@tty1.service
+ConditionKernelCommandLine=splash
+ConditionPathExists=/usr/bin/kairos-splash
+ConditionPathExists=!/run/cos/live_mode
+ConditionPathExists=!/run/cos/autoreset_mode
+ConditionPathExists=!/run/cos/recovery_mode
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+ExecStart=/usr/bin/kairos-splash --duration=%s
+TimeoutStartSec=10s
+
+[Install]
+WantedBy=multi-user.target
+`
+
+// SplashDuration is how long the booted-system splash animates before it lets
+// getty have the console. It is a cost paid on every boot, so it is short
+// enough to read as a transition rather than a wait.
+const SplashDuration = "3s"
+
+// SPLASH stuff ends here
+
 // GrubCfg /etc/cos/grub.cfg is the default grub config that is used for the system boot
 const GrubCfg = `set timeout=10
 
@@ -333,12 +670,28 @@ else
   set fallback="0 1 2"
 fi
 
-insmod all_video
+# Some GRUB builds compile the video drivers into the core image and ship no
+# all_video.mod. Loading the module there prints "file not found" on every
+# boot, so only load it when the file is present.
+if [ -f "${prefix}/${grub_cpu}-${grub_platform}/all_video.mod" ]; then
+  insmod all_video
+fi
 insmod loopback
 insmod squash4
 insmod serial
 
 loadfont unicode
+# rmmod lives in the minicmd module. Some GRUB builds, such as Hadron's, do not
+# embed it, and a missing command prints "can't find command" on every boot.
+# GRUB looks up a built-in command before a script function, so this no-op
+# only runs where the real rmmod does not exist. Such builds do not embed tpm
+# either, so there is nothing to remove.
+# The body has to be a command that every build has. true and echo live in
+# modules a build can leave out, the same way this one left out minicmd. set is
+# registered by the GRUB kernel itself, so it is there in every image.
+function rmmod {
+  set kairos_rmmod_noop=1
+}
 if [ "${grub_platform}" = "efi" ]; then
     ## workaround for grub2-efi bug: https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1851311
     rmmod tpm
@@ -501,7 +854,34 @@ function setKernelCmd {
     # baseSelinuxCmd -> selinux enabled/disabled
     # baseExtraConsole -> extra console to set
     # baseExtraArgs -> extra needed args
-    set baseCmd="console=tty1 net.ifnames=1 rd.cos.oemlabel=COS_OEM rd.cos.oemtimeout=10 panic=5 rd.emergency=reboot rd.shell=0 systemd.crash_reboot=yes"
+    # splash asks for the animated boot logo. It is the token both splash
+    # units gate on (ConditionKernelCommandLine=splash), so dropping it here,
+    # or adding kairos.splash=0 at the boot menu, turns the animation off
+    # without touching a unit file.
+    set baseCmd="console=tty1 splash net.ifnames=1 rd.cos.oemlabel=COS_OEM rd.cos.oemtimeout=10 panic=5 rd.emergency=reboot rd.shell=0 systemd.crash_reboot=yes"
+    # quiet goes on the entries that animate, and only on those. Most of the
+    # text the splash exists to replace is printed before it can draw at all:
+    # the kernel prints from its first line, and systemd prints unit status
+    # from the moment it starts, while the initramfs unit has to wait for udev
+    # to make /dev/tty1. No unit ordering closes that window, so the command
+    # line has to.
+    #
+    # This is not silence. quiet lowers the kernel console level to
+    # CONSOLE_LOGLEVEL_QUIET, 4 in a stock build, so KERN_ERR and worse still
+    # reach tty1 and the serial console, and systemd reads it as
+    # SHOW_STATUS_ERROR, which still prints a unit that fails. The journal is
+    # untouched, and anything after $kernelcmd in the menuentry still wins, so
+    # adding loglevel=7 at the boot menu brings the full log back.
+    #
+    # Recovery and the automatic state reset stay verbose: they are where an
+    # operator goes to read the boot, and the booted-system animation that
+    # would otherwise hide it is already refused there by SplashService, which
+    # tests the /run/cos recovery_mode and autoreset_mode sentinels. They are
+    # also the two entries that set label=COS_SYSTEM, which is what tells them
+    # apart here.
+    if test "${label}" != "COS_SYSTEM"; then
+        set baseCmd="$baseCmd quiet"
+    fi
     if [ -n "$recoverylabel" ]; then
         set baseRootCmd="root=live:LABEL=$recoverylabel rd.live.dir=/ rd.live.squashimg=$img"
     else
@@ -544,24 +924,22 @@ _/    _/    _/_/_/  _/  _/          _/_/    _/_/_/
 
 // ExtraGrubCfg /etc/kairos/branding/grubmenu.cfg is the extra grub config that is used for the system that can be
 // overridden by the user to provide its own entries in grub
-const ExtraGrubCfg = `menuentry "${display_name} remote recovery" --id remoterecovery {
-    search --no-floppy --label --set=root COS_RECOVERY
-    if [ test -s /cOS/recovery.squashfs ]; then
-        set img=/cOS/recovery.squashfs
-        set recoverylabel=COS_RECOVERY
-    else
-        set img=/cOS/recovery.img
-    fi
-    set label=COS_SYSTEM
-    if [ -d (loop0) ]; then
-        loopback -d loop0
-    fi
-    loopback loop0 /$img
-    set root=($root)
-    source (loop0)/etc/cos/bootargs.cfg
-    linux (loop0)$kernel $kernelcmd ${extra_cmdline} ${extra_recovery_cmdline} vga=795 nomodeset kairos.remote_recovery_mode
-    initrd (loop0)$initramfs
-}
+//
+// It ships with no entries of its own. It used to carry a `remoterecovery`
+// entry, a second way into `kairos.remote_recovery_mode` next to the one the
+// interactive installer now offers on its welcome page (#5065). Every entry
+// defined only by a cmdline keyword has to be accounted for before the boot
+// menu can be reduced to one entry that lands in the installer (#4960,
+// #4962), so the duplicate went rather than the installer route.
+//
+// The file itself stays, empty of entries: it is the documented place a user
+// or a downstream image drops their own menuentry, 08_grub.yaml copies it to
+// the state partition as /grubmenu, and grub.cfg sources it from there.
+const ExtraGrubCfg = `# Drop your own menuentry blocks in here. This file is copied to the state
+# partition as /grubmenu and sourced by the Kairos grub.cfg, so entries added
+# here show up in the boot menu and survive an upgrade.
+#
+# Kairos ships no entries of its own in this file.
 `
 
 const InstallText = `Welcome to Kairos!

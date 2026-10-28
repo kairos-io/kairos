@@ -4,6 +4,10 @@ import (
 	"errors"
 	"os"
 	"path"
+	"syscall"
+	"time"
+
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 func DefaultRWPaths() []string {
@@ -32,6 +36,7 @@ func GenericKernelDrivers() []string {
 		"ata_piix",
 		"cdrom",
 		"dm_mod",
+		"dm_snapshot",
 		"dm-verity",
 		"e1000",
 		"e1000e",
@@ -115,6 +120,29 @@ func BindMountMode(mountpoint string) (os.FileMode, bool) {
 	return mode, ok
 }
 
+// bindMountOptions holds extra mount options a bind mount gets on top of
+// "bind". Nothing on /home needs device nodes, so it is mounted nodev (CIS
+// 1.1.14).
+var bindMountOptions = map[string][]string{
+	"/home": {"nodev"},
+}
+
+// TmpMountOptions are the options /tmp is mounted with on the GRUB boot path:
+// a world-writable tmpfs gets no device nodes, setuid or executables (CIS
+// 1.1.3, 1.1.4 and 1.1.5).
+var TmpMountOptions = []string{"rw", "nosuid", "nodev", "noexec"}
+
+// DevShmRemountFlags remounts the /dev/shm tmpfs the initramfs systemd set up,
+// adding noexec to the nosuid and nodev it already has (CIS 1.1.17). The mount
+// is carried into the booted system on switch-root, flags included.
+const DevShmRemountFlags = syscall.MS_REMOUNT | syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC
+
+// BindMountOptions returns the extra mount options for a bind mountpoint. A
+// leading slash is optional, as for BindMountMode.
+func BindMountOptions(mountpoint string) []string {
+	return bindMountOptions[path.Join("/", mountpoint)]
+}
+
 var ErrAlreadyMounted = errors.New("already mounted")
 
 // ErrMountTargetMissing is returned when a mount target directory does not exist
@@ -157,6 +185,19 @@ const (
 	// the persistent /etc/systemd bind and that now shadow a packaged unit out
 	// of the unit load path. See internalUtils.QuarantineStaleUnitSymlinks.
 	OpQuarantineStaleUnits = "quarantine-stale-units"
+
+	// UkiNetworkTimeout bounds how long the UKI initrd waits for an interface
+	// to get an address before giving up and letting the unlock step run and
+	// report the real failure. A DHCP exchange on a healthy link takes a
+	// couple of seconds; this leaves room for a slow switch without adding a
+	// visible stall to a boot whose network is simply absent.
+	UkiNetworkTimeout = 30 * time.Second
+	// OpPersistentSnapshot stacks a copy-on-write snapshot over the read-only
+	// persistent partition so it can be mounted read-write, with the changes
+	// held in RAM. Only registered when the media is write-protected, so a
+	// writable install keeps exactly the graph it had. See
+	// MountPersistentSnapshotDagStep.
+	OpPersistentSnapshot = "persistent-snapshot"
 	// InRAMSentinelName is the extra sentinel file written under /run/cos/ when
 	// the kairos.ram workflow is active. It is additive: WriteSentinelDagStep
 	// still writes the BootState-driven sentinel (which is active_mode for
@@ -164,6 +205,49 @@ const (
 	// cloud-init gates keep firing. Tooling that specifically needs to know the
 	// rootfs is on a tmpfs can stat this file.
 	InRAMSentinelName = "in_ram_mode"
+
+	// Read-only media boot. A unit is installed on a writable disk and then
+	// write-protected in hardware, so from that point on every boot sees a block
+	// device the kernel refuses writes to. immucore then puts a device-mapper
+	// snapshot over the persistent partition, with its copy-on-write store on a
+	// tmpfs, and mounts that read-write in the partition's place: unchanged
+	// blocks read from the disk, changed blocks live in RAM until power-off,
+	// and the filesystem above is an ordinary writable ext4, which is what a
+	// container runtime's own overlayfs needs underneath it.
+	//
+	// CmdlineWriteProtected is the gate. Absent or "=0", the layout is never
+	// applied and the device is not asked; present, the device decides;
+	// "=force" applies it without asking. Matched as an exact token, the way
+	// ParseAutoCreateDisk matches its stanza, so a typo that merely starts
+	// with the key cannot switch the layout on by accident.
+	CmdlineWriteProtected = "rd.immucore.write_protected"
+	// WriteProtectedSentinelName is the extra sentinel written under /run/cos/ when
+	// the media is write-protected. Additive, exactly like InRAMSentinelName:
+	// the BootState sentinel is still written, so existing cloud-init gates keep
+	// firing, and a stage that must not write to the disk gates on this one.
+	// Defined in the SDK because kairos-agent reads the same file back into its
+	// runtime state, and the writer and the reader must not drift.
+	WriteProtectedSentinelName = sdkConstants.WriteProtectedSentinelName
+	// CmdlineCow sizes the tmpfs that backs the snapshot's copy-on-write store,
+	// as a tmpfs:<size> spec like rd.immucore.overlay=. Nested under the mode
+	// it belongs to, the way dracut nests rd.live.overlay.size under
+	// rd.live.overlay, so the name itself says it does nothing on a writable
+	// disk. Absent, the store is sized like the base overlay. WRITE_PROTECTED_COW
+	// in cos-layout.env is the same knob from a cloud-config.
+	CmdlineCow = "rd.immucore.write_protected.cow="
+	// PersistentCowDir is the tmpfs the store lives on, and PersistentCowFile
+	// the sparse file inside it that device-mapper writes changed chunks to.
+	// Under /run because that carries over switch_root, so the loop device and
+	// the snapshot stay valid in the booted system.
+	PersistentCowDir  = "/run/immucore/cow"
+	PersistentCowFile = "/run/immucore/cow/persistent.cow"
+	// PersistentSnapshotName is the device-mapper name of the snapshot; the
+	// agent reads its fill level back through it. Defined in the SDK.
+	PersistentSnapshotName = sdkConstants.PersistentSnapshotName
+	// OverlayBaseDir is the tmpfs that backs the ephemeral RW_PATHS overlays'
+	// upper and work directories. Sized by OVERLAY in cos-layout.env, default
+	// tmpfs:25%.
+	OverlayBaseDir = "/run/overlay"
 
 	// OpEncryptPending runs on the normal boot DAG, gated behind
 	// kcrypt.encrypt_on_boot, and encrypts partitions that the configuration
@@ -210,8 +294,17 @@ const (
 	DestSysExtDir                   = "/run/extensions"
 	DestConfExtDir                  = "/run/confexts"
 	VerityCertDir                   = "/run/verity.d/"
-	SysextDefaultPolicy             = "--image-policy=\"root=signed+absent:usr=signed+absent\""
-	EfiDir                          = "/efi"
+	// SysextSignedPolicy is the image policy the UKI systemd-sysext drop-in
+	// enforces. Trusted Boot only accepts an extension whose verity hash is
+	// signed by a key in the machine db.
+	SysextSignedPolicy = "--image-policy=\"root=signed+absent:usr=signed+absent\""
+	// SysextVerityPolicy is the image policy the non-UKI systemd-sysext drop-in
+	// enforces, written by kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml
+	// when /run/cos/uki_boot_mode is absent. Validating against anything else
+	// on a GRUB boot enables images systemd-sysext then refuses, and a refresh
+	// that refuses one image merges none of them.
+	SysextVerityPolicy = "--image-policy=\"root=verity+absent:usr=verity+absent\""
+	EfiDir             = "/efi"
 
 	// AuditLogPath is the kernel audit log directory. auditd keeps the audit
 	// trail here, so it has to be backed by the persistent partition rather
@@ -225,4 +318,33 @@ const (
 	// Immucore stops right before a named step, hands the console to a shell
 	// and resumes the boot once that shell exits.
 	CmdlineBreak = "rd.immucore.break="
+
+	// CmdlineIgnoreMountFailure overrides the mount failure policy. By default
+	// a custom mount or a persistent state bind that did not mount stops the
+	// boot, because a node that comes up with some of its persistent paths
+	// bound and some of them not is in a state nobody asked for. Pass this
+	// stanza to boot anyway, which is what immucore did before, and get a
+	// system whose unmounted paths write to the ephemeral overlay.
+	//
+	// It is a bare flag: the stanza being present is the whole value.
+	CmdlineIgnoreMountFailure = "rd.immucore.ignoremountfailure"
+
+	// StageMountFailure is the cloud-init stage immucore runs when a custom
+	// mount or a persistent state bind did not mount, before it decides
+	// whether to stop the boot. It is the hook a distribution maintainer gets
+	// to define their own recovery for this state: remount by hand, call
+	// home, write a sentinel, or take the console.
+	//
+	// It runs on both paths. The stanza above only decides what immucore does
+	// after the stage has had its turn, so a hook that repairs the situation
+	// has to be paired with CmdlineIgnoreMountFailure to let the boot carry
+	// on.
+	StageMountFailure = "mount-failure"
+
+	// EnvMountFailure and EnvMountFailureStep are exported into the
+	// environment of StageMountFailure, so a `commands:` block in that stage
+	// can tell what broke without parsing a log. EnvMountFailureStep carries
+	// the Op* name of the step, EnvMountFailure the error it collected.
+	EnvMountFailure     = "IMMUCORE_MOUNT_FAILURE"
+	EnvMountFailureStep = "IMMUCORE_MOUNT_FAILURE_STEP"
 )

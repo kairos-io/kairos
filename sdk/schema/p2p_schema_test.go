@@ -1,12 +1,48 @@
 package schema_test
 
 import (
+	"encoding/json"
 	"strings"
 
 	. "github.com/kairos-io/kairos/v4/sdk/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+// schemaProps generates the P2PSchema and walks it down to the "properties"
+// object at the given definition name.
+// Tests use it to assert on the shape of the generated JSON schema itself,
+// for cases (like an unused/renamed key) that additionalProperties-permissive
+// validation cannot tell apart from a typo.
+func schemaProps(definition string) map[string]interface{} {
+	raw, err := GenerateSchema(P2PSchema{}, "")
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+
+	var doc map[string]interface{}
+	ExpectWithOffset(1, json.Unmarshal([]byte(raw), &doc)).To(Succeed())
+
+	definitions, ok := doc["definitions"].(map[string]interface{})
+	ExpectWithOffset(1, ok).To(BeTrue(), "generated schema has no definitions object")
+	def, ok := definitions[definition].(map[string]interface{})
+	ExpectWithOffset(1, ok).To(BeTrue(), "generated schema has no definition named %q", definition)
+	props, ok := def["properties"].(map[string]interface{})
+	ExpectWithOffset(1, ok).To(BeTrue(), "definition %q has no properties object", definition)
+	return props
+}
+
+// nestedProps walks props down the given chain of nested object properties,
+// checking every level, so a schema that stops nesting a block inline fails
+// naming the level that broke instead of panicking on a nil conversion.
+func nestedProps(props map[string]interface{}, path ...string) map[string]interface{} {
+	current := props
+	for _, key := range path {
+		object, ok := current[key].(map[string]interface{})
+		ExpectWithOffset(1, ok).To(BeTrue(), "no object at %q", key)
+		current, ok = object["properties"].(map[string]interface{})
+		ExpectWithOffset(1, ok).To(BeTrue(), "no properties under %q", key)
+	}
+	return current
+}
 
 var _ = Describe("P2P Schema", func() {
 	var config *KConfig
@@ -63,7 +99,7 @@ network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="`
 
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
-			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "master", "worker", "none"`))
+			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "", "master", "worker", "none"`))
 		})
 	})
 
@@ -163,21 +199,10 @@ auto:
 		})
 	})
 
-	Context("kubevip", func() {
-		BeforeEach(func() {
-			yaml = `#cloud-config
-network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
-auto:
-  enable: true
-  ha:
-    enable: true
-    master_nodes: 2`
-		})
-
-		It("succeedes", func() {
-			Expect(config.IsValid()).To(BeTrue())
-		})
-	})
+	// kubevip is a top-level key, a sibling of p2p in the cloud-config, not
+	// nested under it. It has no place in this file, which validates against
+	// P2PSchema{} only; see sdk/schema/root_schema_test.go for its coverage
+	// against RootSchema{}.
 
 	Context("vpn", func() {
 		BeforeEach(func() {
@@ -194,6 +219,323 @@ vpn:
 
 		It("succeedes", func() {
 			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("vpn.create (kairos-io/kairos#4667)", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+  ha:
+    enable: true
+    master_nodes: 2
+vpn:
+  create: false`
+		})
+
+		It("validates a config that sets vpn.create", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+
+		It("publishes create as the vpn property, and not the old unused vpn spelling", func() {
+			props := schemaProps("SchemaVPN")
+			Expect(props).To(HaveKey("create"))
+			Expect(props).NotTo(HaveKey("vpn"))
+		})
+	})
+
+	Context("loglevel", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+loglevel: debug`
+		})
+
+		It("validates", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("loglevel outside the known levels", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+loglevel: LOUD`
+		})
+
+		It("fails", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "trace", "debug", "info", "warn", "error", "fatal"`))
+		})
+	})
+
+	Context("minimum_nodes", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+minimum_nodes: 3`
+		})
+
+		It("validates", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("negative minimum_nodes", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+minimum_nodes: -1`
+		})
+
+		It("fails", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(config.ValidationError.Error()).To(MatchRegexp("must be >= 0 but found -1"))
+		})
+	})
+
+	Context("dynamic_roles", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+dynamic_roles: true`
+		})
+
+		It("validates", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("auto.ha.external_db", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+  ha:
+    enable: true
+    master_nodes: 2
+    external_db: "https://etcd.example.com:2379"`
+		})
+
+		It("validates", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+
+		It("is only declared on the auto-enabled branch of the oneOf", func() {
+			ha := nestedProps(schemaProps("SchemaP2PAutoEnabled"), "auto", "ha")
+			Expect(ha).To(HaveKey("external_db"))
+
+			haDisabled := nestedProps(schemaProps("SchemaP2PAutoDisabled"), "auto", "ha")
+			Expect(haDisabled).NotTo(HaveKey("external_db"))
+		})
+	})
+
+	// `enabled` is the spelling the kubernetes blocks use, and the one the
+	// provider now reads here too. `enable` stays accepted so existing
+	// cloud-configs keep validating. See kairos-io/kairos#1016.
+	Context("With a network_token and p2p.auto.enabled = true", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enabled: true`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With a network_token and p2p.auto.enabled = false", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enabled: false`
+		})
+
+		It("errors", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(
+				strings.Contains(config.ValidationError.Error(), `value must be true`),
+			).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and p2p.auto.enabled = false", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("HA with enabled", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enabled: true
+  ha:
+    enabled: true
+    master_nodes: 2`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and both spellings of p2p.auto agreeing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false
+  enable: false`
+		})
+
+		It("succeeds, because the provider accepts the pair when it agrees", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and both spellings of p2p.auto disagreeing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false
+  enable: true`
+		})
+
+		It("errors, because the provider refuses the pair when it disagrees", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and both spellings of p2p.auto.ha agreeing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false
+  ha:
+    enabled: false
+    enable: false`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and both spellings of p2p.auto.ha disagreeing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enabled: false
+  ha:
+    enabled: false
+    enable: true`
+		})
+
+		It("errors", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+		})
+	})
+
+	Context("With only the deprecated spelling of p2p.auto", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: ""
+auto:
+  enable: false`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+})
+
+var _ = Describe("P2P Schema role", func() {
+	var config *KConfig
+	var err error
+	var yaml string
+
+	// The provider is the only consumer of p2p.role
+	// (provider/internal/role/p2p/k8s.go), and it accepts the empty string,
+	// "master" and "worker". Anything else stops the bootstrap, so what the
+	// schema declares has to line up with that set.
+	DescribeTable("accepts the values the provider reads",
+		func(role string) {
+			yaml = `#cloud-config
+users:
+- name: kairos
+p2p:
+  network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+  role: ` + role + `
+  auto:
+    enable: true`
+
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.IsValid()).To(BeTrue(), func() string {
+				if config.ValidationError == nil {
+					return ""
+				}
+				return config.ValidationError.Error()
+			})
+		},
+		// Documented in installation/p2p.md as the way to leave the role
+		// unset, and the value the provider checks for.
+		Entry("the empty string", `""`),
+		Entry("master", `"master"`),
+		Entry("worker", `"worker"`),
+		// Was the schema's advertised default, so it is in the wild.
+		Entry("none", `"none"`),
+	)
+
+	Context("with a role no handler implements", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+users:
+- name: kairos
+p2p:
+  network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+  role: "leader"
+  auto:
+    enable: true`
+		})
+
+		JustBeforeEach(func() {
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("errors", func() {
+			Expect(config.IsValid()).To(BeFalse())
+			Expect(config.ValidationError.Error()).To(MatchRegexp("role"))
 		})
 	})
 })

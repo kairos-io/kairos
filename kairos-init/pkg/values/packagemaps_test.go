@@ -35,3 +35,47 @@ func TestThorKernelPackagesIncludeBootloader(t *testing.T) {
 	t.Fatalf("Thor kernel packages must include nvidia-l4t-bootloader "+
 		"(needed for the QSPI capsule payload and version); got %v", pkgs)
 }
+
+func TestBasePackagesExclude(t *testing.T) {
+	cases := []struct {
+		name    string
+		model   Model
+		system  System
+		missing string
+	}{
+		{
+			name:    "opensuse leap without tmux",
+			model:   Generic,
+			system:  System{Distro: OpenSUSELeap, Family: SUSEFamily, Arch: ArchAMD64, Version: "15.6"},
+			missing: "tmux",
+		},
+		{
+			name:    "opensuse tumbleweed without tmux",
+			model:   Generic,
+			system:  System{Distro: OpenSUSETumbleweed, Family: SUSEFamily, Arch: ArchARM64, Version: "20250101"},
+			missing: "tmux",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prev := config.DefaultConfig.Model
+			config.DefaultConfig.Model = tc.model.String()
+			t.Cleanup(func() { config.DefaultConfig.Model = prev })
+
+			l := logger.NewKairosLogger("test", "error", false)
+			pkgs, err := GetPackages(tc.system, l)
+			if err != nil {
+				t.Fatalf("GetPackages: %v", err)
+			}
+			if len(pkgs) == 0 {
+				t.Fatalf("GetPackages returned no packages for %+v", tc.system)
+			}
+			for _, p := range pkgs {
+				if p == tc.missing {
+					t.Fatalf("%s must not be in the base packages for %+v; got %v", tc.missing, tc.system, pkgs)
+				}
+			}
+		})
+	}
+}

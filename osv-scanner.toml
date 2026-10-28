@@ -61,71 +61,61 @@ id = "GO-2026-5932"
 ignoreUntil = 2026-11-10
 reason = "no-fix-available: golang.org/x/crypto. No fixed version published at any of the versions in the bundle."
 
-[[IgnoredVulns]]
-id = "GO-2026-4479"
-ignoreUntil = 2026-11-29
-reason = "no-fix-available: github.com/pion/dtls/v2, unmaintained with no fixed version published. Reached only through libp2p's optional WebRTC transport, which the provider does not enable. New to the root module graph with the provider-kairos absorption; carried over from that repo's own osv-scanner.toml."
-
 
 # ---------------------------------------------------------------------------
-# major-upgrade-required -- fixed in containerd 2.3.2, a 1.7 -> 2.3 major
-# upgrade inside provider-kairos. Planned work, not a release-time decision.
-# ---------------------------------------------------------------------------
-
-[[IgnoredVulns]]
-id = "GHSA-xhf5-7wjv-pqxp"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-53488, containerd. Fixed in 2.3.2, a major upgrade in provider-kairos."
-
-[[IgnoredVulns]]
-id = "GO-2026-5758"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-53488 (Go advisory alias), containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GHSA-jpcc-p29g-p8mq"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-47262, containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5475"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-47262 (Go advisory alias), containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5064"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-53492, containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5338"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-50195, containerd. Fixed in 2.3.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5622"
-ignoreUntil = 2026-09-11
-reason = "major-upgrade-required: CVE-2026-53489, containerd. Fixed in 2.3.2."
-
-
-# ---------------------------------------------------------------------------
-# upstream-regression -- a fix exists upstream, but taking it breaks the
-# component. This is in the `edgevpn` binary, which ships in every Kairos
-# release from mudler/edgevpn.
+# upstream-fix-pending -- the `edgevpn` binary, shipped in every Kairos release
+# from mudler/edgevpn. v0.35.5 is the newest release (2026-09-03). It was built
+# with Go 1.26.7, golang.org/x/net v0.57.0 and webtransport-go v0.10.0, and
+# mudler/edgevpn#1083 (open) bumps x/net to v0.60.0 and webtransport-go to
+# v0.11.1. Once edgevpn tags a release built with Go 1.26.9 or later and
+# carrying that bump, bump kairos-init/EDGEVPN_VERSION and delete this section.
 #
-# Bisected against edgevpn's pkg/node suite, which exercises real peer-to-peer
-# connectivity: webtransport-go v0.11.1 makes the "nodes can write to the
-# ledger" spec time out at 240s where an unmodified checkout passes in
-# 10-13s. v0.11.1 pulls quic-go 0.59.1 -> 0.60.0, which alone reproduces it;
-# go-libp2p pins quic-go tightly, so this likely needs a go-libp2p bump
-# upstream first. See mudler/edgevpn#1075.
+# The earlier "upstream-regression" claim (webtransport-go v0.11.1 breaking
+# libp2p connectivity, mudler/edgevpn#1075) was re-measured on
+# mudler/edgevpn#1083 and does not reproduce, so this is a plain pending fix.
 #
-# Note this is also present in provider-kairos, where it is already fixed
-# on main -- cutting a provider-kairos release clears it there, leaving only
-# the edgevpn copy this entry covers.
+# These are package overrides, not IgnoredVulns: an IgnoredVulns entry drops an
+# advisory ID for the whole scan, which would also hide it in the binaries built
+# from this repo. An override matches one package at one version, and only the
+# prebuilt edgevpn carries these versions (this repo builds with Go 1.27.3 and
+# x/net v0.61.0). Covers 15 advisories: GO-2026-6599, -6600, -6603, -6604,
+# -6605, -6607, -6608, -6609, -6610, -6611, -6612, -6613 and -6617 (stdlib and
+# x/net) and GHSA-g35j-m5xg-vh3q / GO-2026-6099 (webtransport-go).
 # ---------------------------------------------------------------------------
 
-[[IgnoredVulns]]
-id = "GHSA-g35j-m5xg-vh3q"
-ignoreUntil = 2026-10-11
-reason = "upstream-regression: CVE-2026-57497, webtransport-go in edgevpn. Fix v0.11.1 pulls quic-go 0.60.0, which breaks libp2p peer connectivity. Needs a go-libp2p bump upstream. See mudler/edgevpn#1075."
+[[PackageOverrides]]
+name = "stdlib"
+ecosystem = "Go"
+version = "1.26.7"
+ignore = true
+effectiveUntil = 2026-11-19
+reason = "upstream-fix-pending: Go standard library 1.26.7, fixed in Go 1.26.9 (GO-2026-6599, -6600, -6603, -6604, -6605, -6607, -6608, -6609, -6610, -6611, -6612, -6613, -6617). Only in the prebuilt edgevpn v0.35.5 binary, built with Go 1.26.7; no newer edgevpn release yet. Fix is mudler/edgevpn#1083."
+
+[[PackageOverrides]]
+name = "golang.org/x/net"
+ecosystem = "Go"
+version = "0.57.0"
+ignore = true
+effectiveUntil = 2026-11-19
+reason = "upstream-fix-pending: golang.org/x/net v0.57.0, fixed in v0.60.0 (GO-2026-6603, -6610, -6611, -6612, -6617). Only in the prebuilt edgevpn v0.35.5 binary, built with Go 1.26.7; no newer edgevpn release yet. Fix is mudler/edgevpn#1083."
+
+[[PackageOverrides]]
+name = "github.com/quic-go/webtransport-go"
+ecosystem = "Go"
+version = "0.10.0"
+ignore = true
+effectiveUntil = 2026-11-19
+reason = "upstream-fix-pending: webtransport-go v0.10.0, fixed in v0.11.1 (CVE-2026-57497, GHSA-g35j-m5xg-vh3q / GO-2026-6099). Only in the prebuilt edgevpn v0.35.5 binary, built with Go 1.26.7; no newer edgevpn release yet. Fix is mudler/edgevpn#1083."
+
+# The same prebuilt edgevpn v0.35.5 also carries labstack/echo/v4 v4.15.4 (its
+# api package). provider-kairos, the other binary that links echo/v4, is built
+# here and now carries v4.16.1. edgevpn master is still on v4.15.4 and has no
+# PR bumping it; drop this with the section above once an edgevpn release
+# carries echo v4.16.1 or later.
+[[PackageOverrides]]
+name = "github.com/labstack/echo/v4"
+ecosystem = "Go"
+version = "4.15.4"
+ignore = true
+effectiveUntil = 2026-11-19
+reason = "upstream-fix-pending: labstack/echo/v4 v4.15.4, fixed in v4.16.1 (GHSA-9969-6676-49h5, GHSA-cxf3-9h37-7rr8, GHSA-f48p-c9v4-h7xv, GHSA-h7wr-284f-5qvc). Only in the prebuilt edgevpn v0.35.5 binary; edgevpn master has not taken the bump yet."

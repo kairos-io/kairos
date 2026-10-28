@@ -251,3 +251,19 @@ func PairingCommand(agentBin, source string) *exec.Cmd {
 	}
 	return exec.Command(agentBin, args...)
 }
+
+// RecoveryCommand builds the remote-recovery invocation, `kairos-agent
+// recovery`.
+//
+// That command asks the providers for a network token, prints it as a QR code
+// and waits for `kairos bridge` to connect over it, so an operator can reach a
+// machine that has no console. It is what the `remoterecovery` GRUB entry runs
+// today, and an installer frontend that offers recovery hands the terminal to
+// it rather than reimplementing the flow.
+//
+// It takes no source: recovery does not install anything, so there is no image
+// to pull. Like PairingCommand it does not ask for progress events, because
+// the agent draws its own output on the terminal it is given.
+func RecoveryCommand(agentBin string) *exec.Cmd {
+	return exec.Command(agentBin, "recovery")
+}

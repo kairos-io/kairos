@@ -245,10 +245,13 @@ func Shutdown(runner sdkRunner.Runner, delay time.Duration) error {
 // CosignVerify runs a cosign validation for the give image and given public key. If no
 // key is provided then it attempts a keyless validation (experimental feature).
 func CosignVerify(fs sdkFs.KairosFS, runner sdkRunner.Runner, image string, publicKey string) (string, error) {
-	args := []string{}
+	// "verify" is a subcommand, not an implied default: cosign with a bare
+	// image argument exits with "unknown command". The key flag is "--key";
+	// "-key" is read as the shorthand cluster -k -e -y, which cosign rejects.
+	args := []string{"verify"}
 
 	if publicKey != "" {
-		args = append(args, "-key", publicKey)
+		args = append(args, "--key", publicKey)
 	} else {
 		os.Setenv("COSIGN_EXPERIMENTAL", "1")
 		defer os.Unsetenv("COSIGN_EXPERIMENTAL")

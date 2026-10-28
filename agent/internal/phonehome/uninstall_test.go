@@ -101,7 +101,7 @@ var _ = Describe("phonehome.Uninstall", func() {
 		// could finish writing the Completed status over the WebSocket.
 		It("skips `systemctl stop` when stopService is false", func() {
 			fs = newFakeFS(map[string]string{
-				phonehome.ServicePath:           "[Unit]\n",
+				phonehome.ServicePath:            "[Unit]\n",
 				phonehome.DefaultCredentialsPath: "node_id: abc\n",
 			})
 			fs.install(&restore)

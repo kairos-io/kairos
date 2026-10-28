@@ -17,11 +17,14 @@
 package elemental_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	sc "syscall"
 	"testing"
@@ -30,10 +33,17 @@ import (
 	fileBackend "github.com/diskfs/go-diskfs/backend/file"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/gofrs/uuid"
+	"github.com/google/go-containerregistry/pkg/crane"
+	ggcrv1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
+	"github.com/google/go-containerregistry/pkg/v1/layout"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/agent/pkg/partitioner"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
@@ -43,6 +53,7 @@ import (
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	Collector "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	SdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/sdk/types/platform"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sanity-io/litter"
@@ -53,6 +64,37 @@ import (
 func TestElementalSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Elemental test suite")
+}
+
+// countOpenFDsForPath returns how many of this process's open file
+// descriptors currently point at the given path. partitioner.NewDisk() opens
+// the install target device via diskfs.Open, so comparing this count before
+// and after a PartitionAndFormatDevice call tells us whether that handle was
+// released. Returns -1 (and the caller should skip) when the technique is not
+// available, e.g. non-Linux platforms without /proc.
+func countOpenFDsForPath(path string) int {
+	if runtime.GOOS != "linux" {
+		return -1
+	}
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		real = path
+	}
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return -1
+	}
+	count := 0
+	for _, e := range entries {
+		target, err := os.Readlink(filepath.Join("/proc/self/fd", e.Name()))
+		if err != nil {
+			continue
+		}
+		if target == real {
+			count++
+		}
+	}
+	return count
 }
 
 var _ = Describe("Elemental", Label("elemental"), func() {
@@ -444,6 +486,64 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 				Expect(partition.Type).To(Equal(gpt.LinuxFilesystem))
 			}
 		})
+		Describe("EFI system partition check", func() {
+			var restore func()
+
+			BeforeEach(func() {
+				restore = elemental.SetPartLabelDevice(func(name string) (string, error) {
+					return "/dev/" + name, nil
+				})
+			})
+
+			AfterEach(func() { restore() })
+
+			It("fails when the formatted ESP is FAT32 with too few clusters for UEFI", func() {
+				install.PartTable = sdkConstants.GPT
+				install.Firmware = sdkConstants.EFI
+				Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.EFI, sdkConstants.GPT)).To(BeNil())
+				// mkfs.vfat output on a 4096-byte-sector device: 16346 clusters
+				Expect(fs.WriteFile("/dev/efi", partitioner.FAT32BootSector(16346), 0o644)).To(Succeed())
+
+				err := el.PartitionAndFormatDevice(install)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("UEFI firmware will not mount the EFI system partition on /dev/efi"))
+			})
+
+			It("succeeds when the formatted ESP is a FAT32 volume UEFI accepts", func() {
+				install.PartTable = sdkConstants.GPT
+				install.Firmware = sdkConstants.EFI
+				Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.EFI, sdkConstants.GPT)).To(BeNil())
+				Expect(fs.WriteFile("/dev/efi", partitioner.FAT32BootSector(65525), 0o644)).To(Succeed())
+
+				Expect(el.PartitionAndFormatDevice(install)).To(Succeed())
+			})
+
+			It("does not check an extra partition named efi that is not FAT", func() {
+				install.PartTable = sdkConstants.GPT
+				install.Firmware = sdkConstants.BIOS
+				Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.BIOS, sdkConstants.GPT)).To(BeNil())
+				install.ExtraPartitions = SdkPartitions.PartitionList{
+					{Name: sdkConstants.EfiPartName, FilesystemLabel: "DATA", FS: "ext4", Size: 64},
+				}
+				// an ext4 volume starts with a zeroed boot block
+				Expect(fs.WriteFile("/dev/efi", make([]byte, 1024), 0o644)).To(Succeed())
+
+				Expect(el.PartitionAndFormatDevice(install)).To(Succeed())
+			})
+
+			It("does not check a FAT extra partition with another name", func() {
+				install.PartTable = sdkConstants.GPT
+				install.Firmware = sdkConstants.EFI
+				Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.EFI, sdkConstants.GPT)).To(BeNil())
+				install.ExtraPartitions = SdkPartitions.PartitionList{
+					{Name: "data", FilesystemLabel: "DATA", FS: sdkConstants.EfiFs, Size: 64},
+				}
+				Expect(fs.WriteFile("/dev/efi", partitioner.FAT32BootSector(65525), 0o644)).To(Succeed())
+				Expect(fs.WriteFile("/dev/data", partitioner.FAT32BootSector(16346), 0o644)).To(Succeed())
+
+				Expect(el.PartitionAndFormatDevice(install)).To(Succeed())
+			})
+		})
 		It("Preserves PARTLABEL on an extra partition when persistent has a fixed size (kairos-io/kairos#4257)", func() {
 			// Re-create a bigger backing file: the default 2GiB one is not
 			// large enough to hold the state/recovery defaults plus a fixed
@@ -503,7 +603,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			Expect(persistent).ToNot(BeNil())
 			persistentBytes := (persistent.End - persistent.Start + 1) * sectorSize
-			Expect(persistentBytes).To(Equal(1024 * mib),
+			Expect(persistentBytes).To(Equal(1024*mib),
 				"persistent should keep its configured 1024 MiB size")
 		})
 		It("Refuses config when persistent + extras exceed target disk size", func() {
@@ -660,6 +760,25 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 				Expect(runner.IncludesCmds([][]string{{"mkfs." + fs}})).To(HaveOccurred())
 			}
 		})
+		It("does not leak the disk file descriptor when NewPartitionTable fails (kairos-io/kairos#4610)", func() {
+			if runtime.GOOS != "linux" {
+				Skip("fd accounting via /proc/self/fd is Linux-only")
+			}
+			// An invalid partition table type makes disk.NewPartitionTable
+			// fail immediately, which is the first error return after
+			// partitioner.NewDisk has already opened the target device.
+			install.PartTable = "not-a-real-partition-table-type"
+
+			before := countOpenFDsForPath(install.Target)
+			Expect(before).To(BeNumerically(">=", 0))
+
+			err := el.PartitionAndFormatDevice(install)
+			Expect(err).To(MatchError(ContainSubstring("invalid partition type")))
+
+			after := countOpenFDsForPath(install.Target)
+			Expect(after).To(Equal(before),
+				"the disk fd opened by partitioner.NewDisk must be closed before returning an error")
+		})
 	})
 	Describe("DeployImage", Label("DeployImage"), func() {
 		var el *elemental.Elemental
@@ -700,12 +819,10 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		It("Deploys an squashfs image from a directory", func() {
 			img.FS = cnst.SquashFs
 			Expect(el.DeployImage(img, true)).To(BeNil())
-			Expect(runner.MatchMilestones([][]string{
-				{
-					"mksquashfs", "/tmp/elemental-tmp", "/tmp/elemental/image.img",
-					"-b", "1024k", "-comp", "gzip",
-				},
-			}))
+			// The source is a temp directory with a random suffix, so assert
+			// the arguments that are fixed. There is no -comp: Sanitize drops
+			// the compression options unless squash-no-compression is off.
+			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
 		})
 		It("Deploys a file image and mounts it", func() {
 			sourceImg := "/source.img"
@@ -746,12 +863,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			img.FS = cnst.SquashFs
 			_, err := el.DeployImage(img, true)
 			Expect(err).NotTo(BeNil())
-			Expect(runner.MatchMilestones([][]string{
-				{
-					"mksquashfs", "/tmp/elemental-tmp", "/tmp/elemental/image.img",
-					"-b", "1024k", "-comp", "gzip",
-				},
-			}))
+			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
 		})
 		It("Fails formatting the image", func() {
 			cmdFail = "mkfs.ext2"
@@ -805,36 +917,124 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			config.Cosign = true
 			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
 			Expect(err).To(BeNil())
-			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}}))
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}})).To(BeNil())
 		})
 		It("Fails cosign validation", Label("cosign"), func() {
 			runner.ReturnError = errors.New("cosign error")
 			config.Cosign = true
 			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
 			Expect(err).NotTo(BeNil())
-			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}}))
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}})).To(BeNil())
 		})
-		It("Unpacks a locally saved docker image file to target", Label("docker"), func() {
-			// Clear any previous commands
+		It("Unpacks a docker save archive to target", Label("docker"), func() {
 			runner.ClearCmds()
+			runner.SideEffect = realRunner
 
-			ociTarPath := "/tmp/oci-image.tar"
-			// Create a dummy OCI image tar file
-			err := fs.WriteFile(ociTarPath, []byte("dummy oci image content"), 0644)
-			Expect(err).To(BeNil())
+			archivePath := saveRootfsImage(GinkgoT().TempDir(), "docker")
+			target := GinkgoT().TempDir()
 
-			runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
-				fullCmd := fmt.Sprintf("Running command: %s %s", cmd, strings.Join(args, " "))
-				_, _ = GinkgoWriter.Write([]byte(fullCmd + "\n"))
-				if cmd == "tar" && len(args) >= 2 && args[0] == "-xf" {
-					_, _ = GinkgoWriter.Write([]byte("Simulating successful tar extraction\n"))
-					return []byte{}, nil
-				}
-				return []byte{}, nil
-			}
-			_, err = e.DumpSource(destDir, sdkImages.NewOCIFileSrc(ociTarPath))
+			_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
 			Expect(err).To(BeNil())
-			Expect(runner.IncludesCmds([][]string{{"tar", "-xf", ociTarPath}})).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+		})
+
+		It("Unpacks an OCI layout archive to target", Label("docker"), func() {
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			archivePath := saveRootfsImage(GinkgoT().TempDir(), "oci")
+			target := GinkgoT().TempDir()
+
+			_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+		})
+
+		It("Refuses an archive that holds no image, and leaves the target alone", Label("docker"), func() {
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			dir := GinkgoT().TempDir()
+			Expect(os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not an image"), 0644)).To(Succeed())
+			archivePath := filepath.Join(dir, "plain.tar")
+			Expect(exec.Command("tar", "-cf", archivePath, "-C", dir, "notes.txt").Run()).To(Succeed())
+
+			target := GinkgoT().TempDir()
+			_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(archivePath))
+			Expect(os.ReadDir(target)).To(BeEmpty())
+		})
+
+		It("Picks the image built for this run's platform out of a multi-architecture layout", Label("docker"), func() {
+			// This is the shape a containerd-backed `docker save` of a
+			// multi-architecture tag writes: index.json holds a nested index,
+			// and that index one manifest per platform. Nothing reaches the
+			// nested-index branch or the platform selection otherwise.
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			archivePath, bodies := saveMultiArchImage(GinkgoT().TempDir(), "linux/amd64", "linux/arm64")
+			target := GinkgoT().TempDir()
+
+			arm64, err := platform.NewPlatform("linux", "arm64")
+			Expect(err).ToNot(HaveOccurred())
+			config.Platform = arm64
+
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).
+				To(Equal([]byte(bodies["linux/arm64"])), "the amd64 image must not land on an arm64 node")
+		})
+
+		It("Refuses a layout whose only image is for another platform", Label("docker"), func() {
+			// A single non-matching descriptor used to be kept as the sole
+			// candidate and returned, which fills the slot with a rootfs for
+			// the wrong architecture and reports success.
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			archivePath, _ := saveMultiArchImage(GinkgoT().TempDir(), "linux/amd64")
+			target := GinkgoT().TempDir()
+
+			arm64, err := platform.NewPlatform("linux", "arm64")
+			Expect(err).ToNot(HaveOccurred())
+			config.Platform = arm64
+
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("linux/arm64"))
+			Expect(os.ReadDir(target)).To(BeEmpty())
+		})
+
+		It("Unpacks a layout that lists one image under two tags", Label("docker"), func() {
+			// `docker save img:v1 img:latest` writes one index entry per tag,
+			// both at the same digest and both without a platform. Counting
+			// them separately made the ambiguity error fire on a layout that
+			// holds a single image.
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			dir := GinkgoT().TempDir()
+			img := rootfsImage(dir, "layer.tar", "NAME=\"Kairos\"\n")
+
+			layoutDir := filepath.Join(dir, "two-tags-layout")
+			path, err := layout.Write(layoutDir, empty.Index)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(path.AppendImage(img, layout.WithAnnotations(map[string]string{
+				"org.opencontainers.image.ref.name": "kairos:v1",
+			}))).To(Succeed())
+			Expect(path.AppendImage(img, layout.WithAnnotations(map[string]string{
+				"org.opencontainers.image.ref.name": "kairos:latest",
+			}))).To(Succeed())
+
+			archivePath := filepath.Join(dir, "two-tags.tar")
+			Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
+
+			target := GinkgoT().TempDir()
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
 		})
 
 		It("Copies image file to target", func() {
@@ -844,7 +1044,12 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(err).To(BeNil())
 			_, err = e.DumpSource(destFile, sdkImages.NewFileSrc(sourceImg))
 			Expect(err).To(BeNil())
-			Expect(runner.IncludesCmds([][]string{{cnst.Rsync}}))
+			// A file source is copied in process by utils.CopyFile. rsync is
+			// only reached for a directory source, so nothing is shelled out
+			// here and the assertion is on the file that landed.
+			Expect(runner.IncludesCmds([][]string{{cnst.Rsync}})).NotTo(BeNil())
+			_, err = fs.Stat(destFile)
+			Expect(err).To(BeNil())
 		})
 		It("Fails to copy, source file is not present", func() {
 			_, err := e.DumpSource("whatever", sdkImages.NewFileSrc("/source.img"))
@@ -920,7 +1125,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			c := elemental.NewElemental(config)
 			Expect(c.SelinuxRelabel("/", true)).To(BeNil())
-			Expect(runner.CmdsMatch([][]string{{}}))
+			Expect(runner.CmdsMatch([][]string{})).To(BeNil())
 		})
 		It("does nothing if the policy file is not found", func() {
 			err := fs.Remove(policyFile)
@@ -928,7 +1133,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			c := elemental.NewElemental(config)
 			Expect(c.SelinuxRelabel("/", true)).To(BeNil())
-			Expect(runner.CmdsMatch([][]string{{}}))
+			Expect(runner.CmdsMatch([][]string{})).To(BeNil())
 		})
 		It("relabels the current root", func() {
 			c := elemental.NewElemental(config)
@@ -981,8 +1186,15 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			sbin, err := fs.RawPath("/usr/sbin")
 			Expect(err).ShouldNot(HaveOccurred())
 
-			path := os.Getenv("PATH")
-			os.Setenv("PATH", fmt.Sprintf("%s:%s", sbin, path))
+			// PATH is replaced, not prepended: a host that ships its own
+			// chcon would otherwise keep satisfying CommandExists after the
+			// mock is removed, and "does nothing if chcon is not available"
+			// would run the command it asserts never runs.
+			origPath := os.Getenv("PATH")
+			os.Setenv("PATH", sbin)
+			DeferCleanup(func() {
+				os.Setenv("PATH", origPath)
+			})
 			_, err = fs.Create("/usr/sbin/chcon")
 			Expect(err).ShouldNot(HaveOccurred())
 			err = fs.Chmod("/usr/sbin/chcon", 0o777)
@@ -1006,7 +1218,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		It("does nothing if the image does not exist", func() {
 			c := elemental.NewElemental(config)
 			c.LabelStateImage(filepath.Join(stateDir, cnst.PassiveImgFile))
-			Expect(runner.CmdsMatch([][]string{{}}))
+			Expect(runner.CmdsMatch([][]string{})).To(BeNil())
 		})
 		It("does nothing if chcon is not available", func() {
 			imgFile := filepath.Join(stateDir, cnst.PassiveImgFile)
@@ -1017,7 +1229,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			c := elemental.NewElemental(config)
 			c.LabelStateImage(imgFile)
-			Expect(runner.CmdsMatch([][]string{{}}))
+			Expect(runner.CmdsMatch([][]string{})).To(BeNil())
 		})
 		It("does not raise on chcon failure", func() {
 			imgFile := filepath.Join(stateDir, cnst.PassiveImgFile)
@@ -1226,3 +1438,118 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		})
 	})
 })
+
+// squashfsArgs returns the mksquashfs arguments after the source directory.
+// DeployImage builds that directory with a random suffix, so a spec can only
+// assert on the destination and the options that follow it.
+func squashfsArgs(runner *v1mock.FakeRunner) []string {
+	for _, cmd := range runner.Cmds() {
+		if cmd[0] == "mksquashfs" {
+			return cmd[2:]
+		}
+	}
+	return nil
+}
+
+// realRunner lets a spec that needs a command to have actually run use the fake
+// runner for its bookkeeping and the host for the work.
+func realRunner(command string, args ...string) ([]byte, error) {
+	return exec.Command(command, args...).CombinedOutput()
+}
+
+// saveRootfsImage writes a one layer image carrying /etc/os-release into dir,
+// in the layout named by format, and returns the path of the archive.
+//
+//	"docker" is what `docker save` writes on an engine with its own image
+//	store: manifest.json at the root of the archive.
+//	"oci" is what it writes when the engine is backed by containerd:
+//	oci-layout, index.json and blobs/.
+func saveRootfsImage(dir, format string) string {
+	GinkgoHelper()
+
+	img := rootfsImage(dir, "layer.tar", "NAME=\"Kairos\"\n")
+
+	archivePath := filepath.Join(dir, format+".tar")
+	if format == "docker" {
+		Expect(crane.Save(img, "kairos:test", archivePath)).To(Succeed())
+		return archivePath
+	}
+
+	layoutDir := filepath.Join(dir, "layout")
+	path, err := layout.Write(layoutDir, empty.Index)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(path.AppendImage(img)).To(Succeed())
+	Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
+
+	return archivePath
+}
+
+// rootfsImage builds a one layer image whose /etc/os-release holds osRelease,
+// so a spec can tell two images of the same shape apart by what lands in the
+// target.
+func rootfsImage(dir, layerName, osRelease string) ggcrv1.Image {
+	GinkgoHelper()
+
+	layerPath := filepath.Join(dir, layerName)
+	layerFile, err := os.Create(layerPath)
+	Expect(err).ToNot(HaveOccurred())
+
+	writer := tar.NewWriter(layerFile)
+	body := []byte(osRelease)
+	Expect(writer.WriteHeader(&tar.Header{
+		Name: "etc/os-release", Mode: 0644, Size: int64(len(body)), Typeflag: tar.TypeReg,
+		// The suite has to be able to restore this ownership without being root.
+		Uid: os.Getuid(), Gid: os.Getgid(),
+	})).To(Succeed())
+	_, err = writer.Write(body)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(writer.Close()).To(Succeed())
+	Expect(layerFile.Close()).To(Succeed())
+
+	layer, err := tarball.LayerFromFile(layerPath)
+	Expect(err).ToNot(HaveOccurred())
+	img, err := mutate.AppendLayers(empty.Image, layer)
+	Expect(err).ToNot(HaveOccurred())
+
+	return img
+}
+
+// saveMultiArchImage writes the archive a containerd-backed `docker save` of a
+// multi-architecture tag produces: an OCI layout whose index.json holds one
+// nested index, and that index one image manifest per platform. Each image
+// carries its own architecture in /etc/os-release, so the spec can name which
+// one was unpacked. The returned paths are the archive and the os-release body
+// of each platform, keyed by "os/arch".
+func saveMultiArchImage(dir string, platforms ...string) (string, map[string]string) {
+	GinkgoHelper()
+
+	bodies := map[string]string{}
+	addendums := []mutate.IndexAddendum{}
+	for i, p := range platforms {
+		parts := strings.SplitN(p, "/", 2)
+		Expect(parts).To(HaveLen(2), "platform %q is not os/arch", p)
+
+		body := fmt.Sprintf("NAME=\"Kairos\"\nARCH=%q\n", parts[1])
+		bodies[p] = body
+
+		img := rootfsImage(dir, fmt.Sprintf("layer-%d.tar", i), body)
+		addendums = append(addendums, mutate.IndexAddendum{
+			Add: img,
+			Descriptor: ggcrv1.Descriptor{
+				Platform: &ggcrv1.Platform{OS: parts[0], Architecture: parts[1]},
+			},
+		})
+	}
+
+	nested := mutate.AppendManifests(empty.Index, addendums...)
+
+	layoutDir := filepath.Join(dir, "multiarch-layout")
+	path, err := layout.Write(layoutDir, empty.Index)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(path.AppendIndex(nested)).To(Succeed())
+
+	archivePath := filepath.Join(dir, "multiarch.tar")
+	Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
+
+	return archivePath, bodies
+}

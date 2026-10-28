@@ -112,7 +112,12 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				out, err = vm.Sudo("cat /tmp/mnt/STATE/grubmenu")
 				Expect(err).ToNot(HaveOccurred(), out)
 
-				Expect(out).To(ContainSubstring("--id remoterecovery"))
+				// Remote recovery is reached from the interactive installer
+				// now, not from a boot entry of its own
+				// (kairos-io/kairos#5064). The file is still copied to the
+				// state partition for user entries, so the cat above is what
+				// proves it arrived.
+				Expect(out).ToNot(ContainSubstring("--id remoterecovery"))
 
 				// No longer used. This is created to override the default entry but now the default entry is kairos already
 				// TODO: Create a test in acceptance to check for the creation of this file and if it has the correct override entry
