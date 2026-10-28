@@ -13,23 +13,26 @@ func SetUninstallRunners(
 	rm func(path string) error,
 	read func(path string) ([]byte, error),
 	write func(path string, data []byte, perm os.FileMode) error,
-	glob func(pattern string) ([]string, error),
+	walk func(root string) ([]string, error),
 ) func() {
 	prevRun, prevRm := runCommand, removeFile
-	prevRead, prevWrite, prevGlob := readFile, writeFile, globFiles
+	prevRead, prevWrite, prevWalk := readFile, writeFile, walkFiles
 	runCommand = run
 	removeFile = rm
 	readFile = read
 	writeFile = write
-	globFiles = glob
+	walkFiles = walk
 	return func() {
 		runCommand = prevRun
 		removeFile = prevRm
 		readFile = prevRead
 		writeFile = prevWrite
-		globFiles = prevGlob
+		walkFiles = prevWalk
 	}
 }
+
+// ListConfigFiles exposes the on-disk walk the teardown uses by default.
+var ListConfigFiles = listConfigFiles
 
 // SetHostnameFunc pins what gatherHostname reports and returns a restorer that
 // puts os.Hostname back. Specs use it so a heartbeat's hostname is an assertion
