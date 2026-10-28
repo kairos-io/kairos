@@ -137,6 +137,8 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Expect(err).ToNot(HaveOccurred(), "failed to get upgrade image")
 		fmt.Printf("Using upgrade image: %s\n", upgradeImage)
 
+		expectOperatorRefusesDowngrade(vm, upgradeImage)
+
 		By("preparing the NodeOpUpgrade resource")
 
 		tempDir, err := os.MkdirTemp("", "nodeopupgrade-*")
@@ -152,6 +154,9 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		err = vm.Scp(filepath.Join(tempDir, "nodeopupgrade.yaml"), "./nodeopupgrade.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
+
+		bootIDBeforeUpgrade, err := vm.Sudo("cat /proc/sys/kernel/random/boot_id")
+		Expect(err).ToNot(HaveOccurred(), bootIDBeforeUpgrade)
 
 		By("applying the NodeOpUpgrade resource")
 		Eventually(func() string {
@@ -193,11 +198,107 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			return debugOutput
 		})
 
+		// A completed NodeOpUpgrade alone does not prove anything ran: the
+		// operator also reports Completed when it skips a node that is
+		// already at the target version. A real upgrade ends in a reboot.
+		By("checking the node rebooted into the upgrade")
+		Eventually(func() string {
+			out, _ := vm.Sudo("cat /proc/sys/kernel/random/boot_id")
+			return out
+		}, 10*time.Minute, 10*time.Second).ShouldNot(Or(BeEmpty(), Equal(bootIDBeforeUpgrade)))
+
 		// Verify k3s is still operational after the upgrade
 		By("verifying k3s is operational after upgrade")
 		Eventually(func() string {
 			out, _ := kubectl(vm, "get nodes")
 			return out
-		}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("Ready"))
+		}, 5*time.Minute, 10*time.Second).Should(MatchRegexp(`\sReady\s`))
 	})
 })
+
+// expectOperatorRefusesDowngrade checks that an upgrade through kairos-operator
+// is refused when the target image was built with an older kairos-init than the
+// node (kairos-io/kairos#6033). The upgrade pod runs the target image, so its
+// own /etc/kairos-release is the target's, and the agent has to read the
+// node's copy under HOST_DIR instead. Raising KAIROS_INIT_VERSION in the node's
+// /etc/kairos-release, which lasts until the next reboot, turns an upgrade to
+// the image under test into a downgrade without building an older image.
+func expectOperatorRefusesDowngrade(vm VM, upgradeImage string) {
+	By("making the node look newer than the upgrade image")
+	out, err := vm.Sudo("cp /etc/kairos-release /tmp/kairos-release.orig")
+	Expect(err).ToNot(HaveOccurred(), out)
+	out, err = vm.Sudo(`sed -i 's/^KAIROS_INIT_VERSION=.*/KAIROS_INIT_VERSION="v99.0.0"/' /etc/kairos-release`)
+	Expect(err).ToNot(HaveOccurred(), out)
+	out, err = vm.Sudo("grep KAIROS_INIT_VERSION /etc/kairos-release")
+	Expect(err).ToNot(HaveOccurred(), out)
+	Expect(out).To(ContainSubstring("v99.0.0"))
+
+	bootID, err := vm.Sudo("cat /proc/sys/kernel/random/boot_id")
+	Expect(err).ToNot(HaveOccurred(), bootID)
+
+	By("applying a NodeOpUpgrade that is a downgrade for this node")
+	nodeOpUpgrade := fmt.Sprintf(`apiVersion: operator.kairos.io/v1alpha1
+kind: NodeOpUpgrade
+metadata:
+  name: kairos-downgrade
+  namespace: operator-system
+spec:
+  image: %q
+  concurrency: 1
+  stopOnFailure: true
+  # The node already runs this image, so without force the operator skips
+  # it as up to date and the agent never runs.
+  force: true
+`, upgradeImage)
+	tempDir, err := os.MkdirTemp("", "nodeopupgrade-*")
+	Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(tempDir)
+	Expect(os.WriteFile(filepath.Join(tempDir, "downgrade.yaml"), []byte(nodeOpUpgrade), 0644)).To(Succeed())
+	Expect(vm.Scp(filepath.Join(tempDir, "downgrade.yaml"), "./downgrade.yaml", "0770")).To(Succeed())
+	Eventually(func() string {
+		out, _ := kubectl(vm, "apply -f downgrade.yaml")
+		return out
+	}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("created"), ContainSubstring("unchanged")))
+
+	By("waiting for the upgrade pod to refuse the downgrade")
+	// The job retries a failed pod, so wait for the refusal in the logs of
+	// any attempt rather than for the NodeOpUpgrade to reach Failed.
+	logsCmd := `sh -c 'for p in $(k3s kubectl get pods -n operator-system -o name | grep kairos-downgrade); do k3s kubectl logs -n operator-system --all-containers "$p"; done'`
+	Eventually(func() string {
+		out, _ := vm.Sudo(logsCmd)
+		if !strings.Contains(out, "refusing to upgrade") {
+			phase, _ := kubectl(vm, "get nodeopupgrade -n operator-system kairos-downgrade -o jsonpath='{.status.phase}'")
+			if strings.Contains(phase, "Completed") {
+				StopTrying("the downgrade NodeOpUpgrade completed instead of being refused").Now()
+			}
+		}
+		return out
+	}, 20*time.Minute, 10*time.Second).Should(ContainSubstring("refusing to upgrade"), func() string {
+		out, _ := kubectl(vm, "get nodeopupgrade,nodeop,jobs,pods -n operator-system -o wide")
+		return out
+	})
+
+	out, _ = vm.Sudo(logsCmd)
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "KAIROS_INIT_VERSION") || strings.Contains(line, "kairos-agent") {
+			fmt.Println(line)
+		}
+	}
+
+	By("removing the refused NodeOpUpgrade and restoring the node")
+	out, err = kubectl(vm, "delete nodeopupgrade -n operator-system kairos-downgrade --wait=true")
+	Expect(err).ToNot(HaveOccurred(), out)
+	Eventually(func() string {
+		out, _ := kubectl(vm, "get pods -n operator-system")
+		return out
+	}, 5*time.Minute, 5*time.Second).ShouldNot(ContainSubstring("kairos-downgrade"))
+	out, err = vm.Sudo("cp /tmp/kairos-release.orig /etc/kairos-release")
+	Expect(err).ToNot(HaveOccurred(), out)
+	out, err = vm.Sudo(`sh -c 'k3s kubectl uncordon $(k3s kubectl get nodes -o name)'`)
+	Expect(err).ToNot(HaveOccurred(), out)
+
+	By("checking the node was not rebooted by the refused upgrade")
+	nowBootID, err := vm.Sudo("cat /proc/sys/kernel/random/boot_id")
+	Expect(err).ToNot(HaveOccurred(), nowBootID)
+	Expect(nowBootID).To(Equal(bootID))
+}

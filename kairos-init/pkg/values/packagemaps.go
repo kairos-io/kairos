@@ -299,12 +299,13 @@ var KernelPackages = PackageMap{
 		},
 		ArchARM64: {
 			"20.04 || 22.04 || 24.04 || 28.04": {
-				// Note: this logic only works for LTS release (x.04), any odd year or x.10 will not work
+				// HWE kernel for LTS releases (x.04), interim releases have no HWE track of their own
 				// This is a template, so we can replace the version with the actual version of the system
 				"linux-image-generic-hwe-{{.version}}",
 			},
-			"26.04": {
-				// Ubuntu 26.04 uses generic kernel instead of HWE
+			">=26.04, !=28.04": {
+				// Ubuntu 26.04 and later, interim releases included, use the generic kernel instead of HWE.
+				// 28.04 is excluded as it matches the HWE entry above
 				"linux-image-generic",
 			},
 			// 24.10 uses the 24.04 hwe kernel as it is the same hwe track https://ubuntu.com/kernel/lifecycle
@@ -314,12 +315,13 @@ var KernelPackages = PackageMap{
 		},
 		ArchAMD64: {
 			"20.04 || 22.04 || 24.04 || 28.04": {
-				// Note: this logic only works for LTS release (x.04), any odd year or x.10 will not work
+				// HWE kernel for LTS releases (x.04), interim releases have no HWE track of their own
 				// This is a template, so we can replace the version with the actual version of the system
 				"linux-image-generic-hwe-{{.version}}",
 			},
-			"26.04": {
-				// Ubuntu 26.04 uses generic kernel instead of HWE
+			">=26.04, !=28.04": {
+				// Ubuntu 26.04 and later, interim releases included, use the generic kernel instead of HWE.
+				// 28.04 is excluded as it matches the HWE entry above
 				"linux-image-generic",
 			},
 			// 24.10 uses the 24.04 hwe kernel as it is the same hwe track https://ubuntu.com/kernel/lifecycle
@@ -561,17 +563,23 @@ var BasePackages = PackageMap{
 				"openssh",
 				"pigz",
 				"polkit",
-				"policycoreutils",
 				"procps",
 				"qemu-guest-agent", // TODO: Move this to generic model?
-				"selinux-policy-targeted",
 				"strace",
 				"systemd",
 				"timezone",
 				"vim",
 				"which",
 			},
+			// 5.4 and 5.5 are SLE Micro for Rancher. Its "Install oss
+			// repository" stage adds the Leap 15.5 OSS repo and removes the
+			// base image's policycoreutils 3.4. Asking for policycoreutils
+			// afterwards resolves 3.1 from Leap, which conflicts with the
+			// installed libsemanage-conf 3.4, and zypper exits 4.
+			// See kairos-io/kairos#6101.
 			"!=5.4, !=5.5": {
+				"policycoreutils",
+				"selinux-policy-targeted",
 				"systemd-networkd",
 				"systemd-resolved",
 			},

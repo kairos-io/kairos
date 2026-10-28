@@ -43,6 +43,7 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 		cloudInit = &v1mock.FakeCloudInitRunner{}
 		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
 		Expect(err).ToNot(HaveOccurred())
+		httpClient.Fs = fs
 
 		err := vfs.MkdirAll(fs, "/var/lib/kairos/extensions", 0755)
 		Expect(err).ToNot(HaveOccurred())
@@ -492,6 +493,58 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(extensions).To(BeEmpty())
 		})
+		It("should merge an extension that is already enabled when enabling it again with now", func() {
+			err = config.Fs.WriteFile("/var/lib/kairos/extensions/valid.raw", []byte("valid"), 0644)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.Fs.Mkdir("/run/cos", 0755)).ToNot(HaveOccurred())
+			Expect(config.Fs.WriteFile("/run/cos/active_mode", []byte("true"), 0644)).ToNot(HaveOccurred())
+			err = action.EnableExtension(config, "valid.raw", "active", "sysext", false)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = config.Fs.Stat("/run/extensions/valid.raw")
+			Expect(err).To(HaveOccurred())
+			err = action.EnableExtension(config, "valid.raw", "active", "sysext", true)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = config.Fs.Stat("/run/extensions/valid.raw")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(runner.IncludesCmds([][]string{
+				{"systemctl", "restart", "systemd-sysext"},
+			})).ToNot(HaveOccurred())
+		})
+		It("should not fail when enabling an extension with now twice", func() {
+			err = config.Fs.WriteFile("/var/lib/kairos/extensions/valid.raw", []byte("valid"), 0644)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.Fs.Mkdir("/run/cos", 0755)).ToNot(HaveOccurred())
+			Expect(config.Fs.WriteFile("/run/cos/active_mode", []byte("true"), 0644)).ToNot(HaveOccurred())
+			err = action.EnableExtension(config, "valid.raw", "active", "sysext", true)
+			Expect(err).ToNot(HaveOccurred())
+			err = action.EnableExtension(config, "valid.raw", "active", "sysext", true)
+			Expect(err).ToNot(HaveOccurred())
+			_, err = config.Fs.Stat("/run/extensions/valid.raw")
+			Expect(err).ToNot(HaveOccurred())
+		})
+		It("should replace a dangling enable link instead of reporting it already enabled", func() {
+			err = config.Fs.WriteFile("/var/lib/kairos/extensions/valid.raw", []byte("valid"), 0644)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(vfs.MkdirAll(config.Fs, "/var/lib/kairos/extensions/active", 0755)).ToNot(HaveOccurred())
+			Expect(config.Fs.Symlink("/var/lib/kairos/extensions/gone.raw", "/var/lib/kairos/extensions/active/valid.raw")).ToNot(HaveOccurred())
+			err = action.EnableExtension(config, "valid.raw", "active", "sysext", false)
+			Expect(err).ToNot(HaveOccurred())
+			content, err := config.Fs.ReadFile("/var/lib/kairos/extensions/active/valid.raw")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(content)).To(Equal("valid"))
+		})
+		It("should replace a dangling run link when enabling with now", func() {
+			err = config.Fs.WriteFile("/var/lib/kairos/extensions/valid.raw", []byte("valid"), 0644)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.Fs.Mkdir("/run/cos", 0755)).ToNot(HaveOccurred())
+			Expect(config.Fs.WriteFile("/run/cos/active_mode", []byte("true"), 0644)).ToNot(HaveOccurred())
+			Expect(config.Fs.Symlink("/var/lib/kairos/extensions/passive/valid.raw", "/run/extensions/valid.raw")).ToNot(HaveOccurred())
+			err = action.EnableExtension(config, "valid.raw", "active", "sysext", true)
+			Expect(err).ToNot(HaveOccurred())
+			content, err := config.Fs.ReadFile("/run/extensions/valid.raw")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(content)).To(Equal("valid"))
+		})
 		It("should not fail if the extension is already enabled", func() {
 			err = config.Fs.WriteFile("/var/lib/kairos/extensions/valid.raw", []byte("valid"), 0644)
 			Expect(err).ToNot(HaveOccurred())
@@ -576,6 +629,60 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 				},
 			}))
 		})
+		Describe("With now, booted in active", func() {
+			BeforeEach(func() {
+				Expect(config.Fs.WriteFile("/var/lib/kairos/extensions/valid.raw", []byte("valid"), 0644)).ToNot(HaveOccurred())
+				Expect(config.Fs.Mkdir("/run/cos", 0755)).ToNot(HaveOccurred())
+				Expect(config.Fs.WriteFile("/run/cos/active_mode", []byte("true"), 0644)).ToNot(HaveOccurred())
+			})
+			It("enables with now in active an extension already merged from common", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "common", "sysext", true)).ToNot(HaveOccurred())
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				content, err := config.Fs.ReadFile("/run/extensions/valid.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(content)).To(Equal("valid"))
+			})
+			It("keeps the extension merged when disabling active while common still enables it", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "common", "sysext", true)).ToNot(HaveOccurred())
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				runner.ClearCmds()
+				Expect(action.DisableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				extensions, err := action.ListExtensions(config, "active", "sysext")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(extensions).To(BeEmpty())
+				content, err := config.Fs.ReadFile("/run/extensions/valid.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(content)).To(Equal("valid"))
+				Expect(runner.IncludesCmds([][]string{
+					{"systemctl", "restart", "systemd-sysext"},
+				})).To(HaveOccurred())
+			})
+			It("keeps the extension merged when disabling common while active still enables it", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				Expect(action.EnableExtension(config, "valid.raw", "common", "sysext", false)).ToNot(HaveOccurred())
+				Expect(action.DisableExtension(config, "valid.raw", "common", "sysext", true)).ToNot(HaveOccurred())
+				content, err := config.Fs.ReadFile("/run/extensions/valid.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(content)).To(Equal("valid"))
+			})
+			It("unmerges the extension when no other boot state enables it", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				runner.ClearCmds()
+				Expect(action.DisableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				_, err := config.Fs.Lstat("/run/extensions/valid.raw")
+				Expect(err).To(HaveOccurred())
+				Expect(runner.IncludesCmds([][]string{
+					{"systemctl", "restart", "systemd-sysext"},
+				})).ToNot(HaveOccurred())
+			})
+			It("unmerges the extension when only a state not booted enables it", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				Expect(action.EnableExtension(config, "valid.raw", "passive", "sysext", false)).ToNot(HaveOccurred())
+				Expect(action.DisableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				_, err := config.Fs.Lstat("/run/extensions/valid.raw")
+				Expect(err).To(HaveOccurred())
+			})
+		})
 	})
 	Describe("Installing extensions", func() {
 		Describe("With a file source", func() {
@@ -649,6 +756,10 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 				err = action.InstallExtension(config, "http://localhost:8080/valid.raw", "sysext")
 				Expect(err).ToNot(HaveOccurred(), memLog.String())
 				Expect(httpClient.WasGetCalledWith("http://localhost:8080/valid.raw")).To(BeTrue())
+				_, statErr := fs.Stat("/var/lib/kairos/extensions/valid.raw")
+				Expect(statErr).ToNot(HaveOccurred())
+				_, statErr = fs.Stat("/var/lib/kairos/extensions/.valid.raw.partial")
+				Expect(os.IsNotExist(statErr)).To(BeTrue())
 			})
 			It("should fail to install a missing extension", func() {
 				httpClient.Error = true

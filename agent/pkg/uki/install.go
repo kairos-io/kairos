@@ -14,8 +14,10 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
+	"github.com/kairos-io/kairos/v4/agent/pkg/progress"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	sdkutils "github.com/kairos-io/kairos/v4/sdk/utils"
 )
@@ -33,7 +35,12 @@ func NewInstallAction(cfg *sdkConfig.Config, spec *v1.InstallUkiSpec) *InstallAc
 func (i *InstallAction) Run() (err error) {
 	e := elemental.NewElemental(i.cfg)
 	cleanup := utils.NewCleanStack()
-	defer func() { err = cleanup.Cleanup(err) }()
+	defer func() {
+		err = cleanup.Cleanup(err)
+		if err == nil {
+			progress.EmitStep(agentrun.StepDone)
+		}
+	}()
 	// Run pre-install stage
 	if err = utils.RunStage(i.cfg, "kairos-uki-install.pre"); err != nil {
 		i.cfg.Logger.Errorf("running kairos-uki-install.pre stage: %s", err.Error())
@@ -56,6 +63,7 @@ func (i *InstallAction) Run() (err error) {
 		}
 	} else {
 		// Deactivate any active volume on target
+		progress.EmitStep(agentrun.StepPartition)
 		err = e.DeactivateDevices()
 		if err != nil {
 			i.cfg.Logger.Errorf("deactivating devices: %s", err.Error())
@@ -81,6 +89,7 @@ func (i *InstallAction) Run() (err error) {
 	})
 
 	// Before install hook happens after partitioning but before the image OS is applied (this is for compatibility with normal install, so users can reuse their configs)
+	progress.EmitStep(agentrun.StepBeforeInstall)
 	err = Hook(i.cfg, constants.BeforeInstallHook)
 	if err != nil {
 		i.cfg.Logger.Errorf("running before install hook: %s", err.Error())
@@ -114,6 +123,7 @@ func (i *InstallAction) Run() (err error) {
 	// dump below and before the copies, in checkSpaceForInstall.
 
 	// Copy the efi file into the proper dir
+	progress.EmitStep(agentrun.StepActive)
 	_, err = e.DumpSource(i.spec.Partitions.EFI.MountPoint, i.spec.Active.Source)
 	if err != nil {
 		i.cfg.Logger.Errorf("dumping source: %s", err.Error())
@@ -122,6 +132,7 @@ func (i *InstallAction) Run() (err error) {
 
 	// Remove entries
 	// Read all confs
+	progress.EmitStep(agentrun.StepBootloader)
 	i.cfg.Logger.Debugf("Parsing efi partition files (skip SkipEntries, replace placeholders etc)")
 	err = fsutils.WalkDirFs(i.cfg.Fs, filepath.Join(i.spec.Partitions.EFI.MountPoint), func(path string, info os.DirEntry, err error) error {
 		// WalkDirFs passes a nil entry when it cannot stat the root, so the
@@ -219,6 +230,7 @@ func (i *InstallAction) Run() (err error) {
 	}
 
 	// after install hook happens after install (this is for compatibility with normal install, so users can reuse their configs)
+	progress.EmitStep(agentrun.StepAfterInstall)
 	err = Hook(i.cfg, constants.AfterInstallHook)
 	if err != nil {
 		i.cfg.Logger.Errorf("running after install hook: %s", err.Error())

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
@@ -26,6 +27,13 @@ const (
 	systemd = "systemd"
 	openrc  = "openrc"
 	unknown = "unknown"
+)
+
+// Paths OSRelease reads when no file is passed. Variables so tests can point
+// them at a temp dir.
+var (
+	kairosReleasePath = "/etc/kairos-release"
+	osReleasePath     = "/etc/os-release"
 )
 
 type KeyNotFoundErr struct {
@@ -92,50 +100,50 @@ func UUID() string {
 	return fmt.Sprintf("%s-%s", id, hostname)
 }
 
-// OSRelease finds the value of the specified key in the /etc/kairos-release file
-// As a fallback on the /etc/os-release
-// or, if a second argument is passed, on the file specified by the second argument.
+// OSRelease finds the value of the specified key in the /etc/kairos-release file,
+// falling back to /etc/os-release when that file does not exist or lacks the key.
+// If a second argument is passed, only that file is read and no fallback is tried
 // (optionally file argument is there for testing reasons).
 func OSRelease(key string, file ...string) (string, error) {
-	var osReleaseFile string
-	osReleaseFallback := "/etc/os-release"
-
 	if len(file) > 1 {
 		return "", errors.New("too many arguments passed")
 	}
 	if len(file) > 0 {
-		osReleaseFile = file[0]
-	} else {
-		osReleaseFile = "/etc/kairos-release"
+		v, err := osReleaseValue(key, file[0])
+		if err != nil {
+			return "", err
+		}
+		return v, nil
 	}
-	release, err := godotenv.Read(osReleaseFile)
+
+	v, err := osReleaseValue(key, kairosReleasePath)
+	if err == nil {
+		return v, nil
+	}
+	var notFound KeyNotFoundErr
+	if !errors.As(err, &notFound) && !errors.Is(err, fs.ErrNotExist) {
+		return "", err
+	}
+	// We try with the fallback file
+	return osReleaseValue(key, osReleasePath)
+}
+
+// osReleaseValue reads key from a single os-release style file, trying the
+// KAIROS_ prefixed name first and the old unprefixed name after it.
+func osReleaseValue(key, path string) (string, error) {
+	release, err := godotenv.Read(path)
 	if err != nil {
 		return "", err
 	}
 	kairosKey := "KAIROS_" + key
-	v, exists := release[kairosKey]
-	if !exists {
-		// We try with the old naming without the prefix in case the key wasn't found
-		v, exists = release[key]
-		if !exists {
-			// We try with fallback file
-			release, err = godotenv.Read(osReleaseFallback)
-			if err != nil {
-				return "", err
-			}
-			kairosKey = "KAIROS_" + key
-			v, exists = release[kairosKey]
-			if !exists {
-				// We try with the old naming without the prefix in case the key wasn't found
-				v, exists = release[key]
-				if !exists {
-					return "", KeyNotFoundErr{Err: fmt.Errorf("%s key not found", kairosKey)}
-				}
-			}
-		}
+	if v, exists := release[kairosKey]; exists {
+		return v, nil
 	}
-
-	return v, nil
+	// We try with the old naming without the prefix in case the key wasn't found
+	if v, exists := release[key]; exists {
+		return v, nil
+	}
+	return "", KeyNotFoundErr{Err: fmt.Errorf("%s key not found", kairosKey)}
 }
 
 func FindCommand(def string, options []string) string {

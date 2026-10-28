@@ -75,6 +75,12 @@ image initializer all live in one source tree, share a single
   agent bus plugin and the CLI behind `kairos provider <cmd>`
   (was `kairos-io/provider-kairos`, which shipped the same commands a
   second time as a standalone `kairosctl` binary).
+- `auroraboot/` -- AuroraBoot, which builds ISOs, raw disks and netboot
+  artifacts, and runs the fleet server (was `kairos-io/AuroraBoot`). It is
+  its own Go module, `github.com/kairos-io/kairos/auroraboot`, that a
+  `replace` points at the root module, so it keeps its web, database and
+  Redfish dependencies out of the device binaries. It is released with
+  Kairos under the same version number.
 - `tests/` -- monorepo end-to-end test suite.
 
 Each absorbed subdirectory keeps a thin `main.go` at its root, so

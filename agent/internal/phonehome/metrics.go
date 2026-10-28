@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/moby/sys/mountinfo"
 	"golang.org/x/sys/unix"
 )
 
@@ -50,7 +51,8 @@ type DiskMetrics struct {
 }
 
 // kairosMounts are the partitions an operator cares about on a Kairos node.
-// A mount that is not present on this node (e.g. no OEM partition) is skipped.
+// A mount that is not present on this node (e.g. no OEM partition) is skipped,
+// and so is a path that is only a directory on another filesystem.
 var kairosMounts = []struct{ label, mount string }{
 	{"COS_PERSISTENT", "/usr/local"},
 	{"COS_STATE", "/run/initramfs/cos-state"},
@@ -59,9 +61,10 @@ var kairosMounts = []struct{ label, mount string }{
 
 // Seams over the host, swapped by specs through setMetricsSources.
 var (
-	procRoot = "/proc"
-	sysRoot  = "/sys"
-	statfsFn = statfsUsage
+	procRoot  = "/proc"
+	sysRoot   = "/sys"
+	statfsFn  = statfsUsage
+	mountedFn = mountinfo.Mounted
 )
 
 func statfsUsage(path string) (total, used uint64, err error) {
@@ -256,6 +259,9 @@ func (t *cpuTracker) gather() *NodeMetrics {
 	}
 
 	for _, km := range kairosMounts {
+		if mounted, err := mountedFn(km.mount); err != nil || !mounted {
+			continue
+		}
 		total, used, err := statfsFn(km.mount)
 		if err != nil || total == 0 {
 			continue

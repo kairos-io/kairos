@@ -47,14 +47,17 @@ func FindReleases(ctx context.Context, token, slug string, preReleases bool) (se
 
 	var versions semver.Collection
 	for _, rel := range rels {
-		if strings.HasPrefix(*rel.Name, "v") {
-			v := semver.MustParse(*rel.Name)
-			if v.Prerelease() == "" {
-				versions = append(versions, v)
-			}
-			if v.Prerelease() != "" && preReleases {
-				versions = append(versions, v)
-			}
+		name := rel.GetName()
+		if !strings.HasPrefix(name, "v") {
+			continue
+		}
+		v, err := semver.NewVersion(name)
+		if err != nil {
+			// A release title that is not a version, like "v2.0.0 - Hotfix", is not ours to sort.
+			continue
+		}
+		if v.Prerelease() == "" || preReleases {
+			versions = append(versions, v)
 		}
 	}
 	// Return them reversed sorted so the higher is the first one in the collection!

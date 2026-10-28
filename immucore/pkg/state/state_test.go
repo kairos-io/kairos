@@ -283,6 +283,8 @@ func checkDag(dag [][]herd.GraphEntry, actualDag string) {
 // wait-for-sysroot and every step that expects Kairos partition labels to
 // exist, so first-boot workstations get their COS_OEM/COS_PERSISTENT created
 // (when the auto-create flag is set) before mount-oem or kcrypt fire.
+// encrypt-pending sits between mount-oem and unlock-all, as it does on
+// normal boot; the in-RAM dag specs cover why.
 func checkInRAMDag(dag [][]herd.GraphEntry, actualDag string) {
 	// Names by op-constant present at each layer. Order within a layer is not
 	// guaranteed, so we assert as a set.
@@ -291,8 +293,8 @@ func checkInRAMDag(dag [][]herd.GraphEntry, actualDag string) {
 		{cnst.OpSentinel, cnst.OpWaitForSysroot, cnst.OpMountTmpfs},
 		{cnst.OpEnsurePartitions},
 		{cnst.OpKcryptUpgrade, cnst.OpMountOEM},
-		{cnst.OpKcryptUnlock, cnst.OpRootfsHook},
-		{cnst.OpLoadConfig},
+		{cnst.OpEncryptPending, cnst.OpRootfsHook},
+		{cnst.OpKcryptUnlock, cnst.OpLoadConfig},
 		{cnst.OpMountBaseOverlay, cnst.OpCustomMounts},
 		{cnst.OpOverlayMount},
 		{cnst.OpMountBind},

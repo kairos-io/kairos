@@ -1,0 +1,19 @@
+{
+  "@odata.id": "/redfish/v1/Managers/1/VirtualMedia/2",
+  "@odata.type": "#VirtualMedia.v1_3_0.VirtualMedia",
+  "Id": "2",
+  "Name": "VirtualMedia",
+  "MediaTypes": [ "CD", "DVD" ],
+  "Image": null,
+  "Inserted": false,
+  "WriteProtected": true,
+  "ConnectedVia": "NotConnected",
+  "Actions": {
+    "#VirtualMedia.InsertMedia": {
+      "target": "/redfish/v1/Managers/1/VirtualMedia/2/Actions/VirtualMedia.InsertMedia"
+    },
+    "#VirtualMedia.EjectMedia": {
+      "target": "/redfish/v1/Managers/1/VirtualMedia/2/Actions/VirtualMedia.EjectMedia"
+    }
+  }
+}

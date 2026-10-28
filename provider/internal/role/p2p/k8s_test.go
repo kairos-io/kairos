@@ -163,7 +163,7 @@ var _ = Describe("NewK8sNode with an unpinned role", func() {
 				P2P: &providerConfig.P2P{
 					NetworkToken: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg==",
 					Role:         role,
-					Auto:         providerConfig.Auto{Enable: &enabled},
+					Auto:         providerConfig.Auto{Enabled: &enabled},
 				},
 			}
 
@@ -184,7 +184,7 @@ var _ = Describe("NewK8sNode with an unpinned role", func() {
 			P2P: &providerConfig.P2P{
 				NetworkToken: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg==",
 				Role:         "leader",
-				Auto:         providerConfig.Auto{Enable: &enabled},
+				Auto:         providerConfig.Auto{Enabled: &enabled},
 			},
 		}
 

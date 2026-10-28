@@ -13,23 +13,26 @@ func SetUninstallRunners(
 	rm func(path string) error,
 	read func(path string) ([]byte, error),
 	write func(path string, data []byte, perm os.FileMode) error,
-	glob func(pattern string) ([]string, error),
+	walk func(root string) ([]string, error),
 ) func() {
 	prevRun, prevRm := runCommand, removeFile
-	prevRead, prevWrite, prevGlob := readFile, writeFile, globFiles
+	prevRead, prevWrite, prevWalk := readFile, writeFile, walkFiles
 	runCommand = run
 	removeFile = rm
 	readFile = read
 	writeFile = write
-	globFiles = glob
+	walkFiles = walk
 	return func() {
 		runCommand = prevRun
 		removeFile = prevRm
 		readFile = prevRead
 		writeFile = prevWrite
-		globFiles = prevGlob
+		walkFiles = prevWalk
 	}
 }
+
+// ListConfigFiles exposes the on-disk walk the teardown uses by default.
+var ListConfigFiles = listConfigFiles
 
 // SetHostnameFunc pins what gatherHostname reports and returns a restorer that
 // puts os.Hostname back. Specs use it so a heartbeat's hostname is an assertion
@@ -41,9 +44,17 @@ func SetHostnameFunc(fn func() (string, error)) func() {
 }
 
 // setMetricsSources points gatherMetrics at fake /proc and /sys trees and a fake
-// statfs, and returns a restorer that puts the host defaults back.
+// statfs, treats every path as a mount point, and returns a restorer that puts
+// the host defaults back.
 func setMetricsSources(proc, sys string, statfs func(path string) (uint64, uint64, error)) func() {
-	prevProc, prevSys, prevStatfs := procRoot, sysRoot, statfsFn
+	prevProc, prevSys, prevStatfs, prevMounted := procRoot, sysRoot, statfsFn, mountedFn
 	procRoot, sysRoot, statfsFn = proc, sys, statfs
-	return func() { procRoot, sysRoot, statfsFn = prevProc, prevSys, prevStatfs }
+	mountedFn = func(string) (bool, error) { return true, nil }
+	return func() { procRoot, sysRoot, statfsFn, mountedFn = prevProc, prevSys, prevStatfs, prevMounted }
+}
+
+// setMountedFunc overrides the mount point check. The restorer from
+// setMetricsSources puts the host default back.
+func setMountedFunc(fn func(path string) (bool, error)) {
+	mountedFn = fn
 }

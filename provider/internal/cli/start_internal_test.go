@@ -171,3 +171,26 @@ var _ = Describe("The recovery SSH server command", func() {
 		Expect(c.String("password")).To(BeEmpty())
 	})
 })
+
+var _ = Describe("The token rotation interval argument", func() {
+	for _, cmd := range []*cli.Command{&CreateConfigCMD, &GenerateTokenCMD} {
+		cmd := cmd
+
+		It(cmd.Name+" accepts no interval", func() {
+			Expect(runCommand(cmd, cmd.Name)).To(Succeed())
+		})
+
+		It(cmd.Name+" accepts a positive interval", func() {
+			Expect(runCommand(cmd, cmd.Name, "3600")).To(Succeed())
+		})
+
+		for _, bad := range []string{"0", "-5", "abc"} {
+			bad := bad
+			It(cmd.Name+" rejects the interval "+bad, func() {
+				err := runCommand(cmd, cmd.Name, "--", bad)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(`"` + bad + `"`))
+			})
+		}
+	}
+})

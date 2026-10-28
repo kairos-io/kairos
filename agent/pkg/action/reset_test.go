@@ -25,6 +25,7 @@ import (
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/agent/pkg/state"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
@@ -39,6 +40,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
+	"k8s.io/mount-utils"
 )
 
 var _ = Describe("Reset action tests", func() {
@@ -366,6 +368,62 @@ var _ = Describe("Reset action tests", func() {
 				config.Strict = true
 				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterResetHook}
 				Expect(reset.Run()).NotTo(BeNil())
+			})
+			Describe("the state file", func() {
+				It("mounts persistent at the default mount point to record the reset", func() {
+					spec.FormatPersistent = false
+					Expect(spec.Partitions.Persistent.MountPoint).To(BeEmpty())
+					Expect(reset.Run()).To(BeNil())
+
+					var targets []string
+					for _, a := range mounter.Interface.(*mount.FakeMounter).GetLog() {
+						if a.Action == mount.FakeActionMount {
+							targets = append(targets, a.Target)
+						}
+					}
+					Expect(targets).To(ContainElement(constants.PersistentDir))
+					Expect(memLog.String()).ToNot(ContainSubstring("failed to update kairos state file"))
+
+					s, err := state.Load(fs, state.Path(constants.PersistentDir))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(s.LastReset).ToNot(Equal(state.NeverValue))
+				})
+
+				It("keeps first-install across a formatting reset", func() {
+					spec.FormatPersistent = true
+					spec.FormatOEM = false
+					Expect(fsutils.MkdirAll(fs, constants.PersistentDir, constants.DirPerm)).To(Succeed())
+					installed := &state.KairosState{
+						FirstInstall:        "2024-01-02T03:04:05Z",
+						FirstInstallSource:  "oci:quay.io/kairos/test:v1",
+						LastActiveUpgrade:   state.NeverValue,
+						LastRecoveryUpgrade: state.NeverValue,
+						LastReset:           state.NeverValue,
+					}
+					Expect(installed.Save(fs, state.Path(constants.PersistentDir))).To(Succeed())
+
+					// mkfs wipes whatever was on the partition.
+					sideEffect := runner.SideEffect
+					runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+						if cmd == "mkfs.ext4" {
+							Expect(fs.RemoveAll(constants.PersistentDir)).To(Succeed())
+						}
+						return sideEffect(cmd, args...)
+					}
+
+					Expect(reset.Run()).To(BeNil())
+
+					s, err := state.Load(fs, state.Path(constants.PersistentDir))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(s.FirstInstall).To(Equal(installed.FirstInstall))
+					Expect(s.FirstInstallSource).To(Equal(installed.FirstInstallSource))
+					Expect(s.LastReset).ToNot(Equal(state.NeverValue))
+
+					// The staging directory under /run is gone once restored.
+					leftovers, err := fs.Glob("/run/kairos-state-*")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(leftovers).To(BeEmpty())
+				})
 			})
 			It("Fails to set the default grub entry", func() {
 				// Make the grub env file a directory so writing the default entry fails

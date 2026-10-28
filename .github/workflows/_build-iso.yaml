@@ -27,6 +27,14 @@ on:
         type: string
         required: true
 
+      auroraboot_artifact:
+        description: |
+          Prefix of the workflow artifacts that hold AuroraBoot as a docker
+          archive (_build-image-auroraboot.yaml's oci_artifact), so the ISO is
+          built by the AuroraBoot of the same commit.
+        type: string
+        required: true
+
       kairos_init_artifact:
         description: |
           Name of a workflow artifact holding kairos-init as an OCI layout
@@ -255,7 +263,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       caller-vetted-ref: ${{ inputs.caller-vetted-ref }}
-      auroraboot_version: 'v0.28.0'
+      auroraboot_artifact: ${{ inputs.auroraboot_artifact }}
       dockerfile_path: 'images/Dockerfile'
       # Point images/Dockerfile at the caller-supplied kairos-init.
       # This is what makes PRs / releases exercise the freshly-built
