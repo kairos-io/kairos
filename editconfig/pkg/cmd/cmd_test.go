@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -102,6 +103,28 @@ fi`)
 		Expect(output.String()).To(ContainSubstring("Invalid draft discarded"))
 	})
 
+	It("edits a copy outside the configuration directory", func() {
+		dir := GinkgoT().TempDir()
+		path := writeCloudConfig(dir, validCloudConfig, 0644)
+		marker := filepath.Join(dir, "editor-path")
+		editor := writeEditor(dir, "path-editor", "printf '%s' \"$1\" > "+marker+"\nprintf '%s' '#cloud-config\nusers:\n  - name: updated\n' > \"$1\"")
+
+		Expect(editCloudInit(path, editor, &bytes.Buffer{})).To(Succeed())
+
+		editedPath, err := os.ReadFile(marker)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(filepath.Dir(string(editedPath))).NotTo(Equal(dir))
+		Expect(filepath.Base(string(editedPath))).To(Equal("90_custom.yaml"))
+		Expect(filepath.Dir(string(editedPath))).NotTo(BeADirectory())
+		Expect(loadableConfigs(dir)).To(ConsistOf(path))
+	})
+
+	It("stages saves under a name yip does not load", func() {
+		ext := filepath.Ext(strings.ReplaceAll(saveTempPattern, "*", "123"))
+
+		Expect(ext).NotTo(BeElementOf(".yaml", ".yml"))
+	})
+
 	It("keeps validation messages out of the configuration", func() {
 		content := []byte(validCloudConfig)
 		withMessage := addValidationMessage("/oem/90_custom.yaml", content, os.ErrInvalid)
@@ -122,4 +145,18 @@ func writeEditor(dir, name, body string) string {
 	path := filepath.Join(dir, name)
 	Expect(os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0755)).To(Succeed())
 	return path
+}
+
+func loadableConfigs(dir string) []string {
+	var configs []string
+	Expect(filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if ext := filepath.Ext(path); !info.IsDir() && (ext == ".yaml" || ext == ".yml") {
+			configs = append(configs, path)
+		}
+		return nil
+	})).To(Succeed())
+	return configs
 }
