@@ -43,6 +43,7 @@ require (
 	github.com/klauspost/compress v1.20.3
 	github.com/kube-vip/kube-vip v1.2.4
 	github.com/labstack/echo/v5 v5.4.2
+	github.com/mholt/archives v0.1.5
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.2
 	github.com/moby/sys/mountinfo v0.7.2
@@ -245,7 +246,6 @@ require (
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.24 // indirect
 	github.com/mauromorales/xpasswd v0.4.8 // indirect
-	github.com/mholt/archives v0.1.5 // indirect
 	github.com/miekg/dns v1.1.72 // indirect
 	github.com/mikelolasagasti/xz v1.0.1 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
