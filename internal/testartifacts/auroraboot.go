@@ -1,47 +1,30 @@
 package testartifacts
 
 import (
-	"archive/tar"
-	"bufio"
-	"bytes"
-	"compress/gzip"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
-	"time"
 )
-
-// AuroraBootVersion is the AuroraBoot release the helpers use, both as a
-// release binary and as a container image. Renovate updates it together with
-// the workflow pins.
-const AuroraBootVersion = "v0.28.0"
-
-// AuroraBootImage is the AuroraBoot container image the Docker helpers run.
-const AuroraBootImage = "quay.io/kairos/auroraboot:" + AuroraBootVersion
-
-// binaryEnv names an environment variable holding the path of an AuroraBoot
-// binary to use as is, skipping the download.
-const binaryEnv = "KAIROS_TEST_AURORABOOT_BINARY"
 
 const (
-	// auroraBootReleaseURL is the base URL release assets are fetched from, as
-	// <base>/<version>/<asset>.
-	auroraBootReleaseURL = "https://github.com/kairos-io/AuroraBoot/releases/download"
-	// auroraBootHTTPTimeout bounds each release download, so a stalled
-	// connection fails instead of hanging the caller.
-	auroraBootHTTPTimeout = 5 * time.Minute
+	// binaryEnv names an environment variable holding the path of an AuroraBoot
+	// binary to use as is, skipping the build.
+	binaryEnv = "KAIROS_TEST_AURORABOOT_BINARY"
+
+	// imageEnv names an environment variable holding an AuroraBoot container
+	// image to use as is, skipping the build. CI sets it to the image it built
+	// from the commit under test.
+	imageEnv = "KAIROS_TEST_AURORABOOT_IMAGE"
+
+	// localImage is the tag the image built from the source tree gets.
+	localImage = "kairos-testartifacts-auroraboot:local"
 )
 
-// cacheDir returns the directory downloaded binaries are cached in.
+// cacheDir returns the directory built binaries are kept in.
 func cacheDir() (string, error) {
 	base, err := os.UserCacheDir()
 	if err != nil {
@@ -50,110 +33,41 @@ func cacheDir() (string, error) {
 	return filepath.Join(base, "kairos", "testartifacts"), nil
 }
 
-func httpGet(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
+// sourceDir returns the auroraboot module of the checkout this package comes
+// from. AuroraBoot lives in the same repository, so the helpers always run the
+// AuroraBoot of the commit under test.
+func sourceDir() (string, error) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", errors.New("cannot locate the AuroraBoot source")
 	}
-	client := &http.Client{Timeout: auroraBootHTTPTimeout}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
+	dir := filepath.Join(filepath.Dir(file), "..", "..", "auroraboot")
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
+		return "", fmt.Errorf("AuroraBoot source not found at %s: %w; set %s or %s", dir, err, binaryEnv, imageEnv)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("GET %s: %s", url, resp.Status)
-	}
-	return io.ReadAll(resp.Body)
+	return filepath.Clean(dir), nil
 }
 
-// checksumFor finds the sha256 listed for asset in a checksums.txt body of
-// "<sha256>  <file name>" lines.
-func checksumFor(sums []byte, asset string) (string, error) {
-	sc := bufio.NewScanner(bytes.NewReader(sums))
-	for sc.Scan() {
-		fields := strings.Fields(sc.Text())
-		if len(fields) == 2 && fields[1] == asset {
-			return strings.ToLower(fields[0]), nil
-		}
-	}
-	return "", fmt.Errorf("checksums.txt has no entry for %s", asset)
-}
-
-// extractBinary returns the content of the auroraboot entry of a gzip tarball.
-func extractBinary(tarball []byte) ([]byte, error) {
-	gz, err := gzip.NewReader(bytes.NewReader(tarball))
-	if err != nil {
-		return nil, err
-	}
-	defer gz.Close()
-	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if errors.Is(err, io.EOF) {
-			return nil, errors.New("tarball has no auroraboot entry")
-		}
-		if err != nil {
-			return nil, err
-		}
-		if hdr.Typeflag == tar.TypeReg && filepath.Base(hdr.Name) == "auroraboot" {
-			return io.ReadAll(tr)
-		}
-	}
-}
-
-// AuroraBootBinary returns the path of the AuroraBoot release binary for
-// AuroraBootVersion on this machine, downloading it into a per-user cache on
-// first use. KAIROS_TEST_AURORABOOT_BINARY, when set, names a binary that is
-// used as is.
+// AuroraBootBinary returns the path of an AuroraBoot binary built from the
+// source tree, which it builds into a per-user cache. It needs a Go toolchain,
+// a C compiler and libpcsclite. KAIROS_TEST_AURORABOOT_BINARY, when set, names
+// a binary that is used as is.
 //
-// The tarball's sha256 is compared with the release's checksums.txt before
-// anything is written to the cache, which catches a truncated or corrupted
-// download. It does not protect against a tampered release, since
-// checksums.txt comes from the same release as the tarball. The binary is
-// written to a temporary file and renamed into place, so concurrent callers
-// never see a partial file.
+// The binary is written to a temporary file and renamed into place, so
+// concurrent callers never see a partial file. Rebuilding on every call is
+// cheap, because the Go build cache keeps the compiled packages.
 func AuroraBootBinary(ctx context.Context) (string, error) {
 	if path := os.Getenv(binaryEnv); path != "" {
 		return path, nil
 	}
-	arch := runtime.GOARCH
-	if arch != "amd64" && arch != "arm64" {
-		return "", fmt.Errorf("no AuroraBoot release binary for architecture %s", arch)
-	}
-	cache, err := cacheDir()
+	src, err := sourceDir()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(cache, fmt.Sprintf("auroraboot-%s-linux-%s", AuroraBootVersion, arch))
-	final := filepath.Join(dir, "auroraboot")
-	if info, err := os.Stat(final); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
-		return final, nil
-	}
-
-	asset := fmt.Sprintf("auroraboot_%s_linux_%s.tar.gz", strings.TrimPrefix(AuroraBootVersion, "v"), arch)
-	base := auroraBootReleaseURL + "/" + AuroraBootVersion + "/"
-	sums, err := httpGet(ctx, base+"checksums.txt")
+	dir, err := cacheDir()
 	if err != nil {
 		return "", err
 	}
-	want, err := checksumFor(sums, asset)
-	if err != nil {
-		return "", err
-	}
-	tarball, err := httpGet(ctx, base+asset)
-	if err != nil {
-		return "", err
-	}
-	got := sha256.Sum256(tarball)
-	if hex.EncodeToString(got[:]) != want {
-		return "", fmt.Errorf("checksum mismatch for %s: want %s, got %s", asset, want, hex.EncodeToString(got[:]))
-	}
-	bin, err := extractBinary(tarball)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", asset, err)
-	}
-
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
@@ -161,21 +75,42 @@ func AuroraBootBinary(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	tmp.Close()
 	defer os.Remove(tmp.Name())
-	if _, err := tmp.Write(bin); err != nil {
-		tmp.Close()
-		return "", err
+
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", tmp.Name(), ".")
+	cmd.Dir = src
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=1")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("building auroraboot: %w\n%s", err, out)
 	}
-	if err := tmp.Close(); err != nil {
-		return "", err
-	}
-	if err := os.Chmod(tmp.Name(), 0o755); err != nil {
-		return "", err
-	}
+	final := filepath.Join(dir, "auroraboot")
 	if err := os.Rename(tmp.Name(), final); err != nil {
 		return "", err
 	}
 	return final, nil
+}
+
+// AuroraBootImage returns the AuroraBoot container image the Docker helpers
+// run, which it builds from the source tree. KAIROS_TEST_AURORABOOT_IMAGE, when
+// set, names an image that is used as is. The build hands the repository root
+// to the Dockerfile as the named context "kairos", because the auroraboot
+// module replaces the root module with ../.
+func AuroraBootImage(ctx context.Context) (string, error) {
+	if image := os.Getenv(imageEnv); image != "" {
+		return image, nil
+	}
+	src, err := sourceDir()
+	if err != nil {
+		return "", err
+	}
+	root := filepath.Dir(src)
+	err = docker(ctx, "buildx", "build", "--load", "-q", "-t", localImage,
+		"--build-context", "kairos="+root, "-f", filepath.Join(src, "Dockerfile"), src)
+	if err != nil {
+		return "", err
+	}
+	return localImage, nil
 }
 
 // GenerateKeySet writes a throwaway Secure Boot key set (PK, KEK and db as

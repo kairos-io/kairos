@@ -1,6 +1,7 @@
 package kube_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/kairos-io/kairos/v4/kcrypt/pkg/kube"
@@ -68,5 +69,41 @@ var _ = Describe("IsValidKubeName", func() {
 		Expect(kube.IsValidKubeName("-mydata")).To(BeFalse())
 		Expect(kube.IsValidKubeName("mydata-")).To(BeFalse())
 		Expect(kube.IsValidKubeName("")).To(BeFalse())
+	})
+})
+
+var _ = Describe("SafeLabelValue", func() {
+	DescribeTable("returns a value Kubernetes accepts as a label value",
+		func(in, want string) {
+			out := kube.SafeLabelValue(in)
+			Expect(validation.IsValidLabelValue(out)).To(BeEmpty(),
+				"SafeLabelValue(%q) returned %q, which Kubernetes rejects", in, out)
+			Expect(out).To(Equal(want))
+		},
+		Entry("default persistent label", "COS_PERSISTENT_LUKS", "COS_PERSISTENT_LUKS"),
+		Entry("default oem label", "COS_OEM", "COS_OEM"),
+		Entry("label with dots", "data.v1", "data.v1"),
+		Entry("empty label", "", ""),
+		Entry("plus sign", "data+1_LUKS", "data-1_LUKS"),
+		Entry("colon", "db:1_LUKS", "db-1_LUKS"),
+		Entry("leading underscore", "_data_LUKS", "data_LUKS"),
+		Entry("leading dot", ".data_LUKS", "data_LUKS"),
+		Entry("trailing dash", "data_LUKS-", "data_LUKS"),
+		Entry("space", "my data", "my-data"),
+		Entry("non ascii", "dätä", "d-t"),
+	)
+
+	It("truncates a long label to 63 characters ending in an alphanumeric", func() {
+		in := strings.Repeat("a", 62) + "_" + strings.Repeat("b", 10)
+		out := kube.SafeLabelValue(in)
+		Expect(validation.IsValidLabelValue(out)).To(BeEmpty())
+		Expect(out).To(Equal(strings.Repeat("a", 62)))
+	})
+
+	It("falls back to a hash when nothing valid is left", func() {
+		out := kube.SafeLabelValue("+++")
+		Expect(validation.IsValidLabelValue(out)).To(BeEmpty())
+		Expect(out).To(HavePrefix("label-"))
+		Expect(out).ToNot(Equal(kube.SafeLabelValue("///")))
 	})
 })

@@ -284,14 +284,19 @@ func MountToFstab(m mount.Mount) *fstab.Mount {
 // CleanSysrootForFstab will clean up the pesky sysroot dir from entries to make them
 // suitable to be written in the fstab
 // As we mount on /sysroot during initramfs but the fstab file is for the real init process, we need to remove
-// Any mentions to /sysroot from the fstab lines, otherwise they won't work
+// the leading /sysroot from the fstab lines, otherwise they won't work
 // Special care for the root (/sysroot) path as we can't just simple remove that path and call it a day
 // as that will return an empty mountpoint which will break fstab mounting.
 func CleanSysrootForFstab(path string) string {
 	if IsUKI() {
 		return path
 	}
-	cleaned := strings.ReplaceAll(path, "/sysroot", "")
+	// Only a leading /sysroot component is ours. A path like /var/lib/sysroot-cache
+	// or /opt/sysroot is a real path on the booted system and must stay intact.
+	cleaned := path
+	for cleaned == "/sysroot" || strings.HasPrefix(cleaned, "/sysroot/") {
+		cleaned = strings.TrimPrefix(cleaned, "/sysroot")
+	}
 	if cleaned == "" {
 		cleaned = "/"
 	}
@@ -552,11 +557,15 @@ func GetOemLabel() string {
 	return ""
 }
 
+// lvmCommand runs the shell commands ActivateLVM issues. Tests replace it to
+// see what would be run without touching the host's volumes or udev.
+var lvmCommand = CommandWithPath
+
 func ActivateLVM() error {
 	// Remove the /etc/lvm/lvm.conf file
 	// Otherwise, it has a default locking setting which activates the volumes on readonly
 	// This would be the same as passing rd.lvm.conf=0 in cmdline but rather do it here than add an extra option to cmdline
-	_, _ = CommandWithPath("rm /etc/lvm/lvm.conf")
+	_, _ = lvmCommand("rm /etc/lvm/lvm.conf")
 
 	// Activate (do NOT refresh) all available volume groups in system-init mode.
 	// We only need inactive boot volumes brought up (COS_* partitions on LVM installs);
@@ -565,13 +574,21 @@ func ActivateLVM() error {
 	// autoactivation already brought up (e.g. kubernetes pvc volumes). That reload can
 	// fail mid-operation and leave a device suspended (vgchange exit 5), which then
 	// poisons the strong-dep boot DAG (oem mount + kcrypt depend on this step).
-	out, err := CommandWithPath("lvm vgchange --activate y --sysinit")
+	out, err := lvmCommand("lvm vgchange --activate y --sysinit")
 	KLog.Logger.Debug().Str("out", out).Msg("vgchange")
 	if err != nil {
 		KLog.Logger.Err(err).Msg("vgchange")
 	}
 
-	_, _ = CommandWithPath("udevadm --trigger")
+	// Refresh the device links of the volumes just activated, and wait a
+	// bounded time for udev to create them, since the steps after this one
+	// look devices up by label. A failure here is logged, not returned: the
+	// links may already exist through event-based activation.
+	for _, c := range []string{"udevadm trigger", "udevadm settle --timeout=10"} {
+		if out, e := lvmCommand(c); e != nil {
+			KLog.Logger.Warn().Err(e).Str("out", out).Msg(c)
+		}
+	}
 	return err
 }
 

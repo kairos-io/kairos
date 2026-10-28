@@ -177,7 +177,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				vm.Sudo(providerKairos + " get-kubeconfig > kubeconfig")
 				out, _ = vm.Sudo("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
 				return out
-			}, 600*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
+			}, 600*time.Second, 10*time.Second).Should(MatchRegexp(`\sReady\s`))
 		})
 
 		vmForEach("checking roles", vms, func(vm VM) {

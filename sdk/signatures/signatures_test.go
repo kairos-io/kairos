@@ -117,6 +117,41 @@ var _ = Describe("Uki utils", Label("uki", "utils"), func() {
 		Expect(err.Error()).To(ContainSubstring("could not find a signature in EFIVars DB that matches the artifact"))
 	})
 
+	Context("when the artifact was modified after signing", func() {
+		var tampered []byte
+
+		BeforeEach(func() {
+			signed, err := fs.ReadFile("/efitest.signed.efi")
+			Expect(err).ToNot(HaveOccurred())
+			tampered = append([]byte{}, signed...)
+			// 0x200 is the raw data of .text in MinimalPE
+			for i := 0x200; i < 0x210; i++ {
+				tampered[i] ^= 0xff
+			}
+			Expect(tampered).ToNot(Equal(signed))
+			Expect(fs.WriteFile("/efitest.tampered.efi", tampered, os.ModePerm)).To(Succeed())
+			writeVar("db", dbVar)
+		})
+
+		It("CheckArtifactSignatureIsValid rejects it", func() {
+			err := CheckArtifactSignatureIsValid(fs, "/efitest.tampered.efi", logger)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not find a signature in EFIVars DB that matches the artifact"))
+		})
+
+		It("VerifyingDBCert rejects it", func() {
+			cert, err := VerifyingDBCert(fs, "/efitest.tampered.efi")
+			Expect(err).To(HaveOccurred())
+			Expect(cert).To(BeNil())
+		})
+
+		It("still accepts the untouched signed artifact", func() {
+			cert, err := VerifyingDBCert(fs, "/efitest.signed.efi")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(SameSigner(cert, signer.Cert)).To(BeTrue())
+		})
+	})
+
 	It("matches the DB", func() {
 		writeVar("db", dbVar)
 		err := CheckArtifactSignatureIsValid(fs, "/efitest.signed.efi", logger)

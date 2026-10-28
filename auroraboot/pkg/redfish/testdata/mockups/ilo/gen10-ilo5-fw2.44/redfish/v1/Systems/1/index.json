@@ -1,0 +1,45 @@
+{
+  "@odata.id": "/redfish/v1/Systems/1",
+  "@odata.type": "#ComputerSystem.v1_10_0.ComputerSystem",
+  "Id": "1",
+  "Name": "Computer System",
+  "Manufacturer": "HPE",
+  "Model": "ProLiant DL360 Gen10",
+  "SerialNumber": "PLACEHOLDER-SERIAL",
+  "SKU": "PLACEHOLDER-SKU",
+  "AssetTag": "PLACEHOLDER-ASSET-TAG",
+  "UUID": "00000000-0000-0000-0000-000000000000",
+  "BiosVersion": "U32 v2.44 (placeholder)",
+  "PowerState": "On",
+  "MemorySummary": {
+    "TotalSystemMemoryGiB": 128
+  },
+  "ProcessorSummary": {
+    "Count": 2,
+    "Model": "Intel Xeon (placeholder)"
+  },
+  "Boot": {
+    "BootSourceOverrideEnabled": "Disabled",
+    "BootSourceOverrideTarget": "None",
+    "BootSourceOverrideMode": "UEFI",
+    "BootSourceOverrideTarget@Redfish.AllowableValues": [
+      "None", "Pxe", "Cd", "Usb", "Hdd", "BiosSetup", "UefiTarget", "UefiHttp"
+    ],
+    "BootSourceOverrideMode@Redfish.AllowableValues": [
+      "Legacy", "UEFI"
+    ]
+  },
+  "Actions": {
+    "#ComputerSystem.Reset": {
+      "target": "/redfish/v1/Systems/1/Actions/ComputerSystem.Reset",
+      "ResetType@Redfish.AllowableValues": [
+        "On",
+        "ForceOff",
+        "GracefulShutdown",
+        "ForceRestart",
+        "Nmi",
+        "PushPowerButton"
+      ]
+    }
+  }
+}

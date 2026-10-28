@@ -65,6 +65,9 @@ func PreflightResetFormats(cfg *sdkConfig.Config, persistent, oem *partitions.Pa
 //     cannot be built or validated (no TPM device, for example). Note the
 //     remote KMS encryptor does not validate reachability before encrypting,
 //     so an unreachable KMS is still only caught after the format.
+//   - Re-encryption with kcrypt.method: passphrase when kcrypt.passphrase_file
+//     is missing or too short, which only Encrypt would notice, after the
+//     format.
 //   - Re-encryption through a remote KMS when OEM is formatted in the same
 //     reset: the challenger configuration usually lives in OEM, so the next
 //     boot would have nothing telling it how to unlock the new container.
@@ -104,6 +107,14 @@ func PreflightResetFormat(cfg *sdkConfig.Config, part *partitions.Partition, for
 	encryptor, err := resetEncryptorFn(cfg)
 	if err != nil {
 		return fmt.Errorf("reset preflight: %s is configured as encrypted but cannot be encrypted: %w; nothing was formatted", label, err)
+	}
+	// A passphrase encryptor validates even without its passphrase file,
+	// because the same encryptor unlocks at boot where the file is gone.
+	// Encrypt needs the file, so check it before anything is formatted.
+	if p, ok := encryptor.(*kcrypt.PassphraseEncryptor); ok {
+		if err := p.CheckPassphraseFile(); err != nil {
+			return fmt.Errorf("reset preflight: %s is configured as encrypted with a passphrase but cannot be encrypted: %w; nothing was formatted", label, err)
+		}
 	}
 	if _, remote := encryptor.(*kcrypt.RemoteKMSEncryptor); formatOEM && remote {
 		return fmt.Errorf("reset preflight: refusing to encrypt %s through a remote KMS while this reset also formats OEM, "+

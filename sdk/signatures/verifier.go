@@ -2,6 +2,7 @@ package signatures
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"github.com/edsrzf/mmap-go"
 	"github.com/foxboron/go-uefi/authenticode"
 	"github.com/foxboron/go-uefi/efi"
+	"github.com/foxboron/go-uefi/efi/signature"
 	"github.com/foxboron/go-uefi/pkcs7"
 	"github.com/kairos-io/kairos/v4/sdk/types/fs"
 	peparser "github.com/saferwall/pe"
@@ -88,17 +90,34 @@ func VerifyingDBCert(fs fs.KairosFS, artifact string) (*x509.Certificate, error)
 
 	for _, sig := range sigs {
 		for _, cert := range dbCerts {
-			p, err := pkcs7.ParsePKCS7(sig.Certificate)
-			if err != nil {
+			if _, err := pkcs7.ParsePKCS7(sig.Certificate); err != nil {
 				return nil, fmt.Errorf("parse PKCS7 for %s: %w", artifact, err)
 			}
-			ok, _ := p.Verify(cert)
-			if ok {
+			if verifyAuthenticodeSignature(binary, sig, cert) {
 				return cert, nil
 			}
 		}
 	}
 	return nil, fmt.Errorf("no DB cert verifies %s", artifact)
+}
+
+// verifyAuthenticodeSignature reports whether sig is a valid Authenticode
+// signature by cert for the content of binary. The PKCS7 signature alone only
+// covers the digest stored inside it, so the digest is also compared with the
+// hash of the PE image; without that a file modified after signing would pass.
+func verifyAuthenticodeSignature(binary *authenticode.PECOFFBinary, sig *signature.WINCertificate, cert *x509.Certificate) bool {
+	auth, err := authenticode.ParseAuthenticode(sig.Certificate)
+	if err != nil {
+		return false
+	}
+	if !auth.Algid.Algorithm.Equal(pkcs7.OIDDigestAlgorithmSHA256) {
+		return false
+	}
+	if !bytes.Equal(binary.Hash(crypto.SHA256), auth.Digest) {
+		return false
+	}
+	ok, _ := auth.Pkcs.Verify(cert)
+	return ok
 }
 
 // SameSigner reports whether two x509 certs share the same DER encoding

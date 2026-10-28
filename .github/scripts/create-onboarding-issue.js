@@ -7,7 +7,7 @@ const ROLE_TYPES = {
 // Onboarding checklist templates for each role type
 const ONBOARDING_TEMPLATES = {
   [ROLE_TYPES.MAINTAINER]: {
-    title: (name) => `Onboarding: ${name}`,
+    title: (name) => `Onboarding (maintainer): ${name}`,
     congratsMessage: (name) => `🎉 Congratulations! The maintainer application for **${name}** has been approved.`,
     checklist: `
 - [ ] Request personal email from applicant (needed for CNCF maintainer registry)
@@ -47,15 +47,20 @@ This application issue will now be closed.`
  * @param {Object} github - GitHub API client
  * @param {Object} context - GitHub context
  * @param {string} applicantName - Name of the applicant
+ * @param {string} roleType - Type of role ('maintainer' or 'contributor')
  * @returns {Promise<{exists: boolean, issueNumber: number|null, state: string|null}>}
  */
-async function checkExistingOnboardingIssue(github, context, applicantName) {
+async function checkExistingOnboardingIssue(github, context, applicantName, roleType = ROLE_TYPES.MAINTAINER) {
+  const template = ONBOARDING_TEMPLATES[roleType];
+  if (!template) {
+    throw new Error(`Unknown role type: ${roleType}. Supported types: ${Object.values(ROLE_TYPES).join(', ')}`);
+  }
   // Escape special characters that could affect GitHub search query
   // GitHub search special characters: " \ + - & | ! ( ) { } [ ] ^ ~ * ? :
   const sanitizedApplicantName = applicantName.replace(/["\\]/g, '\\$&');
   
-  // Search for existing onboarding issues (both open and closed) with title matching Onboarding: {applicantName}
-  const searchQuery = `repo:${context.repo.owner}/${context.repo.repo} is:issue "Onboarding: ${sanitizedApplicantName}" in:title`;
+  // Search for existing onboarding issues (both open and closed) with the role's onboarding title
+  const searchQuery = `repo:${context.repo.owner}/${context.repo.repo} is:issue "${template.title(sanitizedApplicantName)}" in:title`;
   
   console.log(`🔍 Searching for existing onboarding issues with query: ${searchQuery}`);
   
@@ -71,8 +76,8 @@ async function checkExistingOnboardingIssue(github, context, applicantName) {
   // Check if any of the results have the exact title match
   // Note: GitHub search with quotes finds the phrase within the title, but may return partial matches.
   // We need to verify exact title match to avoid false positives.
+  const expectedTitle = template.title(applicantName);
   for (const issue of searchResults.data.items) {
-    const expectedTitle = `Onboarding: ${applicantName}`;
     if (issue.title === expectedTitle) {
       console.log(`   ✅ Found existing onboarding issue #${issue.number} (state: ${issue.state})`);
       return {
@@ -117,7 +122,7 @@ async function createOnboardingIssue(github, context, applicantName, originalIss
   if (originalIssue.data.state === 'closed') {
     console.log(`⚠️  Original issue #${originalIssueNumber} is already closed, skipping to avoid duplicate processing`);
     // Try to find the existing onboarding issue to return its number
-    const existing = await checkExistingOnboardingIssue(github, context, applicantName);
+    const existing = await checkExistingOnboardingIssue(github, context, applicantName, roleType);
     return {
       issueNumber: existing.issueNumber || 0,
       alreadyExists: true,
@@ -126,7 +131,7 @@ async function createOnboardingIssue(github, context, applicantName, originalIss
   }
   
   // Check if an onboarding issue already exists for this applicant
-  const existing = await checkExistingOnboardingIssue(github, context, applicantName);
+  const existing = await checkExistingOnboardingIssue(github, context, applicantName, roleType);
   
   if (existing.exists) {
     console.log(`⚠️  Onboarding issue already exists for "${applicantName}": #${existing.issueNumber} (${existing.state})`);

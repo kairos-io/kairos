@@ -17,10 +17,10 @@ import (
 // from install.oem_files would let the entry silently overwrite that file
 // instead of erroring, taking whatever it held (the launch cloud-config's
 // users and ssh_authorized_keys among them) with it.
-var reservedOEMFileName = regexp.MustCompile(`^9[0-9]_custom\.yaml$`)
+var reservedOEMFileName = regexp.MustCompile(`^9[0-9]+_custom\.yaml$`)
 
 // reservedOEMFileNames are the other fixed names Kairos itself writes to the
-// OEM partition, one per hook, that do not fit the 9[0-9]_custom.yaml pattern.
+// OEM partition, one per hook, that do not fit the 9[0-9]+_custom.yaml pattern.
 var reservedOEMFileNames = map[string]bool{
 	"10_ssh_hardening.yaml":                true,
 	"10_user_custom_mounts.yaml":           true,

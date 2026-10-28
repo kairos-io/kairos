@@ -19,6 +19,8 @@ package mocks
 import (
 	"errors"
 
+	"github.com/twpayne/go-vfs/v5"
+
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
@@ -27,6 +29,9 @@ import (
 type FakeHTTPClient struct {
 	ClientCalls []string
 	Error       bool
+	// Fs, when set, receives a file at the destination of every successful GetURL,
+	// like the real client writes the download to disk.
+	Fs vfs.FS
 }
 
 // GetURL will return a FakeHttpBody and store the url call into ClientCalls
@@ -35,6 +40,9 @@ func (m *FakeHTTPClient) GetURL(_ sdkLogger.KairosLogger, url string, destinatio
 	m.ClientCalls = append(m.ClientCalls, url)
 	if m.Error {
 		return errors.New("fake http error")
+	}
+	if m.Fs != nil {
+		return m.Fs.WriteFile(destination, []byte("fake download"), 0o644)
 	}
 	return nil
 }

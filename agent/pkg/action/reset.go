@@ -25,6 +25,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/state"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 )
 
 func (r *ResetAction) resetHook(hook string, chroot bool) error {
@@ -97,15 +98,10 @@ func (r ResetAction) Run() (err error) {
 	if r.spec.FormatPersistent {
 		persistent := r.spec.Partitions.Persistent
 		if persistent != nil {
-			// The audit trail is the one thing on the persistent partition a
-			// reset is not meant to destroy, so carry it over the format.
-			// Failing to preserve it does not fail the reset: that is the
-			// behaviour we have today, while a reset that stops halfway
-			// leaves an unbootable machine.
-			stash, sErr := StashAuditLog(r.cfg, persistent)
-			if sErr != nil {
-				r.cfg.Logger.Warnf("could not preserve %s across the reset: %s", cnst.AuditLogPath, sErr)
-			}
+			// The audit trail and the state file are the things on the
+			// persistent partition a reset is not meant to destroy, so carry
+			// them over the format.
+			restore := r.preservePersistent(persistent)
 
 			err = e.UnmountPartition(persistent)
 			if err != nil {
@@ -131,9 +127,7 @@ func (r ResetAction) Run() (err error) {
 				return err
 			}
 
-			if rErr := RestoreAuditLog(r.cfg, persistent, stash); rErr != nil {
-				r.cfg.Logger.Warnf("could not restore %s after the reset: %s", cnst.AuditLogPath, rErr)
-			}
+			restore()
 		}
 	}
 
@@ -285,33 +279,48 @@ func (r ResetAction) Run() (err error) {
 	return err
 }
 
-func (r *ResetAction) recordState() {
-	mount := cnst.PersistentDir
-	persistent := r.spec.Partitions.Persistent
-	if persistent != nil && persistent.MountPoint != "" {
-		mount = persistent.MountPoint
+// preservePersistent stashes the audit trail and the state file off the
+// persistent partition and returns the function that puts them back after the
+// format. Failing to preserve either does not fail the reset: that is the
+// behaviour we have today, while a reset that stops halfway leaves an
+// unbootable machine.
+func (r *ResetAction) preservePersistent(persistent *sdkPartitions.Partition) func() {
+	auditStash, err := StashAuditLog(r.cfg, persistent)
+	if err != nil {
+		r.cfg.Logger.Warnf("could not preserve %s across the reset: %s", cnst.AuditLogPath, err)
+	}
+	stateStash, err := StashStateFile(r.cfg, persistent)
+	if err != nil {
+		r.cfg.Logger.Warnf("could not preserve %s across the reset: %s", state.FileName, err)
 	}
 
-	// Persistent may have been unmounted after FormatPersistent; mount it for
-	// the write so the state file lands on the partition rather than on the
-	// recovery rootfs (which is discarded on reboot).
-	if persistent != nil {
-		mounted, _ := utils.IsMounted(r.cfg, persistent)
-		if !mounted {
-			e := elemental.NewElemental(r.cfg)
-			if mErr := e.MountPartition(persistent); mErr != nil {
-				r.cfg.Logger.Warnf("failed to mount persistent for state record: %s", mErr)
-			} else {
-				defer func() {
-					if uErr := e.UnmountPartition(persistent); uErr != nil {
-						r.cfg.Logger.Warnf("failed to unmount persistent after state record: %s", uErr)
-					}
-				}()
-			}
+	return func() {
+		if err := RestoreAuditLog(r.cfg, persistent, auditStash); err != nil {
+			r.cfg.Logger.Warnf("could not restore %s after the reset: %s", cnst.AuditLogPath, err)
+		}
+		if err := RestoreStateFile(r.cfg, persistent, stateStash); err != nil {
+			r.cfg.Logger.Warnf("could not restore %s after the reset: %s", state.FileName, err)
 		}
 	}
+}
 
-	if err := state.RecordReset(r.cfg.Fs, mount, r.spec.Active.Source.String(), time.Now); err != nil {
+func (r *ResetAction) recordState() {
+	source := r.spec.Active.Source.String()
+	persistent := r.spec.Partitions.Persistent
+	if persistent == nil {
+		if err := state.RecordReset(r.cfg.Fs, cnst.PersistentDir, source, time.Now); err != nil {
+			r.cfg.Logger.Warnf("failed to update kairos state file: %s", err)
+		}
+		return
+	}
+
+	// Recovery boots without persistent mounted and usually without a mount
+	// point for it, so mount it for the write. Otherwise the state file lands
+	// on the recovery rootfs, which is discarded on reboot.
+	err := withPersistentMounted(r.cfg, persistent, func(root string) error {
+		return state.RecordReset(r.cfg.Fs, root, source, time.Now)
+	})
+	if err != nil {
 		r.cfg.Logger.Warnf("failed to update kairos state file: %s", err)
 	}
 }
