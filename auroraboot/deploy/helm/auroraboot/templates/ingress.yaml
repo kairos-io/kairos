@@ -1,0 +1,42 @@
+{{- include "auroraboot.requireHost" . -}}
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "auroraboot.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "auroraboot.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if and .Values.ingress.tls.enabled .Values.ingress.tls.issuerName (not .Values.ingress.tls.existingSecret) }}
+    {{- if eq .Values.ingress.tls.issuerKind "Issuer" }}
+    cert-manager.io/issuer: {{ .Values.ingress.tls.issuerName | quote }}
+    {{- else }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.issuerName | quote }}
+    {{- end }}
+    {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.host | quote }}
+      secretName: {{ include "auroraboot.tlsSecretName" . }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "auroraboot.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+{{- end -}}

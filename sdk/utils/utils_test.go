@@ -243,3 +243,85 @@ func TestShellSTDINReportsTheCommandsOwnFailure(t *testing.T) {
 		t.Errorf("combined output is %q, want both streams", out)
 	}
 }
+
+func writeReleaseFile(t *testing.T, name, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestOSReleaseWithFileReadsOnlyThatFile(t *testing.T) {
+	// The host files must never answer a lookup on an explicit file.
+	kairosReleasePath = writeReleaseFile(t, "kairos-release", "KAIROS_FLAVOR=hostflavor\n")
+	osReleasePath = writeReleaseFile(t, "os-release", "KAIROS_FLAVOR=hostflavor\n")
+	t.Cleanup(func() {
+		kairosReleasePath = "/etc/kairos-release"
+		osReleasePath = "/etc/os-release"
+	})
+
+	target := writeReleaseFile(t, "target", "KAIROS_MODEL=generic\nID=ubuntu\n")
+
+	v, err := OSRelease("MODEL", target)
+	if err != nil || v != "generic" {
+		t.Fatalf("OSRelease(MODEL) = %q, %v; want generic", v, err)
+	}
+	v, err = OSRelease("ID", target)
+	if err != nil || v != "ubuntu" {
+		t.Fatalf("OSRelease(ID) = %q, %v; want ubuntu (unprefixed key)", v, err)
+	}
+
+	v, err = OSRelease("FLAVOR", target)
+	var notFound KeyNotFoundErr
+	if !errors.As(err, &notFound) {
+		t.Fatalf("OSRelease(FLAVOR) = %q, %v; want KeyNotFoundErr", v, err)
+	}
+
+	osReleasePath = filepath.Join(t.TempDir(), "missing")
+	_, err = OSRelease("MODEL", target)
+	if err != nil {
+		t.Fatalf("a missing host os-release must not matter: %v", err)
+	}
+	_, err = OSRelease("FLAVOR", target)
+	if !errors.As(err, &notFound) {
+		t.Fatalf("missing key with no host os-release: got %v, want KeyNotFoundErr", err)
+	}
+
+	if _, err = OSRelease("FLAVOR", filepath.Join(t.TempDir(), "nope")); err == nil || errors.As(err, &notFound) {
+		t.Fatalf("an unreadable target must return the read error, got %v", err)
+	}
+}
+
+func TestOSReleaseWithoutFileFallsBackToOSRelease(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(func() {
+		kairosReleasePath = "/etc/kairos-release"
+		osReleasePath = "/etc/os-release"
+	})
+	osReleasePath = writeReleaseFile(t, "os-release", "KAIROS_FLAVOR=fromos\nID=debian\n")
+
+	// kairos-release does not exist: use os-release.
+	kairosReleasePath = filepath.Join(dir, "kairos-release")
+	if v, err := OSRelease("FLAVOR"); err != nil || v != "fromos" {
+		t.Fatalf("missing kairos-release: got %q, %v; want fromos", v, err)
+	}
+
+	// kairos-release has the key: it wins.
+	kairosReleasePath = writeReleaseFile(t, "kairos-release", "KAIROS_FLAVOR=fromkairos\n")
+	if v, err := OSRelease("FLAVOR"); err != nil || v != "fromkairos" {
+		t.Fatalf("got %q, %v; want fromkairos", v, err)
+	}
+
+	// kairos-release lacks the key: os-release answers.
+	if v, err := OSRelease("ID"); err != nil || v != "debian" {
+		t.Fatalf("key only in os-release: got %q, %v; want debian", v, err)
+	}
+
+	// Neither has it.
+	var notFound KeyNotFoundErr
+	if _, err := OSRelease("NOPE"); !errors.As(err, &notFound) {
+		t.Fatalf("want KeyNotFoundErr, got %v", err)
+	}
+}

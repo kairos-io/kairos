@@ -7,8 +7,8 @@ import "testing"
 // to build: `kairos splash` just starts reporting an unknown sub-tool, and the
 // dracut module's ExecStart quietly does nothing.
 func TestSplashIsRegistered(t *testing.T) {
-	if _, ok := subs["splash"]; !ok {
-		t.Fatalf("splash is not a sub-tool; registered: %v", keys(subs))
+	if got := subToolFor(t, "splash"); got != "splash" {
+		t.Fatalf("splash is not a sub-tool; it resolves to %q", got)
 	}
 }
 
@@ -18,22 +18,7 @@ func TestSplashIsRegistered(t *testing.T) {
 // execs, and exits 2 with "unknown sub-tool kairos-splash": a boot with no
 // animation and nothing on the console to say why.
 func TestKairosSplashArgv0Dispatches(t *testing.T) {
-	canonical, ok := aliases["kairos-splash"]
-	if !ok {
-		t.Fatalf("kairos-splash is not an argv[0] alias; aliases: %v", aliases)
+	if got := subToolFor(t, "/usr/bin/kairos-splash"); got != "splash" {
+		t.Fatalf("kairos-splash dispatches to %q, want \"splash\"", got)
 	}
-	if canonical != "splash" {
-		t.Fatalf("kairos-splash dispatches to %q, want \"splash\"", canonical)
-	}
-	if _, ok := subs[canonical]; !ok {
-		t.Fatalf("alias kairos-splash points at %q, which is not a sub-tool", canonical)
-	}
-}
-
-func keys(m map[string]subEntrypoint) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }

@@ -1,0 +1,26 @@
+suite: service
+templates:
+  - service.yaml
+tests:
+  - it: renders a ClusterIP Service on port 80 targeting 8080
+    set:
+      host: auroraboot.example.com
+    release:
+      name: ab
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: ab-auroraboot
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http

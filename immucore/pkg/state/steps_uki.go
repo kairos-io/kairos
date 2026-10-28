@@ -19,6 +19,7 @@ import (
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
 	kcryptsdk "github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/loop"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	"github.com/kairos-io/kairos/v4/sdk/signatures"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"github.com/spectrocloud-labs/herd"
@@ -214,6 +215,10 @@ func (s *State) UkiPivotToSysroot(g *herd.Graph) error {
 			}
 
 			var mountPoints []string
+			// copied are the initramfs directories now duplicated in the sysroot
+			// tmpfs. They are freed once every copy is done, see
+			// freeInitramfsCopies.
+			var copied []string
 			for _, file := range rootDirs {
 				if file.Name() == cnst.UkiSysrootDir {
 					continue
@@ -242,6 +247,8 @@ func (s *State) UkiPivotToSysroot(g *herd.Graph) error {
 						out, err := internalUtils.CommandWithPath(fmt.Sprintf("cp -a %s %s", s.path(path), s.path(cnst.UkiSysrootDir)))
 						if err != nil {
 							internalUtils.KLog.Logger.Err(err).Str("out", out).Str("what", s.path(path)).Str("where", s.path(cnst.UkiSysrootDir)).Msg("copying dir into sysroot")
+						} else {
+							copied = append(copied, s.path(path))
 						}
 						continue
 					}
@@ -276,6 +283,12 @@ func (s *State) UkiPivotToSysroot(g *herd.Graph) error {
 					internalUtils.KLog.Logger.Debug().Str("from", s.path(file.Name())).Str("to", newFilePath).Msg("Copied file")
 				}
 			}
+
+			// The initramfs is the whole OS image, and nothing reads it again
+			// once the sysroot holds a copy. Without this it stays in RAM,
+			// hidden under the sysroot, for as long as the machine is up.
+			// It runs after the last copy because cp itself lives in /usr.
+			freeInitramfsCopies(copied)
 
 			// Now move the system mounts into the new dir
 			for _, d := range mountPoints {
@@ -332,6 +345,62 @@ func (s *State) UkiPivotToSysroot(g *herd.Graph) error {
 			}
 			return err
 		}))
+}
+
+// freeInitramfsCopies deletes the given initramfs directories after
+// UkiPivotToSysroot has copied them into the sysroot. The initramfs is
+// unpacked into RAM, so this gives back as much memory as the OS image
+// takes. It stays on the device of each directory, so a filesystem mounted
+// below one of them is never touched, and it only logs a failure: the copy in
+// the sysroot is what the system boots, and a leftover only costs memory.
+func freeInitramfsCopies(dirs []string) {
+	for _, d := range dirs {
+		if err := removeOnDevice(d); err != nil {
+			internalUtils.KLog.Logger.Warn().Err(err).Str("what", d).Msg("freeing initramfs copy")
+		}
+	}
+}
+
+// removeOnDevice removes dir and everything below it that is on the same
+// device as dir. A directory that is a mount point of another filesystem is
+// skipped together with what is below it, and so are its parents, which
+// cannot be emptied.
+func removeOnDevice(dir string) error {
+	var st syscall.Stat_t
+	if err := syscall.Lstat(dir, &st); err != nil {
+		return err
+	}
+	dev := st.Dev
+	var dirs []string
+	err := filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		var est syscall.Stat_t
+		if err := syscall.Lstat(p, &est); err != nil {
+			return nil
+		}
+		if est.Dev != dev {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if d.IsDir() {
+			dirs = append(dirs, p)
+			return nil
+		}
+		_ = os.Remove(p)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	// Deepest first. A directory that still holds a mount point stays.
+	for i := len(dirs) - 1; i >= 0; i-- {
+		_ = os.Remove(dirs[i])
+	}
+	return nil
 }
 
 // UKIUdevDaemon launches the udevd daemon and triggers+settles in order to discover devices
@@ -518,19 +587,19 @@ func (s *State) UKIMountLiveCd(g *herd.Graph, opts ...herd.OpOption) error {
 		// try a couple of times as the udev daemon can take a bit of time to populate the devices
 		var cdrom string
 
-		for i := 0; i < 5; i++ {
-			_, err = os.Stat(cnst.UkiLivecdPath)
+		_ = retry.Do(func() error {
+			_, statErr := os.Stat(cnst.UkiLivecdPath)
 			// if found, set it
-			if err == nil {
+			if statErr == nil {
 				cdrom = cnst.UkiLivecdPath
-				break
+				return nil
 			}
 
 			internalUtils.KLog.Logger.Debug().Msg(fmt.Sprintf("No media with label found at %s", cnst.UkiLivecdPath))
 			out, _ := internalUtils.CommandWithPath("ls -ltra /dev/disk/by-label/")
 			internalUtils.KLog.Logger.Debug().Str("out", out).Msg("contents of /dev/disk/by-label/")
-			time.Sleep(time.Duration(i) * time.Second)
-		}
+			return statErr
+		}, retry.Config{Attempts: 5, Delay: retry.LinearFromZero(1*time.Second, 0)})
 
 		// Fallback to try to get the /dev/sr0 device directly, no retry as that wont take time to appear
 		if cdrom == "" {
@@ -654,7 +723,7 @@ func (s *State) UKIMountESPPartition(g *herd.Graph, opts ...herd.OpOption) error
 							}, 5*time.Second,
 						)
 						for _, f := range fstab {
-							s.fstabs = append(s.fstabs, f)
+							s.appendFstab(f)
 						}
 						return err
 					}
