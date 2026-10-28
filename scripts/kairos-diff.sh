@@ -563,14 +563,14 @@ append_component_section() {
     return 0
   fi
   if [[ -z "$old_version" || -z "$new_version" ]]; then
-    append_section_changes "$out_file" "$heading" "- Version: ${old_version:-n/a} -> ${new_version:-n/a}\n- Unable to compare: missing one side of the version range"
+    append_section_changes "$out_file" "$heading" "- Version: ${old_version:-n/a} -> ${new_version:-n/a}"$'\n'"- Unable to compare: missing one side of the version range"
     return 0
   fi
 
   local slug
   slug="$(component_to_slug "$component" || true)"
   if [[ -z "$slug" ]]; then
-    append_section_changes "$out_file" "$heading" "- Version: ${old_version} -> ${new_version}\n- Unable to map component to GitHub repository"
+    append_section_changes "$out_file" "$heading" "- Version: ${old_version} -> ${new_version}"$'\n'"- Unable to map component to GitHub repository"
     return 0
   fi
 
@@ -579,7 +579,7 @@ append_component_section() {
   new_ref="$(normalize_ref_gh "$slug" "$new_version" || true)"
 
   if [[ -z "$old_ref" || -z "$new_ref" ]]; then
-    append_section_changes "$out_file" "$heading" "- Version: ${old_version} -> ${new_version}\n- Unable to resolve refs in repository"
+    append_section_changes "$out_file" "$heading" "- Version: ${old_version} -> ${new_version}"$'\n'"- Unable to resolve refs in repository"
     return 0
   fi
 

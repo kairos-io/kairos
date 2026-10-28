@@ -285,10 +285,20 @@ func (c *Client) performTPMAttestation(endpoint string, additionalHeaders map[st
 
 	// Protocol Step 2: Receive challenge from server
 	c.Logger.Debugf("Debug: Waiting for challenge from server")
-	var challenge attestation.Challenge
-	if err := conn.ReadJSON(&challenge); err != nil {
+	// The server answers with a Response carrying only an error instead of a
+	// challenge when it cannot read the init or generate the challenge.
+	var challengeMsg struct {
+		attestation.Challenge
+		Error string `json:"error,omitempty"`
+	}
+	if err := conn.ReadJSON(&challengeMsg); err != nil {
 		return "", fmt.Errorf("reading challenge from server: %w", err)
 	}
+	if challengeMsg.Error != "" {
+		c.Logger.Debugf("Server returned error instead of challenge: %s", challengeMsg.Error)
+		return "", fmt.Errorf("attestation failed: %s", challengeMsg.Error)
+	}
+	challenge := challengeMsg.Challenge
 	c.Logger.Debugf("Challenge received")
 
 	// Protocol Step 3: Handle challenge and create proof

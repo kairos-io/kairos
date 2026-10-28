@@ -18,14 +18,18 @@ package uki
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/agent/pkg/progress"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -394,6 +398,68 @@ var _ = Describe("Uki install action", func() {
 			// nothing to remove the artifact for, so the conf stays too
 			exists, _ := fsutils.Exists(fs, "/efi/loader/entries/nokey.conf")
 			Expect(exists).To(BeTrue())
+		})
+	})
+
+	Describe("progress steps", func() {
+		var out *bytes.Buffer
+
+		steps := func() []string {
+			var got []string
+			for _, line := range strings.Split(strings.TrimSpace(out.String()), "\n") {
+				if line == "" {
+					continue
+				}
+				var ev agentrun.ProgressEvent
+				Expect(json.Unmarshal([]byte(line), &ev)).To(Succeed())
+				if ev.Event == agentrun.EventStep {
+					got = append(got, ev.Step)
+				}
+			}
+			return got
+		}
+
+		BeforeEach(func() {
+			out = &bytes.Buffer{}
+			orig := progress.Output
+			progress.Output = out
+			DeferCleanup(func() { progress.Output = orig })
+			GinkgoT().Setenv(agentrun.EnvProgress, "1")
+		})
+
+		It("emits the steps a UKI install runs, in contract order", func() {
+			Expect(installer.Run()).To(Succeed())
+			Expect(steps()).To(Equal([]string{
+				agentrun.StepBeforeInstall,
+				agentrun.StepActive,
+				agentrun.StepBootloader,
+				agentrun.StepAfterInstall,
+				agentrun.StepDone,
+			}))
+		})
+
+		It("emits partition when it formats the disk and no done on failure", func() {
+			spec.NoFormat = false
+			runner.ReturnError = errors.New("blkdeactivate failure")
+			Expect(installer.Run()).ToNot(Succeed())
+			Expect(steps()).To(Equal([]string{agentrun.StepPartition}))
+		})
+
+		It("stops at the step that failed", func() {
+			Expect(fsutils.MkdirAll(fs, "/efi/loader/entries", constants.DirPerm)).To(Succeed())
+			Expect(fs.WriteFile("/efi/loader/entries/foo.conf", []byte("cmdline test\n"), os.ModePerm)).To(Succeed())
+			Expect(installer.Run()).ToNot(Succeed())
+			Expect(steps()).To(Equal([]string{
+				agentrun.StepBeforeInstall,
+				agentrun.StepActive,
+				agentrun.StepBootloader,
+			}))
+		})
+
+		It("emits nothing when the env var is unset", func() {
+			GinkgoT().Setenv(agentrun.EnvProgress, "")
+			Expect(installer.Run()).To(Succeed())
+			Expect(out.String()).To(BeEmpty())
 		})
 	})
 

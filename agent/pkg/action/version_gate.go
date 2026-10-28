@@ -4,9 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/joho/godotenv"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	k8sutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/k8s"
 	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 )
 
@@ -33,16 +38,21 @@ import (
 // strings via ReadKairosInitVersionFromFs (running system, or a mounted
 // target rootfs) or ReadKairosInitVersionFromDisk (files extracted from
 // a UKI .initrd into a host temp dir).
+//
+// KAIROS_INIT_VERSION comes from `git describe --tags --dirty`, so a build
+// made between tags reads like v4.4.0-2-g8c24a223. Semver would read the
+// "-2-g8c24a223" as a pre-release and rank it below v4.4.0, while it is two
+// commits past that tag. See parseKairosInitVersionForCompare.
 func RefuseIfTargetIsDowngrade(currentStr, targetStr string) error {
-	current, err := semver.NewVersion(currentStr)
+	current, currentAhead, err := parseKairosInitVersionForCompare(currentStr)
 	if err != nil {
 		return fmt.Errorf("parsing current KAIROS_INIT_VERSION %q: %w", currentStr, err)
 	}
-	target, err := semver.NewVersion(targetStr)
+	target, targetAhead, err := parseKairosInitVersionForCompare(targetStr)
 	if err != nil {
 		return fmt.Errorf("parsing target KAIROS_INIT_VERSION %q: %w", targetStr, err)
 	}
-	if target.LessThan(current) {
+	if target.LessThan(current) || (target.Equal(current) && targetAhead < currentAhead) {
 		return fmt.Errorf(
 			"refusing to upgrade: target KAIROS_INIT_VERSION %q is older than current %q "+
 				"(this tracks build tooling, not the image's KAIROS_VERSION or base image, "+
@@ -53,6 +63,42 @@ func RefuseIfTargetIsDowngrade(currentStr, targetStr string) error {
 			targetStr, currentStr)
 	}
 	return nil
+}
+
+// CurrentKairosReleaseFile returns the path of the running node's
+// kairos-release. Under Kubernetes the agent usually runs inside the target
+// image with the node's root mounted at HOST_DIR (kairos-operator's
+// NodeOpUpgrade, system-upgrade-controller), so the plain /etc/kairos-release
+// is the target's own file and comparing against it would let any downgrade
+// through (kairos-io/kairos#6033).
+func CurrentKairosReleaseFile(fs sdkFS.KairosFS) string {
+	return filepath.Join(k8sutils.GetHostDirForK8s(fs), constants.KairosReleaseFile)
+}
+
+// gitDescribeSuffix matches the "-<commits>-g<sha>" that `git describe`
+// appends after the tag, and the optional "-dirty" after that. Images built
+// before the root Makefile stamped BINARY_VERSION carry this form. The
+// current form, v4.4.1-dev.2+g8c24a223, is plain semver and needs no help.
+var gitDescribeSuffix = regexp.MustCompile(`^(.+)-([0-9]+)-g[0-9a-f]+(-dirty)?$`)
+
+// parseKairosInitVersionForCompare splits a `git describe` version into
+// the tag it was built from and how many commits past that tag it is, so
+// v4.4.0-2-g8c24a223 compares as newer than v4.4.0 and older than v4.4.1.
+// A plain tag is zero commits past itself.
+func parseKairosInitVersionForCompare(s string) (*semver.Version, int, error) {
+	tag, ahead := s, 0
+	if m := gitDescribeSuffix.FindStringSubmatch(s); m != nil {
+		n, err := strconv.Atoi(m[2])
+		if err != nil {
+			return nil, 0, err
+		}
+		tag, ahead = m[1], n
+	}
+	v, err := semver.NewVersion(tag)
+	if err != nil {
+		return nil, 0, err
+	}
+	return v, ahead, nil
 }
 
 // ReadKairosInitVersionFromFs loads the given os-release-style file via

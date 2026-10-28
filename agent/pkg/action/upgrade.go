@@ -163,7 +163,7 @@ func (u *UpgradeAction) Run() (err error) {
 		u.Error("Failed deploying image to file '%s': %s", upgradeImg.File, err)
 		return err
 	}
-	cleanup.Push(func() error { return e.UnmountImage(&upgradeImg) })
+	cleanup.Push(func() error { return e.DiscardImage(&upgradeImg) })
 
 	// Everything from labeling the state images to refreshing the ESP is
 	// finalize work whose on-disk formats the target image owns (GRUB
@@ -294,7 +294,7 @@ func (u *UpgradeAction) remove(path string) error {
 // unmounting and renaming remain the host's responsibility (see
 // UpgradeAction.Run below).
 func (u *UpgradeAction) runFinalizeStep(upgradeImg *sdkImages.Image) error {
-	current, err := ReadKairosInitVersionFromFs(u.config.Fs, constants.KairosReleaseFile)
+	current, err := ReadKairosInitVersionFromFs(u.config.Fs, CurrentKairosReleaseFile(u.config.Fs))
 	if err != nil {
 		return fmt.Errorf("reading current KAIROS_INIT_VERSION: %w", err)
 	}

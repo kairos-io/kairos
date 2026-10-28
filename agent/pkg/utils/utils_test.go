@@ -729,8 +729,7 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
-				err = fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)
-				Expect(err).ShouldNot(HaveOccurred())
+				writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/etc/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fs.WriteFile(filepath.Join(rootDir, "/etc/os-release"), []byte("ID=\"suse\""), constants.FilePerm)
@@ -770,8 +769,7 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fs.WriteFile(filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/grubriscv64.efi"), []byte("grub"), constants.FilePerm)
 				Expect(err).ShouldNot(HaveOccurred())
-				err = fs.WriteFile(filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/loopback.mod"), []byte(""), constants.FilePerm)
-				Expect(err).ShouldNot(HaveOccurred())
+				writeGrubModules(fs, filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/"))
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/etc/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fs.WriteFile(filepath.Join(rootDir, "/etc/os-release"), []byte("ID=\"fedora\""), constants.FilePerm)
@@ -804,8 +802,7 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
-				err = fs.WriteFile(filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/loopback.mod"), []byte(""), constants.FilePerm)
-				Expect(err).ShouldNot(HaveOccurred())
+				writeGrubModules(fs, filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/"))
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/etc/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fs.WriteFile(filepath.Join(rootDir, "/etc/os-release"), []byte("ID=\"suse\""), constants.FilePerm)
@@ -845,8 +842,7 @@ var _ = Describe("Utils", Label("utils"), func() {
 			It("fails with efi if no shim/grub files exist", Label("efi"), func() {
 				err := fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
-				err = fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)
-				Expect(err).ShouldNot(HaveOccurred())
+				writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 				err = fs.WriteFile(filepath.Join(rootDir, "/etc/os-release"), []byte("ID=\"suse\""), constants.FilePerm)
 				Expect(err).ShouldNot(HaveOccurred())
 				grub := utils.NewGrub(config)
@@ -889,6 +885,135 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(grub.Install(target, rootDir, bootDir, constants.GrubConf, "", false, "")).NotTo(BeNil())
 
 				Expect(buf).To(ContainSubstring("Failed reading grub config file"))
+			})
+		})
+		Describe("RefreshState", func() {
+			var sourceDir, stateDir, stateGrubCfg, moduleDir string
+			var refresh func() (func() error, error)
+			BeforeEach(func() {
+				sourceDir = "/run/transition"
+				stateDir = "/run/state"
+				stateGrubCfg = filepath.Join(stateDir, "grub2", "grub.cfg")
+				moduleDir = filepath.Join(stateDir, "grub2", fmt.Sprintf("%s-efi", config.Arch))
+				refresh = func() (func() error, error) {
+					return utils.NewGrub(config).RefreshState(sourceDir, stateDir, constants.GrubConf, "grub2")
+				}
+
+				Expect(fsutils.MkdirAll(fs, filepath.Dir(filepath.Join(sourceDir, constants.GrubConf)), constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(sourceDir, constants.GrubConf), []byte("rmmod tpm\n"), constants.FilePerm)).To(Succeed())
+				Expect(fsutils.MkdirAll(fs, filepath.Join(sourceDir, "usr/lib/grub2", fmt.Sprintf("%s-efi", config.Arch)), constants.DirPerm)).To(Succeed())
+				for _, m := range constants.GetGrubModules() {
+					Expect(fs.WriteFile(filepath.Join(sourceDir, "usr/lib/grub2", fmt.Sprintf("%s-efi", config.Arch), m), []byte("new "+m), constants.FilePerm)).To(Succeed())
+				}
+
+				// The state partition as an install from an older release
+				// left it: an old grub.cfg and only one of the modules.
+				Expect(fsutils.MkdirAll(fs, moduleDir, constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(stateGrubCfg, []byte("old menu\n"), constants.FilePerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(moduleDir, "loopback.mod"), []byte("old loopback.mod"), constants.FilePerm)).To(Succeed())
+			})
+			expectOldState := func() {
+				got, err := fs.ReadFile(stateGrubCfg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("old menu\n"))
+				got, err = fs.ReadFile(filepath.Join(moduleDir, "loopback.mod"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("old loopback.mod"))
+			}
+			It("replaces the grub.cfg on the state partition with the one from the source", func() {
+				_, err := refresh()
+				Expect(err).ToNot(HaveOccurred())
+
+				got, err := fs.ReadFile(stateGrubCfg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("rmmod tpm\n"))
+			})
+			It("replaces the grub modules on the state partition with the ones from the source", func() {
+				_, err := refresh()
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, m := range constants.GetGrubModules() {
+					got, err := fs.ReadFile(filepath.Join(moduleDir, m))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(string(got)).To(Equal("new " + m))
+				}
+			})
+			It("takes the grub modules from /usr of the source only", func() {
+				// Upgrade finalize runs chrooted into the upgrade image with
+				// the host bind-mounted inside it, so modules outside /usr
+				// can belong to another system.
+				stray := filepath.Join(sourceDir, "var/host", fmt.Sprintf("%s-efi", config.Arch))
+				Expect(fsutils.MkdirAll(fs, stray, constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(stray, "loopback.mod"), []byte("stray loopback.mod"), constants.FilePerm)).To(Succeed())
+
+				_, err := refresh()
+				Expect(err).ToNot(HaveOccurred())
+
+				got, err := fs.ReadFile(filepath.Join(moduleDir, "loopback.mod"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("new loopback.mod"))
+			})
+			It("ignores grub modules and fonts under /usr/local of the source", func() {
+				// Upgrade finalize binds the host persistent partition to
+				// /usr/local, and container images stored there can carry
+				// grub files of their own. Fonts on openSUSE live under
+				// /usr/share, which a walk reaches after /usr/local.
+				Expect(fsutils.MkdirAll(fs, filepath.Join(sourceDir, "usr/share/grub2"), constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(sourceDir, "usr/share/grub2/unicode.pf2"), []byte("image font"), constants.FilePerm)).To(Succeed())
+				cached := filepath.Join(sourceDir, "usr/local/.state/var-lib-rancher.bind/snapshots/1/fs/usr/lib/grub", fmt.Sprintf("%s-efi", config.Arch))
+				Expect(fsutils.MkdirAll(fs, cached, constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(cached, "loopback.mod"), []byte("host loopback.mod"), constants.FilePerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(filepath.Dir(cached), "unicode.pf2"), []byte("host font"), constants.FilePerm)).To(Succeed())
+
+				_, err := refresh()
+				Expect(err).ToNot(HaveOccurred())
+
+				got, err := fs.ReadFile(filepath.Join(moduleDir, "loopback.mod"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("new loopback.mod"))
+				got, err = fs.ReadFile(filepath.Join(stateDir, "grub2/fonts/unicode.pf2"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("image font"))
+			})
+			It("returns a restore that puts the previous grub.cfg and modules back", func() {
+				restore, err := refresh()
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(restore()).To(Succeed())
+
+				expectOldState()
+				for _, m := range constants.GetGrubModules() {
+					if m == "loopback.mod" {
+						continue
+					}
+					Expect(fsutils.Exists(fs, filepath.Join(moduleDir, m))).To(BeFalse(), "%s did not exist before the refresh", m)
+				}
+			})
+			It("fails and leaves the state partition as it was when a module is missing from the source", func() {
+				Expect(fs.Remove(filepath.Join(sourceDir, "usr/lib/grub2", fmt.Sprintf("%s-efi", config.Arch), "squash4.mod"))).To(Succeed())
+
+				_, err := refresh()
+				Expect(err).To(MatchError(ContainSubstring("squash4.mod")))
+
+				expectOldState()
+			})
+			It("fails and leaves the state partition as it was when a module cannot be written", func() {
+				// A dangling symlink reads as missing, so the backup passes,
+				// and the copy through it fails.
+				Expect(fs.Symlink("/nonexistent/dir/xzio.mod", filepath.Join(moduleDir, "xzio.mod"))).To(Succeed())
+
+				_, err := refresh()
+				Expect(err).To(MatchError(ContainSubstring("xzio.mod")))
+
+				expectOldState()
+			})
+			It("leaves the state partition untouched when the source has no grub.cfg", func() {
+				Expect(fs.Remove(filepath.Join(sourceDir, constants.GrubConf))).To(Succeed())
+
+				_, err := refresh()
+				Expect(err).To(HaveOccurred())
+
+				expectOldState()
 			})
 		})
 		Describe("SetPersistentVariables", func() {

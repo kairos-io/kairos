@@ -211,10 +211,15 @@ func GetKairosReleaseStage(sis values.System, log logger.KairosLogger) []schema.
 	}
 
 	// Todo: Change this to allow getting info from several providers? No idea how to store it, the current below is only for k3s/k0s I think
-	versionInfo, err := getProviderInfo(log)
-	if err == nil && versionInfo.Provider != "" && versionInfo.Version != "" {
-		env["KAIROS_SOFTWARE_VERSION"] = versionInfo.Version
-		env["KAIROS_SOFTWARE_VERSION_PREFIX"] = versionInfo.Provider
+	// A dry run never invokes provider hooks, so the software version is left out of the preview
+	if config.DefaultConfig.DryRun {
+		log.Logger.Info().Msg("Dry-run: skipping provider info event")
+	} else {
+		versionInfo, err := getProviderInfo(log)
+		if err == nil && versionInfo.Provider != "" && versionInfo.Version != "" {
+			env["KAIROS_SOFTWARE_VERSION"] = versionInfo.Version
+			env["KAIROS_SOFTWARE_VERSION_PREFIX"] = versionInfo.Provider
+		}
 	}
 
 	log.Logger.Debug().Interface("env", env).Msg("Kairos release stage")
@@ -824,9 +829,24 @@ func GetKernelStage(_ values.System, logger logger.KairosLogger) ([]schema.Stage
 	}, nil
 }
 
+// kernelModulesPath is where getLatestKernel looks for installed kernels.
+var kernelModulesPath = "/lib/modules"
+
+// dryRunKernelPlaceholder stands in for the kernel version in a dry run when
+// no kernel is installed, as the install stage that would pull one in is not
+// run.
+const dryRunKernelPlaceholder = "KAIROS-DRY-RUN-NO-KERNEL"
+
 // getLatestKernel returns the latest kernel version installed on the system.
+// In a dry run a missing kernel is not an error: dryRunKernelPlaceholder is
+// returned instead so the full set of stages can still be printed.
 func getLatestKernel(l logger.KairosLogger) (string, error) {
-	return kernel.GetLatest(config.DefaultConfig.Model, l)
+	k, err := kernel.GetLatestFromPath(kernelModulesPath, config.DefaultConfig.Model, l)
+	if err != nil && config.DefaultConfig.DryRun {
+		l.Logger.Warn().Msgf("No kernel found under %s (%s), using %q as the kernel version for the dry run", kernelModulesPath, err, dryRunKernelPlaceholder)
+		return dryRunKernelPlaceholder, nil
+	}
+	return k, err
 }
 
 // dracutNetworkModules returns the dracut network modules for the given system

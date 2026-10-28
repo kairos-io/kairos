@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/anatol/luks.go"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -55,7 +57,6 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 	// Try to unlock with retries - the luks.go library sometimes has timing issues
 	// when unlocking multiple partitions in sequence
 	var dev luks.Device
-	var unlockErr error
 	maxRetries := 3
 
 	defer func() {
@@ -64,9 +65,9 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 		}
 	}()
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	attempt := 0
+	unlockErr := retry.Do(func() error {
 		if attempt > 0 {
-			time.Sleep(time.Duration(attempt) * time.Second)
 			// Just settle, no trigger - we're waiting for pending events before retrying
 			if err := UdevAdmSettle(logger, 10*time.Second); err != nil {
 				if logger != nil {
@@ -76,35 +77,35 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 				}
 			}
 		}
+		attempt++
 
-		dev, unlockErr = luks.Open(device)
-		if unlockErr != nil {
+		var err error
+		dev, err = luks.Open(device)
+		if err != nil {
 			if logger != nil {
 				logger.Logger.Warn().
-					Int("attempt", attempt+1).
+					Int("attempt", attempt).
 					Int("max_retries", maxRetries).
 					Str("device", device).
-					Err(unlockErr).
+					Err(err).
 					Msg("Failed to open device")
 			}
-
-			continue
+			return err
 		}
 
 		// Try to unlock
-		unlockErr = dev.Unlock(0, []byte(password), mapper)
-		if unlockErr != nil {
+		err = dev.Unlock(0, []byte(password), mapper)
+		if err != nil {
 			_ = dev.Close() // Close on error so that the next retry opens it again
 			if logger != nil {
 				logger.Logger.Warn().
-					Int("attempt", attempt+1).
+					Int("attempt", attempt).
 					Int("max_retries", maxRetries).
 					Str("device", device).
-					Err(unlockErr).
+					Err(err).
 					Msg("Failed to unlock device")
 			}
-
-			continue
+			return err
 		}
 
 		// Success! Close the device handle immediately to release the file descriptor
@@ -112,8 +113,8 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 		if logger != nil {
 			logger.Logger.Debug().Str("device", device).Msg("Successfully unlocked")
 		}
-		break
-	}
+		return nil
+	}, retry.Config{Attempts: uint(maxRetries), Delay: retry.Linear(1*time.Second, 0)})
 
 	// If all retries failed, return the error
 	if unlockErr != nil {
@@ -191,8 +192,12 @@ func findEncryptedPartitions(logger sdkLogger.KairosLogger) ([]string, error) {
 // UnlockAllEncryptedPartitions finds all encrypted partitions and unlocks them
 // using the appropriate encryptor based on system configuration.
 // This is the unified logic for unlocking encrypted partitions that works for
-// both UKI and non-UKI modes by using GetEncryptor() which automatically
-// detects the appropriate encryption method.
+// both UKI and non-UKI modes by using GetEncryptorFromConfig() which
+// automatically detects the appropriate encryption method.
+//
+// When that fails (no TPM, a cleared TPM, an unreachable key server) and the
+// configuration sets kcrypt.passphrase_fallback, it asks for a passphrase on
+// the console for every partition that is still locked before it gives up.
 func UnlockAllEncryptedPartitions(logger sdkLogger.KairosLogger) error {
 	logger.Logger.Debug().Msg("Getting encryptor for unlocking")
 
@@ -208,9 +213,67 @@ func UnlockAllEncryptedPartitions(logger sdkLogger.KairosLogger) error {
 		return nil
 	}
 
-	// Get the appropriate encryptor based on system configuration
-	// This automatically detects UKI mode, kcrypt config, etc.
-	encryptor, err := GetEncryptor(logger)
+	logger.Logger.Info().Strs("partitions", partitions).Msg("Found encrypted partitions to unlock")
+
+	collectorConfig, scanErr := scanUnlockConfig(logger)
+	if scanErr != nil {
+		// Same as GetEncryptor: a failed scan falls back to the no-config
+		// default rather than failing the unlock.
+		logger.Debugf("UnlockAllEncryptedPartitions: %v", scanErr)
+		collectorConfig = nil
+	}
+	kcryptConfig := KcryptConfigFromCollector(collectorConfig, logger)
+
+	// A container PassphraseEncryptor made says so in its header. Those are
+	// asked for whatever encryptor the configuration selects, because that
+	// configuration may sit in the encrypted OEM, or be gone after a reset
+	// that formatted OEM. The rest go through the selected encryptor.
+	byHeader, partitions := splitPassphraseContainers(partitions)
+	if len(byHeader) > 0 {
+		logger.Logger.Info().Strs("partitions", byHeader).Msg("Asking for the passphrase of the containers marked " + PassphraseSubsystem)
+		known, _ := readPassphraseFile(kcryptConfig)
+		if err := unlockLabelsByPrompt(byHeader, 0, logger, known); err != nil {
+			logger.Logger.Err(err).Msg("Failed to unlock the passphrase containers")
+			return err
+		}
+	}
+	if len(partitions) == 0 {
+		logger.Logger.Info().Msg("Successfully unlocked all encrypted partitions")
+		return nil
+	}
+
+	err = unlockWithEncryptor(logger, collectorConfig, partitions)
+	if err == nil {
+		logger.Logger.Info().Msg("Successfully unlocked all encrypted partitions")
+		return nil
+	}
+
+	timeout := passphraseFallbackTimeout(kcryptConfig)
+	if timeout == 0 && recoveryKeyAmong(partitions) {
+		// A recovery key was enrolled to be asked for when the TPM
+		// refuses. On Trusted Boot the configuration that would turn the
+		// fallback on lives in the encrypted OEM, unreadable now, so the
+		// header's recovery key token turns it on.
+		timeout = DefaultPassphraseFallbackTimeout
+	}
+	if timeout == 0 {
+		return err
+	}
+
+	logger.Logger.Warn().Err(err).Msg("Automatic unlock failed, asking for a passphrase")
+	if promptErr := unlockLabelsByPrompt(partitions, timeout, logger); promptErr != nil {
+		logger.Logger.Err(promptErr).Msg("Passphrase unlock failed")
+		return fmt.Errorf("%w; passphrase fallback: %w", err, promptErr)
+	}
+
+	logger.Logger.Info().Msg("Unlocked all encrypted partitions with a passphrase")
+	return nil
+}
+
+// unlockWithEncryptor picks the encryptor for the configuration and unlocks
+// the partitions with it.
+func unlockWithEncryptor(logger sdkLogger.KairosLogger, collectorConfig *collector.Config, partitions []string) error {
+	encryptor, err := getEncryptorFromConfig(logger, collectorConfig)
 	if err != nil {
 		logger.Logger.Err(err).Msg("Failed to get encryptor")
 		return err
@@ -218,16 +281,18 @@ func UnlockAllEncryptedPartitions(logger sdkLogger.KairosLogger) error {
 
 	logger.Logger.Info().Str("method", encryptor.Name()).Msg("Using encryption method for unlock")
 
-	logger.Logger.Info().Strs("partitions", partitions).Msg("Found encrypted partitions to unlock")
-
-	// Unlock all encrypted partitions using the encryptor
-	// The encryptor knows how to unlock based on its type (TPM+PCR, Remote KMS, Local TPM)
-	err = encryptor.Unlock(partitions)
-	if err != nil {
+	// The encryptor knows how to unlock based on its type (TPM+PCR, Remote KMS, Local TPM, Passphrase)
+	if err := encryptor.Unlock(partitions); err != nil {
 		logger.Logger.Err(err).Msg("Failed to unlock partitions")
 		return err
 	}
-
-	logger.Logger.Info().Msg("Successfully unlocked all encrypted partitions")
 	return nil
 }
+
+// getEncryptorFromConfig and scanUnlockConfig are seams for the tests.
+var (
+	getEncryptorFromConfig = GetEncryptorFromConfig
+	scanUnlockConfig       = func(logger sdkLogger.KairosLogger) (*collector.Config, error) {
+		return ScanCollectorConfig(logger)
+	}
+)

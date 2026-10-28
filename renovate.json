@@ -13,7 +13,7 @@
     ":ignoreModulesAndTests"
   ],
   "timezone": "Europe/Brussels",
-  "commitMessagePrefix": ":arrow_up: ",
+  "semanticCommits": "enabled",
   "reviewers": [
     "team:maintainers"
   ],
@@ -116,6 +116,18 @@
       ],
       "matchStrings": [
         "quay.io/kairos/kairos-init:(?<currentValue>[a-zA-Z0-9_.-]+)"
+      ],
+      "depNameTemplate": "quay.io/kairos/kairos-init",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "images/Dockerfile defaults KAIROS_INIT to a tag of quay.io/kairos/kairos-init. Builds that do not override it (reusable-factory.yaml without a dockerfile_path, a plain docker build) get that version, so it has to follow the releases.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^images/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG KAIROS_INIT=(?<currentValue>v[a-zA-Z0-9_.-]+)"
       ],
       "depNameTemplate": "quay.io/kairos/kairos-init",
       "datasourceTemplate": "docker"
