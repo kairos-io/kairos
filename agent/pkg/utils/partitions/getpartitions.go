@@ -240,20 +240,53 @@ func GetPartitionViaDM(fs sdkFS.KairosFS, label string) *sdkPartitions.Partition
 	return part
 }
 
-// GetEfiPartition returns the EFI partition by looking for the partition with the label "COS_GRUB"
+// GetEfiPartition returns the EFI partition, the one labelled "COS_GRUB".
+//
+// More than one disk can carry that label. An installed system and a second
+// Kairos disk both have one, and so does a Kairos raw image written to a USB
+// stick, because AuroraBoot labels the raw image ESP COS_GRUB as well. Only the
+// ISO uses a label of its own. Whichever disk the scan reached last used to
+// win, so the caller could end up writing boot entries to a disk the firmware
+// does not boot, or reading a free size from a partition that is not mounted.
+// See kairos-io/kairos#3611 for what that looks like from the outside.
+//
+// A candidate that is already mounted wins, because on a booted system that is
+// the ESP immucore mounted and the others were left alone. When none is
+// mounted, which is the case while installing, the first in enumeration order
+// wins so that the result is at least the same on every run. An ambiguity is
+// always logged, naming every candidate, because the alternative is for the
+// wrong choice to surface much later as something that reads like a different
+// bug.
 func GetEfiPartition(logger *logger.KairosLogger) (*sdkPartitions.Partition, error) {
-	var efiPartition *sdkPartitions.Partition
+	var candidates []*sdkPartitions.Partition
 	for _, d := range ghw.GetDisks(ghw.NewPaths(""), logger) {
 		for _, part := range d.Partitions {
 			if part.FilesystemLabel == constants.EfiLabel {
-				efiPartition = part
+				candidates = append(candidates, part)
 				break
 			}
 		}
 	}
 
-	if efiPartition == nil {
-		return efiPartition, fmt.Errorf("could not find EFI partition")
+	switch len(candidates) {
+	case 0:
+		return nil, fmt.Errorf("could not find EFI partition")
+	case 1:
+		return candidates[0], nil
 	}
-	return efiPartition, nil
+
+	chosen := candidates[0]
+	paths := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		paths = append(paths, c.Path)
+		if chosen.MountPoint == "" && c.MountPoint != "" {
+			chosen = c
+		}
+	}
+	logger.Logger.Warn().
+		Strs("candidates", paths).
+		Str("chosen", chosen.Path).
+		Str("mountpoint", chosen.MountPoint).
+		Msgf("more than one partition carries the %s label", constants.EfiLabel)
+	return chosen, nil
 }
