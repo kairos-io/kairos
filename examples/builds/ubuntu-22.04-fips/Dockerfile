@@ -1,7 +1,7 @@
-FROM ubuntu:22.04@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956
+FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b
 ARG VERSION=v0.0.1
 
-RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init \
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.4.0,src=/kairos-init,dst=/kairos-init \
     /kairos-init -l debug -s install --version "${VERSION}"
 # Remove default kernel that Kairos-init installs
 RUN apt-get remove -y linux-base linux-image-generic-hwe-22.04 && apt-get autoremove -y
@@ -21,7 +21,7 @@ RUN --mount=type=secret,id=pro-attach-config \
 COPY modules.fips /tmp/modules.fips
 RUN kernel=$(ls /lib/modules | head -n1) && mv /tmp/modules.fips /lib/modules/${kernel}/modules.fips
 
-RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init \
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.4.0,src=/kairos-init,dst=/kairos-init \
     /kairos-init -l debug -s init --version "${VERSION}"
 
 # Symlink kernel HMAC
