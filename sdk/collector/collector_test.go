@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -358,6 +359,26 @@ info:
 				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
 				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
 				Expect(warnings.String()).To(ContainSubstring(server.URL + "/config.yaml"))
+			})
+
+			It("reuses one connection across retries of a non-200 reply with a body", func() {
+				server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.Error(w, "no config here", http.StatusNotFound)
+				}))
+				var opened atomic.Int32
+				server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+					if state == http.StateNew {
+						opened.Add(1)
+					}
+				}
+				server.Start()
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/config.yaml"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(opened.Load()).To(Equal(int32(1)))
 			})
 
 			It("warns when the remote config has no valid header", func() {
