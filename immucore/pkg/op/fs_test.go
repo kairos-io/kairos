@@ -8,6 +8,7 @@ import (
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -200,5 +201,17 @@ var _ = Describe("MountWithBaseOverlay", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(errors.Is(err, constants.ErrMountTargetMissing)).To(BeTrue())
 		Expect(err.Error()).To(ContainSubstring(filepath.Join(readOnly, "mnt")))
+	})
+})
+
+var _ = Describe("BaseOverlay", func() {
+	It("writes the mount option defaults for a device-backed overlay", func() {
+		base := filepath.Join(GinkgoT().TempDir(), "run", "overlay")
+
+		operation, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "LABEL=COS_OVERLAY"})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(operation.FstabEntry.MntOps).To(Equal(map[string]string{"defaults": ""}))
+		Expect(operation.FstabEntry.String()).To(ContainSubstring(" defaults 0 0"))
 	})
 })
