@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
 	"syscall"
 	"time"
@@ -123,6 +124,32 @@ func startGetty() {
 	}
 }
 
+// exitOnInstallSignal makes SIGINT and SIGTERM end an install that is already
+// running: it gives tty1 back and then exits with the conventional 128+signal
+// code. The handler used to only start the getty and return, which left the
+// signals captured for the rest of the run, so the "press Ctrl+C to cancel"
+// grace period before a reboot could not cancel anything and a service stop
+// had to wait for SIGKILL.
+func exitOnInstallSignal() {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		handleInstallSignal(<-sigs, startGetty, os.Exit)
+	}()
+}
+
+// handleInstallSignal runs getty and then exit with 128+signal. Both are
+// parameters so a spec can run it without starting a service or ending the
+// test process.
+func handleInstallSignal(sig os.Signal, getty func(), exit func(int)) {
+	getty()
+	code := 1
+	if s, ok := sig.(syscall.Signal); ok {
+		code = 128 + int(s)
+	}
+	exit(code)
+}
+
 // AutoInstall performs the unattended installation a config asks for with
 // install.auto, and reports whether it did.
 //
@@ -160,9 +187,7 @@ func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...strin
 	// it earlier left interactive-install with the default kill disabled and a
 	// handler whose only act is to start a getty on the console the installer
 	// TUI is drawing on.
-	utils.OnSignal(func() {
-		startGetty()
-	}, syscall.SIGINT, syscall.SIGTERM)
+	exitOnInstallSignal()
 
 	if err := runInstallFn(cc); err != nil {
 		return true, cc, nil, err
@@ -183,9 +208,7 @@ func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...strin
 // it again once the screen is drawn.
 func Install(cc *sdkConfig.Config, scanErr error, sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
 	bus.Manager.Initialize()
-	utils.OnSignal(func() {
-		startGetty()
-	}, syscall.SIGINT, syscall.SIGTERM)
+	exitOnInstallSignal()
 
 	tk := ""
 	r := map[string]string{}
