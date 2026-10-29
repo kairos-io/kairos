@@ -852,6 +852,36 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(el.UnmountImage(img)).To(Succeed())
 			Expect(squashfsArgs(runner)).To(BeNil())
 		})
+		It("Drops the squashfs tree without building it on DiscardImage", func() {
+			img.FS = cnst.SquashFs
+			mountPoint := img.MountPoint
+			_, err := el.DeployImage(img, true)
+			Expect(err).To(BeNil())
+			tree := img.MountPoint
+			Expect(tree).ToNot(Equal(mountPoint))
+			Expect(fsutils.Exists(fs, tree)).To(BeTrue())
+
+			Expect(el.DiscardImage(img)).To(Succeed())
+			Expect(squashfsArgs(runner)).To(BeNil())
+			Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+			Expect(fsutils.Exists(fs, img.File)).To(BeFalse())
+			Expect(img.MountPoint).To(Equal(mountPoint))
+
+			Expect(el.UnmountImage(img)).To(Succeed())
+			Expect(squashfsArgs(runner)).To(BeNil())
+		})
+		It("Unmounts a mounted image on DiscardImage", func() {
+			_, err := el.DeployImage(img, true)
+			Expect(err).To(BeNil())
+			Expect(img.LoopDevice).ToNot(BeEmpty())
+			notMnt, _ := mounter.IsLikelyNotMountPoint(img.MountPoint)
+			Expect(notMnt).To(BeFalse())
+
+			Expect(el.DiscardImage(img)).To(Succeed())
+			Expect(img.LoopDevice).To(BeEmpty())
+			notMnt, _ = mounter.IsLikelyNotMountPoint(img.MountPoint)
+			Expect(notMnt).To(BeTrue())
+		})
 		It("Removes the squashfs tree when building it on UnmountImage fails", func() {
 			img.FS = cnst.SquashFs
 			_, err := el.DeployImage(img, true)

@@ -793,6 +793,32 @@ var _ = Describe("Upgrade Actions test", func() {
 					Expect(fsutils.Exists(fs, spec.Recovery.File)).To(BeFalse())
 					Expect(fsutils.Exists(fs, recoveryImgSquash)).To(BeTrue())
 				})
+				It("drops the unpacked recovery tree without building the squashfs when finalize fails", Label("docker", "bug-5619"), func() {
+					Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v9.0.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					spec.Recovery.Source = sdkImages.NewDockerSrc("alpine")
+
+					var tree string
+					baseExtract := extractor.SideEffect
+					extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+						tree = destination
+						return baseExtract(imageRef, destination, platformRef)
+					}
+
+					upgrade = action.NewUpgradeAction(config, spec)
+					err := upgrade.Run()
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+
+					Expect(tree).ToNot(BeEmpty())
+					for _, cmd := range runner.Cmds() {
+						Expect(cmd[0]).ToNot(Equal("mksquashfs"))
+					}
+					Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+					Expect(fsutils.Exists(fs, spec.Recovery.File)).To(BeFalse())
+					f, err := fs.ReadFile(recoveryImgSquash)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(string(f)).To(Equal("recovery"))
+				})
 			})
 			Describe("Not using squashfs", Label("non-squashfs"), func() {
 				var err error

@@ -335,6 +335,22 @@ func (e Elemental) UnmountImage(img *sdkImages.Image) error {
 	return err
 }
 
+// DiscardImage is UnmountImage for an image whose contents are being thrown
+// away: a squashfs tree kept by DeployImage is removed without building the
+// squashfs, and img.MountPoint is put back. Any other image is unmounted
+// through UnmountImage.
+func (e Elemental) DiscardImage(img *sdkImages.Image) error {
+	prevMountPoint, ok := e.squashStaging[img.MountPoint]
+	if !ok {
+		return e.UnmountImage(img)
+	}
+	tree := img.MountPoint
+	delete(e.squashStaging, tree)
+	img.MountPoint = prevMountPoint
+	e.config.Logger.Debugf("Discarding unpacked squashfs tree %s", tree)
+	return e.config.Fs.RemoveAll(tree)
+}
+
 // packSquashStaging builds img.File from the unpacked tree at img.MountPoint,
 // removes the tree and puts back the MountPoint the image had before deploy.
 func (e Elemental) packSquashStaging(img *sdkImages.Image, prevMountPoint string) error {
