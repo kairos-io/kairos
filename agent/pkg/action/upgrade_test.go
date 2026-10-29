@@ -642,16 +642,17 @@ var _ = Describe("Upgrade Actions test", func() {
 					spec.Recovery.Size = 10
 					spec.Entry = constants.BootEntryRecovery
 
-					// KAIROS_INIT_VERSION setup for the downgrade gate. For the
-					// squashfs recovery flow spec.Recovery.MountPoint is
-					// empty; the finalize gate then reads /etc/kairos-release
-					// on the same fs for both sides of the compare, so the
-					// running-system file above is enough.
+					// KAIROS_INIT_VERSION setup for the downgrade gate. The
+					// squashfs recovery tree is unpacked into a temp dir, so
+					// the target side of the compare is written by the
+					// extractor and rsync fakes below.
 					Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
 					Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
-					if mp := spec.Recovery.MountPoint; mp != "" {
-						Expect(fsutils.MkdirAll(fs, filepath.Join(mp, "etc"), constants.DirPerm)).To(Succeed())
-						Expect(fs.WriteFile(filepath.Join(mp, "etc", "kairos-release"), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					extractor.SideEffect = func(_, destination, _ string) error {
+						if err := fsutils.MkdirAll(fs, filepath.Join(destination, "etc"), constants.DirPerm); err != nil {
+							return err
+						}
+						return fs.WriteFile(filepath.Join(destination, constants.KairosReleaseFile), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)
 					}
 
 					err = fsutils.MkdirAll(config.Fs, "/proc", constants.DirPerm)
@@ -664,6 +665,12 @@ var _ = Describe("Upgrade Actions test", func() {
 					runner.SideEffect = func(command string, args ...string) ([]byte, error) {
 						if command == "cat" && args[0] == "/proc/cmdline" {
 							return []byte(constants.RecoveryLabel), nil
+						}
+						if command == constants.Rsync {
+							// rsync gets real paths, the target is the last arg
+							target := args[len(args)-1]
+							_ = os.MkdirAll(filepath.Join(target, "etc"), constants.DirPerm)
+							_ = os.WriteFile(filepath.Join(target, constants.KairosReleaseFile), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)
 						}
 						if command == "mksquashfs" && args[1] == spec.Recovery.File {
 							// create the transition img for squash to fake it

@@ -818,7 +818,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		})
 		It("Deploys an squashfs image from a directory", func() {
 			img.FS = cnst.SquashFs
-			Expect(el.DeployImage(img, true)).To(BeNil())
+			Expect(el.DeployImage(img, false)).To(BeNil())
 			// The source is a temp directory with a random suffix, so assert
 			// the arguments that are fixed. There is no -comp: Sanitize drops
 			// the compression options unless squash-no-compression is off.
@@ -861,7 +861,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		It("Fails creating the squashfs filesystem", func() {
 			cmdFail = "mksquashfs"
 			img.FS = cnst.SquashFs
-			_, err := el.DeployImage(img, true)
+			_, err := el.DeployImage(img, false)
 			Expect(err).NotTo(BeNil())
 			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
 		})
