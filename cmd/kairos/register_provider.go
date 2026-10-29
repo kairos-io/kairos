@@ -7,4 +7,8 @@ func init() {
 	// including core ones that have no provider at all -- measured at +46 MiB
 	// on a 32 MiB binary. See provider.go for the delegation rules.
 	register("provider", runProvider)
+
+	// Every argument goes to the plugin, version queries included: what the
+	// plugin makes of them is its own business, see provider.go.
+	ownsVersion("provider", func(string) bool { return true })
 }
