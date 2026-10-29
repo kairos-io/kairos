@@ -12,6 +12,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
+	"github.com/kairos-io/kairos/v4/sdk/types/install"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/sanity-io/litter"
 	"github.com/spf13/viper"
@@ -76,6 +77,12 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	err = yaml.Unmarshal([]byte(configStr), result)
 	if err != nil {
 		return result, err
+	}
+
+	// A key with no value, `install:` or `install: ~`, unmarshals as null
+	// and replaces the default block with nil. Treat it as an empty block.
+	if result.Install == nil {
+		result.Install = &install.Install{}
 	}
 
 	kc, err := schema.NewConfigFromYAML(configStr, schema.RootSchema{})
