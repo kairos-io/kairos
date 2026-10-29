@@ -233,11 +233,11 @@ stages:
 		})
 	})
 
-	DescribeTable("an install key with no value",
+	DescribeTable("an install key with no value reads as an empty install block",
 		func(cc string) {
 			c, err := pkgConfig.ScanNoLogs(collector.Readers(strings.NewReader(cc)))
 			Expect(err).ToNot(HaveOccurred())
-			Expect(c.Install).To(BeNil())
+			Expect(c.Install).To(Equal(&sdkInstall.Install{}))
 		},
 		Entry("bare key", "#cloud-config\ninstall:\n"),
 		Entry("explicit null", "#cloud-config\ninstall: ~\n"),
