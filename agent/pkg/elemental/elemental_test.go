@@ -824,6 +824,64 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			// the compression options unless squash-no-compression is off.
 			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
 		})
+		It("Keeps the squashfs tree until UnmountImage when left mounted", func() {
+			img.FS = cnst.SquashFs
+			mountPoint := img.MountPoint
+			_, err := el.DeployImage(img, true)
+			Expect(err).To(BeNil())
+			Expect(squashfsArgs(runner)).To(BeNil())
+
+			tree := img.MountPoint
+			Expect(tree).ToNot(Equal(mountPoint))
+			Expect(fsutils.Exists(fs, filepath.Join(tree, "tmp"))).To(BeTrue())
+			Expect(fs.WriteFile(filepath.Join(tree, "added.file"), []byte("x"), cnst.FilePerm)).To(Succeed())
+
+			runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+				if cmd == "mksquashfs" {
+					Expect(args[0]).To(Equal(tree))
+					Expect(fsutils.Exists(fs, filepath.Join(tree, "added.file"))).To(BeTrue())
+				}
+				return []byte{}, nil
+			}
+			Expect(el.UnmountImage(img)).To(Succeed())
+			Expect(squashfsArgs(runner)).To(Equal([]string{img.File, "-b", "1024k"}))
+			Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+			Expect(img.MountPoint).To(Equal(mountPoint))
+
+			runner.ClearCmds()
+			Expect(el.UnmountImage(img)).To(Succeed())
+			Expect(squashfsArgs(runner)).To(BeNil())
+		})
+		It("Removes the squashfs tree when building it on UnmountImage fails", func() {
+			img.FS = cnst.SquashFs
+			_, err := el.DeployImage(img, true)
+			Expect(err).To(BeNil())
+			tree := img.MountPoint
+
+			cmdFail = "mksquashfs"
+			Expect(el.UnmountImage(img)).ToNot(Succeed())
+			Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+		})
+		It("Removes the squashfs tree when deploying it fails", func() {
+			staging := "/staging"
+			Expect(fsutils.MkdirAll(fs, staging, cnst.DirPerm)).To(Succeed())
+			if old, ok := os.LookupEnv("TMPDIR"); ok {
+				DeferCleanup(os.Setenv, "TMPDIR", old)
+			} else {
+				DeferCleanup(os.Unsetenv, "TMPDIR")
+			}
+			Expect(os.Setenv("TMPDIR", staging)).To(Succeed())
+
+			img.FS = cnst.SquashFs
+			mountPoint := img.MountPoint
+			cmdFail = "rsync"
+			_, err := el.DeployImage(img, true)
+			Expect(err).NotTo(BeNil())
+			Expect(img.MountPoint).To(Equal(mountPoint))
+			entries, err := fs.ReadDir(staging)
+			Expect(err).To(BeNil())
+			Expect(entries).To(BeEmpty())
+		})
 		It("Deploys a file image and mounts it", func() {
 			sourceImg := "/source.img"
 			_, err := fs.Create(sourceImg)
