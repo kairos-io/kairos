@@ -14,7 +14,7 @@ import (
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
-var ErrorImageNoLayers = errors.New("image")
+var ErrorImageNoLayers = errors.New("image has no layers")
 
 // DefaultAllowListRegex provided for easy use of defaults for confext and sysext
 var DefaultAllowListRegex = regexp.MustCompile(`^usr/*|^/usr/*|^etc/*|^/etc/*`)
@@ -25,18 +25,21 @@ var DefaultAllowListRegex = regexp.MustCompile(`^usr/*|^/usr/*|^etc/*|^/etc/*`)
 // sysextension or a confextension
 // Accepts an allowList in form of regexp.Regexp that will match the files and allow copying
 func ExtractFilesFromLastLayer(image v1.Image, dst string, log sdkLogger.KairosLogger, allowList *regexp.Regexp) error {
-	layers, _ := image.Layers()
-	numLayers := len(layers)
-	if len(layers) <= 0 {
+	layers, err := image.Layers()
+	if err != nil {
+		return fmt.Errorf("list image layers: %w", err)
+	}
+	if len(layers) == 0 {
 		return ErrorImageNoLayers
 	}
-	return extractFilesFromLayer(image, dst, log, allowList, numLayers-1)
+	return extractFilesFromLayer(layers[len(layers)-1], dst, log, allowList)
 }
 
-func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogger, allowList *regexp.Regexp, layerNumber int) error {
-	layers, _ := image.Layers()
-	layerToExtract := layers[layerNumber]
-	layerReader, _ := layerToExtract.Uncompressed()
+func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogger, allowList *regexp.Regexp) error {
+	layerReader, err := layer.Uncompressed()
+	if err != nil {
+		return fmt.Errorf("read layer: %w", err)
+	}
 	defer func(layerReader io.ReadCloser) {
 		_ = layerReader.Close()
 	}(layerReader)

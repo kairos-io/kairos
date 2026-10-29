@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -94,21 +95,10 @@ var _ = Describe("sysext", Label("sysext"), Ordered, func() {
 	})
 
 	When("Using an empty image", func() {
-		BeforeEach(func() {
-			imageTag = createEmptyDockerImage()
-			By(fmt.Sprintf("Created image %s", imageTag))
-			image, err = imageUtils.GetImage(imageTag, utils.GetCurrentPlatform(), nil, nil)
-			Expect(err).ToNot(HaveOccurred())
-		})
-		AfterEach(func() {
-			cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-			_, _ = cli.ImageRemove(context.Background(), imageTag, client.ImageRemoveOptions{Force: true})
-			By(fmt.Sprintf("Removed image %s", imageTag))
-		})
 		It("Fails with no layers image", func() {
-			// Cleanup existing image before creating a new one
-
-			err = ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)
+			// An in-memory image: the Docker daemon refuses to export an
+			// image with no layers, so a daemon image never gets this far.
+			err = ExtractFilesFromLastLayer(empty.Image, dest, log, DefaultAllowListRegex)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(ErrorImageNoLayers))
 		})
@@ -132,6 +122,22 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 
 	AfterEach(func() {
 		Expect(os.RemoveAll(parent)).To(Succeed())
+	})
+
+	It("returns the error when the image cannot list its layers", func() {
+		image := layersErrImage{Image: imageWithLayer(), err: errors.New("manifest unavailable")}
+		err := ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)
+		Expect(err).To(MatchError(ContainSubstring("manifest unavailable")))
+		Expect(err).ToNot(MatchError(ErrorImageNoLayers))
+	})
+
+	It("returns the error instead of panicking when a layer cannot be fetched", func() {
+		image := layersErrImage{Image: imageWithLayer(), layerErr: errors.New("403 Forbidden")}
+		var err error
+		Expect(func() {
+			err = ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)
+		}).ToNot(Panic())
+		Expect(err).To(MatchError(ContainSubstring("403 Forbidden")))
 	})
 
 	It("refuses to write through a symlink that points outside the destination", func() {
@@ -248,6 +254,38 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 	})
 })
 
+// layersErrImage wraps an image so that Layers fails with err, or, when only
+// layerErr is set, returns layers whose Uncompressed fails with layerErr, the
+// way a remote image does when a blob download is refused.
+type layersErrImage struct {
+	v1.Image
+	err      error
+	layerErr error
+}
+
+func (i layersErrImage) Layers() ([]v1.Layer, error) {
+	if i.err != nil {
+		return nil, i.err
+	}
+	layers, err := i.Image.Layers()
+	if err != nil {
+		return nil, err
+	}
+	for n := range layers {
+		layers[n] = uncompressedErrLayer{Layer: layers[n], err: i.layerErr}
+	}
+	return layers, nil
+}
+
+type uncompressedErrLayer struct {
+	v1.Layer
+	err error
+}
+
+func (l uncompressedErrLayer) Uncompressed() (io.ReadCloser, error) {
+	return nil, l.err
+}
+
 // imageWithLayer returns an in-memory image whose only layer holds the given
 // entries, each regular file empty.
 func imageWithLayer(entries ...tar.Header) v1.Image {
@@ -264,33 +302,6 @@ func imageWithLayer(entries ...tar.Header) v1.Image {
 	image, err := mutate.AppendLayers(empty.Image, layer)
 	Expect(err).ToNot(HaveOccurred())
 	return image
-}
-
-func createEmptyDockerImage() string {
-	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
-
-	b := make([]rune, 8)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-
-	img, err := mutate.AppendLayers(empty.Image)
-	Expect(err).ToNot(HaveOccurred())
-
-	// Set the platform to AMD64
-	cfg, err := img.ConfigFile()
-	Expect(err).ToNot(HaveOccurred())
-	cfg.Architecture = "amd64"
-	cfg.OS = "linux"
-	img, err = mutate.ConfigFile(img, cfg)
-	Expect(err).ToNot(HaveOccurred())
-
-	tag, err := name.NewTag(fmt.Sprintf("kairos-empty-%s:latest", string(b)))
-	Expect(err).ToNot(HaveOccurred())
-	_, err = daemon.Write(tag, img)
-	Expect(err).ToNot(HaveOccurred())
-
-	return tag.String()
 }
 
 func createTestDockerImage() string {
