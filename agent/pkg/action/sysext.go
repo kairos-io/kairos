@@ -202,19 +202,19 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 
 	// Check if the extension is already enabled
 	enabled, err := GetExtension(cfg, ext, bootState, extType)
-	// This doesnt fail if we have it already enabled
-	if err == nil {
-		if enabled.Name == extension.Name {
-			cfg.Logger.Infof("Extension %s is already enabled in %s", extension.Name, bootState)
+	// This doesnt fail if we have it already enabled, and with now it still merges it
+	if err == nil && enabled.Name == extension.Name {
+		cfg.Logger.Infof("Extension %s is already enabled in %s", extension.Name, bootState)
+		if !now {
 			return nil
 		}
+	} else {
+		// Create a symlink to the extension in the target dir
+		if err := cfg.Fs.Symlink(extension.Location, filepath.Join(targetDir, extension.Name)); err != nil {
+			return fmt.Errorf("failed to create symlink for %s: %w", extension.Name, err)
+		}
+		cfg.Logger.Infof("Extension %s enabled in %s", extension.Name, bootState)
 	}
-
-	// Create a symlink to the extension in the target dir
-	if err := cfg.Fs.Symlink(extension.Location, filepath.Join(targetDir, extension.Name)); err != nil {
-		return fmt.Errorf("failed to create symlink for %s: %w", extension.Name, err)
-	}
-	cfg.Logger.Infof("Extension %s enabled in %s", extension.Name, bootState)
 
 	if now {
 		// Check if the boot state is the same as the one we are enabling
@@ -229,11 +229,14 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 				linkTarget = confExtRunDir
 				reloadTarget = confextCommand
 			}
-			err = cfg.Fs.Symlink(filepath.Join(targetDir, extension.Name), filepath.Join(linkTarget, extension.Name))
-			if err != nil {
-				return fmt.Errorf("failed to create symlink for %s: %w", extension.Name, err)
+			// An earlier enable --now may have linked it already
+			if _, err := cfg.Fs.Readlink(filepath.Join(linkTarget, extension.Name)); err != nil {
+				err = cfg.Fs.Symlink(filepath.Join(targetDir, extension.Name), filepath.Join(linkTarget, extension.Name))
+				if err != nil {
+					return fmt.Errorf("failed to create symlink for %s: %w", extension.Name, err)
+				}
+				cfg.Logger.Infof("Extension %s enabled in %s", extension.Name, linkTarget)
 			}
-			cfg.Logger.Infof("Extension %s enabled in %s", extension.Name, linkTarget)
 			// It makes the sysext/confext check the extension for a valid signature
 			// Refresh systemd-sysext/confext by restarting the service. As the config is set via the service overrides to nice things
 			output, err := cfg.Runner.Run("systemctl", "restart", reloadTarget)
