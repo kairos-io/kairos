@@ -16,6 +16,7 @@ import (
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -845,6 +846,49 @@ func TestPhoneHomeLeavesTheHeartbeatZeroWhenNobodySetsIt(t *testing.T) {
 
 	if cfg.HeartbeatInterval != 0 {
 		t.Fatalf("heartbeat interval = %s, want zero so the client applies its default", cfg.HeartbeatInterval)
+	}
+}
+
+// A phonehome: section with a type error used to be dropped, so the command
+// reported "phonehome URL required" for a config whose url was set.
+func TestLoadPhoneHomeConfigReportsAParseError(t *testing.T) {
+	scanned := &sdkConfig.Config{Collector: collector.Config{Values: collector.ConfigValues{
+		"phonehome": map[string]interface{}{
+			"url":                "http://127.0.0.1:1",
+			"heartbeat_interval": 30,
+		},
+	}}}
+
+	_, err := LoadPhoneHomeConfig(scanned)
+	if err == nil || !strings.Contains(err.Error(), "time.Duration") {
+		t.Fatalf("err = %v, want the heartbeat_interval parse error", err)
+	}
+}
+
+func TestLoadPhoneHomeConfigReadsAValidSection(t *testing.T) {
+	scanned := &sdkConfig.Config{Collector: collector.Config{Values: collector.ConfigValues{
+		"phonehome": map[string]interface{}{
+			"url":                "http://127.0.0.1:1",
+			"heartbeat_interval": "30s",
+		},
+	}}}
+
+	cfg, err := LoadPhoneHomeConfig(scanned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URL != "http://127.0.0.1:1" || cfg.HeartbeatInterval != 30*time.Second {
+		t.Fatalf("cfg = %+v, want the configured url and 30s", cfg)
+	}
+}
+
+func TestLoadPhoneHomeConfigWithoutASectionIsEmpty(t *testing.T) {
+	cfg, err := LoadPhoneHomeConfig(&sdkConfig.Config{Collector: collector.Config{Values: collector.ConfigValues{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URL != "" {
+		t.Fatalf("cfg = %+v, want an empty config", cfg)
 	}
 }
 
