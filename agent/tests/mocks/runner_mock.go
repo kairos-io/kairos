@@ -112,13 +112,12 @@ func (r FakeRunner) IncludesCmds(cmdList [][]string) error {
 // MatchMilestones matches all the given commands were executed in the provided
 // order. Note it uses HasPrefix to match commands, see CmdsMatch.
 func (r FakeRunner) MatchMilestones(cmdList [][]string) error {
-	var match string
 	for _, cmd := range r.cmds {
 		if len(cmdList) == 0 {
 			break
 		}
 		got := strings.Join(cmd[:], " ")
-		match = strings.Join(cmdList[0][:], " ")
+		match := strings.Join(cmdList[0][:], " ")
 		if !strings.HasPrefix(got, match) {
 			continue
 		}
@@ -126,7 +125,7 @@ func (r FakeRunner) MatchMilestones(cmdList [][]string) error {
 	}
 
 	if len(cmdList) > 0 {
-		return fmt.Errorf("command '%s' not executed", match)
+		return fmt.Errorf("command '%s' not executed", strings.Join(cmdList[0], " "))
 	}
 
 	return nil
