@@ -257,24 +257,42 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 					s.CowBase = internalUtils.GetCowBase(s.OverlayBase)
 				}
 
-				addLine := func(d string) {
-					dat := strings.Split(d, ":")
-					if len(dat) == 2 {
-						disk := dat[0]
-						path := dat[1]
-						s.CustomMounts[disk] = path
-					}
-				}
 				// Parse custom mounts also from cmdline (rd.cos.mount=)
 				// Parse custom mounts also from cmdline (rd.immucore.mount=)
 				// Parse custom mounts also from env file (VOLUMES)
-
 				for _, v := range append(append(internalUtils.ReadCMDLineArg("rd.cos.mount="), internalUtils.ReadCMDLineArg("rd.immucore.mount=")...), strings.Split(env["VOLUMES"], " ")...) {
-					addLine(internalUtils.ParseMount(v))
+					if v == "" {
+						continue
+					}
+					disk, path, err := parseCustomMount(v)
+					if err != nil {
+						internalUtils.KLog.Logger.Error().Err(err).Msg("Skipping custom mount")
+						continue
+					}
+					s.CustomMounts[disk] = path
 				}
 
 				return nil
 			}))...)
+}
+
+// parseCustomMount splits a VOLUMES, rd.immucore.mount= or rd.cos.mount= entry
+// into the device and its mountpoint. It splits on the last colon, so a device
+// path that carries a colon, like /dev/disk/by-path/pci-0000:00:1f.2-ata-1-part5,
+// keeps it. LABEL:<label>:<mountpoint> is refused rather than mounted from a
+// literal "LABEL:<label>" source: a device is written LABEL=<label> or UUID=<uuid>.
+func parseCustomMount(entry string) (string, string, error) {
+	for _, key := range []string{"LABEL", "UUID"} {
+		if strings.HasPrefix(entry, key+":") {
+			return "", "", fmt.Errorf("invalid custom mount %q: a device is written %s=<value>:<mountpoint>", entry, key)
+		}
+	}
+	resolved := internalUtils.ParseMount(entry)
+	i := strings.LastIndex(resolved, ":")
+	if i <= 0 || !strings.HasPrefix(resolved[i+1:], "/") {
+		return "", "", fmt.Errorf("invalid custom mount %q: want <device>:<absolute mountpoint>", entry)
+	}
+	return resolved[:i], resolved[i+1:], nil
 }
 
 // MountOemDagStep will add mounting COS_OEM partition under s.Rootdir + /oem .

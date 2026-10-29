@@ -61,10 +61,12 @@ The immutable rootfs can be configured with the following kernel parameters:
   (`UUID=<blk_uuid>`)
   Backwards compatible with the old `rd.cos.overlay` directive.
 
-* `rd.immucore.mount=LABEL:<blk_label>:<mountpoint>`: This option defines a
+* `rd.immucore.mount=LABEL=<blk_label>:<mountpoint>`: This option defines a
   persistent block device and its mountpoint. Block devices can also be
-  defined by UUID (`UUID=<blk_uuid>:<mountpoint>`). This option can be passed
-  multiple times.
+  defined by UUID (`UUID=<blk_uuid>:<mountpoint>`) or by path
+  (`/dev/disk/by-path/<path>:<mountpoint>`). The mountpoint follows the last
+  colon, so a device path may contain colons. An entry that cannot be parsed
+  is logged and skipped. This option can be passed multiple times.
   Backwards compatible with the old `rd.cos.mount` directive.
 
 * `rd.immucore.oemlabel=<label>`: This option sets the label to search for in order
