@@ -1,7 +1,10 @@
 package client
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log"
 	"net/url"
 	"strconv"
 	"strings"
@@ -16,9 +19,19 @@ const (
 	MDNSTimeout     = 15 * time.Second
 )
 
+// Variables so tests can swap them.
+var (
+	mdnsTimeout = MDNSTimeout
+	// mdnsQueryWindow is how long one mdns query listens before the query is
+	// sent again.
+	mdnsQueryWindow = time.Second
+	mdnsQuery       = mdns.QueryContext
+)
+
 // queryMDNS will make an mdns query on local network to find a kcrypt challenger server
 // instance. If none is found, the original URL is returned and no additional headers.
-// If a response is received, the IP address and port from the response will be returned// and an additional "Host" header pointing to the original host.
+// If a response is received, the IP address and port from the response will be returned
+// and an additional "Host" header pointing to the original host.
 func queryMDNS(originalURL string, logger loggerpkg.KairosLogger) (string, map[string]string, error) {
 	additionalHeaders := map[string]string{}
 
@@ -69,18 +82,43 @@ func queryMDNS(originalURL string, logger loggerpkg.KairosLogger) (string, map[s
 // servers on the same network that matches the given hostname.
 // If a response if received, the IP address and the Port from the response are returned.
 func discoverMDNSServer(hostname string, logger loggerpkg.KairosLogger) (string, string) {
-	// Make a channel for results and start listening
+	ctx, cancel := context.WithTimeout(context.Background(), mdnsTimeout)
+
+	// Entries are only ever sent by the query goroutine below, which has
+	// exited before this function returns, so the channel is never closed.
 	entriesCh := make(chan *mdns.ServiceEntry, 4)
-	defer close(entriesCh)
 
 	logger.Debugf("Will now wait for some mdns server to respond")
-	// Start the lookup. It will block until we read from the chan.
-	// A Lookup error means no query could be sent, so no entry will
-	// ever arrive on entriesCh and the loop below will drop out on
-	// timeout. Log the reason so the timeout is not the only signal.
-	if err := mdns.Lookup(MDNSServiceType, entriesCh); err != nil {
-		logger.Warnf("mdns.Lookup failed, discovery will time out: %v", err)
-	}
+	// A single mdns query only listens for mdnsQueryWindow and sends one
+	// packet, so a challenger (or network link) that comes up later would
+	// never be seen. Keep re-querying until the whole timeout is used.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		warned := false
+		for ctx.Err() == nil {
+			params := mdns.DefaultParams(MDNSServiceType)
+			params.Entries = entriesCh
+			params.Timeout = mdnsQueryWindow
+			params.Logger = log.New(io.Discard, "", 0)
+			if err := mdnsQuery(ctx, params); err != nil && ctx.Err() == nil {
+				// No query could be sent (no usable interface yet, say).
+				// Retry after a pause, the link may still be coming up.
+				if !warned {
+					logger.Warnf("mdns query failed, will keep retrying until timeout: %v", err)
+					warned = true
+				}
+				select {
+				case <-ctx.Done():
+				case <-time.After(mdnsQueryWindow):
+				}
+			}
+		}
+	}()
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	expectedHost := hostname + "." // FQDN
 	// Wait until a matching server is found or we reach a timeout
@@ -91,10 +129,9 @@ func discoverMDNSServer(hostname string, logger loggerpkg.KairosLogger) (string,
 			if entry.Host == expectedHost {
 				logger.Debugf("%s matches %s", entry.Host, expectedHost)
 				return entry.AddrV4.String(), strconv.Itoa(entry.Port) // TODO: v6?
-			} else {
-				logger.Debugf("%s didn't match %s", entry.Host, expectedHost)
 			}
-		case <-time.After(MDNSTimeout):
+			logger.Debugf("%s didn't match %s", entry.Host, expectedHost)
+		case <-ctx.Done():
 			logger.Debugf("timed out waiting for mdns")
 			return "", ""
 		}
