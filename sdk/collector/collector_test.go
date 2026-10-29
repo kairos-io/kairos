@@ -616,23 +616,20 @@ info:
 			})
 		})
 
-		// Reproduces kairos-io/kairos#5790: two scalars of a different kind
-		// (bool/string/int/float) make DeepMerge fail, although b should win.
-		// These assertions describe the CURRENT (buggy) behaviour.
-		Context("scalars of a different kind (#5790)", func() {
-			DescribeTable("fails instead of letting b win",
-				func(a, b interface{}, msg string) {
-					_, err := DeepMerge(a, b)
-					Expect(err).To(HaveOccurred())
-					Expect(err.Error()).To(Equal(msg))
+		Context("scalars of a different kind", func() {
+			DescribeTable("b wins",
+				func(a, b interface{}) {
+					res, err := DeepMerge(a, b)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(res).To(Equal(b))
 				},
-				Entry("bool then string", true, "true", "cannot merge bool with string"),
-				Entry("string then bool", "true", true, "cannot merge string with bool"),
-				Entry("string then int", "3", 3, "cannot merge string with int"),
-				Entry("int then float", 1, 1.5, "cannot merge int with float64"),
+				Entry("bool then string", true, "true"),
+				Entry("string then bool", "true", true),
+				Entry("string then int", "3", 3),
+				Entry("int then float", 1, 1.5),
 			)
 
-			It("fails in Configs.Merge across two sources and loses the rest", func() {
+			It("merges across two sources in Configs.Merge", func() {
 				file := &Config{Sources: []string{"file"}, Values: ConfigValues{
 					"install": ConfigValues{"auto": true, "device": "auto"},
 					"other":   "kept",
@@ -641,9 +638,14 @@ info:
 					"install": ConfigValues{"auto": "true", "reboot": true},
 				}}
 
-				_, err := Configs{file, cmdline}.Merge()
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("cannot merge bool with string"))
+				merged, err := Configs{file, cmdline}.Merge()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(merged.Values).To(HaveKeyWithValue("other", "kept"))
+				Expect(merged.Values["install"]).To(Equal(ConfigValues{
+					"auto":   "true",
+					"device": "auto",
+					"reboot": true,
+				}))
 			})
 		})
 
