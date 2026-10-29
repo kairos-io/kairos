@@ -18,14 +18,15 @@ import (
 // through both with diffs only, and then runs the acceptance checks on the
 // result.
 //
-// Every diff upgrade is given a full image source that does not exist, so
+// Every diff upgrade is given a full image source that is not an image, so
 // a diff that silently fell back to the full image fails the upgrade
-// instead of passing it.
+// instead of passing it. It has to exist: the upgrade measures the full
+// source before it looks at the diff, and refuses one it cannot stat.
 var _ = Describe("kairos diff upgrade test", Label("diff-upgrade"), func() {
 	const (
-		work        = "/usr/local/diff-test"
-		testDir     = "/usr/share/kairos-diff-test"
-		missingFull = "dir:/nonexistent-full-image"
+		work       = "/usr/local/diff-test"
+		testDir    = "/usr/share/kairos-diff-test"
+		brokenFull = "ocifile:/usr/local/diff-test/not-an-image.tar"
 	)
 	var vm VM
 	var datasource string
@@ -52,7 +53,7 @@ var _ = Describe("kairos diff upgrade test", Label("diff-upgrade"), func() {
 	})
 
 	diffUpgrade := func(diff string) string {
-		out, err := vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source %s --diff-source ocifile:%s/%s 2>&1", missingFull, work, diff))
+		out, err := vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source %s --diff-source ocifile:%s/%s 2>&1", brokenFull, work, diff))
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).To(ContainSubstring("Applying diff"))
 		Expect(out).ToNot(ContainSubstring("falling back to the full image"))
@@ -112,9 +113,9 @@ var _ = Describe("kairos diff upgrade test", Label("diff-upgrade"), func() {
 
 		By("refusing a diff made for another release and leaving the system alone", func() {
 			// d12 applies to release 1, the node runs release 3. The
-			// upgrade falls back to the full image, which does not exist,
+			// upgrade falls back to the full image, which is not an image,
 			// so it fails before active or passive are touched.
-			out, err := vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source %s --diff-source ocifile:%s/d12.tar 2>&1", missingFull, work))
+			out, err := vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source %s --diff-source ocifile:%s/d12.tar 2>&1", brokenFull, work))
 			Expect(err).To(HaveOccurred(), out)
 			Expect(out).To(ContainSubstring("falling back to the full image"))
 			Expect(out).To(ContainSubstring("diff base does not match"))

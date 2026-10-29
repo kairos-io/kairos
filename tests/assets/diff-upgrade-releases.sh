@@ -12,6 +12,9 @@
 # Release 3 drops the blob and the file of release 2, and adds its own.
 # The blobs are random so compression does not hide their size.
 #
+# Also leaves $W/not-an-image.tar, the full image source the suite passes
+# so that falling back to the full image fails.
+#
 # Prints "SIZE <name> <bytes>" for each archive, and leaves the diffs in
 # $W/d12.tar, $W/d23.tar and $W/d13.tar. full-2.tar is the whole of
 # release 2 in the same format, as a stand in for the full image.
@@ -40,6 +43,8 @@ echo three > "$W/img3/$T/release"
 rm "$W/img3/$T/only-in-2" "$W/img3/$T/blob-2"
 echo only-in-3 > "$W/img3/$T/only-in-3"
 dd if=/dev/urandom of="$W/img3/$T/blob-3" bs=1M count=20 2>/dev/null
+
+echo 'not an image' > "$W/not-an-image.tar"
 
 # Anything that is not one of the three releases is a base nothing matches,
 # so diffing against it carries the whole target.
