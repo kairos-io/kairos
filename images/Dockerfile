@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ubuntu:20.04
+ARG BASE_IMAGE=ubuntu:26.04
 # KAIROS_INIT is the legacy input: a tag on quay.io/kairos/kairos-init.
 # KAIROS_INIT_IMAGE is the newer input: the full image reference. Callers
 # who need a non-quay source (e.g. PR builds pulling their own
