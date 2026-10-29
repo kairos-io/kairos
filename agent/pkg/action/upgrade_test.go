@@ -730,6 +730,57 @@ var _ = Describe("Upgrade Actions test", func() {
 					Expect(err).To(HaveOccurred())
 
 				})
+				// Reproduces kairos-io/kairos#5619: on a squashfs recovery
+				// upgrade the new tree only exists in a temp dir that
+				// deployImage removes, so the finalize step gets an image
+				// with an empty MountPoint. This asserts the CURRENT (wrong)
+				// behaviour and has to be flipped once the bug is fixed.
+				It("hands the finalize step an empty mount point (kairos-io/kairos#5619)", Label("directory", "bug-5619"), func() {
+					srcDir, _ := fsutils.TempDir(fs, "", "elemental")
+					_ = fs.WriteFile(fmt.Sprintf("%s/file.file", srcDir), []byte("something"), constants.FilePerm)
+
+					Expect(spec.Recovery.FS).To(Equal(constants.SquashFs))
+					Expect(spec.Recovery.MountPoint).To(BeEmpty())
+					spec.ExtraDirsRootfs = []string{"/var/lib/kubelet"}
+					spec.Recovery.Source = sdkImages.NewDirSrc(srcDir)
+
+					var ctxSeenByTarget action.FinalizeContext
+					baseEffect := runner.SideEffect
+					runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+						if command == constants.TargetKairosAgentPath && len(args) > 0 && args[0] == "upgrade-finalize" {
+							// The context file is written to the "mount point" + /tmp/..
+							// which, with an empty mount point, is the HOST /tmp.
+							ctx, rerr := action.ReadFinalizeContext(fs, constants.UpgradeFinalizeContextPath)
+							Expect(rerr).ToNot(HaveOccurred())
+							ctxSeenByTarget = ctx
+						}
+						return baseEffect(command, args...)
+					}
+
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+
+					// The handoff chroots into "" instead of a deployed tree.
+					Expect(syscall.WasChrootCalledWith("")).To(BeTrue(), memLog.String())
+					Expect(memLog.String()).To(ContainSubstring("Handing off upgrade finalize"))
+
+					// The target agent is told "/" is the new rootfs, but there is
+					// no new rootfs under that chroot: the finalize context only
+					// carries what was passed in, hook/extra-dirs run against it.
+					Expect(ctxSeenByTarget.ImgMountPoint).To(Equal("/"))
+					Expect(ctxSeenByTarget.RecoveryUpgrade).To(BeTrue())
+					Expect(ctxSeenByTarget.ExtraDirsRootfs).To(Equal([]string{"/var/lib/kubelet"}))
+
+					// The downgrade gate compared the host kairos-release with
+					// itself, since the target path collapsed to the host path.
+					Expect(fsutils.Exists(fs, constants.KairosReleaseFile)).To(BeTrue())
+
+					// Nothing from the new recovery tree was ever materialised
+					// where the finalize step could see it: no file.file anywhere
+					// the handoff points at (it only lived in the removed temp dir).
+					Expect(fsutils.Exists(fs, "/file.file")).To(BeFalse())
+					Expect(fsutils.Exists(fs, "/var/lib/kubelet")).To(BeFalse())
+				})
 			})
 			Describe("Not using squashfs", Label("non-squashfs"), func() {
 				var err error
