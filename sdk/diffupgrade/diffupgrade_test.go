@@ -91,6 +91,7 @@ var _ = Describe("diff upgrades", func() {
 			"opt/becomes-file":   "now a file",
 		})
 		Expect(os.Symlink("added", filepath.Join(target, "usr/bin/link"))).To(Succeed())
+		Expect(os.Link(filepath.Join(target, "usr/bin/added"), filepath.Join(target, "usr/bin/added-too"))).To(Succeed())
 		Expect(os.Chmod(filepath.Join(target, "usr/bin/unchanged"), 0o755)).To(Succeed())
 	})
 
@@ -137,6 +138,11 @@ var _ = Describe("diff upgrades", func() {
 		m, err := diffupgrade.Apply(osFS{}, work, fingerprint)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(tree(work)).To(Equal(tree(target)))
+		a, err := os.Stat(filepath.Join(work, "usr/bin/added"))
+		Expect(err).ToNot(HaveOccurred())
+		b, err := os.Stat(filepath.Join(work, "usr/bin/added-too"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(os.SameFile(a, b)).To(BeTrue(), "hard links stay hard links")
 		Expect(diffupgrade.RootfsID(work)).To(Equal(m.Target), "the result is the target release")
 	})
 

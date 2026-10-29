@@ -81,6 +81,17 @@ var _ = Describe("publishing diffs to an index", func() {
 
 		_, err = image.ResolveAnnotated(ref.String(), forBase("sha256:v0"), nil, nil, image.WithInsecureRegistry())
 		Expect(err).To(MatchError(image.ErrNoMatchingManifest))
+
+		By("finding each diff at its own tag too")
+		for base, digest := range map[string]v1.Hash{"sha256:v1": fromV1, "sha256:v2": fromV2} {
+			own, err := diffupgrade.BaseRefFor(ref.String(), base)
+			Expect(err).ToNot(HaveOccurred())
+			ownRef, err := name.ParseReference(own, name.Insecure)
+			Expect(err).ToNot(HaveOccurred())
+			img, err := remote.Image(ownRef)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(img.Digest()).To(Equal(digest))
+		}
 	})
 
 	It("replaces a single image pushed at the tag", func() {

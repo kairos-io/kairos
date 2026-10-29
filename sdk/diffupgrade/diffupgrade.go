@@ -174,6 +174,35 @@ func relativePath(p string) (string, error) {
 	return clean, nil
 }
 
+// BaseRefFor returns the reference a diff from base is also published at,
+// next to the index at indexRef: the index tag with "-" and the first 16 hex
+// digits of base appended, so quay.io/kairos/hadron:v1.2.0.diff has the diff
+// from a base whose ID starts with 0123456789abcdef at
+// quay.io/kairos/hadron:v1.2.0.diff-0123456789abcdef.
+//
+// Each such tag is written by one publisher only, so it survives what the
+// index may not: two publishers updating the index at the same time, where
+// the last write drops the other's entry. A node that finds no entry for
+// its base in the index looks here.
+func BaseRefFor(indexRef, base string) (string, error) {
+	parsed, err := name.ParseReference(indexRef)
+	if err != nil {
+		return "", fmt.Errorf("parsing %s: %w", indexRef, err)
+	}
+	tag, ok := parsed.(name.Tag)
+	if !ok {
+		return "", fmt.Errorf("%s is pinned by digest, it has no tag to publish a diff next to", indexRef)
+	}
+	short := strings.TrimPrefix(base, "sha256:")
+	if len(short) > 16 {
+		short = short[:16]
+	}
+	if short == "" {
+		return "", fmt.Errorf("no base ID to name the diff by")
+	}
+	return tag.Context().Tag(tag.TagStr() + "-" + short).Name(), nil
+}
+
 // RefFor returns the reference of the diff for a full image reference: the
 // same repository, with TagSuffix appended to the tag. A reference without a
 // tag gets the diff of latest. A reference pinned by digest has no diff name,

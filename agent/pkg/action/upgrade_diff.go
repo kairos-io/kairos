@@ -79,16 +79,15 @@ func (u *UpgradeAction) diffDeploy(e *elemental.Elemental, upgradeImg *sdkImages
 	}
 
 	u.Info("Copying %s to %s to apply the diff onto", baseFile, upgradeImg.File)
-	// cp rather than a copy through the Fs, so the copy stays as sparse as
-	// the image it is taken from.
-	if out, err := u.config.Runner.Run("cp", "--sparse=always", baseFile, upgradeImg.File); err != nil {
-		return "", fmt.Errorf("copying %s: %s: %w", baseFile, string(out), err)
+	if err := u.copyImage(baseFile, upgradeImg.File); err != nil {
+		return "", err
 	}
 	if upgradeImg.Label != "" {
 		if out, err := u.config.Runner.Run("tune2fs", "-L", upgradeImg.Label, upgradeImg.File); err != nil {
 			return "", fmt.Errorf("labeling %s: %s: %w", upgradeImg.File, string(out), err)
 		}
 	}
+	u.newFilesystemUUID(upgradeImg.File)
 	if err := e.MountImage(upgradeImg, "rw"); err != nil {
 		return "", err
 	}
@@ -104,6 +103,41 @@ func (u *UpgradeAction) diffDeploy(e *elemental.Elemental, upgradeImg *sdkImages
 	return m.Target, utils.CreateDirStructure(u.config.Fs, upgradeImg.MountPoint)
 }
 
+// copyImage copies the image at src to dst with cp rather than through the
+// Fs, so the copy stays as sparse as the image it is taken from. The cp of
+// BusyBox has no --sparse, so without it the copy is made in full.
+func (u *UpgradeAction) copyImage(src, dst string) error {
+	out, err := u.config.Runner.Run("cp", "--sparse=always", src, dst)
+	if err == nil {
+		return nil
+	}
+	u.Debug("cp --sparse=always failed, copying %s in full: %s", src, string(out))
+	if out, err = u.config.Runner.Run("cp", src, dst); err != nil {
+		return fmt.Errorf("copying %s: %s: %w", src, string(out), err)
+	}
+	return nil
+}
+
+// newFilesystemUUID gives the copied image a filesystem UUID of its own.
+// Otherwise active and passive would share one after the swap, which a full
+// upgrade, whose image is a new filesystem, never leaves. The image boots
+// either way, as state images are found by label, so a failure only warns.
+//
+// tune2fs refuses until the filesystem has been checked when the image has
+// metadata checksums but not metadata_csum_seed, as images made by an older
+// mkfs do, so a refusal is retried once after a check.
+func (u *UpgradeAction) newFilesystemUUID(img string) {
+	out, err := u.config.Runner.Run("tune2fs", "-U", "random", img)
+	if err == nil {
+		return
+	}
+	u.Debug("tune2fs -U random failed, checking %s and trying again: %s", img, string(out))
+	_, _ = u.config.Runner.Run("e2fsck", "-fy", img)
+	if out, err = u.config.Runner.Run("tune2fs", "-U", "random", img); err != nil {
+		u.config.Logger.Warnf("%s keeps the filesystem UUID of the image it was copied from: %s: %s", img, err, string(out))
+	}
+}
+
 // annotatedResolver is implemented by an image extractor that can look an
 // image index up in its registry and pick an entry by its annotations.
 type annotatedResolver interface {
@@ -116,6 +150,11 @@ type annotatedResolver interface {
 // is picked from the index, which is a few KB, before anything is pulled.
 // A source that is a single image is returned as it is, and its base is
 // checked once it is unpacked.
+//
+// When the index has no entry for baseID, or cannot be read, the diff is
+// looked for at its own tag (diffupgrade.BaseRefFor), where it stays when a
+// concurrent publish dropped it from the index. If it is not there either,
+// pulling it fails, having pulled nothing, and the upgrade falls back.
 func (u *UpgradeAction) diffForBase(src *sdkImages.ImageSource, baseID string) (*sdkImages.ImageSource, error) {
 	if !src.IsDocker() {
 		return src, nil
@@ -126,7 +165,12 @@ func (u *UpgradeAction) diffForBase(src *sdkImages.ImageSource, baseID string) (
 	}
 	ref, err := r.ResolveAnnotated(src.Value(), func(a map[string]string) bool { return a[diffupgrade.BaseLabel] == baseID })
 	if err != nil {
-		return nil, fmt.Errorf("finding the diff for %s in %s: %w", baseID, src.Value(), err)
+		baseRef, refErr := diffupgrade.BaseRefFor(src.Value(), baseID)
+		if refErr != nil {
+			return nil, fmt.Errorf("finding the diff for %s in %s: %w", baseID, src.Value(), err)
+		}
+		u.Info("No diff for this release in %s (%s), trying %s", src.Value(), err, baseRef)
+		return sdkImages.NewDockerSrc(baseRef), nil
 	}
 	if ref == src.Value() {
 		return src, nil

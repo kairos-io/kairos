@@ -36,8 +36,10 @@ type Root struct {
 // ones, and a diff that carried them would carry the whole image. A file that
 // only changed its time therefore keeps the time it had on the base.
 //
-// Hard links are written as separate files, and sockets are skipped, as a
-// root filesystem image has no use for either.
+// Files that share an inode in target are written as one file and hard
+// links to it, as far as the diff carries them: a hard link to a file the
+// diff does not carry becomes a copy. Sockets are skipped, as a root
+// filesystem image has no use for them.
 func Generate(base, target Root, w io.Writer) (*Manifest, error) {
 	baseRelease, err := Fingerprint(osFS{}, base.Dir)
 	if err != nil {
@@ -72,6 +74,7 @@ func Generate(base, target Root, w io.Writer) (*Manifest, error) {
 	}
 
 	tw := tar.NewWriter(w)
+	links := map[inodeKey]string{}
 	err = filepath.WalkDir(target.Dir, func(path string, _ fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -87,7 +90,7 @@ func Generate(base, target Root, w io.Writer) (*Manifest, error) {
 		if err != nil || !changed {
 			return err
 		}
-		return writeEntry(tw, path, rel)
+		return writeEntry(tw, path, rel, links)
 	})
 	if err != nil {
 		return nil, err
@@ -256,7 +259,15 @@ func header(path string, info fs.FileInfo) (*tar.Header, error) {
 	return hdr, nil
 }
 
-func writeEntry(tw *tar.Writer, path, rel string) error {
+// inodeKey identifies a file across its hard links.
+type inodeKey struct {
+	dev, ino uint64
+}
+
+// writeEntry writes the entry at path to tw, named rel. links maps the inode
+// of every regular file written so far that has more names to the first of
+// them, so the others are written as hard links to it.
+func writeEntry(tw *tar.Writer, path, rel string, links map[inodeKey]string) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
@@ -271,6 +282,15 @@ func writeEntry(tw *tar.Writer, path, rel string) error {
 	hdr.Name = filepath.ToSlash(rel)
 	if info.IsDir() {
 		hdr.Name += "/"
+	}
+	if key, ok := inode(info); ok && info.Mode().IsRegular() {
+		if first, seen := links[key]; seen {
+			hdr.Typeflag = tar.TypeLink
+			hdr.Linkname = first
+			hdr.Size = 0
+			return tw.WriteHeader(hdr)
+		}
+		links[key] = hdr.Name
 	}
 	x, err := xattrs(path)
 	if err != nil {

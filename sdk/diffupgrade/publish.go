@@ -2,6 +2,7 @@ package diffupgrade
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -28,10 +29,26 @@ import (
 // A single image at ref, as an earlier version of this command pushed, is
 // replaced by the index.
 //
-// The read and the write of the index are not atomic. Two publishers writing
-// the same tag at once can lose one of the two entries; run them one after
-// the other.
+// The diff is also pushed at BaseRefFor, before the index is touched. A
+// registry offers no way to update the index atomically, so two publishers
+// writing it at once can drop each other's entry, which stays out of the
+// index until that diff is published again. The diff itself stays at its
+// own tag, where a node that finds no entry for its base looks next.
 func PushToIndex(ref name.Reference, img v1.Image, m *Manifest, platform *v1.Platform, opts ...remote.Option) (int, error) {
+	baseRef, err := BaseRefFor(ref.String(), m.Base)
+	if err != nil {
+		return 0, err
+	}
+	baseTag, err := name.ParseReference(baseRef, name.WeakValidation)
+	if err != nil {
+		return 0, err
+	}
+	// Keep the registry options ref was parsed with, such as name.Insecure.
+	baseTag = ref.Context().Tag(baseTag.Identifier())
+	if err := remote.Write(baseTag, img, opts...); err != nil {
+		return 0, fmt.Errorf("pushing %s: %w", baseTag, err)
+	}
+
 	idx := mutate.IndexMediaType(empty.Index, types.OCIImageIndex)
 	entries := 1
 

@@ -581,6 +581,7 @@ var _ = Describe("Upgrade Actions test", func() {
 					Expect(runner.IncludesCmds([][]string{
 						{"cp", "--sparse=always", activeImg, spec.Active.File},
 						{"tune2fs", "-L", spec.Active.Label, spec.Active.File},
+						{"tune2fs", "-U", "random", spec.Active.File},
 					})).To(Succeed())
 
 					root := spec.Active.MountPoint
@@ -600,6 +601,35 @@ var _ = Describe("Upgrade Actions test", func() {
 					// The IDs follow the images through the swap.
 					Expect(diffupgrade.RecordedID(fs, activeImg)).To(Equal(target))
 					Expect(diffupgrade.RecordedID(fs, passiveImg)).To(Equal(base))
+				})
+
+				It("copies the base in full with a cp that has no --sparse, and checks the copy when tune2fs asks", func() {
+					previous := runner.SideEffect
+					uuidTries := 0
+					runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+						if command == "cp" && args[0] == "--sparse=always" {
+							return []byte("cp: unrecognized option: sparse=always"), fmt.Errorf("exit status 1")
+						}
+						if command == "tune2fs" && args[0] == "-U" {
+							uuidTries++
+							if uuidTries == 1 {
+								return []byte("Please run e2fsck -f on the filesystem."), fmt.Errorf("exit status 1")
+							}
+						}
+						return previous(command, args...)
+					}
+					extractor.SideEffect = func(imageRef, dest, _ string) error {
+						return writeDiff(dest, base)
+					}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+					Expect(runner.IncludesCmds([][]string{
+						{"cp", activeImg, spec.Active.File},
+						{"e2fsck", "-fy", spec.Active.File},
+					})).To(Succeed())
+					Expect(uuidTries).To(Equal(2))
+					Expect(memLog.String()).ToNot(ContainSubstring("keeps the filesystem UUID"))
+					Expect(diffupgrade.RecordedID(fs, activeImg)).To(Equal(target))
 				})
 
 				It("falls back without pulling the diff when no ID was recorded for the base", func() {
@@ -685,15 +715,41 @@ var _ = Describe("Upgrade Actions test", func() {
 					Expect(diffupgrade.RecordedID(fs, activeImg)).To(Equal(target))
 				})
 
-				It("falls back without pulling anything from the index when it has no diff for this release", func() {
+				It("falls back when neither the index nor the diff's own tag has a diff for this release", func() {
+					ownTag, err := diffupgrade.BaseRefFor(diffRef, base)
+					Expect(err).ToNot(HaveOccurred())
 					extractor.ResolveAnnotatedFunc = func(ref string, _ func(map[string]string) bool) (string, error) {
 						return "", fmt.Errorf("%s: no manifest in the image index matches", ref)
+					}
+					extractor.SideEffect = func(imageRef, _, _ string) error {
+						if imageRef == ownTag {
+							return fmt.Errorf("MANIFEST_UNKNOWN")
+						}
+						return nil
 					}
 					upgrade = action.NewUpgradeAction(config, spec)
 					Expect(upgrade.Run()).To(Succeed())
 					Expect(memLog.String()).To(ContainSubstring("falling back to the full image"))
+					Expect(extractor.ClientCalls).To(HaveLen(2))
+					Expect(extractor.ClientCalls[0].ImageRef).To(Equal(ownTag))
+					Expect(extractor.ClientCalls[1].ImageRef).To(Equal(fullRef))
+				})
+
+				It("finds a diff a concurrent publish dropped from the index at its own tag", func() {
+					ownTag, err := diffupgrade.BaseRefFor(diffRef, base)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(ownTag).To(Equal(diffRef + "-release-1"))
+					extractor.ResolveAnnotatedFunc = func(ref string, _ func(map[string]string) bool) (string, error) {
+						return "", fmt.Errorf("%s: no manifest in the image index matches", ref)
+					}
+					extractor.SideEffect = func(imageRef, dest, _ string) error {
+						return writeDiff(dest, base)
+					}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
 					Expect(extractor.ClientCalls).To(HaveLen(1))
-					Expect(extractor.ClientCalls[0].ImageRef).To(Equal(fullRef))
+					Expect(extractor.ClientCalls[0].ImageRef).To(Equal(ownTag))
+					Expect(diffupgrade.RecordedID(fs, activeImg)).To(Equal(target))
 				})
 
 				It("records the rootfs ID of a full upgrade and moves the old one to passive", func() {

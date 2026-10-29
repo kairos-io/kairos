@@ -24,10 +24,14 @@ import (
 // so the suite first does a full upgrade to release 1 to have its ID
 // recorded, as a node does that upgraded from a published image.
 //
-// Every diff upgrade is given a full image source that is not an image, so
-// a diff that silently fell back to the full image fails the upgrade
-// instead of passing it. It has to exist: the upgrade measures the full
-// source before it looks at the diff, and refuses one it cannot stat.
+// Every diff upgrade is given a full image source that cannot be used, so a
+// diff that silently fell back to the full image fails the upgrade instead
+// of passing it.
+//
+// The upgrade from 2 to 3 goes through a registry, the temporary one at
+// ttl.sh unless DIFF_TEST_REGISTRY names another: the suite publishes the
+// diffs to 3 from both 1 and 2 into one index, and the node has to pick the
+// one for the release it runs.
 var _ = Describe("kairos diff upgrade test", Label("diff-upgrade"), func() {
 	const (
 		work       = "/usr/local/diff-test"
@@ -36,8 +40,15 @@ var _ = Describe("kairos diff upgrade test", Label("diff-upgrade"), func() {
 	)
 	var vm VM
 	var datasource string
+	var repo string
 
 	BeforeEach(func() {
+		registry := os.Getenv("DIFF_TEST_REGISTRY")
+		if registry == "" {
+			registry = "ttl.sh"
+		}
+		repo = fmt.Sprintf("%s/kairos-diff-upgrade-%d", registry, time.Now().UnixNano())
+
 		datasource = CreateDatasource("assets/autoinstall.yaml")
 		Expect(os.Setenv("DATASOURCE", datasource)).ToNot(HaveOccurred())
 		_, vm = startVM()
@@ -96,7 +107,7 @@ var _ = Describe("kairos diff upgrade test", Label("diff-upgrade"), func() {
 
 		By("building releases 2 and 3 and the diffs between them", func() {
 			Expect(vm.Scp("assets/diff-upgrade-releases.sh", "/tmp/diff-upgrade-releases.sh", "0755")).To(Succeed())
-			out, err := vm.Sudo("sh /tmp/diff-upgrade-releases.sh 2>&1")
+			out, err := vm.Sudo("sh /tmp/diff-upgrade-releases.sh " + repo + " 2>&1")
 			Expect(err).ToNot(HaveOccurred(), out)
 			reportDiffSizes(out)
 		})
@@ -118,15 +129,44 @@ var _ = Describe("kairos diff upgrade test", Label("diff-upgrade"), func() {
 			rebootToRelease("2")
 			expectFile(testDir+"/release", "two")
 			expectFile(testDir+"/only-in-2", "only-in-2")
+			out, err := vm.Sudo(fmt.Sprintf("stat -c %%i %s/blob-2 %s/blob-2-link | uniq | wc -l", testDir, testDir))
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(strings.TrimSpace(out)).To(Equal("1"), "the hard link survives the diff")
 		})
 
-		By("upgrading from release 2 to 3 with a diff", func() {
-			diffUpgrade("d23.tar")
+		By("upgrading from release 2 to 3 with a diff picked from a registry index", func() {
+			// The full image at r3 was never pushed: the upgrade starts
+			// without it, and needs it only if the diff cannot be used.
+			out, err := vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --diff --source oci:%s:r3 2>&1", repo))
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("Diff for this release in " + repo + ":r3.diff is " + repo + "@sha256:"))
+			Expect(out).To(ContainSubstring("Applying diff"))
+			Expect(out).ToNot(ContainSubstring("falling back to the full image"))
+			Expect(out).To(ContainSubstring("Upgrade completed"))
 			rebootToRelease("3")
 			expectFile(testDir+"/release", "three")
 			expectFile(testDir+"/only-in-3", "only-in-3")
 			expectNoFile(testDir + "/only-in-2")
 			expectNoFile(testDir + "/blob-2")
+		})
+
+		By("giving the copied image a filesystem UUID of its own", func() {
+			out, err := vm.Sudo("blkid -s UUID -o value /run/initramfs/cos-state/cOS/active.img /run/initramfs/cos-state/cOS/passive.img")
+			Expect(err).ToNot(HaveOccurred(), out)
+			uuids := strings.Fields(out)
+			Expect(uuids).To(HaveLen(2), out)
+			Expect(uuids[0]).ToNot(Equal(uuids[1]), "active and passive share a filesystem UUID")
+		})
+
+		By("finding no diff for release 3 in the index and leaving the system alone", func() {
+			// The index holds diffs from 1 and 2 only, and nothing was
+			// published at the tag of a diff from 3. The upgrade falls back
+			// to a full image that was never pushed, and fails.
+			out, err := vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --diff --source oci:%s:r3 2>&1", repo))
+			Expect(err).To(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("No diff for this release in " + repo + ":r3.diff"))
+			Expect(out).To(ContainSubstring("falling back to the full image"))
+			expectNoFile("/run/initramfs/cos-state/cOS/transition.img")
 		})
 
 		By("refusing a diff made for another release and leaving the system alone", func() {

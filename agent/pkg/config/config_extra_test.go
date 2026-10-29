@@ -608,6 +608,29 @@ var _ = Describe("Specs coverage", Label("types", "config"), func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed calculating size"))
 		})
+		It("starts a diff upgrade whose full source cannot be measured", func() {
+			mainDisk := sdkPartitions.Disk{
+				Name: "device",
+				Partitions: []*sdkPartitions.Partition{
+					{
+						Name:            "device4",
+						FilesystemLabel: constants.StateLabel,
+						FS:              "ext4",
+					},
+				},
+			}
+			ghwTest = ghwMock.GhwMock{}
+			ghwTest.AddDisk(mainDisk)
+			ghwTest.CreateDevices()
+
+			cfg, err := config.ScanNoLogs(collector.Readers(strings.NewReader("#cloud-config\nupgrade:\n  diff: true\n  system:\n    source: file:/does/not/exist\n")))
+			Expect(err).ToNot(HaveOccurred())
+			c.Collector = cfg.Collector
+			// The full image is only the fall back of a diff upgrade.
+			spec, err := config.NewUpgradeSpec(c)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(spec.DiffUpgrade()).To(BeTrue())
+		})
 		It("fails when the config cannot be unmarshalled into the spec", func() {
 			mainDisk := sdkPartitions.Disk{
 				Name: "device",

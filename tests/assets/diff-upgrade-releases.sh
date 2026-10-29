@@ -17,11 +17,16 @@
 # Also leaves $W/not-an-image.tar, the full image source the suite passes
 # so that falling back to the full image fails.
 #
+# With a repository as its argument, it also publishes the diffs to 3 from
+# both 1 and 2 to the index at <repository>:r3.diff, where
+# "upgrade --diff --source oci:<repository>:r3" looks for them.
+#
 # Prints "SIZE <name> <bytes>" for each archive, and leaves the diffs in
 # $W/d12.tar, $W/d23.tar and $W/d13.tar. full-2.tar is the whole of
 # release 2 in the same format, as a stand in for the full image.
 set -e
 
+REPO=$1
 W=/usr/local/diff-test
 T=usr/share/kairos-diff-test
 
@@ -34,6 +39,8 @@ mkdir -p "$W/img2/$T"
 echo two > "$W/img2/$T/release"
 echo only-in-2 > "$W/img2/$T/only-in-2"
 dd if=/dev/urandom of="$W/img2/$T/blob-2" bs=1M count=20 2>/dev/null
+# A second name for the blob, which a diff has to keep a hard link.
+ln "$W/img2/$T/blob-2" "$W/img2/$T/blob-2-link"
 
 # The layers of release 2 rather than its mount, so the stack stays one
 # overlay deep however / itself is mounted. Release 2 is not changed from
@@ -42,7 +49,7 @@ mount -t overlay overlay -o "lowerdir=$W/up2:$W/img1,upperdir=$W/up3,workdir=$W/
 
 sed -i 's/^KAIROS_DIFF_TEST="2"$/KAIROS_DIFF_TEST="3"/' "$W/img3/etc/kairos-release"
 echo three > "$W/img3/$T/release"
-rm "$W/img3/$T/only-in-2" "$W/img3/$T/blob-2"
+rm "$W/img3/$T/only-in-2" "$W/img3/$T/blob-2" "$W/img3/$T/blob-2-link"
 echo only-in-3 > "$W/img3/$T/only-in-3"
 dd if=/dev/urandom of="$W/img3/$T/blob-3" bs=1M count=35 2>/dev/null
 
@@ -56,6 +63,11 @@ kairos-agent generate-diff --work-dir "$W" --output "$W/full-2.tar" "dir:$W/empt
 kairos-agent generate-diff --work-dir "$W" --output "$W/d12.tar" "dir:$W/img1" "dir:$W/img2"
 kairos-agent generate-diff --work-dir "$W" --output "$W/d23.tar" "dir:$W/img2" "dir:$W/img3"
 kairos-agent generate-diff --work-dir "$W" --output "$W/d13.tar" "dir:$W/img1" "dir:$W/img3"
+
+if [ -n "$REPO" ]; then
+	kairos-agent generate-diff --work-dir "$W" --push "$REPO:r3.diff" "dir:$W/img1" "dir:$W/img3"
+	kairos-agent generate-diff --work-dir "$W" --push "$REPO:r3.diff" "dir:$W/img2" "dir:$W/img3"
+fi
 
 # Release 1 stays mounted: the suite upgrades to it from there, so the node
 # records the ID of a copy of it that nothing has touched yet.
