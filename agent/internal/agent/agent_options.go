@@ -4,7 +4,6 @@ package agent
 type Options struct {
 	APIAddress string
 	Dir        []string
-	Force      bool
 	Restart    bool
 }
 
@@ -20,12 +19,6 @@ func (o *Options) Apply(opts ...Option) error {
 
 // Option is a generic option for the Agent.
 type Option func(o *Options) error
-
-// ForceAgent forces the agent to run.
-var ForceAgent Option = func(o *Options) error {
-	o.Force = true
-	return nil
-}
 
 // RestartAgent makes the agent restart on error.
 var RestartAgent Option = func(o *Options) error {

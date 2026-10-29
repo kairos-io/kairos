@@ -404,7 +404,8 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 				Name: "restart",
 			},
 			&cli.BoolFlag{
-				Name: "force",
+				Name:  "force",
+				Usage: "Deprecated: has no effect. Kept so existing invocations keep working.",
 			},
 			&cli.StringFlag{
 				Name: "api",
@@ -443,7 +444,7 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 			}
 
 			if c.Bool("force") {
-				opts = append(opts, agent.ForceAgent)
+				fmt.Fprintln(os.Stderr, "Warning: --force has no effect on 'start' and will be removed in a future release")
 			}
 
 			if c.Bool("restart") {
