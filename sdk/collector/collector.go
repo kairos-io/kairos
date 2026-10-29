@@ -35,6 +35,10 @@ var ErrCmdlineTokensSkipped = errors.New("skipped cmdline tokens")
 // node gives up and boots without the remote config.
 const configURLAttempts = 3
 
+// maxConfigURLDepth is how many config_url hops one chain may fetch before
+// the rest of the chain is skipped.
+const maxConfigURLDepth = 10
+
 // warnOut is where the collector writes its non-fatal warnings. It is stderr
 // rather than stdout because the kcrypt discovery plugin speaks JSON over
 // stdout, and it is a package var so tests can capture what was written.
@@ -101,7 +105,14 @@ type Config struct {
 // NOTE: a remote body without one of ValidFileHeaders, and a fetch that fails
 // after its retries, are both silently dropped: fetchRemoteConfig returns an
 // empty config and a nil error. Both are marked TODO there.
+// A chain that names a URL it already fetched, or that is longer than
+// maxConfigURLDepth, is not followed further: a warning names the URL and
+// the configs fetched so far are still merged.
 func (c *Config) MergeConfigURL() error {
+	return c.mergeConfigURL(map[string]bool{})
+}
+
+func (c *Config) mergeConfigURL(seen map[string]bool) error {
 	// If there is no config_url, just return (do nothing)
 	configURL := c.ConfigURL()
 	if configURL == "" {
@@ -117,6 +128,18 @@ func (c *Config) MergeConfigURL() error {
 		return fmt.Errorf("rendering config_url template: %w", err)
 	}
 
+	// A config that names its own URL, or two that name each other, would
+	// otherwise be fetched forever while the fs stage blocks the boot.
+	if seen[rendered] {
+		warnf("config_url %s was already fetched in this chain, not following it again\n", redactURL(rendered))
+		return nil
+	}
+	if len(seen) >= maxConfigURLDepth {
+		warnf("config_url chain is longer than %d, not following %s\n", maxConfigURLDepth, redactURL(rendered))
+		return nil
+	}
+	seen[rendered] = true
+
 	// fetch the remote config
 	remoteConfig, err := fetchRemoteConfig(rendered)
 	if err != nil {
@@ -124,7 +147,7 @@ func (c *Config) MergeConfigURL() error {
 	}
 
 	// recursively fetch remote configs
-	if err := remoteConfig.MergeConfigURL(); err != nil {
+	if err := remoteConfig.mergeConfigURL(seen); err != nil {
 		return err
 	}
 
