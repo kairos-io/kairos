@@ -616,6 +616,39 @@ info:
 			})
 		})
 
+		Context("scalars of a different kind", func() {
+			DescribeTable("b wins",
+				func(a, b interface{}) {
+					res, err := DeepMerge(a, b)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(res).To(Equal(b))
+				},
+				Entry("bool then string", true, "true"),
+				Entry("string then bool", "true", true),
+				Entry("string then int", "3", 3),
+				Entry("int then float", 1, 1.5),
+			)
+
+			It("merges across two sources in Configs.Merge", func() {
+				file := &Config{Sources: []string{"file"}, Values: ConfigValues{
+					"install": ConfigValues{"auto": true, "device": "auto"},
+					"other":   "kept",
+				}}
+				cmdline := &Config{Sources: []string{"cmdline"}, Values: ConfigValues{
+					"install": ConfigValues{"auto": "true", "reboot": true},
+				}}
+
+				merged, err := Configs{file, cmdline}.Merge()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(merged.Values).To(HaveKeyWithValue("other", "kept"))
+				Expect(merged.Values["install"]).To(Equal(ConfigValues{
+					"auto":   "true",
+					"device": "auto",
+					"reboot": true,
+				}))
+			})
+		})
+
 		Context("simple slices", func() {
 			a := []interface{}{"one", "three"}
 			b := []interface{}{"two", 4}
