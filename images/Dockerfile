@@ -5,7 +5,7 @@ ARG BASE_IMAGE=ubuntu:20.04
 # ghcr.io/kairos-io/kairos/kairos-init:pr-<N>) pass KAIROS_INIT_IMAGE
 # directly; everyone else keeps passing KAIROS_INIT (or lets its default
 # take effect) and the default of KAIROS_INIT_IMAGE composes the two.
-ARG KAIROS_INIT=v0.17.3
+ARG KAIROS_INIT=v4.4.0
 ARG KAIROS_INIT_IMAGE=quay.io/kairos/kairos-init:${KAIROS_INIT}
 
 FROM ${KAIROS_INIT_IMAGE} AS kairos-init
