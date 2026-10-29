@@ -360,6 +360,44 @@ info:
 				Expect(warnings.String()).To(ContainSubstring(server.URL + "/config.yaml"))
 			})
 
+			It("stops at a config_url that names itself and still merges what it fetched", func() {
+				var hits atomic.Int32
+				var server *httptest.Server
+				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if hits.Add(1) > 50 {
+						_, _ = w.Write([]byte("#cloud-config\nname: Luigi\n"))
+						return
+					}
+					_, _ = fmt.Fprintf(w, "#cloud-config\nconfig_url: %s/self.yaml?token=supersecret\nname: Mario\n", server.URL)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/self.yaml?token=supersecret"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(hits.Load()).To(Equal(int32(1)))
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(warnings.String()).To(ContainSubstring("already fetched"))
+				Expect(warnings.String()).To(ContainSubstring(server.URL + "/self.yaml"))
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+			})
+
+			It("stops a config_url chain that never repeats once it is too long", func() {
+				var hits atomic.Int32
+				var server *httptest.Server
+				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					n := hits.Add(1)
+					_, _ = fmt.Fprintf(w, "#cloud-config\nconfig_url: %s/hop-%d.yaml\n", server.URL, n)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/hop-0.yaml"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(hits.Load()).To(Equal(int32(10)))
+				Expect(warnings.String()).To(ContainSubstring("chain is longer than 10"))
+			})
+
 			It("warns when the remote config has no valid header", func() {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					_, _ = w.Write([]byte("just_a_key: not_a_cloud_config\n"))
