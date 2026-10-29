@@ -654,7 +654,7 @@ func (s *State) UKIMountESPPartition(g *herd.Graph, opts ...herd.OpOption) error
 							}, 5*time.Second,
 						)
 						for _, f := range fstab {
-							s.fstabs = append(s.fstabs, f)
+							s.appendFstab(f)
 						}
 						return err
 					}

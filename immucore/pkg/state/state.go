@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/deniswernert/go-fstab"
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
@@ -34,7 +35,10 @@ type State struct {
 	OverlayBase  string            // Overlay config, defaults to tmpfs:20%
 	CowBase      string            // tmpfs spec for the snapshot's copy-on-write store on read-only media
 	StateDir     string            // e.g. "/usr/local/.state"
-	fstabs       []*fstab.Mount
+	// herd runs the ops of a DAG layer concurrently and several of them
+	// record fstab entries, so every access to fstabs holds fstabsMu.
+	fstabsMu sync.Mutex
+	fstabs   []*fstab.Mount
 }
 
 // SortedBindMounts returns the nodes with less depth first and in alphabetical order.
@@ -162,7 +166,10 @@ func (s *State) WriteFstab() func(context.Context) error {
 			return err
 		}
 		_ = f.Close()
-		for _, fst := range s.fstabs {
+		s.fstabsMu.Lock()
+		fstabs := append([]*fstab.Mount(nil), s.fstabs...)
+		s.fstabsMu.Unlock()
+		for _, fst := range fstabs {
 			internalUtils.KLog.Logger.Debug().Str("what", fst.String()).Msg("Adding line to fstab")
 			select {
 			case <-ctx.Done():
@@ -248,6 +255,8 @@ func (s *State) LogIfErrorAndPanic(e error, msgContext string) {
 // AddToFstab will try to add an entry to the fstab list
 // Will check if the entry exists before adding it to avoid duplicates.
 func (s *State) AddToFstab(tmpFstab *fstab.Mount) {
+	s.fstabsMu.Lock()
+	defer s.fstabsMu.Unlock()
 	found := false
 	for _, f := range s.fstabs {
 		if f.Spec == tmpFstab.Spec {
@@ -258,4 +267,11 @@ func (s *State) AddToFstab(tmpFstab *fstab.Mount) {
 	if !found {
 		s.fstabs = append(s.fstabs, tmpFstab)
 	}
+}
+
+// appendFstab records fstab entries without the duplicate check AddToFstab does.
+func (s *State) appendFstab(m ...*fstab.Mount) {
+	s.fstabsMu.Lock()
+	defer s.fstabsMu.Unlock()
+	s.fstabs = append(s.fstabs, m...)
 }
