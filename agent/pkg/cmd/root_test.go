@@ -179,6 +179,37 @@ func TestStartAPIFlagHasNoDefault(t *testing.T) {
 	}
 }
 
+// `start --force` has never done anything: the option was copied from
+// `upgrade --force` and nothing reads it. Dropping the flag would break
+// units and scripts that still pass it, so it stays accepted and says in
+// --help that it is a no-op.
+func TestStartForceFlagIsDeprecatedNoOp(t *testing.T) {
+	var start *cli.Command
+	for _, c := range cmds {
+		if c.Name == "start" {
+			start = c
+			break
+		}
+	}
+	if start == nil {
+		t.Fatal("no start command registered")
+	}
+
+	var force *cli.BoolFlag
+	for _, f := range start.Flags {
+		if bf, ok := f.(*cli.BoolFlag); ok && bf.Name == "force" {
+			force = bf
+			break
+		}
+	}
+	if force == nil {
+		t.Fatal("start command no longer accepts --force, existing invocations would fail")
+	}
+	if !strings.HasPrefix(force.Usage, "Deprecated") {
+		t.Fatalf("start --force usage = %q, want it to say the flag is deprecated", force.Usage)
+	}
+}
+
 // interactive-install must still install unattended by default: the whole
 // point of the command reading install.auto is that an ISO booted with an
 // autoinstall datasource does not stop at a TUI with nobody there to answer
