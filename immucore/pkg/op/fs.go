@@ -35,7 +35,13 @@ func BaseOverlay(overlay schema.Overlay) (MountOperation, error) {
 		dat = datTmpfs
 	}
 	if len(dat) != 2 {
-		return MountOperation{}, fmt.Errorf("invalid backing base. must be a tmpfs with a size or a LABEL/UUID device. e.g. tmpfs:30%%, LABEL:COS_PERSISTENT. Input: %s", overlay.BackingBase)
+		return MountOperation{}, fmt.Errorf("invalid backing base. must be a tmpfs with a size or a LABEL/UUID device. e.g. tmpfs:30%%, LABEL=COS_PERSISTENT. Input: %s", overlay.BackingBase)
+	}
+	// Only tmpfs takes a colon. ParseMount resolves LABEL= and UUID= and passes
+	// anything else through, so LABEL:X would reach mount as the literal source
+	// and fail at boot with "no such device".
+	if (dat[0] == "LABEL" || dat[0] == "UUID") && len(datDevice) != 2 {
+		return MountOperation{}, fmt.Errorf("invalid backing base %s: a device is written %s=%s", overlay.BackingBase, dat[0], dat[1])
 	}
 
 	t := dat[0]
