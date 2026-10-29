@@ -39,18 +39,41 @@ type State struct {
 
 // SortedBindMounts returns the nodes with less depth first and in alphabetical order.
 func (s *State) SortedBindMounts() []string {
-	bindMountsCopy := s.BindMounts
+	bindMountsCopy := append([]string(nil), s.BindMounts...)
 	sort.Slice(bindMountsCopy, func(i, j int) bool {
-		iAry := strings.Split(bindMountsCopy[i], "/")
-		jAry := strings.Split(bindMountsCopy[j], "/")
-		iSize := len(iAry)
-		jSize := len(jAry)
-		if iSize == jSize {
-			return strings.Compare(iAry[len(iAry)-1], jAry[len(jAry)-1]) == -1
-		}
-		return iSize < jSize
+		return mountsBefore(bindMountsCopy[i], bindMountsCopy[j])
 	})
 	return bindMountsCopy
+}
+
+// SortedCustomMounts returns the devices of s.CustomMounts ordered by their
+// mountpoint, with less depth first, so a volume is never mounted before the
+// volume its mountpoint sits under. Ranging over the map instead lets the
+// parent mount cover the child on some boots.
+func (s *State) SortedCustomMounts() []string {
+	devices := make([]string, 0, len(s.CustomMounts))
+	for what := range s.CustomMounts {
+		devices = append(devices, what)
+	}
+	sort.Slice(devices, func(i, j int) bool {
+		wi, wj := s.CustomMounts[devices[i]], s.CustomMounts[devices[j]]
+		if filepath.Clean(wi) == filepath.Clean(wj) {
+			return devices[i] < devices[j]
+		}
+		return mountsBefore(wi, wj)
+	})
+	return devices
+}
+
+// mountsBefore orders mountpoints with less depth first and alphabetically
+// within one depth, so a parent always comes before anything mounted under it.
+func mountsBefore(a, b string) bool {
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	aDepth, bDepth := strings.Count(a, "/"), strings.Count(b, "/")
+	if aDepth == bDepth {
+		return a < b
+	}
+	return aDepth < bDepth
 }
 
 func (s *State) path(p ...string) string {

@@ -423,7 +423,8 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 			var err *multierror.Error
 			internalUtils.KLog.Logger.Debug().Interface("mounts", s.CustomMounts).Msg("Mounting custom mounts")
 
-			for what, where := range s.CustomMounts {
+			for _, what := range s.SortedCustomMounts() {
+				where := s.CustomMounts[what]
 				internalUtils.KLog.Logger.Debug().Str("what", what).Str("where", where).Msg("Custom mount start")
 				// If `what` is a /dev/disk/by-label/<X> path (the common
 				// case from cos-layout.env's VOLUMES entries), resolve to
