@@ -133,16 +133,24 @@ var _ = Describe("Releases with names that are not semver", func() {
 		return github.FindReleases(ctx, "fake-token", "test/odd", false)
 	}
 
-	It("panics on a release with a null name", func() {
-		Expect(func() { _, _ = findWith(`[{"name":null},{"name":"v1.0.0"}]`) }).To(Panic())
+	It("skips a release with a null name", func() {
+		releases, err := findWith(`[{"name":null},{"name":"v1.0.0"}]`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(releases).To(HaveLen(1))
+		Expect(releases[0].Original()).To(Equal("v1.0.0"))
 	})
 
-	It("panics on a release with no name", func() {
-		Expect(func() { _, _ = findWith(`[{"tag_name":"v1.0.0"},{"name":"v1.0.0"}]`) }).To(Panic())
+	It("skips a release with no name", func() {
+		releases, err := findWith(`[{"tag_name":"v1.0.0"},{"name":"v1.0.0"}]`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(releases).To(HaveLen(1))
 	})
 
-	It("panics on a v-prefixed name that is not semver", func() {
-		Expect(func() { _, _ = findWith(`[{"name":"v2.0.0 - Hotfix"},{"name":"v1.0.0"}]`) }).To(Panic())
+	It("skips a v-prefixed name that is not semver", func() {
+		releases, err := findWith(`[{"name":"v2.0.0 - Hotfix"},{"name":"v1.0.0"}]`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(releases).To(HaveLen(1))
+		Expect(releases[0].Original()).To(Equal("v1.0.0"))
 	})
 })
 
