@@ -314,16 +314,84 @@ func GetImage(targetImage, targetPlatform string, auth *registrytypes.AuthConfig
 	remoteOpts := []remote.Option{
 		remote.WithTransport(tr),
 		remote.WithPlatform(*platform),
-	}
-	if auth != nil && (o.authRegistry == "" || ref.Context().RegistryStr() == o.authRegistry) {
-		remoteOpts = append(remoteOpts, remote.WithAuth(staticAuth{auth}))
-	} else {
-		remoteOpts = append(remoteOpts, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+		remoteAuth(ref, auth, o),
 	}
 
 	image, err = remote.Image(ref, remoteOpts...)
 
 	return image, err
+}
+
+// remoteAuth picks the credentials for ref: auth when it is given and scoped
+// to ref's registry, or not scoped at all, and the default keychain
+// otherwise.
+func remoteAuth(ref name.Reference, auth *registrytypes.AuthConfig, o *getOptions) remote.Option {
+	if auth != nil && (o.authRegistry == "" || ref.Context().RegistryStr() == o.authRegistry) {
+		return remote.WithAuth(staticAuth{auth})
+	}
+	return remote.WithAuthFromKeychain(authn.DefaultKeychain)
+}
+
+// ErrNoMatchingManifest is returned by ResolveAnnotated when an image index
+// has no manifest whose annotations match.
+var ErrNoMatchingManifest = errors.New("no manifest in the image index matches")
+
+// ResolveAnnotated looks targetImage up in its registry without pulling it.
+// When it is an image index, it returns the reference, by digest, of the
+// first manifest whose annotations satisfy match, or an error wrapping
+// ErrNoMatchingManifest. When it is a single image, it returns targetImage
+// unchanged, for the caller to check once it is pulled.
+//
+// It picks by annotation where GetImage picks by platform, for an index
+// whose entries differ in something the platform does not say.
+func ResolveAnnotated(targetImage string, match func(annotations map[string]string) bool, auth *registrytypes.AuthConfig, t http.RoundTripper, opts ...GetOption) (string, error) {
+	o := &getOptions{}
+	for _, fn := range opts {
+		fn(o)
+	}
+
+	var nameOpts []name.Option
+	if o.insecure {
+		nameOpts = append(nameOpts, name.Insecure)
+	}
+	ref, err := name.ParseReference(targetImage, nameOpts...)
+	if err != nil {
+		return "", err
+	}
+
+	if t == nil {
+		if o.insecure {
+			t = insecureTransport(http.DefaultTransport)
+		} else {
+			t = http.DefaultTransport
+		}
+	}
+	tr := transport.NewRetry(t,
+		transport.WithRetryBackoff(defaultRetryBackoff),
+		transport.WithRetryPredicate(defaultRetryPredicate),
+	)
+
+	desc, err := remote.Get(ref, remote.WithTransport(tr), remoteAuth(ref, auth, o))
+	if err != nil {
+		return "", err
+	}
+	if !desc.MediaType.IsIndex() {
+		return targetImage, nil
+	}
+	idx, err := desc.ImageIndex()
+	if err != nil {
+		return "", err
+	}
+	manifest, err := idx.IndexManifest()
+	if err != nil {
+		return "", err
+	}
+	for _, m := range manifest.Manifests {
+		if match(m.Annotations) {
+			return ref.Context().Digest(m.Digest.String()).String(), nil
+		}
+	}
+	return "", fmt.Errorf("%s: %w", targetImage, ErrNoMatchingManifest)
 }
 
 func GetOCIImageSize(targetImage, targetPlatform string, auth *registrytypes.AuthConfig, t http.RoundTripper, opts ...GetOption) (int64, error) {

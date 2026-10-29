@@ -74,6 +74,9 @@ func (u *UpgradeAction) diffDeploy(e *elemental.Elemental, upgradeImg *sdkImages
 		return "", err
 	}
 	u.Info("Base release %s is %s", baseFile, baseID)
+	if diffSrc, err = u.diffForBase(diffSrc, baseID); err != nil {
+		return "", err
+	}
 
 	u.Info("Copying %s to %s to apply the diff onto", baseFile, upgradeImg.File)
 	// cp rather than a copy through the Fs, so the copy stays as sparse as
@@ -99,4 +102,35 @@ func (u *UpgradeAction) diffDeploy(e *elemental.Elemental, upgradeImg *sdkImages
 		return "", err
 	}
 	return m.Target, utils.CreateDirStructure(u.config.Fs, upgradeImg.MountPoint)
+}
+
+// annotatedResolver is implemented by an image extractor that can look an
+// image index up in its registry and pick an entry by its annotations.
+type annotatedResolver interface {
+	ResolveAnnotated(imageRef string, match func(annotations map[string]string) bool) (string, error)
+}
+
+// diffForBase narrows a registry diff source down to the diff for baseID.
+// The diffs of a release are published together in an image index, one
+// entry per base (see diffupgrade.PushToIndex), so the entry for this node
+// is picked from the index, which is a few KB, before anything is pulled.
+// A source that is a single image is returned as it is, and its base is
+// checked once it is unpacked.
+func (u *UpgradeAction) diffForBase(src *sdkImages.ImageSource, baseID string) (*sdkImages.ImageSource, error) {
+	if !src.IsDocker() {
+		return src, nil
+	}
+	r, ok := u.config.ImageExtractor.(annotatedResolver)
+	if !ok {
+		return src, nil
+	}
+	ref, err := r.ResolveAnnotated(src.Value(), func(a map[string]string) bool { return a[diffupgrade.BaseLabel] == baseID })
+	if err != nil {
+		return nil, fmt.Errorf("finding the diff for %s in %s: %w", baseID, src.Value(), err)
+	}
+	if ref == src.Value() {
+		return src, nil
+	}
+	u.Info("Diff for this release in %s is %s", src.Value(), ref)
+	return sdkImages.NewDockerSrc(ref), nil
 }

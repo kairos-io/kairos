@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 
@@ -58,10 +59,16 @@ func GenerateDiff(c *sdkConfig.Config, base, target, output, push, workDir strin
 		if err != nil {
 			return fmt.Errorf("parsing %s: %w", push, err)
 		}
-		c.Logger.Infof("Pushing the diff to %s", ref.Name())
-		if err := remote.Write(ref, img, remote.WithAuthFromKeychain(authn.DefaultKeychain)); err != nil {
+		platform, err := v1.ParsePlatform(c.Platform.String())
+		if err != nil {
 			return err
 		}
+		c.Logger.Infof("Adding the diff to the index at %s", ref.Name())
+		entries, err := diffupgrade.PushToIndex(ref, img, m, platform, remote.WithAuthFromKeychain(authn.DefaultKeychain))
+		if err != nil {
+			return err
+		}
+		c.Logger.Infof("The index at %s now holds %d diffs, one per base release", ref.Name(), entries)
 		if t, ok := ref.(name.Tag); ok {
 			tag = t.Name()
 		}

@@ -662,6 +662,40 @@ var _ = Describe("Upgrade Actions test", func() {
 					Expect(extractor.ClientCalls).To(HaveLen(1))
 				})
 
+				It("pulls the entry of the diff index whose base is this release", func() {
+					const ownDiff = "quay.io/kairos/test@sha256:0000000000000000000000000000000000000000000000000000000000000001"
+					extractor.ResolveAnnotatedFunc = func(ref string, match func(map[string]string) bool) (string, error) {
+						Expect(ref).To(Equal(diffRef))
+						// An index with diffs from two releases.
+						if match(map[string]string{diffupgrade.BaseLabel: "sha256:release-0"}) {
+							return "quay.io/kairos/test@sha256:wrong", nil
+						}
+						if match(map[string]string{diffupgrade.BaseLabel: base}) {
+							return ownDiff, nil
+						}
+						return "", fmt.Errorf("no match")
+					}
+					extractor.SideEffect = func(imageRef, dest, _ string) error {
+						return writeDiff(dest, base)
+					}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+					Expect(extractor.ClientCalls).To(HaveLen(1))
+					Expect(extractor.ClientCalls[0].ImageRef).To(Equal(ownDiff))
+					Expect(diffupgrade.RecordedID(fs, activeImg)).To(Equal(target))
+				})
+
+				It("falls back without pulling anything from the index when it has no diff for this release", func() {
+					extractor.ResolveAnnotatedFunc = func(ref string, _ func(map[string]string) bool) (string, error) {
+						return "", fmt.Errorf("%s: no manifest in the image index matches", ref)
+					}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+					Expect(memLog.String()).To(ContainSubstring("falling back to the full image"))
+					Expect(extractor.ClientCalls).To(HaveLen(1))
+					Expect(extractor.ClientCalls[0].ImageRef).To(Equal(fullRef))
+				})
+
 				It("records the rootfs ID of a full upgrade and moves the old one to passive", func() {
 					spec.Diff = false
 					upgrade = action.NewUpgradeAction(config, spec)

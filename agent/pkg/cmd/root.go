@@ -982,14 +982,14 @@ BASE and TARGET are each an image reference (pulled from a registry, or from the
 
 Both releases are unpacked under --work-dir, which needs room for two root filesystems.
 
-Pass --push to push the diff to a registry, at the tag of the target with ".diff" appended, where "upgrade --diff" finds it. Otherwise it is written to --output as an image archive, which "upgrade --diff-source ocifile:FILE" applies directly.
+Pass --push to publish the diff to a registry, at the tag of the target with ".diff" appended, where "upgrade --diff" finds it. That tag is an image index holding one diff per base release, so the diffs to one release from several earlier ones live side by side, and a node pulls only the one for the release it runs. Publishing again from the same base replaces that base's diff. Otherwise the diff is written to --output as an image archive, which "upgrade --diff-source ocifile:FILE" applies directly.
 
 $ kairos-agent generate-diff --push quay.io/kairos/hadron:v1.2.0.diff quay.io/kairos/hadron:v1.1.0 quay.io/kairos/hadron:v1.2.0
 `,
 		UsageText: "generate-diff [--output FILE] [--push REF] BASE TARGET",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "output", Usage: "Write the diff to this image archive. Defaults to diff.tar when --push is not set"},
-			&cli.StringFlag{Name: "push", Usage: "Push the diff to this image reference"},
+			&cli.StringFlag{Name: "push", Usage: "Add the diff to the image index at this reference, replacing any diff in it from the same base"},
 			&cli.StringFlag{Name: "platform", Usage: "Platform to pull image references for", Value: fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)},
 			&cli.StringFlag{Name: "work-dir", Usage: "Directory to unpack both releases in", Value: os.TempDir()},
 		},
