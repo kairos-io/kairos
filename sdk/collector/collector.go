@@ -297,6 +297,9 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 
 	// We don't support merging different data structures
 	if typeA.Kind() != typeB.Kind() {
+		if isScalar(typeA.Kind()) && isScalar(typeB.Kind()) {
+			return b, nil
+		}
 		return ConfigValues{}, fmt.Errorf("cannot merge %s with %s", typeA.String(), typeB.String())
 	}
 
@@ -318,6 +321,17 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 
 	// for any other type, b should take precedence
 	return b, nil
+}
+
+func isScalar(k reflect.Kind) bool {
+	switch k {
+	case reflect.Bool, reflect.String,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return true
+	}
+	return false
 }
 
 // String returns a string which is a Yaml representation of the Config.
