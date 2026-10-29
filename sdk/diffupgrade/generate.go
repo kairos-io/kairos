@@ -39,11 +39,19 @@ type Root struct {
 // Hard links are written as separate files, and sockets are skipped, as a
 // root filesystem image has no use for either.
 func Generate(base, target Root, w io.Writer) (*Manifest, error) {
-	baseFingerprint, err := Fingerprint(osFS{}, base.Dir)
+	baseRelease, err := Fingerprint(osFS{}, base.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("base: %w", err)
 	}
-	targetFingerprint, err := Fingerprint(osFS{}, target.Dir)
+	targetRelease, err := Fingerprint(osFS{}, target.Dir)
+	if err != nil {
+		return nil, fmt.Errorf("target: %w", err)
+	}
+	baseID, err := RootfsID(base.Dir)
+	if err != nil {
+		return nil, fmt.Errorf("base: %w", err)
+	}
+	targetID, err := RootfsID(target.Dir)
 	if err != nil {
 		return nil, fmt.Errorf("target: %w", err)
 	}
@@ -53,12 +61,14 @@ func Generate(base, target Root, w io.Writer) (*Manifest, error) {
 		return nil, err
 	}
 	m := &Manifest{
-		Version:   FormatVersion,
-		Base:      baseFingerprint,
-		Target:    targetFingerprint,
-		BaseRef:   base.Ref,
-		TargetRef: target.Ref,
-		Deleted:   deleted,
+		Version:       FormatVersion,
+		Base:          baseID,
+		Target:        targetID,
+		BaseRelease:   baseRelease,
+		TargetRelease: targetRelease,
+		BaseRef:       base.Ref,
+		TargetRef:     target.Ref,
+		Deleted:       deleted,
 	}
 
 	tw := tar.NewWriter(w)

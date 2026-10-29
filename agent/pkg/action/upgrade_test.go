@@ -520,14 +520,15 @@ var _ = Describe("Upgrade Actions test", func() {
 			Context("with a diff upgrade", Label("diff"), func() {
 				const fullRef = "quay.io/kairos/test:v2"
 				const diffRef = fullRef + diffupgrade.TagSuffix
-				var base string
+				const base = "sha256:release-1"
+				const target = "sha256:release-2"
 
 				// writeDiff unpacks a diff for the given base into dest, the
 				// way the extractor would.
 				writeDiff := func(dest, forBase string) error {
 					release := "GRUB_ENTRY_NAME=TESTOS\nKAIROS_VERSION=v2\nKAIROS_INIT_VERSION=\"v4.3.0\"\n"
 					targetSum := sha256.Sum256([]byte(release))
-					manifest := fmt.Sprintf(`{"version":1,"base":%q,"target":"sha256:%x","deleted":["usr/lib/old"]}`, forBase, targetSum)
+					manifest := fmt.Sprintf(`{"version":1,"base":%q,"target":%q,"target-release":"sha256:%x","deleted":["usr/lib/old"]}`, forBase, target, targetSum)
 					for path, content := range map[string]string{
 						"usr/bin/new":            "new",
 						"etc/kairos-release":     release,
@@ -550,9 +551,9 @@ var _ = Describe("Upgrade Actions test", func() {
 
 					Expect(fsutils.MkdirAll(fs, filepath.Join(spec.Active.MountPoint, "usr/lib"), constants.DirPerm)).To(Succeed())
 					Expect(fs.WriteFile(filepath.Join(spec.Active.MountPoint, "usr/lib/old"), []byte("old"), constants.FilePerm)).To(Succeed())
-					var err error
-					base, err = diffupgrade.Fingerprint(fs, spec.Active.MountPoint)
-					Expect(err).ToNot(HaveOccurred())
+					// What the install or upgrade that wrote active.img
+					// recorded for it.
+					Expect(diffupgrade.RecordID(fs, activeImg, base)).To(Succeed())
 
 					// The transition image starts as a copy of active.img.
 					previous := runner.SideEffect
@@ -595,6 +596,28 @@ var _ = Describe("Upgrade Actions test", func() {
 					Expect(fs.ReadFile(passiveImg)).To(Equal([]byte("active")))
 					_, err = fs.Stat(spec.Active.File)
 					Expect(err).To(HaveOccurred(), "the transition image is gone")
+
+					// The IDs follow the images through the swap.
+					Expect(diffupgrade.RecordedID(fs, activeImg)).To(Equal(target))
+					Expect(diffupgrade.RecordedID(fs, passiveImg)).To(Equal(base))
+				})
+
+				It("falls back without pulling the diff when no ID was recorded for the base", func() {
+					Expect(diffupgrade.ForgetID(fs, activeImg)).To(Succeed())
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+					Expect(memLog.String()).To(ContainSubstring(diffupgrade.ErrNoRecordedID.Error()))
+					Expect(extractor.ClientCalls).To(HaveLen(1))
+					Expect(extractor.ClientCalls[0].ImageRef).To(Equal(fullRef))
+				})
+
+				It("does not trust an ID recorded before the base image was rewritten", func() {
+					// What an older agent resetting the node would leave.
+					Expect(fs.WriteFile(activeImg, []byte("rewritten by something else"), constants.FilePerm)).To(Succeed())
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+					Expect(memLog.String()).To(ContainSubstring("rewritten after its ID was recorded"))
+					Expect(extractor.WasCalledWithImageRef(diffRef)).To(BeFalse())
 				})
 
 				It("falls back to the full image when the diff is for another release", func() {
@@ -637,6 +660,19 @@ var _ = Describe("Upgrade Actions test", func() {
 					Expect(upgrade.Run()).To(Succeed())
 					Expect(memLog.String()).To(ContainSubstring("pinned by digest"))
 					Expect(extractor.ClientCalls).To(HaveLen(1))
+				})
+
+				It("records the rootfs ID of a full upgrade and moves the old one to passive", func() {
+					spec.Diff = false
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+
+					root, err := fs.RawPath(spec.Active.MountPoint)
+					Expect(err).ToNot(HaveOccurred())
+					expected, err := diffupgrade.RootfsID(root)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(diffupgrade.RecordedID(fs, activeImg)).To(Equal(expected))
+					Expect(diffupgrade.RecordedID(fs, passiveImg)).To(Equal(base))
 				})
 
 				It("uses diff-source when it is set", func() {

@@ -27,6 +27,7 @@ import (
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -188,6 +189,12 @@ var _ = Describe("Reset action tests", func() {
 		Describe("With EFI", func() {
 			It("Successfully resets on non-squashfs recovery", func() {
 				Expect(reset.Run()).To(BeNil())
+
+				By("recording the release active and passive hold, for diff upgrades")
+				activeID, err := diffupgrade.RecordedID(fs, spec.Active.File)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(activeID).To(HavePrefix("sha256:"))
+				Expect(diffupgrade.RecordedID(fs, spec.Passive.File)).To(Equal(activeID))
 			})
 			It("Successfully resets on non-squashfs recovery including persistent data", func() {
 				spec.FormatPersistent = true

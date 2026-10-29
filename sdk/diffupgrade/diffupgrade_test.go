@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
@@ -20,6 +21,13 @@ type osFS struct{}
 
 func (osFS) ReadFile(name string) ([]byte, error) { return os.ReadFile(name) }
 func (osFS) RemoveAll(path string) error          { return os.RemoveAll(path) }
+func (osFS) Remove(path string) error             { return os.Remove(path) }
+func (osFS) Stat(name string) (os.FileInfo, error) {
+	return os.Stat(name)
+}
+func (osFS) WriteFile(name string, data []byte, perm os.FileMode) error {
+	return os.WriteFile(name, data, perm)
+}
 
 func writeTree(root string, files map[string]string) {
 	for p, content := range files {
@@ -90,12 +98,15 @@ var _ = Describe("diff upgrades", func() {
 		m, err := diffupgrade.Generate(diffupgrade.Root{Dir: base, Ref: "a:v1"}, diffupgrade.Root{Dir: target, Ref: "a:v2"}, &discard{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(m.Deleted).To(Equal([]string{"usr/lib/gone", "usr/share/olddir"}))
-		expected, err := diffupgrade.Fingerprint(osFS{}, base)
+		expected, err := diffupgrade.RootfsID(base)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(m.Base).To(Equal(expected))
-		expected, err = diffupgrade.Fingerprint(osFS{}, target)
+		expected, err = diffupgrade.RootfsID(target)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(m.Target).To(Equal(expected))
+		expected, err = diffupgrade.Fingerprint(osFS{}, target)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(m.TargetRelease).To(Equal(expected))
 		Expect(m.BaseRef).To(Equal("a:v1"))
 		Expect(m.TargetRef).To(Equal("a:v2"))
 	})
@@ -114,7 +125,7 @@ var _ = Describe("diff upgrades", func() {
 
 		work := filepath.Join(GinkgoT().TempDir(), "root")
 		Expect(exec.Command("cp", "-a", base, work).Run()).To(Succeed())
-		fingerprint, err := diffupgrade.Fingerprint(osFS{}, work)
+		fingerprint, err := diffupgrade.RootfsID(work)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(image.ExtractOCIImage(img, work)).To(Succeed())
@@ -123,13 +134,15 @@ var _ = Describe("diff upgrades", func() {
 
 	It("turns a copy of the base into the target", func() {
 		work, fingerprint := unpackOntoBase()
-		Expect(diffupgrade.Apply(osFS{}, work, fingerprint)).To(Succeed())
+		m, err := diffupgrade.Apply(osFS{}, work, fingerprint)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(tree(work)).To(Equal(tree(target)))
+		Expect(diffupgrade.RootfsID(work)).To(Equal(m.Target), "the result is the target release")
 	})
 
 	It("refuses a diff computed against another release", func() {
 		work, _ := unpackOntoBase()
-		err := diffupgrade.Apply(osFS{}, work, "sha256:somethingelse")
+		_, err := diffupgrade.Apply(osFS{}, work, "sha256:somethingelse")
 		Expect(err).To(MatchError(diffupgrade.ErrBaseMismatch))
 		// Nothing was deleted on a refusal.
 		Expect(filepath.Join(work, "usr/lib/gone")).To(BeAnExistingFile())
@@ -139,7 +152,8 @@ var _ = Describe("diff upgrades", func() {
 		work, fingerprint := unpackOntoBase()
 		// Something else rewrote the release file after the diff landed.
 		Expect(os.WriteFile(filepath.Join(work, "etc/kairos-release"), []byte("tampered"), 0o644)).To(Succeed())
-		Expect(diffupgrade.Apply(osFS{}, work, fingerprint)).To(MatchError(ContainSubstring("expected")))
+		_, err := diffupgrade.Apply(osFS{}, work, fingerprint)
+		Expect(err).To(MatchError(ContainSubstring("expected")))
 	})
 
 	It("tells an image archive from a root filesystem tarball", func() {
@@ -172,7 +186,87 @@ var _ = Describe("diff upgrades", func() {
 		writeTree(root, map[string]string{
 			diffupgrade.ManifestPath: `{"version":1,"base":"b","deleted":["../escape"]}`,
 		})
-		Expect(diffupgrade.Apply(osFS{}, root, "b")).To(MatchError(ContainSubstring("outside the root")))
+		_, err := diffupgrade.Apply(osFS{}, root, "b")
+		Expect(err).To(MatchError(ContainSubstring("outside the root")))
+	})
+
+	Describe("RootfsID", func() {
+		copyOf := func(dir string) string {
+			dst := filepath.Join(GinkgoT().TempDir(), "copy")
+			Expect(exec.Command("cp", "-a", dir, dst).Run()).To(Succeed())
+			return dst
+		}
+
+		It("is the same for a copy, whatever the times and empty directories", func() {
+			dup := copyOf(base)
+			later := time.Now().Add(time.Hour)
+			Expect(os.Chtimes(filepath.Join(dup, "usr/bin/changed"), later, later)).To(Succeed())
+			Expect(os.MkdirAll(filepath.Join(dup, "lost+found"), 0o700)).To(Succeed())
+			Expect(os.MkdirAll(filepath.Join(dup, "proc"), 0o555)).To(Succeed())
+			Expect(diffupgrade.RootfsID(dup)).To(Equal(must(diffupgrade.RootfsID(base))))
+		})
+
+		It("differs when a file the kairos-release fingerprint does not see changes", func() {
+			dup := copyOf(base)
+			Expect(os.WriteFile(filepath.Join(dup, "usr/bin/unchanged"), []byte("rebuilt"), 0o644)).To(Succeed())
+			Expect(diffupgrade.Fingerprint(osFS{}, dup)).To(Equal(must(diffupgrade.Fingerprint(osFS{}, base))))
+			Expect(diffupgrade.RootfsID(dup)).ToNot(Equal(must(diffupgrade.RootfsID(base))))
+		})
+
+		It("differs on permissions, link targets and added files", func() {
+			id := must(diffupgrade.RootfsID(base))
+
+			dup := copyOf(base)
+			Expect(os.Chmod(filepath.Join(dup, "usr/bin/changed"), 0o755)).To(Succeed())
+			Expect(diffupgrade.RootfsID(dup)).ToNot(Equal(id))
+
+			dup = copyOf(base)
+			Expect(os.Remove(filepath.Join(dup, "usr/bin/link"))).To(Succeed())
+			Expect(os.Symlink("unchanged", filepath.Join(dup, "usr/bin/link"))).To(Succeed())
+			Expect(diffupgrade.RootfsID(dup)).ToNot(Equal(id))
+
+			dup = copyOf(base)
+			Expect(os.WriteFile(filepath.Join(dup, "extra"), nil, 0o644)).To(Succeed())
+			Expect(diffupgrade.RootfsID(dup)).ToNot(Equal(id))
+		})
+	})
+
+	Describe("recorded IDs", func() {
+		var img string
+
+		BeforeEach(func() {
+			img = filepath.Join(GinkgoT().TempDir(), "active.img")
+			Expect(os.WriteFile(img, []byte("image"), 0o600)).To(Succeed())
+		})
+
+		It("returns what was recorded while the image is unchanged", func() {
+			Expect(diffupgrade.RecordID(osFS{}, img, "sha256:abc")).To(Succeed())
+			Expect(diffupgrade.RecordedID(osFS{}, img)).To(Equal("sha256:abc"))
+			// A rename keeps it, as the ID travels with the image.
+			moved := filepath.Join(filepath.Dir(img), "passive.img")
+			Expect(os.Rename(img, moved)).To(Succeed())
+			Expect(os.Rename(img+diffupgrade.SidecarSuffix, moved+diffupgrade.SidecarSuffix)).To(Succeed())
+			Expect(diffupgrade.RecordedID(osFS{}, moved)).To(Equal("sha256:abc"))
+		})
+
+		It("refuses an ID recorded before the image was rewritten", func() {
+			Expect(diffupgrade.RecordID(osFS{}, img, "sha256:abc")).To(Succeed())
+			later := time.Now().Add(time.Minute)
+			Expect(os.WriteFile(img, []byte("other"), 0o600)).To(Succeed())
+			Expect(os.Chtimes(img, later, later)).To(Succeed())
+			_, err := diffupgrade.RecordedID(osFS{}, img)
+			Expect(err).To(MatchError(diffupgrade.ErrNoRecordedID))
+		})
+
+		It("has none when nothing was recorded or it was forgotten", func() {
+			_, err := diffupgrade.RecordedID(osFS{}, img)
+			Expect(err).To(MatchError(diffupgrade.ErrNoRecordedID))
+			Expect(diffupgrade.RecordID(osFS{}, img, "sha256:abc")).To(Succeed())
+			Expect(diffupgrade.ForgetID(osFS{}, img)).To(Succeed())
+			Expect(diffupgrade.ForgetID(osFS{}, img)).To(Succeed(), "forgetting twice is fine")
+			_, err = diffupgrade.RecordedID(osFS{}, img)
+			Expect(err).To(MatchError(diffupgrade.ErrNoRecordedID))
+		})
 	})
 
 	DescribeTable("names the diff of a full image",
@@ -192,6 +286,11 @@ var _ = Describe("diff upgrades", func() {
 })
 
 const sixtyFourZeros = "0000000000000000000000000000000000000000000000000000000000000000"
+
+func must(s string, err error) string {
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+	return s
+}
 
 type discard struct{}
 

@@ -9,8 +9,10 @@
 # the image, as it would in a real release built from the same base.
 #
 # Release 2 adds a 20 MiB blob, a file and a line in /etc/kairos-release.
-# Release 3 drops the blob and the file of release 2, and adds its own.
-# The blobs are random so compression does not hide their size.
+# Release 3 drops the blob and the file of release 2, and adds its own blob
+# of 35 MiB. The blobs are random so compression does not hide their size,
+# and of different sizes so each diff has a size of its own: about 20 MiB
+# for 1 to 2, and about 35 MiB for 2 to 3 and for 1 to 3.
 #
 # Also leaves $W/not-an-image.tar, the full image source the suite passes
 # so that falling back to the full image fails.
@@ -42,7 +44,7 @@ sed -i 's/^KAIROS_DIFF_TEST="2"$/KAIROS_DIFF_TEST="3"/' "$W/img3/etc/kairos-rele
 echo three > "$W/img3/$T/release"
 rm "$W/img3/$T/only-in-2" "$W/img3/$T/blob-2"
 echo only-in-3 > "$W/img3/$T/only-in-3"
-dd if=/dev/urandom of="$W/img3/$T/blob-3" bs=1M count=20 2>/dev/null
+dd if=/dev/urandom of="$W/img3/$T/blob-3" bs=1M count=35 2>/dev/null
 
 echo 'not an image' > "$W/not-an-image.tar"
 
@@ -55,7 +57,9 @@ kairos-agent generate-diff --work-dir "$W" --output "$W/d12.tar" "dir:$W/img1" "
 kairos-agent generate-diff --work-dir "$W" --output "$W/d23.tar" "dir:$W/img2" "dir:$W/img3"
 kairos-agent generate-diff --work-dir "$W" --output "$W/d13.tar" "dir:$W/img1" "dir:$W/img3"
 
-umount "$W/img3" "$W/img2" "$W/img1"
+# Release 1 stays mounted: the suite upgrades to it from there, so the node
+# records the ID of a copy of it that nothing has touched yet.
+umount "$W/img3" "$W/img2"
 
 for name in full-2 d12 d23 d13; do
 	echo "SIZE $name $(stat -c %s "$W/$name.tar")"

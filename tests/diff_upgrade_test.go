@@ -18,6 +18,12 @@ import (
 // through both with diffs only, and then runs the acceptance checks on the
 // result.
 //
+// A diff applies only onto an image whose rootfs ID the node recorded when
+// it deployed that image. The ID recorded at install is the ISO's, and
+// release 1 here is the installed image after the install has changed it,
+// so the suite first does a full upgrade to release 1 to have its ID
+// recorded, as a node does that upgraded from a published image.
+//
 // Every diff upgrade is given a full image source that is not an image, so
 // a diff that silently fell back to the full image fails the upgrade
 // instead of passing it. It has to exist: the upgrade measures the full
@@ -95,6 +101,18 @@ var _ = Describe("kairos diff upgrade test", Label("diff-upgrade"), func() {
 			reportDiffSizes(out)
 		})
 
+		By("upgrading to release 1 in full, which records its rootfs ID", func() {
+			out, err := vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source dir:%s/img1 2>&1", work))
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("Rootfs ID of"))
+			Expect(out).To(ContainSubstring("Upgrade completed"))
+			vm.Reboot()
+			expectRebootedToActive(vm)
+			out, err = vm.Sudo("cat /run/initramfs/cos-state/cOS/active.img.id")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring(`"rootfs-id":"sha256:`))
+		})
+
 		By("upgrading from release 1 to 2 with a diff", func() {
 			diffUpgrade("d12.tar")
 			rebootToRelease("2")
@@ -145,6 +163,17 @@ func reportDiffSizes(out string) {
 	}
 	Expect(sizes).To(HaveKey("full-2"), out)
 	full := sizes["full-2"]
+
+	// Each diff is its random blob plus a few small files and the archive
+	// around them, so it lands within 1 MiB above the blob. A diff that
+	// carried anything else, or missed its blob, falls outside.
+	const mib = 1 << 20
+	for name, blob := range map[string]int64{"d12": 20, "d23": 35, "d13": 35} {
+		Expect(sizes).To(HaveKey(name), out)
+		Expect(sizes[name]).To(And(BeNumerically(">=", blob*mib), BeNumerically("<", (blob+1)*mib)),
+			fmt.Sprintf("%s is %d bytes, expected %d MiB and less than 1 MiB more", name, sizes[name], blob))
+	}
+	Expect(full).To(BeNumerically(">", sizes["d13"]))
 
 	var b strings.Builder
 	b.WriteString("### Diff upgrade sizes\n\n")

@@ -7,8 +7,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// ignoredXattrs are extended attributes that describe the node rather than
+// the release. SELinux labels are set by relabeling on the node, against
+// the policy it runs, and a host that unpacks or reads an image can add its
+// own. Counting them would make two copies of one release look different.
+var ignoredXattrs = map[string]bool{"security.selinux": true}
+
 // xattrs returns the extended attributes of path, without following a
-// symlink. File capabilities and SELinux labels live here, and an upgrade
+// symlink, minus ignoredXattrs. File capabilities live here, and an upgrade
 // that dropped them would leave binaries such as ping unable to run.
 func xattrs(path string) (map[string]string, error) {
 	size, err := unix.Llistxattr(path, nil)
@@ -29,6 +35,9 @@ func xattrs(path string) (map[string]string, error) {
 			continue
 		}
 		k := string(key)
+		if ignoredXattrs[k] {
+			continue
+		}
 		vsize, err := unix.Lgetxattr(path, k, nil)
 		if err != nil {
 			return nil, err

@@ -4,7 +4,8 @@
 // A diff is an ordinary OCI image with a single layer. The layer holds every
 // file of the target release that is new or different from the base release,
 // plus a manifest at ManifestPath. The manifest names the base the diff was
-// computed against and lists the paths the target no longer has.
+// computed against, by its RootfsID, and lists the paths the target no
+// longer has.
 //
 // Deletions travel in the manifest rather than as OCI whiteouts on purpose. The
 // agent unpacks images by flattening their layers, and flattening consumes
@@ -42,29 +43,37 @@ const (
 	// quay.io/kairos/hadron:v1.2.0 has its diff at
 	// quay.io/kairos/hadron:v1.2.0.diff.
 	TagSuffix = ".diff"
-	// BaseLabel is the image config label that carries Manifest.Base, so the
-	// base of a diff can be read from a registry without pulling it.
+	// BaseLabel is the image config label, and the index annotation, that
+	// carries Manifest.Base, so the base of a diff can be read from a
+	// registry without pulling it.
 	BaseLabel = "io.kairos.diff.base"
-	// TargetLabel is the image config label that carries Manifest.Target.
+	// TargetLabel is the image config label, and the index annotation, that
+	// carries Manifest.Target.
 	TargetLabel = "io.kairos.diff.target"
 
 	// fingerprintFile is the file whose checksum identifies a release.
 	fingerprintFile = "etc/kairos-release"
 )
 
-// ErrBaseMismatch is returned by Apply when the diff was computed against a
-// different release than the one it is being applied to.
+// ErrBaseMismatch is returned when a diff was computed against a different
+// release than the one it is being applied to.
 var ErrBaseMismatch = errors.New("diff base does not match the system it is applied to")
 
 // Manifest describes a diff.
 type Manifest struct {
 	// Version is the manifest format version.
 	Version int `json:"version"`
-	// Base is the Fingerprint of the release the diff was computed against.
+	// Base is the RootfsID of the release the diff was computed against. A
+	// diff applies only onto a copy of exactly that release.
 	Base string `json:"base"`
-	// Target is the Fingerprint of the release the diff produces. Apply
-	// checks it once the diff is applied.
+	// Target is the RootfsID of the release the diff produces. The node
+	// records it as the ID of the image the diff built.
 	Target string `json:"target"`
+	// BaseRelease and TargetRelease are the Fingerprint of each side. They
+	// are what a person reads to tell releases apart, and Apply checks the
+	// target one once the diff is applied.
+	BaseRelease   string `json:"base-release"`
+	TargetRelease string `json:"target-release"`
 	// BaseRef and TargetRef name the images the diff was computed from.
 	// They are informational, the fingerprints are what is checked.
 	BaseRef   string `json:"base-ref,omitempty"`
@@ -86,10 +95,11 @@ type applyFS interface {
 	RemoveAll(path string) error
 }
 
-// Fingerprint identifies the release installed under root by the checksum of
-// its /etc/kairos-release. Every Kairos build writes that file with the
-// version, flavor and build tooling of the image, so two images with the same
-// fingerprint were built as the same release.
+// Fingerprint is the checksum of the /etc/kairos-release under root. Every
+// Kairos build writes that file with the version, flavor and build tooling of
+// the image, so it tells releases apart for a person. It does not tell two
+// builds of one release apart, or an image from a derivative that kept the
+// file, which is why a diff is matched to its base by RootfsID instead.
 func Fingerprint(fs readFS, root string) (string, error) {
 	data, err := fs.ReadFile(filepath.Join(root, fingerprintFile))
 	if err != nil {
@@ -116,41 +126,42 @@ func ReadManifest(fs readFS, root string) (*Manifest, error) {
 }
 
 // Apply finishes a diff that has been unpacked under root on top of a copy of
-// its base. base is the Fingerprint that root had before the diff was
-// unpacked, which the caller has to take first, because the diff overwrites
-// the file it is computed from.
+// its base. base is the RootfsID of the release root was copied from, which
+// the caller knows from when that release was deployed: root itself has been
+// changed on the node since, and cannot be measured again.
 //
 // Apply checks the manifest against base, removes the deleted paths and then
-// the manifest itself, and checks that root ended up as the target release. On
-// error root is in an undefined state and has to be discarded.
-func Apply(fs applyFS, root, base string) error {
+// the manifest itself, and checks that root ended up as the target release.
+// It returns the manifest, whose Target is the ID of the result. On error
+// root is in an undefined state and has to be discarded.
+func Apply(fs applyFS, root, base string) (*Manifest, error) {
 	m, err := ReadManifest(fs, root)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if m.Base != base {
-		return fmt.Errorf("%w: diff is for %s, system is %s", ErrBaseMismatch, m.Base, base)
+		return nil, fmt.Errorf("%w: diff is for %s, system is %s", ErrBaseMismatch, m.Base, base)
 	}
 	for _, p := range m.Deleted {
 		clean, err := relativePath(p)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if err := fs.RemoveAll(filepath.Join(root, clean)); err != nil {
-			return fmt.Errorf("removing %s: %w", p, err)
+			return nil, fmt.Errorf("removing %s: %w", p, err)
 		}
 	}
 	if err := fs.RemoveAll(filepath.Join(root, ManifestDir)); err != nil {
-		return err
+		return nil, err
 	}
 	got, err := Fingerprint(fs, root)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if got != m.Target {
-		return fmt.Errorf("diff applied but the result is %s, expected %s", got, m.Target)
+	if got != m.TargetRelease {
+		return nil, fmt.Errorf("diff applied but the result is release %s, expected %s", got, m.TargetRelease)
 	}
-	return nil
+	return m, nil
 }
 
 // relativePath refuses a manifest entry that would reach outside the root it
