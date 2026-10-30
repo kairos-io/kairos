@@ -5,13 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"golang.org/x/sys/unix"
 )
 
 var ErrorImageNoLayers = errors.New("image has no layers")
@@ -19,6 +22,7 @@ var ErrorImageNoLayers = errors.New("image has no layers")
 const (
 	whiteoutPrefix    = ".wh."
 	whiteoutOpaqueDir = ".wh..wh..opq"
+	paxXattrPrefix    = "SCHILY.xattr."
 )
 
 // DefaultAllowListRegex provided for easy use of defaults for confext and sysext
@@ -60,6 +64,7 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 	defer func() {
 		_ = root.Close()
 	}()
+	meta := &metadataRestorer{root: root, log: log, privileged: os.Geteuid() == 0}
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -102,9 +107,18 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 			if err := root.MkdirAll(name, mode.Perm()); err != nil {
 				return fmt.Errorf("mkdir: %w", err)
 			}
+			if err := meta.owner(name, header, false); err != nil {
+				return err
+			}
+			if err := meta.dirXattrs(name, header); err != nil {
+				return err
+			}
 			if err := restoreSpecialBits(root, name, mode); err != nil {
 				return err
 			}
+			// Creating the entries below this directory moves its mtime,
+			// so it is set once the whole layer is written.
+			meta.deferTimes(name, header)
 		case tar.TypeReg:
 			log.Debugf("%s is a file", header.Name)
 			if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
@@ -118,10 +132,20 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 				_ = file.Close()
 				return fmt.Errorf("copy: %w", err)
 			}
+			// Writing to a file drops its file capabilities and a chown
+			// drops them along with setuid, so the owner goes first, then
+			// the xattrs, then the special bits.
+			if err := meta.fileOwnerAndXattrs(file, name, header); err != nil {
+				_ = file.Close()
+				return err
+			}
 			if err := file.Close(); err != nil {
 				return fmt.Errorf("close: %w", err)
 			}
 			if err := restoreSpecialBits(root, name, mode); err != nil {
+				return err
+			}
+			if err := meta.times(name, header); err != nil {
 				return err
 			}
 		case tar.TypeSymlink:
@@ -134,6 +158,9 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 			}
 			if err := root.Symlink(header.Linkname, name); err != nil {
 				return fmt.Errorf("symlink: %w", err)
+			}
+			if err := meta.owner(name, header, true); err != nil {
+				return err
 			}
 		case tar.TypeLink:
 			log.Debugf("%s is a hard link to %s", header.Name, header.Linkname)
@@ -173,6 +200,138 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 			}
 		default:
 			return fmt.Errorf("unsupported type: %d", header.Typeflag)
+		}
+	}
+	if err := meta.applyDirTimes(); err != nil {
+		return err
+	}
+	if meta.skipped > 0 {
+		log.Warnf("Could not restore the owner or extended attributes of %d entries in %s: extraction is not running as root", meta.skipped, dst)
+	}
+	return nil
+}
+
+// metadataRestorer applies the owner, xattrs and times a layer entry carries
+// to the file extracted from it.
+//
+// Without root the layer owner, a group the user is not in, and the
+// security and trusted xattr namespaces cannot be set. Those failures are
+// counted and logged instead of failing the extraction, so building an
+// extension as a regular user keeps working. As root every failure is
+// returned, since the extension would otherwise ship with the wrong owner
+// or without its file capabilities.
+type metadataRestorer struct {
+	root       *os.Root
+	log        sdkLogger.KairosLogger
+	privileged bool
+	skipped    int
+	dirTimes   []dirTimes
+}
+
+type dirTimes struct {
+	name         string
+	atime, mtime time.Time
+}
+
+func (m *metadataRestorer) check(op, name string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if !m.privileged && (errors.Is(err, fs.ErrPermission) || errors.Is(err, unix.ENOTSUP)) {
+		m.log.Debugf("%s %s: %v", op, name, err)
+		m.skipped++
+		return nil
+	}
+	return fmt.Errorf("%s %s: %w", op, name, err)
+}
+
+// ownerIDs returns the uid and gid to chown an entry to. Only root can give
+// a file away, so a regular user keeps the uid unless the layer names its
+// own, and still gets the group when it is a member of it.
+func (m *metadataRestorer) ownerIDs(header *tar.Header) (int, int) {
+	uid := header.Uid
+	if !m.privileged && uid != os.Geteuid() {
+		uid = -1
+	}
+	return uid, header.Gid
+}
+
+func (m *metadataRestorer) owner(name string, header *tar.Header, symlink bool) error {
+	uid, gid := m.ownerIDs(header)
+	chown := m.root.Chown
+	if symlink {
+		chown = m.root.Lchown
+	}
+	return m.check("chown", name, chown(name, uid, gid))
+}
+
+func (m *metadataRestorer) fileOwnerAndXattrs(file *os.File, name string, header *tar.Header) error {
+	uid, gid := m.ownerIDs(header)
+	if err := m.check("chown", name, file.Chown(uid, gid)); err != nil {
+		return err
+	}
+	return m.xattrs(file, name, header)
+}
+
+func (m *metadataRestorer) dirXattrs(name string, header *tar.Header) error {
+	if !hasXattrs(header) {
+		return nil
+	}
+	dir, err := m.root.Open(name)
+	if err != nil {
+		return m.check("open", name, err)
+	}
+	defer func() {
+		_ = dir.Close()
+	}()
+	return m.xattrs(dir, name, header)
+}
+
+func (m *metadataRestorer) xattrs(file *os.File, name string, header *tar.Header) error {
+	for key, value := range header.PAXRecords {
+		attr, ok := strings.CutPrefix(key, paxXattrPrefix)
+		if !ok {
+			continue
+		}
+		err := unix.Fsetxattr(int(file.Fd()), attr, []byte(value), 0)
+		if err := m.check("setxattr "+attr, name, err); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func hasXattrs(header *tar.Header) bool {
+	for key := range header.PAXRecords {
+		if strings.HasPrefix(key, paxXattrPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func entryTimes(header *tar.Header) (time.Time, time.Time) {
+	atime := header.AccessTime
+	if atime.IsZero() {
+		atime = header.ModTime
+	}
+	return atime, header.ModTime
+}
+
+func (m *metadataRestorer) times(name string, header *tar.Header) error {
+	atime, mtime := entryTimes(header)
+	return m.check("chtimes", name, m.root.Chtimes(name, atime, mtime))
+}
+
+func (m *metadataRestorer) deferTimes(name string, header *tar.Header) {
+	atime, mtime := entryTimes(header)
+	m.dirTimes = append(m.dirTimes, dirTimes{name: name, atime: atime, mtime: mtime})
+}
+
+func (m *metadataRestorer) applyDirTimes() error {
+	for _, d := range m.dirTimes {
+		if err := m.check("chtimes", d.name, m.root.Chtimes(d.name, d.atime, d.mtime)); err != nil {
+			return err
 		}
 	}
 	return nil
