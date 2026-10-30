@@ -315,14 +315,12 @@ In the environment file, a few options are available:
 
   `VOLUMES="LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"`
 
+  The `VOLUMES` values are always merged with any volume defined in the kernel
+  command line (`rd.cos.mount=`, `rd.immucore.mount=`): an entry for a device
+  that is already defined there overwrites it, all others are appended.
+
 * `OVERLAY`: It defines the underlying device for the overlayfs as in
   `rd.cos.overlay=` kernel parameter.
-
-* `MERGE=true`: When set, it makes the `VOLUMES` values to be merged with any other
-  volume that might have been defined in the kernel command line. The merging
-  criteria is simple: any overlapping volume is overwritten, all others are
-  appended to whatever was already defined as a kernel parameter. If not
-  defined defaults to `true`.
 
 * `RW_PATHS`: This is a space separated list of paths. These are the paths
   that will be used for the ephemeral overlayfs. These are the paths that
@@ -338,18 +336,17 @@ In the environment file, a few options are available:
 
 * `PERSISTENT_STATE_PATHS`: This is a space separated list of paths. These are
   the paths that will become writable and store its data inside
-  `PERSISTENT_STATE_TARGET`. By default, this variable is empty, which means
-  no persistent state area is created or used.
+  `PERSISTENT_STATE_TARGET`. `/var/log/audit` is always added to this list,
+  so even when the variable is empty the persistent state area is used for the
+  audit log.
 
   **Note**: The specified paths needs either to exist or be located in an area
   which is writeable ( for example, inside locations specified with `RW_PATHS`).
   The dracut module will attempt to create non-existant directories,
   but might fail if the mountpoint where they are located is read-only.
 
-* `PERSISTENT_STATE_BIND="true|false"`: When this variable is set to true
-  the persistent state paths are bind mounted (instead of using overlayfs)
-  after being mirrored with the original content. By default, this variable is
-  set to `false`.
+  The persistent state paths are bind mounted after being mirrored with the
+  original content.
 
 Note that persistent state is set up once the ephemeral paths and persistent
 volumes are mounted. Persistent state paths can't be an already existing mount
