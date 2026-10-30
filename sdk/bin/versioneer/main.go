@@ -2,16 +2,21 @@ package main
 
 import (
 	"log"
-	"os"
 
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
-	"github.com/urfave/cli/v2"
+	"github.com/spf13/cobra"
 )
 
 func main() {
-	app := &cli.App{Commands: versioneer.CliCommands()}
+	root := &cobra.Command{
+		Use:               "versioneer",
+		SilenceUsage:      true,
+		SilenceErrors:     true,
+		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	}
+	root.AddCommand(versioneer.CliCommands()...)
 
-	if err := app.Run(os.Args); err != nil {
+	if err := root.Execute(); err != nil {
 		log.Fatal(err)
 	}
 }

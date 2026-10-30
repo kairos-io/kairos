@@ -6,5 +6,5 @@ func init() {
 	// instead would drag edgevpn, libp2p and kube-vip into every image,
 	// including core ones that have no provider at all -- measured at +46 MiB
 	// on a 32 MiB binary. See provider.go for the delegation rules.
-	register("provider", runProvider)
+	register(passthrough("provider", "Run a command of the installed provider plugin", runProvider), nil)
 }

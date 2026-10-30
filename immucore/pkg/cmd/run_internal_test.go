@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urfave/cli/v2"
+	"github.com/kairos-io/kairos/v4/internal/version"
+	"github.com/spf13/cobra"
 )
 
 // captureStdoutStderr redirects the process stdout and stderr to temporary
@@ -47,14 +48,15 @@ func captureStdoutStderr(t *testing.T, fn func()) (stdout, stderr string) {
 }
 
 func TestRunAppWritesTheFatalErrorToStderr(t *testing.T) {
-	app := &cli.App{
-		Name:   "immucore",
-		Action: func(*cli.Context) error { return errors.New("mount DAG failed") },
+	cmd := &cobra.Command{
+		Use:           "immucore",
+		SilenceErrors: true,
+		RunE:          func(*cobra.Command, []string) error { return errors.New("mount DAG failed") },
 	}
 
 	var code int
 	stdout, stderr := captureStdoutStderr(t, func() {
-		code = runApp(app, []string{"immucore"})
+		code = runApp(cmd, []string{"immucore"})
 	})
 
 	if code != 1 {
@@ -69,17 +71,17 @@ func TestRunAppWritesTheFatalErrorToStderr(t *testing.T) {
 }
 
 func TestRunAppLeavesStdoutToTheCommandOnSuccess(t *testing.T) {
-	app := &cli.App{
-		Name: "immucore",
-		Action: func(c *cli.Context) error {
-			_, err := c.App.Writer.Write([]byte("ok\n"))
+	cmd := &cobra.Command{
+		Use: "immucore",
+		RunE: func(c *cobra.Command, _ []string) error {
+			_, err := c.OutOrStdout().Write([]byte("ok\n"))
 			return err
 		},
 	}
 
 	var code int
 	stdout, stderr := captureStdoutStderr(t, func() {
-		code = runApp(app, []string{"immucore"})
+		code = runApp(cmd, []string{"immucore"})
 	})
 
 	if code != 0 {
@@ -90,5 +92,88 @@ func TestRunAppLeavesStdoutToTheCommandOnSuccess(t *testing.T) {
 	}
 	if stderr != "" {
 		t.Errorf("stderr = %q, want it empty", stderr)
+	}
+}
+
+// The real command's flow mounts filesystems, so these tests swap RunE for a
+// stub and check only what the command line itself decides.
+func stubbedCommand(ran *bool) *cobra.Command {
+	cmd := NewCommand()
+	cmd.RunE = func(*cobra.Command, []string) error {
+		*ran = true
+		return nil
+	}
+	return cmd
+}
+
+func TestNewCommandHasTheDryRunFlag(t *testing.T) {
+	cmd := NewCommand()
+	if err := cmd.ParseFlags([]string{"--dry-run"}); err != nil {
+		t.Fatalf("parse --dry-run: %v", err)
+	}
+	got, err := cmd.Flags().GetBool("dry-run")
+	if err != nil {
+		t.Fatalf("get dry-run: %v", err)
+	}
+	if !got {
+		t.Error("dry-run = false after --dry-run")
+	}
+}
+
+// Under UKI the kernel execs immucore as /init and passes it the command-line
+// words it does not recognise. Those must not stop the boot.
+func TestNewCommandIgnoresExtraArguments(t *testing.T) {
+	var ran bool
+	var code int
+	_, stderr := captureStdoutStderr(t, func() {
+		code = runApp(stubbedCommand(&ran), []string{"/init", "splash", "single"})
+	})
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0; stderr = %q", code, stderr)
+	}
+	if !ran {
+		t.Error("the boot flow did not run")
+	}
+}
+
+func TestNewCommandPrintsTheVersion(t *testing.T) {
+	for _, flag := range []string{"--version", "-v"} {
+		var ran bool
+		var code int
+		stdout, _ := captureStdoutStderr(t, func() {
+			code = runApp(stubbedCommand(&ran), []string{"immucore", flag})
+		})
+
+		if code != 0 {
+			t.Errorf("%s: exit code = %d, want 0", flag, code)
+		}
+		if want := "immucore version " + version.Version + "\n"; stdout != want {
+			t.Errorf("%s: stdout = %q, want %q", flag, stdout, want)
+		}
+		if ran {
+			t.Errorf("%s: the boot flow ran", flag)
+		}
+	}
+}
+
+func TestNewCommandRejectsAnUnknownFlag(t *testing.T) {
+	var ran bool
+	var code int
+	stdout, stderr := captureStdoutStderr(t, func() {
+		code = runApp(stubbedCommand(&ran), []string{"immucore", "--no-such-flag"})
+	})
+
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(stderr, "no-such-flag") {
+		t.Errorf("stderr = %q, want it to name the flag", stderr)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want it empty", stdout)
+	}
+	if ran {
+		t.Error("the boot flow ran")
 	}
 }
