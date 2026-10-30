@@ -24,6 +24,24 @@ var _ = Describe("BindStateDir", func() {
 	})
 })
 
+var _ = Describe("UniqueStatePaths", func() {
+	It("keeps the first of two paths that share a state directory", func() {
+		Expect(op.BindStateDir("/var/lib/foo-bar", "/sysroot", "/usr/local/.state")).
+			To(Equal(op.BindStateDir("/var/lib/foo/bar", "/sysroot", "/usr/local/.state")))
+		Expect(op.UniqueStatePaths([]string{"/var/lib/foo-bar", "/var/log", "/var/lib/foo/bar"})).
+			To(Equal([]string{"/var/lib/foo-bar", "/var/log"}))
+	})
+
+	It("also drops a path that differs only by its leading slash", func() {
+		Expect(op.UniqueStatePaths([]string{"/var/log", "var/log"})).To(Equal([]string{"/var/log"}))
+	})
+
+	It("keeps paths whose state directories differ", func() {
+		paths := []string{"/var/log", "/var/log/audit", "/var/lib/foo-bar", "/var/lib/foo"}
+		Expect(op.UniqueStatePaths(paths)).To(Equal(paths))
+	})
+})
+
 var _ = Describe("MountBind", func() {
 	var root string
 

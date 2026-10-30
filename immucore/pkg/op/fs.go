@@ -71,9 +71,38 @@ func BaseOverlay(overlay schema.Overlay) (MountOperation, error) {
 // backs the bind mount of mountpoint, e.g. /var/log/audit is backed by
 // <root>/<stateTarget>/var-log-audit.bind.
 func BindStateDir(mountpoint, root, stateTarget string) string {
-	mountpoint = strings.TrimLeft(mountpoint, "/")
-	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
-	return filepath.Join(root, stateTarget, fmt.Sprintf("%s.bind", bindMountPath))
+	return filepath.Join(root, stateTarget, fmt.Sprintf("%s.bind", StateName(mountpoint)))
+}
+
+// StateName is the flat name the backing directories of mountpoint are named
+// after, by BindStateDir and MountWithBaseOverlay: /var/log/audit is
+// var-log-audit. Every "/" becomes "-", so two paths that differ only there,
+// /var/lib/foo-bar and /var/lib/foo/bar, get the same name.
+func StateName(mountpoint string) string {
+	return strings.ReplaceAll(strings.TrimLeft(mountpoint, "/"), "/", "-")
+}
+
+// UniqueStatePaths returns paths without the entries whose StateName an
+// earlier entry already has, and warns about each one it drops. Mounting both
+// would back the two paths with one directory, so the files of one would show
+// up in, and persist through, the other.
+//
+// The name itself is kept as it is rather than made reversible: it is the name
+// of the directory that already holds the data of every installed machine.
+func UniqueStatePaths(paths []string) []string {
+	seen := map[string]string{}
+	unique := make([]string, 0, len(paths))
+	for _, p := range paths {
+		name := StateName(p)
+		if first, ok := seen[name]; ok {
+			internalUtils.KLog.Logger.Warn().Str("path", p).Str("kept", first).Str("name", name).
+				Msg("Skipping path: its state directory name is the same as the one of a path listed before it")
+			continue
+		}
+		seen[name] = p
+		unique = append(unique, p)
+	}
+	return unique
 }
 
 // https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L183
@@ -131,7 +160,7 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 	mountpoint = strings.TrimLeft(mountpoint, "/") // normalize, remove / upfront as we are going to re-use it in subdirs
 	rootMount := filepath.Join(root, mountpoint)
-	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
+	bindMountPath := StateName(mountpoint)
 
 	upperdir := filepath.Join(base, bindMountPath, ".overlay", "upper")
 	workdir := filepath.Join(base, bindMountPath, ".overlay", "work")
