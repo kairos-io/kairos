@@ -718,10 +718,16 @@ func fetchRemoteConfig(url string) (*Config, error) {
 			if err != nil {
 				return err
 			}
+			// Drain and close the body on every reply, error pages included,
+			// so the next retry reuses this connection instead of opening
+			// another one that stays held until the client timeout.
+			defer func() {
+				_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+				_ = resp.Body.Close()
+			}()
 			if resp.StatusCode != http.StatusOK {
 				return fmt.Errorf("unexpected status: %d", resp.StatusCode)
 			}
-			defer resp.Body.Close()
 
 			body, err = io.ReadAll(resp.Body)
 			if err != nil {
