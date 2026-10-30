@@ -1335,16 +1335,12 @@ var _ = Describe("GetSourceSize extra paths", Label("GetSourceSize"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(tempDir)
 
-		// Target lives in a directory that we make unsearchable, so stat fails
-		// with a permission error instead of a not-exist one
-		hiddenDir, err := os.MkdirTemp("", "kairos-size-hidden")
-		Expect(err).ToNot(HaveOccurred())
-		defer os.RemoveAll(hiddenDir)
-		target := filepath.Join(hiddenDir, "target.txt")
-		Expect(os.WriteFile(target, []byte("data"), os.ModePerm)).To(Succeed())
-		Expect(os.Symlink(target, filepath.Join(tempDir, "link.txt"))).To(Succeed())
-		Expect(os.Chmod(hiddenDir, 0000)).To(Succeed())
-		defer os.Chmod(hiddenDir, os.ModePerm) // nolint:errcheck
+		// A symlink target is resolved inside the source, so this one names
+		// /blocker/target.txt within it. /blocker is a regular file, which
+		// makes stat fail with a not-a-directory error rather than a
+		// not-exist one, and that has to reach the caller.
+		Expect(os.WriteFile(filepath.Join(tempDir, "blocker"), []byte("data"), os.ModePerm)).To(Succeed())
+		Expect(os.Symlink("/blocker/target.txt", filepath.Join(tempDir, "link.txt"))).To(Succeed())
 
 		_, err = config.GetSourceSize(conf, sdkImages.NewDirSrc(tempDir))
 		Expect(err).To(HaveOccurred())

@@ -925,7 +925,10 @@ func ReadUkiUpgradeSpecFromConfig(c *sdkConfig.Config) (*spec.UpgradeUkiSpec, er
 // getSize will calculate the size of a file or symlink and will do nothing with directories
 // fileList: keeps track of the files visited to avoid counting a file more than once if it's a symlink. It could also be used as a way to filter some files
 // size: will be the memory that adds up all the files sizes. Meaning it could be initialized with a value greater than 0 if needed.
-func getSize(vfs sdkFS.KairosFS, size *int64, fileList map[string]bool, path string, d fs.DirEntry, err error) error {
+// getSize adds the size of path to size. root is the directory being measured:
+// a symlink target is always resolved inside it, never against the filesystem
+// of the machine running the measurement.
+func getSize(vfs sdkFS.KairosFS, root string, size *int64, fileList map[string]bool, path string, d fs.DirEntry, err error) error {
 	if err != nil {
 		return err
 	}
@@ -943,7 +946,14 @@ func getSize(vfs sdkFS.KairosFS, size *int64, fileList map[string]bool, path str
 			return err
 		}
 
-		if !filepath.IsAbs(actualFilePath) {
+		if filepath.IsAbs(actualFilePath) {
+			// An absolute target inside an image names a path within that
+			// image. Left alone it resolves against the machine doing the
+			// measuring, which measures the wrong file and also defeats the
+			// fileList deduplication, because the walk reaches the real file
+			// again under root and records it under a different key.
+			actualFilePath = filepath.Join(root, actualFilePath)
+		} else {
 			// If it's a relative path, join it with the base directory path.
 			actualFilePath = filepath.Join(filepath.Dir(path), actualFilePath)
 		}
@@ -1007,7 +1017,7 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 				config.Logger.Logger.Debug().Str("path", path).Str("hostDir", hostDir).Msg("Skipping dir as it is a runtime directory under kubernetes (/proc, /dev or /run)")
 				return fs.SkipDir
 			} else {
-				v := getSize(config.Fs, &size, filesVisited, path, d, err)
+				v := getSize(config.Fs, source.Value(), &size, filesVisited, path, d, err)
 				return v
 			}
 		})
