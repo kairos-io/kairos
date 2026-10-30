@@ -538,6 +538,16 @@ install() {
 // RemainAfterExit keeps a second `systemctl start` a no-op rather than a
 // replay of the animation.
 //
+// --clear-on-exit is what hands getty a clean console. Ordering alone does not
+// do that: agetty runs with --noclear in systemd's own getty@.service, so the
+// login prompt is printed under whatever was already on the screen, and on the
+// Linux virtual console that is the last frame of the animation. The kernel's
+// terminal emulator does not implement the alternate screen (`csi_DEC_hl` in
+// drivers/tty/vt/vt.c handles private modes 1, 3, 5, 6, 7, 8, 9, 25 and 1000,
+// and no others), so the sequence the splash sends to leave it is ignored and
+// nothing restores what was underneath. The flag is only on this half: the
+// initramfs unit is followed by the animation continuing in the booted system.
+//
 // DefaultDependencies=no is what makes the animation continuous across
 // switch-root. The default dependencies put After=basic.target on the unit,
 // and basic.target is the whole of sysinit plus sockets: on a measured boot
@@ -600,7 +610,7 @@ StandardInput=tty
 StandardOutput=tty
 TTYPath=/dev/tty1
 TTYReset=yes
-ExecStart=/usr/bin/kairos-splash --duration=%s
+ExecStart=/usr/bin/kairos-splash --duration=%s --clear-on-exit
 TimeoutStartSec=10s
 
 [Install]
