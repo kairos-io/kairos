@@ -11,7 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -26,6 +28,7 @@ import (
 	"github.com/moby/moby/client"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sys/unix"
 )
 
 func TestSuite(t *testing.T) {
@@ -376,3 +379,71 @@ func sysextLayer() (v1.Layer, error) {
 		return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
 	})
 }
+
+// Reproduces kairos-io/kairos#5886: the layer entry metadata (group, xattrs,
+// mtime) is dropped on extraction. These assertions describe the CURRENT
+// (wrong) behaviour.
+var _ = Describe("ExtractFilesFromLastLayer metadata (issue 5886)", Label("sysext"), func() {
+	It("loses group, xattrs and mtime of a PAX entry", func() {
+		parent, err := os.MkdirTemp(os.Getenv("KAIROS_TEST_TMPDIR"), "")
+		Expect(err).ToNot(HaveOccurred())
+		defer func() { _ = os.RemoveAll(parent) }()
+		dest := filepath.Join(parent, "dest")
+		Expect(os.Mkdir(dest, 0o755)).To(Succeed())
+		log := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+
+		// A group the process belongs to, different from its primary one, so
+		// the result does not depend on being root.
+		otherGid := -1
+		groups, _ := os.Getgroups()
+		for _, g := range groups {
+			if g != os.Getgid() {
+				otherGid = g
+				break
+			}
+		}
+		layerGid := otherGid
+		if layerGid < 0 {
+			layerGid = os.Getgid()
+		}
+
+		mtime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/", Mode: 0o755},
+			tar.Header{
+				Typeflag:   tar.TypeReg,
+				Name:       "usr/file",
+				Mode:       0o644,
+				Gid:        layerGid,
+				ModTime:    mtime,
+				Format:     tar.FormatPAX,
+				PAXRecords: map[string]string{"SCHILY.xattr.user.kairos": "5886"},
+			},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+
+		path := filepath.Join(dest, "usr", "file")
+		fi, err := os.Stat(path)
+		Expect(err).ToNot(HaveOccurred())
+
+		// mtime was not restored: it is the extraction time, not 2001.
+		Expect(fi.ModTime().Equal(mtime)).To(BeFalse())
+		Expect(fi.ModTime().Year()).ToNot(Equal(2001))
+
+		// group was not restored.
+		if otherGid < 0 {
+			GinkgoWriter.Println("process has a single group, skipping group assertion")
+		} else {
+			Expect(int(fi.Sys().(*syscall.Stat_t).Gid)).ToNot(Equal(otherGid))
+		}
+
+		// xattr was not restored.
+		buf := make([]byte, 64)
+		n, err := unix.Lgetxattr(path, "user.kairos", buf)
+		if errors.Is(err, unix.ENOTSUP) {
+			Skip("filesystem has no user xattr support")
+		}
+		Expect(err).To(MatchError(unix.ENODATA))
+		Expect(n).To(Equal(-1))
+	})
+})
