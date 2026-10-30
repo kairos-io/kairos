@@ -84,6 +84,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Download Go modules
+        uses: ./.github/actions/go-mod-download
+
       - name: Build kcrypt-challenger
         run: make kcrypt-challenger ARCH="${MATRIX_ARCH}" VARIANT="${MATRIX_VARIANT}"
         env:
