@@ -177,6 +177,8 @@ var cmds = []*cli.Command{
 			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
 			&allowInsecureRegistriesFlag,
 			&cli.BoolFlag{Name: "dry-run", Usage: "Resolve the upgrade and print a summary of what would be done, without changing the system"},
+			&cli.BoolFlag{Name: "diff", Usage: "Experimental. Apply only the changes from the running release, fetched from the source tag with .diff appended. Falls back to the full image"},
+			&cli.StringFlag{Name: "diff-source", Usage: "Experimental. The diff to apply, as an image source (oci:, ocifile:, dir:). Implies --diff"},
 		},
 		Description: `
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
@@ -187,6 +189,8 @@ as a value for the --source flag.
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
 To pull from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate, pass the --allow-insecure-registries flag (or set "upgrade.allow-insecure-registries: true" in the cloud config).
+
+To fetch only what changed since the running release, pass the --diff flag (or set "upgrade.diff: true" in the cloud config). This is experimental. The diff is looked for at the tag of the source image with ".diff" appended, or wherever --diff-source (or "upgrade.diff-source") points. It is applied onto a copy of the booted image, and when there is no diff, it was made for another release, or it does not apply, the full image is used instead. Diff upgrades are not supported for the recovery system or on Trusted Boot.
 
 To check what an upgrade would do before running it, pass the --dry-run flag. It resolves the source (including the cloud config), the image size and where the transition image would be written, checks that the image manifest can be fetched from the registry, prints a summary and exits without changing the system.
 
@@ -335,7 +339,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			}
 
 			return agent.Upgrade(source, c.Bool("strict-validation"), constants.GetUserConfigDirs(),
-				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.StringSlice("exclude-path")...,
+				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.Bool("diff"), c.String("diff-source"), c.StringSlice("exclude-path")...,
 			)
 		},
 	},
@@ -967,6 +971,44 @@ The validate command expects a configuration file as its only argument. Local fi
 			}
 			config.Logger.Infof("Image %s downloaded and extracted to %s correctly\n", image, destination)
 			return nil
+		},
+	},
+	{
+		Name:  "generate-diff",
+		Usage: "Experimental: generate the diff a diff upgrade applies",
+		Description: `
+Generate the diff that turns the BASE release into the TARGET release, for "upgrade --diff".
+
+BASE and TARGET are each an image reference (pulled from a registry, or from the local daemon), an image archive as docker save writes, a root filesystem tarball (.tar, .tar.gz or .tar.zst), or a directory. Prefix with oci:, ocifile: or dir: to force the kind. Run it as root, so ownership and extended attributes are kept.
+
+Both releases are unpacked under --work-dir, which needs room for two root filesystems.
+
+Pass --push to publish the diff to a registry, at the tag of the target with ".diff" appended, where "upgrade --diff" finds it. That tag is an image index holding one diff per base release, so the diffs to one release from several earlier ones live side by side, and a node pulls only the one for the release it runs. Publishing again from the same base replaces that base's diff. Otherwise the diff is written to --output as an image archive, which "upgrade --diff-source ocifile:FILE" applies directly.
+
+$ kairos-agent generate-diff --push quay.io/kairos/hadron:v1.2.0.diff quay.io/kairos/hadron:v1.1.0 quay.io/kairos/hadron:v1.2.0
+`,
+		UsageText: "generate-diff [--output FILE] [--push REF] BASE TARGET",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "output", Usage: "Write the diff to this image archive. Defaults to diff.tar when --push is not set"},
+			&cli.StringFlag{Name: "push", Usage: "Add the diff to the image index at this reference, replacing any diff in it from the same base"},
+			&cli.StringFlag{Name: "platform", Usage: "Platform to pull image references for", Value: fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)},
+			&cli.StringFlag{Name: "work-dir", Usage: "Directory to unpack both releases in", Value: os.TempDir()},
+		},
+		Before: func(c *cli.Context) error {
+			if c.Args().Len() != 2 {
+				cli.HelpPrinter(c.App.Writer, "BASE and TARGET are required\n\n", c.Command)
+				_ = cli.ShowSubcommandHelp(c)
+				return fmt.Errorf("")
+			}
+			return nil
+		},
+		Action: func(c *cli.Context) error {
+			output := c.String("output")
+			if output == "" && c.String("push") == "" {
+				output = "diff.tar"
+			}
+			cfg := agentConfig.NewConfig(agentConfig.WithPlatform(c.String("platform")))
+			return agent.GenerateDiff(cfg, c.Args().Get(0), c.Args().Get(1), output, c.String("push"), c.String("work-dir"))
 		},
 	},
 	{

@@ -471,6 +471,15 @@ func setUpgradeSourceSize(cfg *sdkConfig.Config, spec *spec.UpgradeSpec) error {
 	}
 
 	size, err = GetSourceSize(cfg, targetSpec.Source)
+	if err != nil && spec.DiffUpgrade() && !spec.RecoveryUpgrade() {
+		// A diff upgrade only reads the full image when the diff cannot be
+		// applied, so a full image that cannot be reached now, as on a
+		// node that only has the diff, must not stop it from starting. The
+		// fallback fails on its own if it ever needs the image.
+		cfg.Logger.Warnf("Could not measure the full image %s, keeping %dMiB. It is only needed if the diff cannot be applied: %s",
+			targetSpec.Source.Value(), originalSize, err)
+		return nil
+	}
 	if err != nil {
 		cfg.Logger.Warnf("Failed to infer size for images: %s", err.Error())
 		return err

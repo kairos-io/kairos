@@ -249,6 +249,7 @@ jobs:
           - {test: 'partition-validation'}
           - {test: 'reset'}
           - {test: 'upgrade-with-cli'}
+          - {test: 'diff-upgrade'}
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
           - {test: 'cis'}

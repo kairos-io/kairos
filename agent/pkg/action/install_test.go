@@ -32,6 +32,7 @@ import (
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkBundles "github.com/kairos-io/kairos/v4/sdk/types/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -229,6 +230,12 @@ var _ = Describe("Install action tests", func() {
 		It("Successfully installs", func() {
 			spec.Target = device
 			Expect(installer.Run()).To(BeNil())
+
+			By("recording the release active and passive hold, for diff upgrades")
+			activeID, err := diffupgrade.RecordedID(fs, spec.Active.File)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(activeID).To(HavePrefix("sha256:"))
+			Expect(diffupgrade.RecordedID(fs, spec.Passive.File)).To(Equal(activeID))
 		})
 
 		It("Sets the executable /run/cos/ejectcd so systemd can eject the cd on restart", func() {

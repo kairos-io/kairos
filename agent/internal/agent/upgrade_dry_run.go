@@ -29,6 +29,9 @@ func writeUpgradeSummary(w io.Writer, s *spec.UpgradeSpec) {
 	fmt.Fprintln(w, "Upgrade dry run, nothing was changed.")
 	fmt.Fprintf(w, "  Target:              %s\n", target)
 	fmt.Fprintf(w, "  Source:              %s\n", sourceString(img.Source))
+	if s.DiffUpgrade() {
+		writeDiffNote(w, s)
+	}
 	fmt.Fprintf(w, "  Transition image:    %s\n", img.File)
 	fmt.Fprintf(w, "  Image size:          %d MiB\n", img.Size)
 	if img.FS != "" {
@@ -43,6 +46,21 @@ func writeUpgradeSummary(w io.Writer, s *spec.UpgradeSpec) {
 	}
 	writeSourceNotes(w, img.Source, s.AllowInsecureRegistries)
 	fmt.Fprintln(w, "Not checked: the image layers are not pulled, and the free space on the target partition is not compared with the image size.")
+}
+
+// writeDiffNote says which diff the upgrade would try, and that the full
+// image is the fall back. Neither the diff nor its base is fetched.
+func writeDiffNote(w io.Writer, s *spec.UpgradeSpec) {
+	if s.RecoveryUpgrade() {
+		fmt.Fprintln(w, "  Diff source:         none, diff upgrades are not supported for recovery. The full image is used")
+		return
+	}
+	src, err := s.ResolveDiffSource()
+	if err != nil {
+		fmt.Fprintf(w, "  Diff source:         none, %s. The full image is used\n", err)
+		return
+	}
+	fmt.Fprintf(w, "  Diff source:         %s (experimental, falls back to the full image)\n", sourceString(src))
 }
 
 // writeUkiUpgradeSummary prints what a trusted boot upgrade with the given spec would do.
