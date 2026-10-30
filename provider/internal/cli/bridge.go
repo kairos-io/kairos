@@ -87,7 +87,7 @@ func BridgeCMD(toolName string) *cli.Command {
 		&cli.StringFlag{
 			Value:   "/tmp/kairos",
 			Name:    "lease-dir",
-			EnvVars: []string{"lease-dir"},
+			EnvVars: []string{"DHCPLEASEDIR"},
 			Usage:   "DHCP Lease directory",
 		},
 		&cli.StringFlag{
