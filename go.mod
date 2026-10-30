@@ -27,6 +27,7 @@ require (
 	github.com/google/go-attestation v0.6.4
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/go-github/v77 v77.0.0
+	github.com/google/go-github/v93 v93.0.0
 	github.com/google/go-tpm v0.9.8
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
@@ -182,7 +183,7 @@ require (
 	github.com/google/certificate-transparency-go v1.1.4 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/go-tpm-tools v0.4.7 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
