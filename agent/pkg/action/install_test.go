@@ -373,6 +373,19 @@ var _ = Describe("Install action tests", func() {
 			Expect(spec.Active.Source.IsDir()).To(BeTrue())
 		})
 
+		It("Unmounts the downloaded ISO and its rootfs after installing from ISO", Label("iso"), func() {
+			fs.Create("cOS.iso")
+			spec.Iso = "http://cOS.iso"
+			spec.Target = device
+			Expect(installer.Run()).To(BeNil())
+			isoDir := filepath.Dir(spec.Active.Source.Value())
+			mnts, err := mounter.List()
+			Expect(err).To(BeNil())
+			for _, m := range mnts {
+				Expect(m.Path).ToNot(HavePrefix(isoDir + "/"))
+			}
+		})
+
 		It("Fails to install without formatting if a previous install is detected", Label("no-format", "disk"), func() {
 			spec.NoFormat = true
 			spec.Force = false
