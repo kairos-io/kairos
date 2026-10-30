@@ -10,7 +10,7 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/progress"
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
-	"github.com/urfave/cli/v2"
+	"github.com/spf13/cobra"
 )
 
 // captureStdoutStderr redirects the process stdout and stderr to temporary
@@ -50,11 +50,18 @@ func captureStdoutStderr(t *testing.T, fn func()) (stdout, stderr string) {
 	return string(outBytes), string(errBytes)
 }
 
-func TestRunAppWritesTheFatalErrorToStderr(t *testing.T) {
-	app := &cli.App{
-		Name:   "kairos-agent",
-		Action: func(*cli.Context) error { return errors.New("exploded while upgrading") },
+// failingCommand stands in for a kairos-agent command that fails with msg.
+func failingCommand(msg string) *cobra.Command {
+	return &cobra.Command{
+		Use:           "kairos-agent",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE:          func(*cobra.Command, []string) error { return errors.New(msg) },
 	}
+}
+
+func TestRunAppWritesTheFatalErrorToStderr(t *testing.T) {
+	app := failingCommand("exploded while upgrading")
 
 	var code int
 	stdout, stderr := captureStdoutStderr(t, func() {
@@ -73,10 +80,10 @@ func TestRunAppWritesTheFatalErrorToStderr(t *testing.T) {
 }
 
 func TestRunAppLeavesStdoutToTheCommandOnSuccess(t *testing.T) {
-	app := &cli.App{
-		Name: "kairos-agent",
-		Action: func(c *cli.Context) error {
-			_, err := c.App.Writer.Write([]byte("{}\n"))
+	app := &cobra.Command{
+		Use: "kairos-agent",
+		RunE: func(c *cobra.Command, _ []string) error {
+			_, err := c.OutOrStdout().Write([]byte("{}\n"))
 			return err
 		},
 	}
@@ -104,7 +111,7 @@ func TestTheAgentCLIKeepsStdoutCleanWhenACommandFails(t *testing.T) {
 
 	var code int
 	stdout, stderr := captureStdoutStderr(t, func() {
-		code = runApp(newApp(), []string{"kairos-agent", "validate", missing})
+		code = runApp(NewCommand(), []string{"kairos-agent", "validate", missing})
 	})
 
 	if code != 1 {
@@ -144,14 +151,14 @@ func progressErrorEvents(t *testing.T, fn func()) []string {
 // A manual-install that fails before the install action ever runs is the case
 // an installer frontend could not see: sdk/agentrun reads progress events from
 // the agent's stdout, and the reason used to reach the browser only as part of
-// the stdout line this PR moved to stderr. The Before hook of manual-install
+// the stdout line this PR moved to stderr. The PreRunE hook of manual-install
 // is the earliest such failure, the config scan, CheckConfigForUsers and
 // installSpec.Sanitize are later ones on the same path.
 func TestAManualInstallThatFailsBeforeInstallingEmitsAProgressError(t *testing.T) {
 	var code int
 	events := progressErrorEvents(t, func() {
 		captureStdoutStderr(t, func() {
-			code = runApp(newApp(), []string{
+			code = runApp(NewCommand(), []string{
 				"kairos-agent", "manual-install",
 				"--source", "https://example.com/not-a-supported-scheme",
 				"/kairos-agent-test/no/such/cloud-config.yaml",
@@ -182,10 +189,7 @@ func TestAManualInstallThatFailsBeforeInstallingEmitsAProgressError(t *testing.T
 // event. This is what lets the emit live here instead of inside
 // InstallAction.Run, which could not see the failures above it.
 func TestRunAppEmitsOneErrorEventPerFailure(t *testing.T) {
-	app := &cli.App{
-		Name:   "kairos-agent",
-		Action: func(*cli.Context) error { return errors.New("exploded while partitioning") },
-	}
+	app := failingCommand("exploded while partitioning")
 
 	events := progressErrorEvents(t, func() {
 		captureStdoutStderr(t, func() {
@@ -210,10 +214,7 @@ func TestRunAppEmitsNoProgressEventWhenProgressIsOff(t *testing.T) {
 	progress.Output = buf
 	defer func() { progress.Output = orig }()
 
-	app := &cli.App{
-		Name:   "kairos-agent",
-		Action: func(*cli.Context) error { return errors.New("exploded while upgrading") },
-	}
+	app := failingCommand("exploded while upgrading")
 	captureStdoutStderr(t, func() {
 		runApp(app, []string{"kairos-agent"})
 	})

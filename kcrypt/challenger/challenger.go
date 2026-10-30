@@ -25,6 +25,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -55,31 +56,75 @@ func init() {
 // returns a process exit code. It is called from the cmd/kcrypt-challenger
 // binary; nothing in the multi-call kairos binary links it in.
 func Run() int {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
-	var challengerAddr string
-	var namespace string
-	flag.StringVar(&namespace, "namespace", "kcrypt", "The namespace the challenger will read secrets from.")
-	flag.StringVar(&challengerAddr, "challenger-bind-address", ":8082", "The address the challenger server endpoint binds to.")
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+	if err := NewCommand().Execute(); err != nil {
+		return 1
+	}
+	return 0
+}
+
+// serverOptions are the challenger's command line flags.
+type serverOptions struct {
+	metricsAddr          string
+	enableLeaderElection bool
+	probeAddr            string
+	challengerAddr       string
+	namespace            string
+	zap                  zap.Options
+}
+
+// NewCommand returns the challenger command. It takes flags only, and starts
+// the server when it runs.
+func NewCommand() *cobra.Command {
+	opts := serverOptions{
+		zap: zap.Options{
+			Development: true,
+		},
+	}
+
+	cmd := &cobra.Command{
+		Use:   "kcrypt-challenger",
+		Short: "Run the kcrypt challenger server and its controller manager",
+		// A failure past flag parsing is logged where it happens, through the
+		// controller logger, so cobra has nothing to add to it.
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(*cobra.Command, []string) error {
+			return serve(opts)
+		},
+	}
+	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		c.PrintErrln("Error:", err)
+		_ = c.Usage()
+		return err
+	})
+
+	flags := cmd.Flags()
+	flags.StringVar(&opts.namespace, "namespace", "kcrypt", "The namespace the challenger will read secrets from.")
+	flags.StringVar(&opts.challengerAddr, "challenger-bind-address", ":8082", "The address the challenger server endpoint binds to.")
+	flags.StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
+	flags.StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flags.BoolVar(&opts.enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
-	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	zapFlags := flag.NewFlagSet("zap", flag.ContinueOnError)
+	opts.zap.BindFlags(zapFlags)
+	flags.AddGoFlagSet(zapFlags)
+	// controller-runtime registers --kubeconfig on the standard library's
+	// flag set, and GetConfigOrDie reads it from there.
+	flags.AddGoFlagSet(flag.CommandLine)
+
+	return cmd
+}
+
+func serve(opts serverOptions) error {
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts.zap)))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
+		Metrics:                metricsserver.Options{BindAddress: opts.metricsAddr},
+		HealthProbeBindAddress: opts.probeAddr,
+		LeaderElection:         opts.enableLeaderElection,
 		LeaderElectionID:       "8fc84668.kairos.io",
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
@@ -95,7 +140,7 @@ func Run() int {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
-		return 1
+		return err
 	}
 
 	reconciler := &controllers.SealedVolumeReconciler{
@@ -104,32 +149,32 @@ func Run() int {
 	}
 	if err = reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SealedVolume")
-		return 1
+		return err
 	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
-		return 1
+		return err
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
-		return 1
+		return err
 	}
 	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "unable to get clientset")
-		return 1
+		return err
 	}
 
 	serverLog := ctrl.Log.WithName("server")
 
-	go challenger.Start(context.Background(), serverLog, clientset, reconciler, namespace, challengerAddr)
+	go challenger.Start(context.Background(), serverLog, clientset, reconciler, opts.namespace, opts.challengerAddr)
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
-		return 1
+		return err
 	}
-	return 0
+	return nil
 }
