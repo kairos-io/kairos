@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -206,7 +205,7 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 		return err
 	}
 	if meta.skipped > 0 {
-		log.Warnf("Could not restore the owner or extended attributes of %d entries in %s: extraction is not running as root", meta.skipped, dst)
+		log.Warnf("Could not restore the owner or extended attributes of %d entries in %s: not permitted by the user, the user namespace or the filesystem", meta.skipped, dst)
 	}
 	return nil
 }
@@ -215,11 +214,13 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 // to the file extracted from it.
 //
 // Without root the layer owner, a group the user is not in, and the
-// security and trusted xattr namespaces cannot be set. Those failures are
-// counted and logged instead of failing the extraction, so building an
-// extension as a regular user keeps working. As root every failure is
-// returned, since the extension would otherwise ship with the wrong owner
-// or without its file capabilities.
+// security and trusted xattr namespaces cannot be set. Root can be refused
+// too: inside a user namespace an id with no mapping cannot be set, without
+// CAP_CHOWN or CAP_SETFCAP the owner or file capabilities cannot be set, and
+// the destination filesystem may not support xattrs at all. Those refusals
+// are counted and logged instead of failing the extraction, so building an
+// extension in a container or as a regular user keeps working. Any other
+// error is returned.
 type metadataRestorer struct {
 	root       *os.Root
 	log        sdkLogger.KairosLogger
@@ -237,12 +238,22 @@ func (m *metadataRestorer) check(op, name string, err error) error {
 	if err == nil {
 		return nil
 	}
-	if !m.privileged && (errors.Is(err, fs.ErrPermission) || errors.Is(err, unix.ENOTSUP)) {
+	if m.refused(err) {
 		m.log.Debugf("%s %s: %v", op, name, err)
 		m.skipped++
 		return nil
 	}
 	return fmt.Errorf("%s %s: %w", op, name, err)
+}
+
+// refused reports whether err means the system does not allow the owner or
+// xattr to be set, as opposed to the extraction itself going wrong.
+func (m *metadataRestorer) refused(err error) bool {
+	if errors.Is(err, unix.EPERM) || errors.Is(err, unix.EINVAL) ||
+		errors.Is(err, unix.ENOTSUP) || errors.Is(err, unix.EOPNOTSUPP) {
+		return true
+	}
+	return !m.privileged && errors.Is(err, unix.EACCES)
 }
 
 // ownerIDs returns the uid and gid to chown an entry to. Only root can give
