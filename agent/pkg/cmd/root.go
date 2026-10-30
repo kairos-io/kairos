@@ -1412,8 +1412,8 @@ with 'kairos-agent kcrypt unlock-all'.`,
 				// journal/file stream.
 				phonehome.SetLogger(scanned.Logger)
 
-				if cc, ok, _ := phonehome.LoadFromCollector(scanned); ok {
-					cfg = *cc
+				if cfg, err = LoadPhoneHomeConfig(scanned); err != nil {
+					return err
 				}
 			}
 
@@ -1447,6 +1447,22 @@ with 'kairos-agent kcrypt unlock-all'.`,
 			return client.Run(ctx)
 		},
 	},
+}
+
+// LoadPhoneHomeConfig returns the phonehome: section of the scanned
+// cloud-config, or a zero Config when there is none. A section that does not
+// parse is an error: dropping it would leave the URL empty and send the user
+// after a missing url key when the real fault is, say, heartbeat_interval: 30
+// with no unit.
+func LoadPhoneHomeConfig(scanned *sdkConfig.Config) (phonehome.Config, error) {
+	cc, ok, err := phonehome.LoadFromCollector(scanned)
+	if err != nil {
+		return phonehome.Config{}, err
+	}
+	if !ok {
+		return phonehome.Config{}, nil
+	}
+	return *cc, nil
 }
 
 // MergePhoneHomeFlags overlays the phone-home command line on top of the
