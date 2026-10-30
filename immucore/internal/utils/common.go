@@ -494,13 +494,24 @@ func waitForKeyOn(dev string, done chan<- struct{}) {
 
 // DisableImmucore identifies if we need to be disabled
 // We disable if we boot from CD, netboot, squashfs recovery or have the rd.cos.disable stanza in cmdline.
+//
+// Matches whole cmdline tokens, not substrings: a value that only contains
+// one of the words, such as systemd.hostname=netbootsrv or a hostname in
+// dracut's ip= stanza, must not turn immucore off on an installed system.
 func DisableImmucore() bool {
 	cmdline, _ := os.ReadFile(GetHostProcCmdline())
-	cmdlineS := string(cmdline)
 
-	return strings.Contains(cmdlineS, "live:LABEL") || strings.Contains(cmdlineS, "live:CDLABEL") ||
-		strings.Contains(cmdlineS, "netboot") || strings.Contains(cmdlineS, "rd.cos.disable") ||
-		strings.Contains(cmdlineS, "rd.immucore.disable")
+	for _, tok := range strings.Fields(string(cmdline)) {
+		if strings.HasPrefix(tok, "root=live:LABEL") || strings.HasPrefix(tok, "root=live:CDLABEL") {
+			return true
+		}
+		key, _, _ := strings.Cut(tok, "=")
+		switch key {
+		case "netboot", "rd.cos.disable", "rd.immucore.disable":
+			return true
+		}
+	}
+	return false
 }
 
 // RootRW tells us if the mode to mount root.
