@@ -246,6 +246,20 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 		Expect(logs.String()).To(ContainSubstring("usr/bin/ls"))
 		Expect(logs.String()).To(ContainSubstring("bin/busybox"))
 	})
+
+	It("skips whiteout markers instead of writing them as files, and warns about the dropped deletion", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/.wh.env", Mode: 0o000},
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/share/foo/.wh..wh..opq", Mode: 0o000},
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/newtool", Mode: 0o755},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		Expect(filepath.Join(dest, "usr/bin/newtool")).To(BeAnExistingFile())
+		Expect(filepath.Join(dest, "usr/bin/.wh.env")).ToNot(BeAnExistingFile())
+		Expect(filepath.Join(dest, "usr/share/foo/.wh..wh..opq")).ToNot(BeAnExistingFile())
+		Expect(logs.String()).To(ContainSubstring("usr/bin/env"))
+		Expect(logs.String()).To(ContainSubstring("usr/share/foo"))
+	})
 })
 
 // imageWithLayer returns an in-memory image whose only layer holds the given

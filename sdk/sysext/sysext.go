@@ -16,6 +16,11 @@ import (
 
 var ErrorImageNoLayers = errors.New("image")
 
+const (
+	whiteoutPrefix    = ".wh."
+	whiteoutOpaqueDir = ".wh..wh..opq"
+)
+
 // DefaultAllowListRegex provided for easy use of defaults for confext and sysext
 var DefaultAllowListRegex = regexp.MustCompile(`^usr/*|^/usr/*|^etc/*|^/etc/*`)
 
@@ -52,7 +57,6 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 	defer func() {
 		_ = root.Close()
 	}()
-	// TODO: Support whiteout? https://github.com/opencontainers/image-spec/blob/79b036d80240ae530a8de15e1d21c7ab9292c693/layer.md#whiteouts
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -73,6 +77,19 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 		name := strings.TrimPrefix(header.Name, "/")
 		if !filepath.IsLocal(name) {
 			return fmt.Errorf("%s: path is outside the destination", header.Name)
+		}
+		// A whiteout marks a deletion of something in a lower layer:
+		// https://github.com/opencontainers/image-spec/blob/79b036d80240ae530a8de15e1d21c7ab9292c693/layer.md#whiteouts
+		// Only the last layer is extracted, so there is nothing for it to
+		// delete, and overlayfs does not read ".wh." names as whiteouts, so
+		// writing it would leave a junk file in the extension.
+		if base := filepath.Base(name); strings.HasPrefix(base, whiteoutPrefix) {
+			if base == whiteoutOpaqueDir {
+				log.Warnf("Skipping opaque whiteout %s: the extension cannot hide the contents of %s", header.Name, filepath.Dir(name))
+			} else {
+				log.Warnf("Skipping whiteout %s: the extension cannot delete %s", header.Name, filepath.Join(filepath.Dir(name), strings.TrimPrefix(base, whiteoutPrefix)))
+			}
+			continue
 		}
 		mode := header.FileInfo().Mode()
 
