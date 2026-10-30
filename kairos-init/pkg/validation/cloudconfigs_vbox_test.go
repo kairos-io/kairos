@@ -66,7 +66,7 @@ var _ = Describe("Bundled VM cloudconfig hypervisor stages", func() {
 			if stage.If == "" {
 				continue
 			}
-			if err := dmi(stage.If, sysVendor, productName, channel).Run(); err == nil {
+			if guardPasses(dmi(stage.If, sysVendor, productName, channel)) {
 				commands = append(commands, stage.Commands...)
 			}
 		}

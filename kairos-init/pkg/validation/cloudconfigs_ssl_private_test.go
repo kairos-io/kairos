@@ -77,8 +77,7 @@ var _ = Describe("Bundled cloudconfigs /etc/ssl/private permissions", func() {
 		Expect(os.Mkdir(present, 0755)).To(Succeed())
 
 		run := func(path string) bool {
-			expr := strings.ReplaceAll(stage.If, "/etc/ssl/private", path)
-			return exec.Command("sh", "-c", expr).Run() == nil
+			return guardPassesExpr(strings.ReplaceAll(stage.If, "/etc/ssl/private", path))
 		}
 
 		Expect(run(present)).To(BeTrue())
