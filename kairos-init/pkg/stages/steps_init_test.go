@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"testing"
 
+	semver "github.com/hashicorp/go-version"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/yip/pkg/schema"
@@ -388,5 +390,50 @@ func TestDracutNetworkModules(t *testing.T) {
 				t.Errorf("dracutNetworkModules() sysext = %t, want %t", sysext, tt.wantSysext)
 			}
 		})
+	}
+}
+
+// TestKairosReleaseStageDryRunSkipsProviderHooks puts a fake agent-provider
+// plugin in the working directory, which the bus searches, and checks that a
+// dry run builds the kairos-release stage without invoking it.
+func TestKairosReleaseStageDryRunSkipsProviderHooks(t *testing.T) {
+	dir := t.TempDir()
+	callLog := filepath.Join(dir, "calls")
+	plugin := "#!/bin/sh\necho \"$1\" >> " + callLog + "\necho '{\"state\":\"success\",\"data\":\"{\\\"provider\\\":\\\"k3s\\\",\\\"version\\\":\\\"v9.9.9\\\"}\"}'\n"
+	if err := os.WriteFile(filepath.Join(dir, "agent-provider-fake"), []byte(plugin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	oldDryRun, oldVersion := config.DefaultConfig.DryRun, config.DefaultConfig.KairosVersion
+	t.Cleanup(func() {
+		config.DefaultConfig.DryRun = oldDryRun
+		config.DefaultConfig.KairosVersion = oldVersion
+	})
+	config.DefaultConfig.KairosVersion = *semver.Must(semver.NewVersion("1.0.0"))
+
+	for _, tt := range []struct {
+		dryRun     bool
+		wantCalled bool
+	}{
+		{dryRun: true, wantCalled: false},
+		{dryRun: false, wantCalled: true},
+	} {
+		_ = os.Remove(callLog)
+		config.DefaultConfig.DryRun = tt.dryRun
+
+		stage := GetKairosReleaseStage(values.System{}, logger.NewKairosLogger("test", "info", true))
+
+		_, err := os.Stat(callLog)
+		if called := err == nil; called != tt.wantCalled {
+			t.Fatalf("dryRun=%t: provider plugin called=%t, want %t", tt.dryRun, called, tt.wantCalled)
+		}
+		if len(stage) != 1 {
+			t.Fatalf("dryRun=%t: got %d stages, want 1", tt.dryRun, len(stage))
+		}
+		_, hasVersion := stage[0].Environment["KAIROS_SOFTWARE_VERSION"]
+		if hasVersion != tt.wantCalled {
+			t.Fatalf("dryRun=%t: KAIROS_SOFTWARE_VERSION set=%t, want %t", tt.dryRun, hasVersion, tt.wantCalled)
+		}
 	}
 }
