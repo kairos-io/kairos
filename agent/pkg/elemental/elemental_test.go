@@ -1026,6 +1026,46 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
 		})
 
+		It("Refuses a docker save archive built for another platform, and leaves the target alone", Label("docker"), func() {
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			dir := GinkgoT().TempDir()
+			img := rootfsImageFor(dir, "linux", "arm64")
+			archivePath := filepath.Join(dir, "docker.tar")
+			Expect(crane.Save(img, "kairos:test", archivePath)).To(Succeed())
+
+			amd64, err := platform.NewPlatform("linux", "amd64")
+			Expect(err).ToNot(HaveOccurred())
+			config.Platform = amd64
+
+			target := GinkgoT().TempDir()
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("linux/arm64"))
+			Expect(err.Error()).To(ContainSubstring("linux/amd64"))
+			Expect(os.ReadDir(target)).To(BeEmpty())
+		})
+
+		It("Unpacks a docker save archive built for this run's platform", Label("docker"), func() {
+			runner.ClearCmds()
+			runner.SideEffect = realRunner
+
+			dir := GinkgoT().TempDir()
+			img := rootfsImageFor(dir, "linux", "arm64")
+			archivePath := filepath.Join(dir, "docker.tar")
+			Expect(crane.Save(img, "kairos:test", archivePath)).To(Succeed())
+
+			arm64, err := platform.NewPlatform("linux", "arm64")
+			Expect(err).ToNot(HaveOccurred())
+			config.Platform = arm64
+
+			target := GinkgoT().TempDir()
+			_, err = elemental.NewElemental(config).DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+			Expect(err).To(BeNil())
+			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+		})
+
 		It("Unpacks an OCI layout archive to target", Label("docker"), func() {
 			runner.ClearCmds()
 			runner.SideEffect = realRunner
@@ -1597,6 +1637,23 @@ func rootfsImage(dir, layerName, osRelease string) ggcrv1.Image {
 	layer, err := tarball.LayerFromFile(layerPath)
 	Expect(err).ToNot(HaveOccurred())
 	img, err := mutate.AppendLayers(empty.Image, layer)
+	Expect(err).ToNot(HaveOccurred())
+
+	return img
+}
+
+// rootfsImageFor is rootfsImage with the OS and architecture recorded in the
+// image config, as a build for that platform would.
+func rootfsImageFor(dir, osName, arch string) ggcrv1.Image {
+	GinkgoHelper()
+
+	img := rootfsImage(dir, "layer.tar", "NAME=\"Kairos\"\n")
+	cfg, err := img.ConfigFile()
+	Expect(err).ToNot(HaveOccurred())
+	cfg = cfg.DeepCopy()
+	cfg.OS = osName
+	cfg.Architecture = arch
+	img, err = mutate.ConfigFile(img, cfg)
 	Expect(err).ToNot(HaveOccurred())
 
 	return img
