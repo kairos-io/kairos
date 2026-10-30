@@ -24,21 +24,16 @@ var _ = Describe("BindStateDir", func() {
 	})
 })
 
-var _ = Describe("UniqueStatePaths", func() {
-	It("keeps the first of two paths that share a state directory", func() {
+var _ = Describe("StateName", func() {
+	It("keeps the name of a path without a dash", func() {
+		Expect(op.StateName("/var/log/audit")).To(Equal("var-log-audit"))
+	})
+
+	It("doubles a dash so that it cannot be read as a slash", func() {
+		Expect(op.StateName("/var/lib/foo-bar")).To(Equal("var-lib-foo--bar"))
+		Expect(op.StateName("/var/lib/foo/bar")).To(Equal("var-lib-foo-bar"))
 		Expect(op.BindStateDir("/var/lib/foo-bar", "/sysroot", "/usr/local/.state")).
-			To(Equal(op.BindStateDir("/var/lib/foo/bar", "/sysroot", "/usr/local/.state")))
-		Expect(op.UniqueStatePaths([]string{"/var/lib/foo-bar", "/var/log", "/var/lib/foo/bar"})).
-			To(Equal([]string{"/var/lib/foo-bar", "/var/log"}))
-	})
-
-	It("also drops a path that differs only by its leading slash", func() {
-		Expect(op.UniqueStatePaths([]string{"/var/log", "var/log"})).To(Equal([]string{"/var/log"}))
-	})
-
-	It("keeps paths whose state directories differ", func() {
-		paths := []string{"/var/log", "/var/log/audit", "/var/lib/foo-bar", "/var/lib/foo"}
-		Expect(op.UniqueStatePaths(paths)).To(Equal(paths))
+			NotTo(Equal(op.BindStateDir("/var/lib/foo/bar", "/sysroot", "/usr/local/.state")))
 	})
 })
 
@@ -114,6 +109,36 @@ var _ = Describe("MountBind", func() {
 		content, err := os.ReadFile(synced)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(content)).To(Equal("type=DAEMON_START\n"))
+	})
+
+	It("moves the data of a path with a dash out of the directory it had before the escape", func() {
+		// A machine installed before the escape keeps the data of
+		// /etc/pki/ca-trust/source/anchors under the old name.
+		legacy := filepath.Join(root, "usr/local/.state", "etc-pki-ca-trust-source-anchors.bind")
+		Expect(os.MkdirAll(legacy, 0o755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(legacy, "corp.pem"), []byte("cert"), 0o644)).To(Succeed())
+
+		operation := op.MountBind("/etc/pki/ca-trust/source/anchors", root, "/usr/local/.state")
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		stateDir := op.BindStateDir("/etc/pki/ca-trust/source/anchors", root, "/usr/local/.state")
+		Expect(stateDir).To(HaveSuffix("etc-pki-ca--trust-source-anchors.bind"))
+		content, err := os.ReadFile(filepath.Join(stateDir, "corp.pem"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(content)).To(Equal("cert"))
+		Expect(legacy).ToNot(BeADirectory())
+	})
+
+	It("leaves the old directory alone once the escaped one is there", func() {
+		legacy := filepath.Join(root, "usr/local/.state", "var-lib-foo-bar.bind")
+		stateDir := op.BindStateDir("/var/lib/foo-bar", root, "/usr/local/.state")
+		Expect(os.MkdirAll(legacy, 0o755)).To(Succeed())
+		Expect(os.MkdirAll(stateDir, 0o755)).To(Succeed())
+
+		operation := op.MountBind("/var/lib/foo-bar", root, "/usr/local/.state")
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		Expect(legacy).To(BeADirectory())
 	})
 
 	It("creates a path that the image does not ship", func() {

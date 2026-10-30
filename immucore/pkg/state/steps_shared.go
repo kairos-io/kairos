@@ -206,8 +206,6 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 
 				// Remove any duplicates
 				s.OverlayDirs = internalUtils.UniqueSlice(internalUtils.CleanupSlice(s.OverlayDirs))
-				// Two paths must not share the directories that back them
-				s.OverlayDirs = op.UniqueStatePaths(s.OverlayDirs)
 
 				s.BindMounts = strings.Split(env["PERSISTENT_STATE_PATHS"], " ")
 				// Add custom bind mounts
@@ -242,7 +240,6 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 
 				// Remove any duplicates
 				s.BindMounts = internalUtils.UniqueSlice(internalUtils.CleanupSlice(s.BindMounts))
-				s.BindMounts = op.UniqueStatePaths(s.BindMounts)
 
 				// Load Overlay config
 				overlayConfig := env["OVERLAY"]

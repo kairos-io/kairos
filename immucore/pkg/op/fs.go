@@ -76,33 +76,42 @@ func BindStateDir(mountpoint, root, stateTarget string) string {
 
 // StateName is the flat name the backing directories of mountpoint are named
 // after, by BindStateDir and MountWithBaseOverlay: /var/log/audit is
-// var-log-audit. Every "/" becomes "-", so two paths that differ only there,
-// /var/lib/foo-bar and /var/lib/foo/bar, get the same name.
+// var-log-audit. Every "/" becomes "-" and every "-" already in the path is
+// doubled, so /var/lib/foo-bar is var-lib-foo--bar and does not share a
+// directory with /var/lib/foo/bar, which is var-lib-foo-bar. Reading the name
+// back, "--" is a "-" and a single "-" is a "/".
 func StateName(mountpoint string) string {
+	parts := strings.Split(strings.TrimLeft(mountpoint, "/"), "/")
+	for i, p := range parts {
+		parts[i] = strings.ReplaceAll(p, "-", "--")
+	}
+	return strings.Join(parts, "-")
+}
+
+// legacyStateName is the name StateName gave before it escaped "-", under which
+// the data of a path with a "-" in it sits on machines installed before.
+func legacyStateName(mountpoint string) string {
 	return strings.ReplaceAll(strings.TrimLeft(mountpoint, "/"), "/", "-")
 }
 
-// UniqueStatePaths returns paths without the entries whose StateName an
-// earlier entry already has, and warns about each one it drops. Mounting both
-// would back the two paths with one directory, so the files of one would show
-// up in, and persist through, the other.
-//
-// The name itself is kept as it is rather than made reversible: it is the name
-// of the directory that already holds the data of every installed machine.
-func UniqueStatePaths(paths []string) []string {
-	seen := map[string]string{}
-	unique := make([]string, 0, len(paths))
-	for _, p := range paths {
-		name := StateName(p)
-		if first, ok := seen[name]; ok {
-			internalUtils.KLog.Logger.Warn().Str("path", p).Str("kept", first).Str("name", name).
-				Msg("Skipping path: its state directory name is the same as the one of a path listed before it")
-			continue
-		}
-		seen[name] = p
-		unique = append(unique, p)
+// migrateStateDir renames the directory a path was backed by under its legacy
+// name to the one it has now, the first time the path is mounted with the
+// escaped name. Nothing is done if the new directory is already there.
+func migrateStateDir(legacy, current string) error {
+	if legacy == current {
+		return nil
 	}
-	return unique
+	if _, err := os.Stat(current); err == nil || !os.IsNotExist(err) {
+		return err
+	}
+	if _, err := os.Stat(legacy); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	internalUtils.KLog.Logger.Info().Str("from", legacy).Str("to", current).Msg("Renaming state directory to its escaped name")
+	return os.Rename(legacy, current)
 }
 
 // https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L183
@@ -141,6 +150,10 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 				return err
 			}
 
+			legacy := filepath.Join(root, stateTarget, fmt.Sprintf("%s.bind", legacyStateName(mountpoint)))
+			if err := migrateStateDir(legacy, stateDir); err != nil {
+				return err
+			}
 			if err := internalUtils.CreateBindStateDir(rootMount, stateDir); err != nil {
 				return err
 			}
@@ -192,6 +205,10 @@ func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 			// bare "lstat <path>: no such file or directory".
 			if err := internalUtils.CreateIfNotExists(rootMount); err != nil {
 				return fmt.Errorf("%w: %s: %w", constants.ErrMountTargetMissing, rootMount, err)
+			}
+			// A block device base keeps the overlay across boots
+			if err := migrateStateDir(filepath.Join(base, legacyStateName(mountpoint)), filepath.Join(base, bindMountPath)); err != nil {
+				return err
 			}
 			// Make sure workdir and/or upper exists
 			_ = os.MkdirAll(upperdir, os.ModePerm)
