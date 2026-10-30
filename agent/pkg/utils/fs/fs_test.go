@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	. "github.com/onsi/ginkgo/v2"
@@ -151,6 +152,28 @@ var _ = Describe("FsUtils", func() {
 			name, err := fsutils.TempDir(rofs, "/tmp", "denied")
 			Expect(err).To(HaveOccurred())
 			Expect(name).To(BeEmpty())
+		})
+		It("skips a candidate name that somebody else created first", func() {
+			realDir, err := os.MkdirTemp("", "kairos-fsutils-excl")
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(func() { _ = os.RemoveAll(realDir) })
+
+			sfs := &squattedFS{PathFS: vfs.NewPathFS(vfs.OSFS, realDir)}
+			name, err := fsutils.TempDir(sfs, "/sub", "excl")
+			Expect(err).ToNot(HaveOccurred())
+
+			// The last element has to be created with Mkdir, which reports an
+			// existing directory instead of adopting it. MkdirAll returns nil
+			// for one, so it would have handed back the squatted directory and
+			// never called Mkdir at all.
+			Expect(len(sfs.attempts)).To(BeNumerically(">=", 2),
+				"TempDir did not create the last path element with Mkdir")
+			Expect(name).ToNot(Equal(sfs.attempts[0]))
+
+			// The squatted directory is still there and still not ours.
+			info, err := os.Stat(filepath.Join(realDir, sfs.attempts[0]))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.IsDir()).To(BeTrue())
 		})
 	})
 
@@ -390,3 +413,26 @@ var _ = Describe("FsUtils", func() {
 		})
 	})
 })
+
+// squattedFS lets the first directory TempDir asks for be created by somebody
+// else a moment earlier, which is the race the exclusive create has to lose
+// safely. The directory really is created, and Mkdir really does report
+// EEXIST, so the behaviour matches a filesystem rather than standing in for
+// one.
+type squattedFS struct {
+	*vfs.PathFS
+	attempts []string
+	squatted bool
+}
+
+func (s *squattedFS) Mkdir(name string, perm os.FileMode) error {
+	s.attempts = append(s.attempts, name)
+	if !s.squatted {
+		s.squatted = true
+		if err := s.PathFS.Mkdir(name, perm); err != nil {
+			return err
+		}
+		return &os.PathError{Op: "mkdir", Path: name, Err: syscall.EEXIST}
+	}
+	return s.PathFS.Mkdir(name, perm)
+}

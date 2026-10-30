@@ -211,24 +211,27 @@ var _ = Describe("Uki install action", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	It("fails when a conf file in the EFI partition can not be parsed", func() {
-		// conf files are parsed with an os based reader which does not see
-		// the test fs, so any conf file in the EFI partition fails the walk
+	It("reads a conf file in the EFI partition from the configured filesystem", func() {
 		Expect(fsutils.MkdirAll(fs, "/efi/loader/entries", constants.DirPerm)).To(Succeed())
 		Expect(fs.WriteFile("/efi/loader/entries/foo.conf", []byte("cmdline test\n"), os.ModePerm)).To(Succeed())
+
+		Expect(installer.Run()).To(Succeed())
+	})
+
+	It("fails when a conf file in the EFI partition can not be parsed", func() {
+		// a .conf whose contents got replaced by newline-free garbage makes
+		// the reader fail on bufio.ErrTooLong rather than on open
+		Expect(fsutils.MkdirAll(fs, "/efi/loader/entries", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/efi/loader/entries/foo.conf", bytes.Repeat([]byte("x"), 128*1024), os.ModePerm)).To(Succeed())
 
 		err := installer.Run()
 		Expect(err).To(HaveOccurred())
 	})
 
-	Describe("with conf files visible to both the test fs and the OS", func() {
-		// conf files are parsed with an os based reader while artifacts are
-		// managed through the config fs, so the EFI mountpoint is mirrored in
-		// a real temporary directory and in the test fs
+	Describe("with an EFI partition carrying conf files", func() {
 		var efiDir string
 
-		writeBoth := func(path, content string) {
-			Expect(os.WriteFile(path, []byte(content), 0644)).To(Succeed())
+		writeConf := func(path, content string) {
 			Expect(fs.WriteFile(path, []byte(content), os.ModePerm)).To(Succeed())
 		}
 
@@ -236,22 +239,20 @@ var _ = Describe("Uki install action", func() {
 			efiDir = GinkgoT().TempDir()
 			Expect(fsutils.MkdirAll(fs, efiDir+"/loader/entries", constants.DirPerm)).To(Succeed())
 			Expect(fsutils.MkdirAll(fs, efiDir+"/EFI/kairos", constants.DirPerm)).To(Succeed())
-			Expect(os.MkdirAll(efiDir+"/loader/entries", 0755)).To(Succeed())
-			Expect(os.MkdirAll(efiDir+"/EFI/kairos", 0755)).To(Succeed())
 			spec.Partitions.EFI.MountPoint = efiDir
 		})
 
 		It("skips entries and rotates the unassigned artifacts to all roles", func() {
 			spec.SkipEntries = []string{"interactive-install"}
-			writeBoth(efiDir+"/loader/entries/skipme.conf",
+			writeConf(efiDir+"/loader/entries/skipme.conf",
 				"title Kairos\ncmdline foo interactive-install bar\nefi /EFI/kairos/skipme.efi\n")
-			writeBoth(efiDir+"/loader/entries/keep.conf",
+			writeConf(efiDir+"/loader/entries/keep.conf",
 				"title Kairos\ncmdline console=tty1\n")
-			writeBoth(efiDir+"/loader/entries/nocmd.conf", "title Kairos\n")
-			// referenced by skipme.conf, only needs to exist in the test fs
+			writeConf(efiDir+"/loader/entries/nocmd.conf", "title Kairos\n")
+			// referenced by skipme.conf
 			Expect(fs.WriteFile(efiDir+"/EFI/kairos/skipme.efi", []byte("data"), os.ModePerm)).To(Succeed())
-			// unassigned artifact, present in both so the rotation works end to end
-			writeBoth(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
+			// the unassigned artifact the install rotates into every role
+			writeConf(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
 
 			Expect(installer.Run()).To(Succeed())
 
@@ -275,12 +276,12 @@ var _ = Describe("Uki install action", func() {
 			// v0.5.0, and the efi->uki migration only runs on upgrade, so an
 			// install only ever sees this form.
 			spec.SkipEntries = []string{"install-mode-interactive"}
-			writeBoth(efiDir+"/loader/entries/interactive.conf",
+			writeConf(efiDir+"/loader/entries/interactive.conf",
 				"title Kairos\nsort-key interactive-0\nuki /EFI/kairos/interactive.efi\nprofile 0\ncmdline install-mode-interactive\n")
-			// referenced by the conf above, only needs to exist in the test fs
+			// referenced by the conf above
 			Expect(fs.WriteFile(efiDir+"/EFI/kairos/interactive.efi", []byte("data"), os.ModePerm)).To(Succeed())
-			// unassigned artifact, present in both so the rotation works end to end
-			writeBoth(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
+			// the unassigned artifact the install rotates into every role
+			writeConf(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
 
 			Expect(installer.Run()).To(Succeed())
 
@@ -294,7 +295,7 @@ var _ = Describe("Uki install action", func() {
 			// An unassigned set that does not fit in the free space, so the four
 			// role copies cannot fit either. Sparse, so it costs nothing to
 			// create.
-			writeBoth(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
+			writeConf(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
 			Expect(fs.Truncate(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", tooBigFor(fs, efiDir))).To(Succeed())
 
 			err := installer.Run()
@@ -309,24 +310,36 @@ var _ = Describe("Uki install action", func() {
 			}
 		})
 
-		It("fails when the artifact set conf can not be rewritten for a role", func() {
-			// the copied conf only exists in the test fs, so rewriting its
-			// keys through the os based reader fails
-			writeBoth(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".conf",
+		It("rewrites the artifact set conf for every role", func() {
+			writeConf(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".conf",
 				"title Kairos\nefi /EFI/kairos/"+UnassignedArtifactRole+".efi\n")
+			writeConf(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
 
-			err := installer.Run()
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("installing the new artifact set"))
+			Expect(installer.Run()).To(Succeed())
+
+			// AddBootAssessment renames each entry with a +3 suffix once the
+			// set is in place, so that is the name on the partition.
+			for role, title := range map[string]string{
+				"active":     "title Kairos\n",
+				"passive":    "title Kairos" + constants.PassiveBootSuffix + "\n",
+				"recovery":   "title Kairos" + constants.RecoveryBootSuffix + "\n",
+				"statereset": "title Kairos" + constants.StateResetBootSuffix + "\n",
+			} {
+				content, err := fs.ReadFile(efiDir + "/EFI/kairos/" + role + "+3.conf")
+				Expect(err).ToNot(HaveOccurred(), role)
+				Expect(string(content)).To(ContainSubstring("efi /EFI/kairos/"+role+".efi"), role)
+				Expect(string(content)).To(ContainSubstring(title), role)
+			}
 		})
 
-		It("fails when the unassigned artifacts can not be removed", func() {
-			// present in the test fs only, so the os based removal fails
-			Expect(fs.WriteFile(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", []byte("artifact"), os.ModePerm)).To(Succeed())
+		It("removes the unassigned artifacts once every role is installed", func() {
+			writeConf(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
 
-			err := installer.Run()
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("removing artifact set"))
+			Expect(installer.Run()).To(Succeed())
+
+			exists, err := fsutils.Exists(fs, efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeFalse())
 		})
 	})
 

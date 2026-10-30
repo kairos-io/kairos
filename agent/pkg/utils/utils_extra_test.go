@@ -372,6 +372,19 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 	})
 
 	Describe("GetMajorImageVersion", Label("pe"), func() {
+		// A virtual root, not a real temporary directory: a vfs.OSFS rooted at
+		// a temp dir cannot tell a read through the filesystem apart from a
+		// read through the os package, and telling those apart is the point.
+		var peFs vfs.FS
+		var peCleanup func()
+
+		BeforeEach(func() {
+			var err error
+			peFs, peCleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(peCleanup)
+		})
+
 		// writePE writes a minimal valid PE binary with the given optional
 		// header magic so debug/pe can parse it.
 		writePE := func(path string, is64 bool) {
@@ -401,33 +414,41 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 				oh := pe.OptionalHeader32{Magic: 0x10b, MajorImageVersion: 41, NumberOfRvaAndSizes: 16}
 				Expect(binary.Write(&buf, binary.LittleEndian, oh)).To(Succeed())
 			}
-			Expect(os.WriteFile(path, buf.Bytes(), 0644)).To(Succeed())
+			Expect(fsutils.MkdirAll(peFs, filepath.Dir(path), constants.DirPerm)).To(Succeed())
+			Expect(peFs.WriteFile(path, buf.Bytes(), 0644)).To(Succeed())
 		}
 
 		It("reads the major image version from a PE32+ binary", func() {
-			dir, err := os.MkdirTemp("", "kairos-pe")
-			Expect(err).ToNot(HaveOccurred())
-			DeferCleanup(func() { _ = os.RemoveAll(dir) })
-			peFile := filepath.Join(dir, "systemd-bootx64.efi")
+			peFile := "/efi/EFI/BOOT/BOOTX64.EFI"
 			writePE(peFile, true)
 
-			version, err := utils.GetMajorImageVersion(peFile)
+			version, err := utils.GetMajorImageVersion(peFs, peFile)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(version).To(Equal(uint16(42)))
+		})
+		It("reads the binary the given filesystem holds, not the host's", func() {
+			// The path exists only inside the virtual root. Nothing is written
+			// to the real root, so a reader that reached for os.Open would see
+			// no such file and this spec would fail.
+			peFile := "/efi/EFI/BOOT/BOOTX64.EFI"
+			writePE(peFile, true)
+			_, err := os.Stat(peFile)
+			Expect(os.IsNotExist(err)).To(BeTrue(), "the fixture must not exist on the host root")
+
+			version, err := utils.GetMajorImageVersion(peFs, peFile)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(version).To(Equal(uint16(42)))
 		})
 		It("fails on a PE32 (non 64-bit) binary", func() {
-			dir, err := os.MkdirTemp("", "kairos-pe")
-			Expect(err).ToNot(HaveOccurred())
-			DeferCleanup(func() { _ = os.RemoveAll(dir) })
-			peFile := filepath.Join(dir, "systemd-bootia32.efi")
+			peFile := "/efi/EFI/BOOT/BOOTIA32.EFI"
 			writePE(peFile, false)
 
-			_, err = utils.GetMajorImageVersion(peFile)
+			_, err := utils.GetMajorImageVersion(peFs, peFile)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unexpected PE optional header type"))
 		})
 		It("fails when the file does not exist", func() {
-			_, err := utils.GetMajorImageVersion("/no/such/file.efi")
+			_, err := utils.GetMajorImageVersion(peFs, "/no/such/file.efi")
 			Expect(err).To(HaveOccurred())
 		})
 	})

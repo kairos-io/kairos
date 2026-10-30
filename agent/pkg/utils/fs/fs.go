@@ -131,10 +131,19 @@ func TempDir(fs sdkFS.KairosFS, dir, prefix string) (name string, err error) {
 		name = filepath.Join(dir, prefix)
 		return
 	}
+	// Create the parent, then the last element on its own. Mkdir fails with
+	// EEXIST on a directory that is already there, which is what makes the
+	// name exclusive to this caller and what lets the retry below fire.
+	// MkdirAll cannot do that: it returns nil for an existing directory, so a
+	// directory somebody created in advance would be accepted, and its owner
+	// would keep write access to whatever the caller puts in it.
+	if err = MkdirAll(fs, dir, 0700); err != nil {
+		return "", err
+	}
 	nconflict := 0
 	for i := 0; i < 10000; i++ {
 		try := filepath.Join(dir, prefix+nextRandom())
-		err = MkdirAll(fs, try, 0700)
+		err = fs.Mkdir(try, 0700)
 		if os.IsExist(err) {
 			if nconflict++; nconflict > 10 {
 				randmu.Lock()

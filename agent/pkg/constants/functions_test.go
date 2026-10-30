@@ -1,6 +1,8 @@
 package constants_test
 
 import (
+	"strings"
+
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -62,6 +64,35 @@ var _ = Describe("Constants functions", func() {
 		Entry("unknown arch defaults to bootx64.efi", "ppc64le", "bootx64.efi"),
 		Entry("empty arch defaults to bootx64.efi", "", "bootx64.efi"),
 	)
+
+	// These are the names AuroraBoot's build-uki writes into EFI/BOOT on the ESP,
+	// so they are upper case for every architecture. They are deliberately not the
+	// names GetFallBackEfi returns, which is the GRUB path's shim, written by this
+	// repository under EFI/boot.
+	DescribeTable("GetSystemdBootFallBackEfi",
+		func(arch, expected string) {
+			Expect(cnst.GetSystemdBootFallBackEfi(arch)).To(Equal(expected))
+		},
+		Entry("amd64", cnst.ArchAmd64, "BOOTX64.EFI"),
+		Entry("arm64", cnst.ArchArm64, "BOOTAA64.EFI"),
+		Entry("riscv64", cnst.ArchRiscv64, "BOOTRISCV64.EFI"),
+		Entry("unknown arch defaults to BOOTX64.EFI", "ppc64le", "BOOTX64.EFI"),
+		Entry("empty arch defaults to BOOTX64.EFI", "", "BOOTX64.EFI"),
+	)
+
+	It("GetSystemdBootFallBackEfi names the same file as GetFallBackEfi on every arch", func() {
+		// The two helpers describe two different writers, so they are spelled
+		// differently: amd64 and arm64 are lower case on the GRUB path and upper
+		// case on the UKI path. An ESP is vfat and vfat lookups ignore case, so
+		// both names reach the same file. This is what keeps the GRUB path and
+		// the UKI path from fighting over EFI/BOOT, and it has to hold for the
+		// arch that has no lower case spelling either.
+		for _, arch := range []string{cnst.ArchAmd64, cnst.ArchArm64, cnst.ArchRiscv64} {
+			Expect(strings.EqualFold(cnst.GetFallBackEfi(arch), cnst.GetSystemdBootFallBackEfi(arch))).
+				To(BeTrue(), "arch %s: %q vs %q",
+					arch, cnst.GetFallBackEfi(arch), cnst.GetSystemdBootFallBackEfi(arch))
+		}
+	})
 
 	DescribeTable("BaseBootTitle strips known suffixes",
 		func(title, expected string) {
