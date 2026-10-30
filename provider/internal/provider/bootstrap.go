@@ -63,6 +63,11 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 
 	logger := loggerpkg.NewKairosLogger("provider", logLevel, false)
 
+	for _, deprecated := range prvConfig.DeprecatedKeys() {
+		logger.Warnf("%s is deprecated and will stop being read, use %s instead",
+			deprecated.Key, deprecated.Replacement)
+	}
+
 	// Let operators override the edgevpn API endpoint via EDGEVPN_API so the
 	// bootstrap path can target a unix socket (or any non-default listener)
 	// without rebuilding the binary or threading a flag through kairos-sdk's
@@ -157,9 +162,9 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	}
 
 	// Optionally set up a specific node role if the user has defined so
-	if prvConfig.P2P.Role != "" {
-		logger.Info("Setting default role from configuration: ", prvConfig.P2P.Role)
-		nodeOpts = append(nodeOpts, service.WithDefaultRoles(prvConfig.P2P.Role))
+	if pinnedRole := prvConfig.P2P.HardcodedRole(); pinnedRole != "" {
+		logger.Info("Setting default role from configuration: ", pinnedRole)
+		nodeOpts = append(nodeOpts, service.WithDefaultRoles(pinnedRole))
 	}
 
 	k, err := service.NewNode(nodeOpts...)

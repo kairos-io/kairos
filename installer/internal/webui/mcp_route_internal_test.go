@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/kairos-io/kairos/v4/sdk/branding"
 	"strings"
+
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

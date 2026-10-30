@@ -106,6 +106,22 @@ var _ = Describe("Default logs journal list", Label("logs", "cmd"), func() {
 			"expected %s to name a systemd service", phonehome.ServicePath)
 		Expect(defaultLogsConfig().Journal).To(ContainElement(unit))
 	})
+
+	// The Kubernetes spec above covers only the units the providers install
+	// at build time. The p2p provider also writes two of its own at
+	// bootstrap: SetupVPN writes edgevpn@<instance>, SetupAPI writes
+	// edgevpn, and bootstrap takes one branch or the other on every
+	// token-based node. Neither name starts with kairos- or cos-setup-, so
+	// the derived sweep's regexp would not see them even from a
+	// cloud-config.
+	//
+	// Spelled out rather than derived from services.EdgeVPNDefaultInstance:
+	// that constant is under provider/internal, which Go's internal rule
+	// puts out of reach of this package.
+	It("asks journald for the units the p2p provider writes at bootstrap", func() {
+		Expect(defaultLogsConfig().Journal).To(ContainElements(
+			"edgevpn", "edgevpn@kairos"))
+	})
 })
 
 // unitDropInPath matches a drop-in Kairos writes for a unit it did not write

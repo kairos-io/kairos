@@ -642,16 +642,17 @@ var _ = Describe("Upgrade Actions test", func() {
 					spec.Recovery.Size = 10
 					spec.Entry = constants.BootEntryRecovery
 
-					// KAIROS_INIT_VERSION setup for the downgrade gate. For the
-					// squashfs recovery flow spec.Recovery.MountPoint is
-					// empty; the finalize gate then reads /etc/kairos-release
-					// on the same fs for both sides of the compare, so the
-					// running-system file above is enough.
+					// KAIROS_INIT_VERSION setup for the downgrade gate. The
+					// squashfs recovery tree is unpacked into a temp dir, so
+					// the target side of the compare is written by the
+					// extractor and rsync fakes below.
 					Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
 					Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
-					if mp := spec.Recovery.MountPoint; mp != "" {
-						Expect(fsutils.MkdirAll(fs, filepath.Join(mp, "etc"), constants.DirPerm)).To(Succeed())
-						Expect(fs.WriteFile(filepath.Join(mp, "etc", "kairos-release"), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					extractor.SideEffect = func(_, destination, _ string) error {
+						if err := fsutils.MkdirAll(fs, filepath.Join(destination, "etc"), constants.DirPerm); err != nil {
+							return err
+						}
+						return fs.WriteFile(filepath.Join(destination, constants.KairosReleaseFile), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)
 					}
 
 					err = fsutils.MkdirAll(config.Fs, "/proc", constants.DirPerm)
@@ -664,6 +665,12 @@ var _ = Describe("Upgrade Actions test", func() {
 					runner.SideEffect = func(command string, args ...string) ([]byte, error) {
 						if command == "cat" && args[0] == "/proc/cmdline" {
 							return []byte(constants.RecoveryLabel), nil
+						}
+						if command == constants.Rsync {
+							// rsync gets real paths, the target is the last arg
+							target := args[len(args)-1]
+							_ = os.MkdirAll(filepath.Join(target, "etc"), constants.DirPerm)
+							_ = os.WriteFile(filepath.Join(target, constants.KairosReleaseFile), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)
 						}
 						if command == "mksquashfs" && args[1] == spec.Recovery.File {
 							// create the transition img for squash to fake it
@@ -729,6 +736,88 @@ var _ = Describe("Upgrade Actions test", func() {
 					info, err = fs.Stat(spec.Recovery.File)
 					Expect(err).To(HaveOccurred())
 
+				})
+				It("runs finalize on the unpacked recovery tree before building the squashfs", Label("docker", "bug-5619"), func() {
+					spec.ExtraDirsRootfs = []string{"/var/lib/kubelet"}
+					spec.Recovery.Source = sdkImages.NewDockerSrc("alpine")
+
+					var tree string
+					baseExtract := extractor.SideEffect
+					extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+						tree = destination
+						if err := fs.WriteFile(filepath.Join(destination, "file.file"), []byte("something"), constants.FilePerm); err != nil {
+							return err
+						}
+						return baseExtract(imageRef, destination, platformRef)
+					}
+
+					finalized := false
+					squashed := false
+					baseEffect := runner.SideEffect
+					runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+						if command == constants.TargetKairosAgentPath && len(args) > 0 && args[0] == "upgrade-finalize" {
+							Expect(tree).ToNot(BeEmpty())
+							Expect(syscall.WasChrootCalledWith(tree)).To(BeTrue())
+							Expect(fsutils.Exists(fs, constants.UpgradeFinalizeContextPath)).To(BeFalse())
+							Expect(fsutils.Exists(fs, filepath.Join(tree, "file.file"))).To(BeTrue())
+
+							ctx, err := action.ReadFinalizeContext(fs, filepath.Join(tree, constants.UpgradeFinalizeContextPath))
+							Expect(err).ToNot(HaveOccurred())
+							Expect(ctx.ImgMountPoint).To(Equal("/"))
+							Expect(ctx.RecoveryUpgrade).To(BeTrue())
+							Expect(ctx.ExtraDirsRootfs).To(Equal([]string{"/var/lib/kubelet"}))
+
+							// The fake syscall does not chroot, so resolve the
+							// target's "/" to the tree it was handed.
+							ctx.ImgMountPoint = tree
+							Expect(action.RunFinalize(config, ctx)).To(Succeed())
+							finalized = true
+						}
+						if command == "mksquashfs" {
+							Expect(finalized).To(BeTrue())
+							Expect(args[0]).To(Equal(tree))
+							Expect(fsutils.Exists(fs, filepath.Join(tree, "var", "lib", "kubelet"))).To(BeTrue())
+							squashed = true
+						}
+						return baseEffect(command, args...)
+					}
+
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed(), memLog.String())
+
+					Expect(finalized).To(BeTrue())
+					Expect(squashed).To(BeTrue())
+					Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+					Expect(fsutils.Exists(fs, "/var/lib/kubelet")).To(BeFalse())
+					Expect(fsutils.Exists(fs, constants.UpgradeFinalizeContextPath)).To(BeFalse())
+					Expect(fsutils.Exists(fs, spec.Recovery.File)).To(BeFalse())
+					Expect(fsutils.Exists(fs, recoveryImgSquash)).To(BeTrue())
+				})
+				It("drops the unpacked recovery tree without building the squashfs when finalize fails", Label("docker", "bug-5619"), func() {
+					Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v9.0.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					spec.Recovery.Source = sdkImages.NewDockerSrc("alpine")
+
+					var tree string
+					baseExtract := extractor.SideEffect
+					extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+						tree = destination
+						return baseExtract(imageRef, destination, platformRef)
+					}
+
+					upgrade = action.NewUpgradeAction(config, spec)
+					err := upgrade.Run()
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+
+					Expect(tree).ToNot(BeEmpty())
+					for _, cmd := range runner.Cmds() {
+						Expect(cmd[0]).ToNot(Equal("mksquashfs"))
+					}
+					Expect(fsutils.Exists(fs, tree)).To(BeFalse())
+					Expect(fsutils.Exists(fs, spec.Recovery.File)).To(BeFalse())
+					f, err := fs.ReadFile(recoveryImgSquash)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(string(f)).To(Equal("recovery"))
 				})
 			})
 			Describe("Not using squashfs", Label("non-squashfs"), func() {

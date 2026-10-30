@@ -297,6 +297,9 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 
 	// We don't support merging different data structures
 	if typeA.Kind() != typeB.Kind() {
+		if isScalar(typeA.Kind()) && isScalar(typeB.Kind()) {
+			return b, nil
+		}
 		return ConfigValues{}, fmt.Errorf("cannot merge %s with %s", typeA.String(), typeB.String())
 	}
 
@@ -318,6 +321,17 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 
 	// for any other type, b should take precedence
 	return b, nil
+}
+
+func isScalar(k reflect.Kind) bool {
+	switch k {
+	case reflect.Bool, reflect.String,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return true
+	}
+	return false
 }
 
 // String returns a string which is a Yaml representation of the Config.
@@ -446,9 +460,33 @@ func parseFiles(dir []string, nologs bool) Configs {
 		}
 
 		var newConfig Config
-		err = yaml.Unmarshal(b, &newConfig.Values)
-		if err != nil && !nologs {
-			fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
+		// Name the file for the same reason the oversize branch above does:
+		// the parse error says "line 4", and a scanned directory holds more
+		// than one config, so a line number on its own identifies nothing.
+		//
+		// What happens to the file depends on how much of it yaml decoded.
+		// A syntax error leaves Values nil, so the file contributes nothing
+		// and is skipped rather than appended: an appended config still
+		// carries Sources, and that is what Config.String() prints under
+		// "# Sources:". An operator reading `kairos-agent config` would see
+		// the broken file listed there and take it for one that was applied.
+		//
+		// A *yaml.TypeError is different. yaml reports it and still fills
+		// the map with everything it could decode, so a file with, say, a
+		// duplicate key under `install:` keeps its `users:` block. Dropping
+		// it would take the SSH keys off a node that boots today, so keep
+		// what was decoded and say which file was only partly applied.
+		if err = yaml.Unmarshal(b, &newConfig.Values); err != nil {
+			var typeErr *yaml.TypeError
+			if !errors.As(err, &typeErr) || newConfig.Values == nil {
+				if !nologs {
+					fmt.Printf("warning: skipping %s: it does not parse, so none of its settings were applied. %s\n", f, err.Error())
+				}
+				continue
+			}
+			if !nologs {
+				fmt.Printf("warning: %s parsed with errors, so some of its settings were not applied. %s\n", f, err.Error())
+			}
 		}
 		newConfig.Sources = []string{f}
 

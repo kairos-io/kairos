@@ -5,7 +5,9 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -74,5 +76,33 @@ var _ = Describe("NewInstallElementalPartitions EFI sizing", Label("types", "con
 		Expect(pt.SetFirmwarePartitions(sdkConstants.EFI, sdkConstants.GPT)).To(Succeed())
 		Expect(pt.EFI).ToNot(BeNil())
 		Expect(pt.EFI.Size).To(Equal(sdkConstants.EfiSize))
+	})
+})
+
+var _ = Describe("NewUkiUpgradeSpec without a source", Label("types", "config", "upgrade"), func() {
+	newConfig := func(cloudConfig string) *sdkConfig.Config {
+		cfg, err := config.ScanNoLogs(collector.Readers(strings.NewReader(cloudConfig)))
+		Expect(err).ToNot(HaveOccurred())
+		cfg.Logger = sdkLogger.NewKairosLogger("test", "error", false)
+		return cfg
+	}
+
+	DescribeTable("returns the undefined source error instead of panicking",
+		func(cloudConfig string) {
+			var err error
+			Expect(func() {
+				_, err = config.NewUkiUpgradeSpec(newConfig(cloudConfig))
+			}).ToNot(Panic())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("could not find a proper source for the upgrade"))
+		},
+		Entry("an empty upgrade block", "#cloud-config\nupgrade: {}\n"),
+		Entry("no upgrade block at all", "#cloud-config\ninstall:\n  device: /dev/null\n"),
+		Entry("a recovery upgrade with no source", "#cloud-config\nupgrade:\n  entry: recovery\n"),
+	)
+
+	It("GetSourceSize reports an error for a nil source", func() {
+		_, err := config.GetSourceSize(newConfig("#cloud-config\n"), nil)
+		Expect(err).To(HaveOccurred())
 	})
 })

@@ -109,7 +109,8 @@ func (s *RemoteAttestationServer) VerifyProof(init *Init, proof *Proof, expected
 	}
 
 	// Verify the PCR quote signature and extract verified PCR values using tpm-helpers
-	verifiedPCRs, err := tpm.VerifyPCRQuote(proof.PCRQuote, akPub)
+	// expectedSecret is the nonce the client quoted with (see HandleChallenge).
+	verifiedPCRs, err := tpm.VerifyPCRQuote(proof.PCRQuote, akPub, expectedSecret)
 	if err != nil {
 		return VerificationResult{}, fmt.Errorf("PCR quote verification failed: %w", err)
 	}

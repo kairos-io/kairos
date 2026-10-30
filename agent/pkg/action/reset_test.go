@@ -212,7 +212,7 @@ var _ = Describe("Reset action tests", func() {
 			It("Fails formatting state partition", func() {
 				cmdFail = "mkfs.ext4"
 				Expect(reset.Run()).NotTo(BeNil())
-				Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}}))
+				Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(BeNil())
 			})
 			It("Fails setting the active label on non-squashfs recovery", func() {
 				cmdFail = "tune2fs"
@@ -221,7 +221,7 @@ var _ = Describe("Reset action tests", func() {
 			It("Fails setting the passive label on squashfs recovery", func() {
 				cmdFail = "tune2fs"
 				Expect(reset.Run()).NotTo(BeNil())
-				Expect(runner.IncludesCmds([][]string{{"tune2fs"}}))
+				Expect(runner.IncludesCmds([][]string{{"tune2fs"}})).To(BeNil())
 			})
 			It("Fails mounting partitions", func() {
 				mounter.ErrorOnMount = true
@@ -311,7 +311,7 @@ var _ = Describe("Reset action tests", func() {
 				spec.FormatPersistent = true
 				cmdFail = "mkfs.ext4"
 				Expect(reset.Run()).NotTo(BeNil())
-				Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}}))
+				Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(BeNil())
 			})
 			It("Fails unmounting the persistent partition", func() {
 				spec.FormatPersistent = true
@@ -325,7 +325,7 @@ var _ = Describe("Reset action tests", func() {
 				spec.FormatPersistent = false
 				cmdFail = "mkfs.ext4"
 				Expect(reset.Run()).NotTo(BeNil())
-				Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}}))
+				Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(BeNil())
 			})
 			It("Fails unmounting the OEM partition", func() {
 				spec.FormatOEM = true

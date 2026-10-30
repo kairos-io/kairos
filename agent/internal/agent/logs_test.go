@@ -11,6 +11,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/diagnostics"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkLogs "github.com/kairos-io/kairos/v4/sdk/types/logs"
 	. "github.com/onsi/ginkgo/v2"
@@ -37,6 +38,38 @@ func journalCmds(userUnits ...string) [][]string {
 		cmds = append(cmds, []string{"journalctl", "-u", unit, "--no-pager", "-o", "cat"})
 	}
 	return cmds
+}
+
+// recordingRunner remembers what it was asked to run and answers nothing.
+type recordingRunner struct{ cmds [][]string }
+
+func (r *recordingRunner) Run(name string, args ...string) ([]byte, error) {
+	r.cmds = append(r.cmds, append([]string{name}, args...))
+	return nil, nil
+}
+
+// diagnosticsRun is what sdk/diagnostics runs, and the groups it produces,
+// derived by running it rather than restated here, so a section added there
+// does not have to be mirrored in these specs.
+func diagnosticsRun() ([][]string, []diagnostics.Group) {
+	r := &recordingRunner{}
+	// The filesystem only decides which files are read verbatim, never which
+	// commands run or how many groups come back.
+	groups := diagnostics.Collect(r, diagnostics.OSFS{})
+	return r.cmds, groups
+}
+
+// collectedCmds is every command one Collect makes: the journal reads first,
+// then the machine diagnostics.
+func collectedCmds(userUnits ...string) [][]string {
+	cmds, _ := diagnosticsRun()
+	return append(journalCmds(userUnits...), cmds...)
+}
+
+// diagnosticEntries is how many files the diagnostics add to a tarball.
+func diagnosticEntries() int {
+	_, groups := diagnosticsRun()
+	return len(groups)
 }
 
 // expectAllDefaults asserts every default unit made it into a collected set,
@@ -116,7 +149,7 @@ var _ = Describe("Logs Command", Label("logs", "cmd"), func() {
 			Expect(result).ToNot(BeNil())
 
 			// Verify journalctl was called for both default and user-defined services
-			Expect(runner.CmdsMatch(journalCmds("myservice"))).To(BeNil())
+			Expect(runner.CmdsMatch(collectedCmds("myservice"))).To(BeNil())
 
 			// Verify that both default and user-defined services are in the result
 			expectAllDefaults(byUnit, result.Journal)
@@ -223,7 +256,7 @@ var _ = Describe("Logs Command", Label("logs", "cmd"), func() {
 			Expect(files).To(HaveKey("files/var/log/test.log"))
 			Expect(files).To(HaveKey("files/var/log/subdir/test.log"))
 			Expect(files).To(HaveKey("files/var/log/kairos/agent.log"))
-			Expect(files).To(HaveLen(3))
+			Expect(files).To(HaveLen(3 + diagnosticEntries()))
 		})
 
 		It("should create tarball with proper structure", func() {
@@ -424,7 +457,49 @@ var _ = Describe("Logs Command", Label("logs", "cmd"), func() {
 			expectAllDefaults(byTarballEntry, files)
 			Expect(files).To(HaveKey("journal/existingservice.log"))
 			Expect(files).ToNot(HaveKey("journal/nonexistentservice.log"))
-			Expect(files).To(HaveLen(len(defaultJournalUnits()) + 1))
+			Expect(files).To(HaveLen(len(defaultJournalUnits()) + 1 + diagnosticEntries()))
+		})
+
+		It("should put the machine diagnostics in the tarball", func() {
+			runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+				if command == "hostname" {
+					return []byte("node-1\n"), nil
+				}
+				return []byte{}, nil
+			}
+
+			result, err := collector.Collect()
+			Expect(err).ToNot(HaveOccurred())
+
+			tarballPath := "/tmp/logs.tar.gz"
+			Expect(collector.CreateTarball(result, tarballPath)).To(Succeed())
+
+			tarballData, err := fs.ReadFile(tarballPath)
+			Expect(err).ToNot(HaveOccurred())
+			gzr, err := gzip.NewReader(bytes.NewReader(tarballData))
+			Expect(err).ToNot(HaveOccurred())
+			defer gzr.Close()
+
+			bodies := map[string]string{}
+			tr := tar.NewReader(gzr)
+			for {
+				header, err := tr.Next()
+				if err == io.EOF {
+					break
+				}
+				Expect(err).ToNot(HaveOccurred())
+				content, err := io.ReadAll(tr)
+				Expect(err).ToNot(HaveOccurred())
+				bodies[header.Name] = string(content)
+			}
+
+			_, groups := diagnosticsRun()
+			for _, g := range groups {
+				Expect(bodies).To(HaveKey("diagnostics/" + g.Name + ".log"))
+			}
+			// The agent used to collect journal and files only, so a bundle
+			// from an installed system said nothing about the machine itself.
+			Expect(bodies["diagnostics/system.log"]).To(ContainSubstring("node-1"))
 		})
 
 		It("should use default log sources when no config provided", func() {
@@ -444,7 +519,7 @@ var _ = Describe("Logs Command", Label("logs", "cmd"), func() {
 			Expect(result).ToNot(BeNil())
 
 			// Should have collected from default services
-			Expect(runner.CmdsMatch(journalCmds())).To(BeNil())
+			Expect(runner.CmdsMatch(collectedCmds())).To(BeNil())
 		})
 
 		It("should merge user logs config with defaults", func() {
@@ -468,7 +543,7 @@ var _ = Describe("Logs Command", Label("logs", "cmd"), func() {
 			Expect(result).ToNot(BeNil())
 
 			// Verify that both default and user-defined services were collected
-			Expect(runner.CmdsMatch(journalCmds("myservice", "myotherservice"))).To(BeNil())
+			Expect(runner.CmdsMatch(collectedCmds("myservice", "myotherservice"))).To(BeNil())
 
 			// Verify that both default and user-defined files are in the result
 			expectAllDefaults(byUnit, result.Journal)

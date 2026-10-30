@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/deniswernert/go-fstab"
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
@@ -283,14 +284,19 @@ func MountToFstab(m mount.Mount) *fstab.Mount {
 // CleanSysrootForFstab will clean up the pesky sysroot dir from entries to make them
 // suitable to be written in the fstab
 // As we mount on /sysroot during initramfs but the fstab file is for the real init process, we need to remove
-// Any mentions to /sysroot from the fstab lines, otherwise they won't work
+// the leading /sysroot from the fstab lines, otherwise they won't work
 // Special care for the root (/sysroot) path as we can't just simple remove that path and call it a day
 // as that will return an empty mountpoint which will break fstab mounting.
 func CleanSysrootForFstab(path string) string {
 	if IsUKI() {
 		return path
 	}
-	cleaned := strings.ReplaceAll(path, "/sysroot", "")
+	// Only a leading /sysroot component is ours. A path like /var/lib/sysroot-cache
+	// or /opt/sysroot is a real path on the booted system and must stay intact.
+	cleaned := path
+	for cleaned == "/sysroot" || strings.HasPrefix(cleaned, "/sysroot/") {
+		cleaned = strings.TrimPrefix(cleaned, "/sysroot")
+	}
 	if cleaned == "" {
 		cleaned = "/"
 	}
@@ -298,11 +304,65 @@ func CleanSysrootForFstab(path string) string {
 	return cleaned
 }
 
+// ReadOnlyMountOptions returns the options that mount a filesystem of this type
+// without writing to the device.
+//
+// "ro" on its own is not enough, which is the whole reason this exists. A dirty
+// ext4 journal is replayed even on a read-only mount unless noload is given, and
+// replaying it is a write: on write-protected media the mount then fails, and on
+// media that only refuses writes silently it corrupts. xfs spells the same thing
+// norecovery, and requires ro alongside it.
+//
+// Anything else gets a bare "ro" and a line in the log. btrfs has nologreplay
+// (since 4.9, spelled rescue=nologreplay from 5.9), and an option the running
+// kernel does not know makes mount(2) fail outright rather than degrade, so
+// guessing costs more than it saves.
+func ReadOnlyMountOptions(fstype string) []string {
+	switch fstype {
+	case "ext3", "ext4":
+		return []string{"ro", "noload"}
+	case "ext2":
+		// No journal, so nothing to replay, and the kernel rejects noload on an
+		// ext2-type mount outright ("Mount option(s) incompatible with ext2",
+		// EINVAL). The active and passive images are ext2, so this is the path
+		// the root image takes.
+		return []string{"ro"}
+	case "xfs":
+		return []string{"ro", "norecovery"}
+	default:
+		KLog.Logger.Debug().Str("type", fstype).
+			Msg("No journal-recovery option known for this filesystem, mounting plain ro")
+		return []string{"ro"}
+	}
+}
+
 // Fsck will run fsck over the device
 // options are set on cmdline, but they are for systemd-fsck,
 // so we need to interpret ourselves.
+// On write-protected media it does nothing: see the gate at the top of the body.
 func Fsck(device string) error {
 	if device == "tmpfs" {
+		return nil
+	}
+	// A repairing fsck is a write, and the defaults below are a repairing fsck
+	// (fsck.mode=auto with fsck.repair=preen). On write-protected media that is
+	// the first write of the boot, and it happens here, before the mount, so no
+	// mount option can prevent it. fsck.mode=skip was always the manual way out;
+	// read-only media now implies it.
+	//
+	// Two gates, because neither covers the other. The global one catches what
+	// the per-device probe cannot answer for: the loop image, where device is a
+	// file path rather than a block device and the ioctl returns ENOTTY. The
+	// per-device one catches a write-protected disk in some custom VOLUMES entry
+	// even when the global answer was forced off.
+	if WriteProtected() {
+		KLog.Logger.Info().Str("what", device).
+			Msg("Skipping fsck: booting on write-protected media, and a repairing fsck would write to it")
+		return nil
+	}
+	if ro, err := deviceReadOnly(device); err == nil && ro {
+		KLog.Logger.Info().Str("what", device).
+			Msg("Skipping fsck: the kernel reports this device as read-only, and fsck would write to it")
 		return nil
 	}
 	mode := CleanupSlice(ReadCMDLineArg("fsck.mode="))
@@ -398,6 +458,34 @@ func GetOemTimeout() int {
 	return converted
 }
 
+// GetCowBase returns the size spec of the tmpfs that backs the copy-on-write
+// store of the persistent snapshot on read-only media. rd.immucore.write_protected.cow= on the
+// cmdline wins; otherwise the store is sized like the base overlay, so one
+// number sizes both unless the operator says otherwise. A base overlay backed
+// by a device is no use here, since on read-only media that device is the
+// frozen disk, so anything but a tmpfs spec falls back to the default.
+func GetCowBase(overlayBase string) string {
+	if v := CleanupSlice(ReadCMDLineArg(cnst.CmdlineCow)); len(v) > 0 {
+		return CowSpec(v[0])
+	}
+	if strings.HasPrefix(overlayBase, "tmpfs:") {
+		return overlayBase
+	}
+	return "tmpfs:25%"
+}
+
+// CowSpec normalises a store spec to the OVERLAY grammar the mount code parses:
+// tmpfs:<size>, LABEL=<label> or UUID=<uuid>. A bare size such as 2G or 25% is
+// the short form for a tmpfs of that size, since the prefix carries no
+// information until there is a second RAM-backed store type to choose from.
+func CowSpec(spec string) string {
+	spec = strings.TrimSpace(spec)
+	if spec == "" || strings.ContainsAny(spec, ":=") {
+		return spec
+	}
+	return "tmpfs:" + spec
+}
+
 // GetOverlayBase parses the cdmline and gets the overlay config
 // Format is rd.cos.overlay=tmpfs:20% or rd.cos.overlay=LABEL=$LABEL or rd.cos.overlay=UUID=$UUID
 // Notice that this can be later override by the config coming from cos-layout.env .
@@ -477,11 +565,15 @@ func GetOemLabel() string {
 	return ""
 }
 
+// lvmCommand runs the shell commands ActivateLVM issues. Tests replace it to
+// see what would be run without touching the host's volumes or udev.
+var lvmCommand = CommandWithPath
+
 func ActivateLVM() error {
 	// Remove the /etc/lvm/lvm.conf file
 	// Otherwise, it has a default locking setting which activates the volumes on readonly
 	// This would be the same as passing rd.lvm.conf=0 in cmdline but rather do it here than add an extra option to cmdline
-	_, _ = CommandWithPath("rm /etc/lvm/lvm.conf")
+	_, _ = lvmCommand("rm /etc/lvm/lvm.conf")
 
 	// Activate (do NOT refresh) all available volume groups in system-init mode.
 	// We only need inactive boot volumes brought up (COS_* partitions on LVM installs);
@@ -490,13 +582,21 @@ func ActivateLVM() error {
 	// autoactivation already brought up (e.g. kubernetes pvc volumes). That reload can
 	// fail mid-operation and leave a device suspended (vgchange exit 5), which then
 	// poisons the strong-dep boot DAG (oem mount + kcrypt depend on this step).
-	out, err := CommandWithPath("lvm vgchange --activate y --sysinit")
+	out, err := lvmCommand("lvm vgchange --activate y --sysinit")
 	KLog.Logger.Debug().Str("out", out).Msg("vgchange")
 	if err != nil {
 		KLog.Logger.Err(err).Msg("vgchange")
 	}
 
-	_, _ = CommandWithPath("udevadm --trigger")
+	// Refresh the device links of the volumes just activated, and wait a
+	// bounded time for udev to create them, since the steps after this one
+	// look devices up by label. A failure here is logged, not returned: the
+	// links may already exist through event-based activation.
+	for _, c := range []string{"udevadm trigger", "udevadm settle --timeout=10"} {
+		if out, e := lvmCommand(c); e != nil {
+			KLog.Logger.Warn().Err(e).Str("out", out).Msg(c)
+		}
+	}
 	return err
 }
 

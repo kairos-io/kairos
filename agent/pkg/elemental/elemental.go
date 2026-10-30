@@ -29,6 +29,8 @@ import (
 	"github.com/containerd/containerd/v2/pkg/archive"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/google/go-containerregistry/pkg/name"
+	ggcrv1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
@@ -46,6 +48,10 @@ import (
 // Elemental is the struct meant to self-contain most utils and actions related to Elemental, like installing or applying selinux
 type Elemental struct {
 	config *sdkConfig.Config
+	// squashStaging maps the unpacked tree of a squashfs image deployed with
+	// leaveMounted to the MountPoint the image had before. UnmountImage
+	// builds the squashfs from that tree and removes it.
+	squashStaging map[string]string
 }
 
 func NewElemental(config *sdkConfig.Config) *Elemental {
@@ -306,6 +312,9 @@ func (e Elemental) MountImage(img *sdkImages.Image, opts ...string) error {
 
 // UnmountImage unmounts the given image or does nothing if not mounted
 func (e Elemental) UnmountImage(img *sdkImages.Image) error {
+	if prevMountPoint, ok := e.squashStaging[img.MountPoint]; ok {
+		return e.packSquashStaging(img, prevMountPoint)
+	}
 	// Using IsLikelyNotMountPoint seams to be safe as we are not checking
 	// for bind mounts here
 	if notMnt, _ := e.config.Mounter.IsLikelyNotMountPoint(img.MountPoint); notMnt {
@@ -324,6 +333,37 @@ func (e Elemental) UnmountImage(img *sdkImages.Image) error {
 	}
 	img.LoopDevice = ""
 	return err
+}
+
+// DiscardImage is UnmountImage for an image whose contents are being thrown
+// away: a squashfs tree kept by DeployImage is removed without building the
+// squashfs, and img.MountPoint is put back. Any other image is unmounted
+// through UnmountImage.
+func (e Elemental) DiscardImage(img *sdkImages.Image) error {
+	prevMountPoint, ok := e.squashStaging[img.MountPoint]
+	if !ok {
+		return e.UnmountImage(img)
+	}
+	tree := img.MountPoint
+	delete(e.squashStaging, tree)
+	img.MountPoint = prevMountPoint
+	e.config.Logger.Debugf("Discarding unpacked squashfs tree %s", tree)
+	return e.config.Fs.RemoveAll(tree)
+}
+
+// packSquashStaging builds img.File from the unpacked tree at img.MountPoint,
+// removes the tree and puts back the MountPoint the image had before deploy.
+func (e Elemental) packSquashStaging(img *sdkImages.Image, prevMountPoint string) error {
+	tree := img.MountPoint
+	delete(e.squashStaging, tree)
+	img.MountPoint = prevMountPoint
+	defer e.config.Fs.RemoveAll(tree) // nolint:errcheck
+	return e.createSquashFS(tree, img.File)
+}
+
+func (e Elemental) createSquashFS(source, file string) error {
+	squashOptions := append(cnst.GetDefaultSquashfsOptions(), e.config.SquashFsCompressionConfig...)
+	return utils.CreateSquashFS(e.config.Runner, e.config.Logger, source, file, squashOptions)
 }
 
 // CreateFileSystemImage creates the image file for config.target
@@ -374,7 +414,10 @@ func (e *Elemental) DeployImageNodirs(img *sdkImages.Image, leaveMounted bool, e
 }
 
 // deployImage is the real function that does the actual work
-// Set leaveMounted to leave the image mounted, otherwise it unmounts before returning
+// Set leaveMounted to leave the image mounted, otherwise it unmounts before returning.
+// For a squashfs image built from a non-file source, leaveMounted keeps the
+// unpacked tree and points img.MountPoint at it; UnmountImage then builds the
+// squashfs from that tree, so changes made to it in between end up in the image.
 // Set createDirStructure to create the directory structure in the target, which creates the expected dirs
 // for a running system. This is so we can reuse this method for creating random images, not only system ones
 func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStructure bool, excludes ...string) (info interface{}, err error) {
@@ -392,11 +435,15 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 			}
 		} else {
 			target = utils.GetTempDir(e.config, "")
-			err := fsutils.MkdirAll(e.config.Fs, target, cnst.DirPerm)
+			err = fsutils.MkdirAll(e.config.Fs, target, cnst.DirPerm)
 			if err != nil {
 				return nil, err
 			}
-			defer e.config.Fs.RemoveAll(target) // nolint:errcheck
+			defer func() {
+				if !leaveMounted || err != nil {
+					_ = e.config.Fs.RemoveAll(target)
+				}
+			}()
 		}
 	} else {
 		target = img.File
@@ -414,8 +461,15 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 			}
 		}
 		if img.FS == cnst.SquashFs {
-			squashOptions := append(cnst.GetDefaultSquashfsOptions(), e.config.SquashFsCompressionConfig...)
-			err = utils.CreateSquashFS(e.config.Runner, e.config.Logger, target, img.File, squashOptions)
+			if leaveMounted {
+				if e.squashStaging == nil {
+					e.squashStaging = map[string]string{}
+				}
+				e.squashStaging[target] = img.MountPoint
+				img.MountPoint = target
+				return info, nil
+			}
+			err = e.createSquashFS(target, img.File)
 			if err != nil {
 				return nil, err
 			}
@@ -464,86 +518,16 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 			return nil, err
 		}
 	} else if imgSrc.IsOCIFile() {
-		// Extract OCI image from tar file
 		e.config.Logger.Infof("Loading OCI image from tar file %s", imgSrc.Value())
 
-		// Accounting for different image save conventions between tools, load the image from the tar file
-		// First attempt: Try to load without specifying a tag
-		img, err := tarball.ImageFromPath(imgSrc.Value(), nil)
-		// Second attempt: If that fails, try with a oci-image:latest tag convention
-		if err != nil {
-			e.config.Logger.Infof("Trying to load with explicit oci-image:latest tag: %v", err)
-			tag, tagErr := name.NewTag("oci-image:latest")
-			if tagErr != nil {
-				e.config.Logger.Errorf("Failed to create tag reference: %v", tagErr)
-				return nil, fmt.Errorf("failed to create tag reference: %w", tagErr)
-			}
-
-			img, err = tarball.ImageFromPath(imgSrc.Value(), &tag)
-			if err != nil {
-				// Third attempt: Try to extract the tar file directly
-				e.config.Logger.Infof("Trying to extract tar file directly: %v", err)
-
-				// Create a temporary directory to extract the tar file
-				tmpDir, err := fsutils.TempDir(e.config.Fs, "", "ocitar-extract")
-				if err != nil {
-					e.config.Logger.Errorf("Failed to create temporary directory: %v", err)
-					return nil, fmt.Errorf("failed to create temporary directory: %w", err)
-				}
-				defer func() { _ = e.config.Fs.RemoveAll(tmpDir) }()
-
-				// Extract the tar file to the temporary directory
-				e.config.Logger.Infof("Extracting tar file to temporary directory: %s", tmpDir)
-				// TODO: update to use native golang tar
-				if out, err := e.config.Runner.Run("tar", "-xf", imgSrc.Value(), "-C", tmpDir); err != nil {
-					e.config.Logger.Errorf("Failed to extract tar file: %v\n%s", err, string(out))
-					return nil, fmt.Errorf("failed to extract tar file: %w", err)
-				}
-
-				// Copy the extracted contents to the target
-				e.config.Logger.Infof("Copying extracted contents to target: %s", target)
-				if err := utils.SyncData(e.config.Logger, e.config.Runner, e.config.Fs, tmpDir, target, excludes...); err != nil {
-					e.config.Logger.Errorf("Failed to copy extracted contents: %v", err)
-					return nil, fmt.Errorf("failed to copy extracted contents: %w", err)
-				}
-
-				// Successfully extracted and copied the contents
-				return nil, nil
-			}
-		}
-
+		img, release, err := e.imageFromArchive(imgSrc.Value())
 		if err != nil {
 			e.config.Logger.Errorf("Failed to load image from tar file: %v", err)
-			return nil, fmt.Errorf("failed to load image from tar file: %w", err)
+			return nil, err
 		}
+		defer release()
 
-		// Extract the image contents to the target
-		reader := mutate.Extract(img)
-
-		var options archive.ApplyOpt
-		if len(excludes) > 0 {
-			// Create a map to hold exclude patterns for faster lookup
-			excludeMap := make(map[string]struct{})
-			for _, exclude := range excludes {
-				excludeMap[exclude] = struct{}{}
-			}
-
-			// Create a Filter option to exclude files during extraction
-			options = archive.WithFilter(func(hdr *tar.Header) (bool, error) {
-				if _, found := excludeMap[hdr.Name]; found {
-					e.config.Logger.Infof("Excluding file from extraction: %s", hdr.Name)
-					return false, nil
-				}
-				return true, nil
-			})
-			// Extract with filter
-			_, err = archive.Apply(context.Background(), target, reader, options)
-		} else {
-			// No filter
-			_, err = archive.Apply(context.Background(), target, reader)
-		}
-
-		if err != nil {
+		if err := e.applyImageToTarget(img, target, excludes...); err != nil {
 			e.config.Logger.Errorf("Failed to extract image contents: %v", err)
 			return nil, fmt.Errorf("failed to extract image contents: %w", err)
 		}
@@ -567,6 +551,236 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 	}
 	e.config.Logger.Infof("Finished copying %s into %s", imgSrc.Value(), target)
 	return info, nil
+}
+
+// imageFromArchive reads a local image archive. It understands the docker save
+// layout, which keeps manifest.json at the root of the archive, and the OCI
+// layout, which an engine backed by the containerd image store writes instead.
+//
+// An archive that is neither is an error. Such an archive still unpacks, but
+// what it unpacks to is image metadata rather than a root filesystem, so
+// copying it into the target would hand the caller an unusable tree under a
+// success.
+//
+// The image reads its layers lazily, so the caller has to call the returned
+// release once it is done with it and not before.
+func (e *Elemental) imageFromArchive(archivePath string) (ggcrv1.Image, func(), error) {
+	noop := func() {}
+
+	img, dockerErr := tarball.ImageFromPath(archivePath, nil)
+	if dockerErr == nil {
+		return img, noop, e.checkArchivePlatform(archivePath, img)
+	}
+
+	// Some tools save an image without a repository tag. Ask for the
+	// conventional one before giving up on the docker layout.
+	tag, err := name.NewTag("oci-image:latest")
+	if err != nil {
+		return nil, noop, fmt.Errorf("failed to create tag reference: %w", err)
+	}
+	if img, err = tarball.ImageFromPath(archivePath, &tag); err == nil {
+		return img, noop, e.checkArchivePlatform(archivePath, img)
+	}
+
+	e.config.Logger.Infof("%s is not a docker image archive (%v), reading it as an OCI layout", archivePath, dockerErr)
+	img, release, ociErr := e.imageFromOCILayoutArchive(archivePath)
+	if ociErr == nil {
+		return img, release, nil
+	}
+
+	return nil, noop, fmt.Errorf(
+		"reading %s as an image archive: not a docker archive (%w), not an OCI layout (%v)",
+		archivePath, dockerErr, ociErr,
+	)
+}
+
+// checkArchivePlatform refuses a docker save archive whose image config names
+// an OS or architecture other than the one this run targets. The OCI layout
+// path does the same through imageFromIndex. An archive whose config names
+// neither is accepted, since a save of an image built without that metadata is
+// legitimate and there is nothing to compare.
+func (e *Elemental) checkArchivePlatform(archivePath string, img ggcrv1.Image) error {
+	if e.config.Platform == nil {
+		return nil
+	}
+
+	cfg, err := img.ConfigFile()
+	if err != nil {
+		return fmt.Errorf("reading the image config of %s: %w", archivePath, err)
+	}
+
+	if (cfg.OS != "" && cfg.OS != e.config.Platform.OS) ||
+		(cfg.Architecture != "" && cfg.Architecture != e.config.Platform.GolangArch) {
+		return fmt.Errorf(
+			"%s holds an image for %s/%s, not for %s",
+			archivePath, cfg.OS, cfg.Architecture, e.platformName(),
+		)
+	}
+
+	return nil
+}
+
+// imageFromOCILayoutArchive unpacks an archive into a temporary directory and
+// reads the result as an OCI layout. The layout stays on disk until the
+// returned release is called, because that is where the image reads its layers
+// from.
+func (e *Elemental) imageFromOCILayoutArchive(archivePath string) (ggcrv1.Image, func(), error) {
+	noop := func() {}
+
+	tmpDir, err := fsutils.TempDir(e.config.Fs, "", "ocitar-extract")
+	if err != nil {
+		return nil, noop, fmt.Errorf("creating a temporary directory: %w", err)
+	}
+	release := func() { _ = e.config.Fs.RemoveAll(tmpDir) }
+
+	// tar and the layout reader both work on the real filesystem, so they need
+	// the path the configured filesystem maps this directory to.
+	extractDir, err := e.config.Fs.RawPath(tmpDir)
+	if err != nil {
+		release()
+		return nil, noop, fmt.Errorf("resolving %s: %w", tmpDir, err)
+	}
+
+	e.config.Logger.Infof("Extracting %s to %s", archivePath, extractDir)
+	if out, err := e.config.Runner.Run("tar", "-xf", archivePath, "-C", extractDir); err != nil {
+		release()
+		return nil, noop, fmt.Errorf("extracting %s: %w: %s", archivePath, err, string(out))
+	}
+
+	index, err := layout.ImageIndexFromPath(extractDir)
+	if err != nil {
+		release()
+		return nil, noop, err
+	}
+
+	img, err := e.imageFromIndex(index)
+	if err != nil {
+		release()
+		return nil, noop, err
+	}
+
+	return img, release, nil
+}
+
+// imageFromIndex picks the image to deploy out of an index. An index that
+// carries more than one image, as a multi-architecture save does, is resolved
+// by the platform this run targets.
+func (e *Elemental) imageFromIndex(index ggcrv1.ImageIndex) (ggcrv1.Image, error) {
+	manifest, err := index.IndexManifest()
+	if err != nil {
+		return nil, fmt.Errorf("reading the index manifest: %w", err)
+	}
+
+	var candidates []ggcrv1.Image
+	seen := map[string]struct{}{}
+	for _, descriptor := range manifest.Manifests {
+		// `docker save img:v1 img:latest` writes one entry per tag, both at
+		// the same digest. Resolving it twice would leave two candidates for
+		// one image and make the ambiguity error below fire on a layout that
+		// is not ambiguous.
+		digest := descriptor.Digest.String()
+		if _, repeat := seen[digest]; repeat {
+			continue
+		}
+		seen[digest] = struct{}{}
+
+		var img ggcrv1.Image
+
+		switch {
+		case descriptor.MediaType.IsIndex():
+			nested, err := index.ImageIndex(descriptor.Digest)
+			if err != nil {
+				return nil, fmt.Errorf("reading the nested index %s: %w", descriptor.Digest, err)
+			}
+			if img, err = e.imageFromIndex(nested); err != nil {
+				return nil, err
+			}
+		case descriptor.MediaType.IsImage():
+			if img, err = index.Image(descriptor.Digest); err != nil {
+				return nil, fmt.Errorf("reading the image %s: %w", descriptor.Digest, err)
+			}
+		default:
+			continue
+		}
+
+		if e.platformMatches(descriptor.Platform) {
+			return img, nil
+		}
+
+		// A descriptor that names a platform and does not match this run is
+		// not a fallback. Deploying it would fill the slot with a rootfs for
+		// the wrong architecture and report success, which is the failure
+		// this whole function exists to stop. Only a descriptor that says
+		// nothing about its platform stays a candidate.
+		if descriptor.Platform != nil {
+			continue
+		}
+
+		candidates = append(candidates, img)
+	}
+
+	switch len(candidates) {
+	case 0:
+		return nil, fmt.Errorf("the OCI layout holds no image for %s", e.platformName())
+	case 1:
+		return candidates[0], nil
+	default:
+		return nil, fmt.Errorf(
+			"the OCI layout holds %d images and none of them is built for %s",
+			len(candidates), e.platformName(),
+		)
+	}
+}
+
+// platformName is the platform this run targets, for an error message. A run
+// with no platform set is a programming error rather than a user one, so it
+// gets a word instead of an empty string.
+func (e *Elemental) platformName() string {
+	if e.config.Platform == nil {
+		return "the platform of this run"
+	}
+	return e.config.Platform.String()
+}
+
+// platformMatches reports whether a manifest descriptor names the platform this
+// run targets. A descriptor with no platform matches nothing: a save of a
+// single image usually omits it, and that case is covered by there being only
+// one candidate.
+func (e *Elemental) platformMatches(descriptorPlatform *ggcrv1.Platform) bool {
+	if descriptorPlatform == nil || e.config.Platform == nil {
+		return false
+	}
+
+	return descriptorPlatform.OS == e.config.Platform.OS &&
+		descriptorPlatform.Architecture == e.config.Platform.GolangArch
+}
+
+// applyImageToTarget unpacks the layers of an image onto target, dropping any
+// entry named in excludes.
+func (e *Elemental) applyImageToTarget(img ggcrv1.Image, target string, excludes ...string) error {
+	reader := mutate.Extract(img)
+	defer func() { _ = reader.Close() }()
+
+	if len(excludes) == 0 {
+		_, err := archive.Apply(context.Background(), target, reader)
+		return err
+	}
+
+	excluded := make(map[string]struct{}, len(excludes))
+	for _, exclude := range excludes {
+		excluded[exclude] = struct{}{}
+	}
+
+	filter := archive.WithFilter(func(hdr *tar.Header) (bool, error) {
+		if _, found := excluded[hdr.Name]; found {
+			e.config.Logger.Infof("Excluding file from extraction: %s", hdr.Name)
+			return false, nil
+		}
+		return true, nil
+	})
+
+	_, err := archive.Apply(context.Background(), target, reader, filter)
+	return err
 }
 
 // CopyCloudConfig will check if there is a cloud init in the config and store it on the target

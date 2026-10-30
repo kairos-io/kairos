@@ -14,7 +14,9 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -175,6 +177,37 @@ func TestStartAPIFlagHasNoDefault(t *testing.T) {
 
 	if api.Value != "" {
 		t.Fatalf("start --api default = %q, want %q so the provider picks the address", api.Value, "")
+	}
+}
+
+// `start --force` has never done anything: the option was copied from
+// `upgrade --force` and nothing reads it. Dropping the flag would break
+// units and scripts that still pass it, so it stays accepted and says in
+// --help that it is a no-op.
+func TestStartForceFlagIsDeprecatedNoOp(t *testing.T) {
+	var start *cli.Command
+	for _, c := range cmds {
+		if c.Name == "start" {
+			start = c
+			break
+		}
+	}
+	if start == nil {
+		t.Fatal("no start command registered")
+	}
+
+	var force *cli.BoolFlag
+	for _, f := range start.Flags {
+		if bf, ok := f.(*cli.BoolFlag); ok && bf.Name == "force" {
+			force = bf
+			break
+		}
+	}
+	if force == nil {
+		t.Fatal("start command no longer accepts --force, existing invocations would fail")
+	}
+	if !strings.HasPrefix(force.Usage, "Deprecated") {
+		t.Fatalf("start --force usage = %q, want it to say the flag is deprecated", force.Usage)
 	}
 }
 
@@ -346,6 +379,90 @@ func TestStateRegistersGetAndNoApply(t *testing.T) {
 	}
 	if !names["get"] {
 		t.Errorf("state lost its get subcommand, subcommands %v", names)
+	}
+}
+
+func runStageCommand(t *testing.T) *cli.Command {
+	t.Helper()
+	for _, command := range cmds {
+		if command.Name == "run-stage" {
+			return command
+		}
+	}
+	t.Fatal("run-stage command not found")
+	return nil
+}
+
+// #4665: --override-cloud-init-paths advertises "removing defaults", but the
+// paths it set were prepended with constants.GetCloudInitPaths() anyway, so it
+// behaved exactly like --cloud-init-paths. Running one cloud-config on its own
+// was not expressible, and for a stage like initramfs the machine's whole /oem
+// was re-applied alongside it.
+func TestRunStageOverrideDropsTheDefaults(t *testing.T) {
+	command := runStageCommand(t)
+	cfg := agentConfig.NewConfig()
+	cfg.CloudInitPaths = []string{"/from/config"}
+
+	ctx := commandContext(t, command, "",
+		"--cloud-init-paths", "/extra",
+		"--override-cloud-init-paths", "/only/this/path",
+		"initramfs")
+
+	got := runStageCloudInitPaths(ctx, cfg)
+	if len(got) != 1 || got[0] != "/only/this/path" {
+		t.Fatalf("override paths = %v, want [/only/this/path]", got)
+	}
+	for _, unwanted := range append(constants.GetCloudInitPaths(), "/from/config", "/extra") {
+		for _, p := range got {
+			if p == unwanted {
+				t.Fatalf("override kept %q; got %v", unwanted, got)
+			}
+		}
+	}
+}
+
+// The other half of the contract: --cloud-init-paths still means "the defaults
+// plus these", so nothing changes for anyone already using it.
+func TestRunStageExtraPathsKeepTheDefaults(t *testing.T) {
+	command := runStageCommand(t)
+	cfg := agentConfig.NewConfig()
+	cfg.CloudInitPaths = []string{"/from/config"}
+
+	ctx := commandContext(t, command, "", "--cloud-init-paths", "/extra", "initramfs")
+
+	got := runStageCloudInitPaths(ctx, cfg)
+	for _, wanted := range append(constants.GetCloudInitPaths(), "/from/config", "/extra") {
+		found := false
+		for _, p := range got {
+			if p == wanted {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing %q from %v", wanted, got)
+		}
+	}
+}
+
+// With neither flag the stage reads the defaults plus whatever the scanned
+// config contributed, which is what every other RunStage caller gets.
+func TestRunStageWithoutFlagsUsesDefaults(t *testing.T) {
+	command := runStageCommand(t)
+	cfg := agentConfig.NewConfig()
+	cfg.CloudInitPaths = []string{"/from/config"}
+
+	ctx := commandContext(t, command, "", "initramfs")
+
+	got := runStageCloudInitPaths(ctx, cfg)
+	want := append(constants.GetCloudInitPaths(), "/from/config")
+	if len(got) != len(want) {
+		t.Fatalf("paths = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("paths = %v, want %v", got, want)
+		}
 	}
 }
 
@@ -729,6 +846,49 @@ func TestPhoneHomeLeavesTheHeartbeatZeroWhenNobodySetsIt(t *testing.T) {
 
 	if cfg.HeartbeatInterval != 0 {
 		t.Fatalf("heartbeat interval = %s, want zero so the client applies its default", cfg.HeartbeatInterval)
+	}
+}
+
+// A phonehome: section with a type error used to be dropped, so the command
+// reported "phonehome URL required" for a config whose url was set.
+func TestLoadPhoneHomeConfigReportsAParseError(t *testing.T) {
+	scanned := &sdkConfig.Config{Collector: collector.Config{Values: collector.ConfigValues{
+		"phonehome": map[string]interface{}{
+			"url":                "http://127.0.0.1:1",
+			"heartbeat_interval": 30,
+		},
+	}}}
+
+	_, err := LoadPhoneHomeConfig(scanned)
+	if err == nil || !strings.Contains(err.Error(), "time.Duration") {
+		t.Fatalf("err = %v, want the heartbeat_interval parse error", err)
+	}
+}
+
+func TestLoadPhoneHomeConfigReadsAValidSection(t *testing.T) {
+	scanned := &sdkConfig.Config{Collector: collector.Config{Values: collector.ConfigValues{
+		"phonehome": map[string]interface{}{
+			"url":                "http://127.0.0.1:1",
+			"heartbeat_interval": "30s",
+		},
+	}}}
+
+	cfg, err := LoadPhoneHomeConfig(scanned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URL != "http://127.0.0.1:1" || cfg.HeartbeatInterval != 30*time.Second {
+		t.Fatalf("cfg = %+v, want the configured url and 30s", cfg)
+	}
+}
+
+func TestLoadPhoneHomeConfigWithoutASectionIsEmpty(t *testing.T) {
+	cfg, err := LoadPhoneHomeConfig(&sdkConfig.Config{Collector: collector.Config{Values: collector.ConfigValues{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.URL != "" {
+		t.Fatalf("cfg = %+v, want an empty config", cfg)
 	}
 }
 

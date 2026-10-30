@@ -12,6 +12,7 @@ import (
 	"github.com/itchyny/gojq"
 	"github.com/jaypipes/ghw"
 	"github.com/jaypipes/ghw/pkg/block"
+	"github.com/kairos-io/kairos/v4/sdk/blockdev"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/signatures"
 	"github.com/kairos-io/kairos/v4/sdk/types/certs"
@@ -72,17 +73,22 @@ type EncryptedParts struct {
 }
 
 type Runtime struct {
-	UUID                string           `yaml:"uuid" json:"uuid"`
-	Persistent          PartitionState   `yaml:"persistent" json:"persistent"`
-	Recovery            PartitionState   `yaml:"recovery" json:"recovery"`
-	OEM                 PartitionState   `yaml:"oem" json:"oem"`
-	State               PartitionState   `yaml:"state" json:"state"`
-	EncryptedPartitions EncryptedParts   `yaml:"encrypted_partitions,omitempty" json:"encrypted_partitions,omitempty"`
-	BootState           Boot             `yaml:"boot" json:"boot"`
-	InRAM               bool             `yaml:"in_ram" json:"in_ram"`
-	System              sysinfo.SysInfo  `yaml:"system" json:"system"`
-	Addresses           []MachineAddress `yaml:"addresses,omitempty" json:"addresses,omitempty"`
-	Kairos              Kairos           `yaml:"kairos" json:"kairos"`
+	UUID                string         `yaml:"uuid" json:"uuid"`
+	Persistent          PartitionState `yaml:"persistent" json:"persistent"`
+	Recovery            PartitionState `yaml:"recovery" json:"recovery"`
+	OEM                 PartitionState `yaml:"oem" json:"oem"`
+	State               PartitionState `yaml:"state" json:"state"`
+	EncryptedPartitions EncryptedParts `yaml:"encrypted_partitions,omitempty" json:"encrypted_partitions,omitempty"`
+	BootState           Boot           `yaml:"boot" json:"boot"`
+	InRAM               bool           `yaml:"in_ram" json:"in_ram"`
+	WriteProtected      bool           `yaml:"write_protected" json:"write_protected"` // write-protected media: persistent is a copy-on-write snapshot in RAM, so nothing written to it survives a reboot and upgrades are impossible. Set from DetectWriteProtectedFromRun.
+	// PersistentCOW is how full the snapshot's copy-on-write store is, on
+	// write-protected media only. Watch it: the store only ever grows until the
+	// next boot, and once it is full the persistent tree refuses writes.
+	PersistentCOW *blockdev.SnapshotStatus `yaml:"persistent_cow,omitempty" json:"persistent_cow,omitempty"`
+	System        sysinfo.SysInfo          `yaml:"system" json:"system"`
+	Addresses     []MachineAddress         `yaml:"addresses,omitempty" json:"addresses,omitempty"`
+	Kairos        Kairos                   `yaml:"kairos" json:"kairos"`
 }
 
 type FndMnt struct {
@@ -273,6 +279,25 @@ func DetectInRAMFromProc() bool {
 		return false
 	}
 	return DetectInRAM(string(cmdline))
+}
+
+// WriteProtectedSentinel is the file immucore writes when it has detected that the
+// media is write-protected and has mounted the persistent partition through a
+// copy-on-write snapshot in RAM.
+const WriteProtectedSentinel = constants.SentinelDir + "/" + constants.WriteProtectedSentinelName
+
+// DetectWriteProtectedFromRun reports whether immucore flagged this boot as being on
+// write-protected media.
+func DetectWriteProtectedFromRun() bool {
+	_, err := os.Stat(WriteProtectedSentinel)
+	return err == nil
+}
+
+// DetectWriteProtectedWithVFS mirrors DetectWriteProtectedFromRun but uses a KairosFS so
+// it can be exercised from tests.
+func DetectWriteProtectedWithVFS(fs fs.KairosFS) bool {
+	_, err := fs.Stat(WriteProtectedSentinel)
+	return err == nil
 }
 
 // DetectInRAMWithVFS mirrors DetectInRAMFromProc but uses a KairosFS so it can
@@ -492,8 +517,21 @@ func NewRuntimeWithLogger(logger zerolog.Logger) (Runtime, error) {
 	runtime := &Runtime{
 		BootState: detectBoot(logger),
 		InRAM:     DetectInRAMFromProc(),
-		UUID:      utils.UUID(),
-		Addresses: DetectAddresses(),
+		// Read from immucore's sentinel rather than probed again here. immucore
+		// resolved this once, from a device probe plus a possible cmdline
+		// override, and acted on the answer for the whole boot: re-deriving it
+		// would let the two disagree, and the sentinel is the published answer.
+		WriteProtected: DetectWriteProtectedFromRun(),
+		UUID:           utils.UUID(),
+		Addresses:      DetectAddresses(),
+	}
+
+	if runtime.WriteProtected {
+		if st, err := blockdev.QuerySnapshotStatus(constants.PersistentSnapshotName); err == nil {
+			runtime.PersistentCOW = &st
+		} else {
+			logger.Debug().Err(err).Msg("could not read the persistent snapshot status")
+		}
 	}
 
 	detectSystem(runtime)
