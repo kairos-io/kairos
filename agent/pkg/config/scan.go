@@ -12,6 +12,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
+	"github.com/kairos-io/kairos/v4/sdk/types/install"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/sanity-io/litter"
 	"github.com/spf13/viper"
@@ -78,6 +79,12 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 		return result, err
 	}
 
+	// A key with no value, `install:` or `install: ~`, unmarshals as null
+	// and replaces the default block with nil. Treat it as an empty block.
+	if result.Install == nil {
+		result.Install = &install.Install{}
+	}
+
 	kc, err := schema.NewConfigFromYAML(configStr, schema.RootSchema{})
 	if err != nil {
 		if !o.NoLogs && !o.StrictValidation {
@@ -110,6 +117,15 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 		if !o.NoLogs {
 			for _, w := range warnings {
 				fmt.Printf("WARNING: %s\n", w)
+			}
+
+			// A key the schema does not declare is read by nobody and
+			// dropped without a word, so a misspelled one looks exactly
+			// like a setting that did not take effect. It does not make
+			// the config invalid, which is why nothing above reports it
+			// and why this is a warning rather than an error.
+			for _, s := range kc.SuggestUnknownKeys() {
+				fmt.Printf("WARNING: %s\n", s)
 			}
 		}
 	}

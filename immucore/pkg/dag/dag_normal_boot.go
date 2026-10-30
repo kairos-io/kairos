@@ -93,7 +93,15 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 	// Mount custom overlays loaded from the /run/cos/cos-layout.env file
 	s.LogIfError(s.MountCustomOverlayDagStep(g), "custom overlays mount")
 
-	s.LogIfError(s.MountCustomMountsDagStep(g), "custom mounts mount")
+	// On write-protected media the persistent partition cannot be mounted as
+	// it is, so a copy-on-write snapshot is put over it first and the custom
+	// mounts wait for that. Registered only in that case, so a writable install
+	// keeps exactly the graph it had.
+	if s.WriteProtected {
+		s.LogIfError(s.MountPersistentSnapshotDagStep(g), "persistent snapshot")
+	}
+
+	s.LogIfError(s.MountCustomMountsDagStep(g, s.WriteProtectedSnapshotDeps()...), "custom mounts mount")
 
 	// Mount custom binds loaded from the /run/cos/cos-layout.env file
 	// Depends on mount binds as that usually mounts COS_PERSISTENT

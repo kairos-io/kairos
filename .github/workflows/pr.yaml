@@ -104,7 +104,7 @@ jobs:
       kairos_init_image: kairos-init-local
       kairos_init_artifact: kairos-init-oci
       arch: amd64
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
       model: generic
       iso: true
       trusted_boot: false
@@ -132,7 +132,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'

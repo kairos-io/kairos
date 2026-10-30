@@ -1,6 +1,6 @@
 # Base Hadron release OCI image used as the ISO base AND the install source.
 # Override on the CLI: make build-test-iso BASE_IMAGE=quay.io/kairos/...
-BASE_IMAGE ?= ghcr.io/kairos-io/hadron:v0.3.0
+BASE_IMAGE ?= ghcr.io/kairos-io/hadron:v0.6.3
 KAIROS_INIT ?= quay.io/kairos/kairos-init:latest
 AURORABOOT_IMAGE ?= quay.io/kairos/auroraboot
 E2E_DIR := tests/e2e

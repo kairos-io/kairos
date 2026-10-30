@@ -14,6 +14,7 @@ import (
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/state"
@@ -31,7 +32,7 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			var sentinel string
 
 			internalUtils.KLog.Logger.Debug().Msg("Will now create /run/cos if not exists")
-			err := internalUtils.CreateIfNotExists("/run/cos/")
+			err := internalUtils.CreateIfNotExists(sdkConstants.SentinelDir)
 			if err != nil {
 				internalUtils.KLog.Logger.Err(err).Msg("failed to create /run/cos")
 				return err
@@ -64,7 +65,7 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			internalUtils.KLog.Logger.Debug().Str("BootState", string(runtime.BootState)).Msg("The BootState was")
 
 			internalUtils.KLog.Logger.Info().Str("to", sentinel).Msg("Setting sentinel file")
-			err = os.WriteFile(filepath.Join("/run/cos/", sentinel), []byte("1"), os.ModePerm)
+			err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, sentinel), []byte("1"), os.ModePerm)
 			if err != nil {
 				return err
 			}
@@ -75,7 +76,20 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// when kairos.ram is present) so existing gates keep firing.
 			if s.InRAM {
 				internalUtils.KLog.Logger.Info().Str("to", cnst.InRAMSentinelName).Msg("Setting in-RAM sentinel file")
-				if err = os.WriteFile(filepath.Join("/run/cos/", cnst.InRAMSentinelName), []byte("1"), os.ModePerm); err != nil {
+				if err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, cnst.InRAMSentinelName), []byte("1"), os.ModePerm); err != nil {
+					return err
+				}
+			}
+
+			// Write-protected media gets its own additive sentinel, for the same
+			// reason as the in-RAM one: the BootState sentinel above is still
+			// active_mode, so existing gates keep firing, and a stage that must
+			// not touch the disk has something to gate on. The shipped
+			// 00_rootfs.yaml uses it to skip growing the persistent partition,
+			// which otherwise opens the whole disk O_RDWR on every boot.
+			if s.WriteProtected {
+				internalUtils.KLog.Logger.Info().Str("to", cnst.WriteProtectedSentinelName).Msg("Setting read-only media sentinel file")
+				if err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, cnst.WriteProtectedSentinelName), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 			}
@@ -93,7 +107,7 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 				bootedFromInstall := state.EfiBootFromInstall(internalUtils.KLog.Logger)
 				ukiSentinel := internalUtils.UkiSentinel(bootedFromInstall, s.InRAM)
 				internalUtils.KLog.Logger.Info().Str("to", ukiSentinel).Msg("Setting sentinel file")
-				if err := os.WriteFile(filepath.Join("/run/cos/", ukiSentinel), []byte("1"), os.ModePerm); err != nil {
+				if err := os.WriteFile(filepath.Join(sdkConstants.SentinelDir, ukiSentinel), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 				ukiInstallMedium = internalUtils.UkiInstallMedium(bootedFromInstall, s.InRAM)
@@ -238,24 +252,47 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 					s.StateDir = cnst.PersistentStateTarget
 				}
 
-				addLine := func(d string) {
-					dat := strings.Split(d, ":")
-					if len(dat) == 2 {
-						disk := dat[0]
-						path := dat[1]
-						s.CustomMounts[disk] = path
-					}
+				s.CowBase = internalUtils.CowSpec(env["WRITE_PROTECTED_COW"])
+				if s.CowBase == "" {
+					s.CowBase = internalUtils.GetCowBase(s.OverlayBase)
 				}
+
 				// Parse custom mounts also from cmdline (rd.cos.mount=)
 				// Parse custom mounts also from cmdline (rd.immucore.mount=)
 				// Parse custom mounts also from env file (VOLUMES)
-
 				for _, v := range append(append(internalUtils.ReadCMDLineArg("rd.cos.mount="), internalUtils.ReadCMDLineArg("rd.immucore.mount=")...), strings.Split(env["VOLUMES"], " ")...) {
-					addLine(internalUtils.ParseMount(v))
+					if v == "" {
+						continue
+					}
+					disk, path, err := parseCustomMount(v)
+					if err != nil {
+						internalUtils.KLog.Logger.Error().Err(err).Msg("Skipping custom mount")
+						continue
+					}
+					s.CustomMounts[disk] = path
 				}
 
 				return nil
 			}))...)
+}
+
+// parseCustomMount splits a VOLUMES, rd.immucore.mount= or rd.cos.mount= entry
+// into the device and its mountpoint. It splits on the last colon, so a device
+// path that carries a colon, like /dev/disk/by-path/pci-0000:00:1f.2-ata-1-part5,
+// keeps it. LABEL:<label>:<mountpoint> is refused rather than mounted from a
+// literal "LABEL:<label>" source: a device is written LABEL=<label> or UUID=<uuid>.
+func parseCustomMount(entry string) (string, string, error) {
+	for _, key := range []string{"LABEL", "UUID"} {
+		if strings.HasPrefix(entry, key+":") {
+			return "", "", fmt.Errorf("invalid custom mount %q: a device is written %s=<value>:<mountpoint>", entry, key)
+		}
+	}
+	resolved := internalUtils.ParseMount(entry)
+	i := strings.LastIndex(resolved, ":")
+	if i <= 0 || !strings.HasPrefix(resolved[i+1:], "/") {
+		return "", "", fmt.Errorf("invalid custom mount %q: want <device>:<absolute mountpoint>", entry)
+	}
+	return resolved[:i], resolved[i+1:], nil
 }
 
 // MountOemDagStep will add mounting COS_OEM partition under s.Rootdir + /oem .
@@ -282,19 +319,13 @@ func (s *State) MountOemDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 					return err
 				}
 				operation := func(_ context.Context) error {
-					fstab, err := op.MountOPWithFstab(
+					fstab, err := op.MountOPWithFstabFn(
 						source,
 						s.path("/oem"),
 						internalUtils.DiskFSType(source),
-						[]string{
-							"rw",
-							"suid",
-							"dev",
-							"exec",
-							"async",
-						}, time.Duration(internalUtils.GetOemTimeout())*time.Second)
+						s.oemMountOptions, time.Duration(internalUtils.GetOemTimeout())*time.Second)
 					for _, f := range fstab {
-						s.fstabs = append(s.fstabs, f)
+						s.appendFstab(f)
 					}
 					return err
 				}
@@ -342,7 +373,7 @@ func (s *State) MountBaseOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) er
 			TimedCallback(cnst.OpMountBaseOverlay,
 				func(_ context.Context) error {
 					operation, err := op.BaseOverlay(schema.Overlay{
-						Base:        "/run/overlay",
+						Base:        cnst.OverlayBaseDir,
 						BackingBase: s.OverlayBase,
 					})
 					if err != nil {
@@ -351,7 +382,7 @@ func (s *State) MountBaseOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) er
 					err2 := operation.Run()
 					// No error, add fstab
 					if err2 == nil {
-						s.fstabs = append(s.fstabs, &operation.FstabEntry)
+						s.appendFstab(&operation.FstabEntry)
 						return nil
 					}
 					// Error but its already mounted error, dont add fstab but dont return error
@@ -375,7 +406,7 @@ func (s *State) MountCustomOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) 
 					internalUtils.KLog.Logger.Debug().Strs("dirs", s.OverlayDirs).Msg("Mounting overlays")
 					for _, p := range s.OverlayDirs {
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Overlay mount start")
-						operation := op.MountWithBaseOverlay(p, s.Rootdir, "/run/overlay")
+						operation := op.MountWithBaseOverlay(p, s.Rootdir, cnst.OverlayBaseDir)
 						err := operation.Run()
 						// A path that is missing from the OS image cannot be mounted, but it
 						// must not take the whole step down with it: OpMountBind depends on
@@ -394,7 +425,7 @@ func (s *State) MountCustomOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) 
 							multierr = multierror.Append(multierr, err)
 							continue
 						}
-						s.fstabs = append(s.fstabs, &operation.FstabEntry)
+						s.appendFstab(&operation.FstabEntry)
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Overlay mount done")
 					}
 					return multierr.ErrorOrNil()
@@ -412,14 +443,6 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 
 			for what, where := range s.CustomMounts {
 				internalUtils.KLog.Logger.Debug().Str("what", what).Str("where", where).Msg("Custom mount start")
-				// TODO: scan for the custom mount disk to know the underlying fs and set it proper
-				fstype := "ext4"
-				mountOptions := []string{"ro"}
-				// TODO: Are custom mounts always rw?ro?depends? Clarify.
-				// Persistent needs to be RW
-				if strings.Contains(what, "COS_PERSISTENT") {
-					mountOptions = []string{"rw"}
-				}
 				// If `what` is a /dev/disk/by-label/<X> path (the common
 				// case from cos-layout.env's VOLUMES entries), resolve to
 				// the concrete device path first, since the by-label symlink
@@ -438,6 +461,8 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 					}
 					source = resolved
 				}
+
+				target, mountOptions := s.customMountPlan(what, where)
 				// The 30s timeout covers the window between cryptsetup
 				// creating the mapper (kernel side) and udev finishing the
 				// /dev/mapper/<name> node MountOPWithFstab tries to open.
@@ -449,15 +474,15 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				// up and log a warning. If resolveMountSource failed above,
 				// we already `continue`d, so this path is only reached with
 				// a resolved concrete source.
-				fstab, err2 := op.MountOPWithFstab(
+				fstab, err2 := op.MountOPWithFstabFn(
 					source,
-					s.path(where),
-					fstype,
+					target,
+					"ext4",
 					mountOptions,
 					30*time.Second,
 				)
 				for _, f := range fstab {
-					s.fstabs = append(s.fstabs, f)
+					s.appendFstab(f)
 				}
 
 				// If its COS_OEM and it fails then we can safely ignore, as it's not mandatory to have COS_OEM
@@ -550,7 +575,7 @@ func (s *State) mountCustomBinds(_ context.Context) error {
 		}
 		if err2 == nil {
 			// Only append to fstabs if there was no error, otherwise we will try to mount it after switch_root
-			s.fstabs = append(s.fstabs, &operation.FstabEntry)
+			s.appendFstab(&operation.FstabEntry)
 		}
 		// Append to errors only if it's not an already mounted error
 		if err2 != nil && !errors.Is(err2, cnst.ErrAlreadyMounted) {

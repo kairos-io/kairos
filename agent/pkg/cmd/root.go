@@ -23,6 +23,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	installer "github.com/kairos-io/kairos/v4/agent/pkg/extensions"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
+	"github.com/kairos-io/kairos/v4/agent/pkg/progress"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
@@ -403,7 +404,8 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 				Name: "restart",
 			},
 			&cli.BoolFlag{
-				Name: "force",
+				Name:  "force",
+				Usage: "Deprecated: has no effect. Kept so existing invocations keep working.",
 			},
 			&cli.StringFlag{
 				Name: "api",
@@ -442,7 +444,7 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 			}
 
 			if c.Bool("force") {
-				opts = append(opts, agent.ForceAgent)
+				fmt.Fprintln(os.Stderr, "Warning: --force has no effect on 'start' and will be removed in a future release")
 			}
 
 			if c.Bool("restart") {
@@ -915,13 +917,7 @@ The validate command expects a configuration file as its only argument. Local fi
 			config, err := agentConfig.Scan(collector.Directories(constants.GetYipConfigDirs()...), collector.NoLogs)
 			config.Strict = c.Bool("strict")
 
-			if len(c.StringSlice("cloud-init-paths")) > 0 {
-				config.CloudInitPaths = append(config.CloudInitPaths, c.StringSlice("cloud-init-paths")...)
-			}
-
-			if len(c.StringSlice("override-cloud-init-paths")) > 0 {
-				config.CloudInitPaths = c.StringSlice("override-cloud-init-paths")
-			}
+			cloudInitPaths := runStageCloudInitPaths(c, config)
 
 			if c.Bool("debug") {
 				config.Logger.SetLevel("debug")
@@ -930,10 +926,7 @@ The validate command expects a configuration file as its only argument. Local fi
 			if err != nil {
 				config.Logger.Errorf("Error reading config: %s\n", err)
 			}
-			if c.Bool("analyze") {
-				return utils.RunStageAnalyze(config, stage)
-			}
-			return utils.RunStage(config, stage)
+			return utils.RunStageWithPaths(config, stage, c.Bool("analyze"), cloudInitPaths)
 		},
 	},
 	{
@@ -1419,8 +1412,8 @@ with 'kairos-agent kcrypt unlock-all'.`,
 				// journal/file stream.
 				phonehome.SetLogger(scanned.Logger)
 
-				if cc, ok, _ := phonehome.LoadFromCollector(scanned); ok {
-					cfg = *cc
+				if cfg, err = LoadPhoneHomeConfig(scanned); err != nil {
+					return err
 				}
 			}
 
@@ -1454,6 +1447,22 @@ with 'kairos-agent kcrypt unlock-all'.`,
 			return client.Run(ctx)
 		},
 	},
+}
+
+// LoadPhoneHomeConfig returns the phonehome: section of the scanned
+// cloud-config, or a zero Config when there is none. A section that does not
+// parse is an error: dropping it would leave the URL empty and send the user
+// after a missing url key when the real fault is, say, heartbeat_interval: 30
+// with no unit.
+func LoadPhoneHomeConfig(scanned *sdkConfig.Config) (phonehome.Config, error) {
+	cc, ok, err := phonehome.LoadFromCollector(scanned)
+	if err != nil {
+		return phonehome.Config{}, err
+	}
+	if !ok {
+		return phonehome.Config{}, nil
+	}
+	return *cc, nil
 }
 
 // MergePhoneHomeFlags overlays the phone-home command line on top of the
@@ -1833,7 +1842,36 @@ func Run() int {
 	// as notify, then have nowhere to put it. Each command that uses the bus
 	// initializes it, with the directories that command resolved.
 
-	app := &cli.App{
+	return runApp(newApp(), os.Args)
+}
+
+// runApp runs app with args and returns a process exit code. A fatal error is
+// written to stderr, so stdout carries only what the command was asked to
+// produce and a machine-readable output format stays parseable on failure.
+//
+// The same error also goes out as a progress error event, which is the only
+// thing an installer frontend reads. sdk/agentrun runs this binary as
+// `kairos-agent manual-install` and shows the frontend its stdout, so a
+// failure that never reaches the install action (the config scan,
+// CheckConfigForUsers, CheckConfigForExtraPartitions, installSpec.Sanitize,
+// validateSource, checkRoot) would otherwise reach the browser as nothing but
+// "exit status 1". Emitting here rather than inside InstallAction.Run covers
+// those, covers the UKI install action, which never emitted at all, and
+// cannot emit the same failure twice, because every install path returns its
+// error to this one place. The event is a no-op unless KAIROS_AGENT_PROGRESS
+// is set.
+func runApp(app *cli.App, args []string) int {
+	if err := app.Run(args); err != nil {
+		progress.EmitError(err.Error())
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
+}
+
+// newApp builds the kairos-agent CLI.
+func newApp() *cli.App {
+	return &cli.App{
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name:    "strict-validation",
@@ -1887,13 +1925,6 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		},
 		Commands: cmds,
 	}
-
-	err := app.Run(os.Args)
-	if err != nil {
-		fmt.Println(err)
-		return 1
-	}
-	return 0
 }
 
 func checkRoot() error {
@@ -1950,6 +1981,27 @@ func skipAutoInstall(c *cli.Context) bool {
 	}
 
 	return cmdlineEnables(string(cmdline), skipAutoInstallCmdline)
+}
+
+// runStageCloudInitPaths resolves the cloud-init paths a `run-stage` run reads,
+// and keeps config.CloudInitPaths in step with them.
+//
+// --cloud-init-paths adds to the defaults; --override-cloud-init-paths replaces
+// everything, defaults included, which is what its usage text has always
+// promised. The composition lives here rather than in RunStage so that every
+// other caller of RunStage (install, upgrade, reset, the boot hooks) keeps
+// reading the defaults.
+func runStageCloudInitPaths(c *cli.Context, config *sdkConfig.Config) []string {
+	if extra := c.StringSlice("cloud-init-paths"); len(extra) > 0 {
+		config.CloudInitPaths = append(config.CloudInitPaths, extra...)
+	}
+
+	if override := c.StringSlice("override-cloud-init-paths"); len(override) > 0 {
+		config.CloudInitPaths = override
+		return override
+	}
+
+	return utils.CloudInitPaths(config)
 }
 
 // checkInstallBundleFlags refuses a flag the target's scheme cannot read.

@@ -866,6 +866,11 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 	if spec.EfiPartition != nil {
 		return nil, fmt.Errorf("upgrade.efi-partition is not configurable: the EFI partition is the one labeled %s on the running system", sdkConstants.EfiLabel)
 	}
+	// Without a source there is nothing to upgrade to. Fail the same way the
+	// regular upgrade does instead of dereferencing a nil source below.
+	if spec.Active.Source == nil || spec.Active.Source.IsEmpty() {
+		return nil, fmt.Errorf(constants.UpgradeNoSourceError)
+	}
 	// Honor upgrade registry options before any image is fetched
 	if err := applyRegistryOptions(cfg, "upgrade", spec.Active.Source); err != nil {
 		return nil, err
@@ -967,6 +972,10 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 	var size int64
 	var err error
 	var filesVisited map[string]bool
+
+	if source == nil {
+		return 0, fmt.Errorf("no source to measure")
+	}
 
 	switch {
 	case source.IsDocker():

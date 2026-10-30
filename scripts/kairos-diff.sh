@@ -279,7 +279,12 @@ populate_dep_versions() {
   local makefile gomod intree=0
   if intree_present_at "$kairos_ref" "kairos-init"; then
     intree=1
-    makefile="$(get_intree_content "$kairos_ref" "kairos-init/Makefile")" || return 1
+    # The in-tree kairos-init/Makefile was dropped after v4.3.0 (dcacd712),
+    # its pins were already dead by then. Read it only when the ref has it.
+    makefile=""
+    if intree_present_at "$kairos_ref" "kairos-init/Makefile"; then
+      makefile="$(get_intree_content "$kairos_ref" "kairos-init/Makefile")" || return 1
+    fi
     gomod="$(get_intree_content "$kairos_ref" "go.mod")" || return 1
   else
     local init_ver

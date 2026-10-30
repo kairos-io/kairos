@@ -568,7 +568,6 @@ var BasePackages = PackageMap{
 				"strace",
 				"systemd",
 				"timezone",
-				"tmux",
 				"vim",
 				"which",
 			},

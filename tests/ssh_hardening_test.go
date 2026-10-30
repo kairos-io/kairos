@@ -161,6 +161,12 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 			// sshd-04/sshd-05 assert about /etc/ssh and sshd_config in
 			// a hardened system. moduli is copied so sshd-48's DH-primes
 			// bash check finds it under the same custom path.
+			//
+			// OpenSSH 10.6 made TCPKeepAlive multi-valued, and sshd -T
+			// prints the off state as "false" where sshd-35 compares
+			// against "no". The sed maps that one spelling back so the
+			// control still proves keepalives are off: an enabled
+			// keepalive prints "true" and fails as it should.
 			sshPort := vm.SSHPort()
 			cmd := exec.Command("ssh",
 				"-i", keyPath,
@@ -173,7 +179,11 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 				`sudo sh -c '
 					set -eu
 					mkdir -p /tmp/sshd-effective
-					sshd -T > /tmp/sshd-effective/sshd_config
+					sshd -T > /tmp/sshd-effective/sshd_config.raw
+					sed -e "s/^TCPKeepAlive false$/TCPKeepAlive no/" \
+						-e "s/^tcpkeepalive false$/tcpkeepalive no/" \
+						/tmp/sshd-effective/sshd_config.raw > /tmp/sshd-effective/sshd_config
+					rm /tmp/sshd-effective/sshd_config.raw
 					cp /etc/ssh/moduli /tmp/sshd-effective/moduli
 					chown -R root:root /tmp/sshd-effective
 					chmod 755 /tmp/sshd-effective

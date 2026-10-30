@@ -41,7 +41,7 @@ func GetSSHHardeningStage(_ values.System, l logger.KairosLogger) []schema.Stage
 					Permissions: 0644,
 					Owner:       0,
 					Group:       0,
-					Content:     bundled.SshdHardeningConfig,
+					Content:     bundled.FilterSshdAlgorithms(bundled.SshdHardeningConfig, bundled.SshQuery),
 				},
 			},
 		},

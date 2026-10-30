@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -467,9 +468,14 @@ func runInfo(pcrsFlag string, tpmDevice string) error {
 		return fmt.Errorf("encoding EK to PEM: %w", err)
 	}
 
-	// Read PCR values
+	// Read PCR values. Nothing verifies this quote, we only read the PCRs
+	// out of it, but tpm-helpers refuses to quote without a nonce.
 	logger.Debugf("Reading PCR values")
-	pcrQuote, err := akManager.GeneratePCRQuote(pcrIndices)
+	nonce := make([]byte, 32)
+	if _, err := rand.Read(nonce); err != nil {
+		return fmt.Errorf("generating quote nonce: %w", err)
+	}
+	pcrQuote, err := akManager.GeneratePCRQuote(pcrIndices, nonce)
 	if err != nil {
 		return fmt.Errorf("reading PCR values: %w", err)
 	}

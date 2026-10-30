@@ -116,7 +116,7 @@ var _ = Describe("K3sNode GenArgs", func() {
 					NetworkToken: "a-token",
 					Auto: providerConfig.Auto{
 						HA: providerConfig.HA{
-							Enable:     &enabled,
+							Enabled:    &enabled,
 							ExternalDB: externalDB,
 						},
 					},
@@ -127,8 +127,8 @@ var _ = Describe("K3sNode GenArgs", func() {
 					Args:             []string{"--user-arg"},
 				},
 				KubeVIP: providerConfig.KubeVIP{
-					Enable: &enabled,
-					EIP:    "10.0.0.9",
+					Enabled: &enabled,
+					EIP:     "10.0.0.9",
 				},
 			}
 		}

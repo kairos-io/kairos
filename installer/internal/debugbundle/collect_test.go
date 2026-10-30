@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/sdk/diagnostics"
 )
 
 // fakeRunner returns canned output and errors keyed by command name.
@@ -24,7 +25,7 @@ func (f *fakeRunner) Run(name string, args ...string) ([]byte, error) {
 }
 
 var _ = Describe("CollectExtras", func() {
-	It("writes the four grouped files and records command failures inline", func() {
+	It("writes one file per diagnostic group plus the installer context, and records command failures inline", func() {
 		dir := GinkgoT().TempDir()
 		r := &fakeRunner{
 			outputs: map[string][]byte{"lsblk": []byte("NAME sda\n")},
@@ -41,7 +42,9 @@ var _ = Describe("CollectExtras", func() {
 
 		paths, err := debugbundle.CollectExtras(r, c, dir)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(paths).To(HaveLen(4))
+		// Derived, not restated: a group added to sdk/diagnostics lands here
+		// without this spec having to be told about it.
+		Expect(paths).To(HaveLen(len(diagnostics.Collect(r, diagnostics.OSFS{})) + 1))
 
 		kernel, _ := os.ReadFile(filepath.Join(dir, "installer-kernel.log"))
 		Expect(string(kernel)).To(ContainSubstring("(FAILED:")) // dmesg failed but did not abort
@@ -53,5 +56,21 @@ var _ = Describe("CollectExtras", func() {
 		Expect(string(ctx)).To(ContainSubstring("v1.2.3"))
 		Expect(string(ctx)).To(ContainSubstring("***REDACTED***"))
 		Expect(string(ctx)).To(ContainSubstring("/dev/sda"))
+	})
+
+	It("collects the machine state through sdk/diagnostics, so the agent bundle has it too", func() {
+		dir := GinkgoT().TempDir()
+		r := &fakeRunner{
+			outputs: map[string][]byte{"hostname": []byte("node-1\n")},
+			errs:    map[string]error{},
+		}
+
+		_, err := debugbundle.CollectExtras(r, debugbundle.Context{}, dir)
+		Expect(err).ToNot(HaveOccurred())
+
+		system, err := os.ReadFile(filepath.Join(dir, "installer-system.log"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(system)).To(ContainSubstring("node-1"))
+		Expect(string(system)).To(ContainSubstring("===== uname (uname -a) ====="))
 	})
 })

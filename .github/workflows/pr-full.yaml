@@ -244,8 +244,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.6.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.6.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # k0s build coverage. iso: false on purpose -- the k0s provider
           # does its work at image build time (runs the k0s installer,
           # relocates the binary out of /usr/local/bin, writes the service
@@ -259,20 +259,20 @@ jobs:
           # the extra cell off the critical path the test-* jobs wait on:
           # no auroraboot run, so it is the amd64-standard cell's work
           # minus the slowest step.
-          - {name: 'amd64-standard-k0s', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: false, trusted_boot: false, kubernetes_distro: 'k0s', fips: false}
+          - {name: 'amd64-standard-k0s', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.6.3', model: 'generic', iso: false, trusted_boot: false, kubernetes_distro: 'k0s', fips: false}
           # FIPS core cell. hadron-fips is a distinct base image from
           # hadron (FIPS-hardened kernel + userspace); passing fips:true
           # additionally flips the FIPS=fips build_arg in images/Dockerfile
           # so kairos-init installs the FIPS variant of the multi-call
           # kairos binary. Both switches are required for an
           # end-to-end FIPS image; either alone is a footgun.
-          - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
+          - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.6.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
           # UKI cells feed test-uki. hadron-trusted is a distinct
           # base image from hadron (extra tpm/measured-boot bits); the
           # -uki suffix on the artifact/tag comes from the $UKI token
           # in _build-iso.yaml's custom formats.
-          - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
-          - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.6.3', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.6.3', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
           # Ubuntu 20.04: non-Hadron initramfs builder coverage for
           # the multi-call kairos symlinks. Feeds test-core-ubuntu-20.
           - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
@@ -320,10 +320,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.6.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # rpi cells: raw disk image, no ISO. Still on hadron base.
-          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.6.3', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.6.3', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
           # only builds on that. Model-derived knobs (grype/sbom/
           # cleanup) turn off scans and enable disk cleanup; see
@@ -415,6 +415,7 @@ jobs:
           - {test: 'ssh-hardening'}
           - {test: 'sysext'}
           - {test: 'cmdline-config-url'}
+          - {test: 'write-protected'}
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -428,7 +429,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
@@ -464,7 +465,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron-fips:v0.6.3'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
@@ -575,7 +576,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'
@@ -624,7 +625,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'
@@ -663,7 +664,7 @@ jobs:
       # Mirrors the kubernetes_distro of the build-iso UKI cell each test
       # consumes: amd64-standard-uki is k3s, amd64-core-uki is neither.
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.6.3'
       arch: 'amd64'
       model: 'generic'
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'

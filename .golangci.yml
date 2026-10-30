@@ -1,7 +1,7 @@
 version: "2"
 run:
   timeout: 10m
-  tests: false
+  tests: true
 linters:
   enable:
     - dupl
@@ -17,6 +17,19 @@ linters:
   # the tree lack a trailing period, and turning them all on in this
   # lint-enable PR would drown the substantive fixes.
   settings:
+    ginkgolinter:
+      # run.tests is on only so this linter can see the specs, and only for
+      # one rule: an Expect() with no To()/NotTo()/Should() asserts nothing
+      # and passes whatever the code does. Nineteen of those had accumulated,
+      # hiding a cosign invocation that could never have verified an image.
+      # The style preferences (len/nil/err/compare/async matchers) stay off,
+      # so this does not become a tree-wide test rewrite.
+      suppress-len-assertion: true
+      suppress-nil-assertion: true
+      suppress-err-assertion: true
+      suppress-compare-assertion: true
+      suppress-async-assertion: true
+      suppress-type-compare-assertion: true
     revive:
       # Named parameters read as documentation on the many interface
       # implementations (cli.Context handlers, mock methods, k8s
@@ -46,6 +59,23 @@ linters:
       - examples$
       - tests$
     rules:
+      # run.tests was false until ginkgolinter needed to read the specs.
+      # Every other linter keeps its previous scope, production code only;
+      # widening them all at once would bury the one rule we turned on.
+      - path: _test\.go
+        linters:
+          - dupl
+          - gocheckcompilerdirectives
+          - goconst
+          - gocyclo
+          - misspell
+          - revive
+          - zerologlint
+          - errcheck
+          - govet
+          - ineffassign
+          - staticcheck
+          - unused
       # kairos-init/pkg/values/packagemaps.go is a data table: distro
       # -> arch -> version -> []packageName. Package names legitimately
       # repeat across distros (`iptables`, `dosfstools`, ...) because

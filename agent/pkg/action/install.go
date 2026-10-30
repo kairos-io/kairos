@@ -72,13 +72,13 @@ func NewInstallAction(cfg *sdkConfig.Config, spec *v1.InstallSpec) *InstallActio
 }
 
 // Run will install the system from a given configuration
+//
+// It does not emit the progress failure event for the error it returns. Every
+// error from here travels up to the agent CLI, which emits one for whatever
+// ended the run, so there is a single emitter and the failures that happen
+// before this action is built get an event too.
 // nolint:gocyclo // Install is a long linear pipeline (partitions, mounts, cloud-init stages, image copy, bootloader, kcrypt, cleanup) each of which can fail; the branches follow the installer flow rather than any splittable concern.
 func (i InstallAction) Run() (err error) {
-	defer func() {
-		if err != nil {
-			progress.EmitError(err.Error())
-		}
-	}()
 	e := elemental.NewElemental(i.cfg)
 	cleanup := utils.NewCleanStack()
 	defer func() { err = cleanup.Cleanup(err) }()

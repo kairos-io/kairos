@@ -14,7 +14,12 @@ import (
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
-var ErrorImageNoLayers = errors.New("image")
+var ErrorImageNoLayers = errors.New("image has no layers")
+
+const (
+	whiteoutPrefix    = ".wh."
+	whiteoutOpaqueDir = ".wh..wh..opq"
+)
 
 // DefaultAllowListRegex provided for easy use of defaults for confext and sysext
 var DefaultAllowListRegex = regexp.MustCompile(`^usr/*|^/usr/*|^etc/*|^/etc/*`)
@@ -25,18 +30,21 @@ var DefaultAllowListRegex = regexp.MustCompile(`^usr/*|^/usr/*|^etc/*|^/etc/*`)
 // sysextension or a confextension
 // Accepts an allowList in form of regexp.Regexp that will match the files and allow copying
 func ExtractFilesFromLastLayer(image v1.Image, dst string, log sdkLogger.KairosLogger, allowList *regexp.Regexp) error {
-	layers, _ := image.Layers()
-	numLayers := len(layers)
-	if len(layers) <= 0 {
+	layers, err := image.Layers()
+	if err != nil {
+		return fmt.Errorf("list image layers: %w", err)
+	}
+	if len(layers) == 0 {
 		return ErrorImageNoLayers
 	}
-	return extractFilesFromLayer(image, dst, log, allowList, numLayers-1)
+	return extractFilesFromLayer(layers[len(layers)-1], dst, log, allowList)
 }
 
-func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogger, allowList *regexp.Regexp, layerNumber int) error {
-	layers, _ := image.Layers()
-	layerToExtract := layers[layerNumber]
-	layerReader, _ := layerToExtract.Uncompressed()
+func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogger, allowList *regexp.Regexp) error {
+	layerReader, err := layer.Uncompressed()
+	if err != nil {
+		return fmt.Errorf("read layer: %w", err)
+	}
 	defer func(layerReader io.ReadCloser) {
 		_ = layerReader.Close()
 	}(layerReader)
@@ -52,7 +60,6 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 	defer func() {
 		_ = root.Close()
 	}()
-	// TODO: Support whiteout? https://github.com/opencontainers/image-spec/blob/79b036d80240ae530a8de15e1d21c7ab9292c693/layer.md#whiteouts
 	for {
 		header, err := tr.Next()
 		if err == io.EOF {
@@ -73,6 +80,19 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 		name := strings.TrimPrefix(header.Name, "/")
 		if !filepath.IsLocal(name) {
 			return fmt.Errorf("%s: path is outside the destination", header.Name)
+		}
+		// A whiteout marks a deletion of something in a lower layer:
+		// https://github.com/opencontainers/image-spec/blob/79b036d80240ae530a8de15e1d21c7ab9292c693/layer.md#whiteouts
+		// Only the last layer is extracted, so there is nothing for it to
+		// delete, and overlayfs does not read ".wh." names as whiteouts, so
+		// writing it would leave a junk file in the extension.
+		if base := filepath.Base(name); strings.HasPrefix(base, whiteoutPrefix) {
+			if base == whiteoutOpaqueDir {
+				log.Warnf("Skipping opaque whiteout %s: the extension cannot hide the contents of %s", header.Name, filepath.Dir(name))
+			} else {
+				log.Warnf("Skipping whiteout %s: the extension cannot delete %s", header.Name, filepath.Join(filepath.Dir(name), strings.TrimPrefix(base, whiteoutPrefix)))
+			}
+			continue
 		}
 		mode := header.FileInfo().Mode()
 
