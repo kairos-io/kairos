@@ -228,7 +228,12 @@ func Install(cc *sdkConfig.Config, scanErr error, sourceImgURL string, allowInse
 		cloudConfig, exists := r["cc"]
 		if exists {
 			// Re-read the full config and add the config coming from the event
-			cc, _ = config.Scan(collector.Directories(dir...), collector.Overwrites(cloudConfig), collector.MergeBootLine, collector.NoLogs)
+			newcc, err := config.Scan(collector.Directories(dir...), collector.Overwrites(cloudConfig), collector.MergeBootLine, collector.NoLogs)
+			if err != nil {
+				fmt.Printf("WARNING: ignoring the cloud-config sent with the install event: %s\n", err)
+				return
+			}
+			cc = newcc
 		}
 	})
 
