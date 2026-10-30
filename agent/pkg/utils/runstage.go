@@ -54,6 +54,10 @@ func RunStageWithPaths(cfg *sdkConfig.Config, stage string, analyze bool, cloudI
 	var allErrors error
 
 	cfg.Logger.Debugf("Cloud-init paths set to %v", cloudInitPaths)
+	// A stage is assembled from three sources, and each one is read by both
+	// arms of the analyze switch below. The analyze arm has to be handed the
+	// same argument its run arm gets, otherwise the DAG describes a different
+	// stage than the one that would run.
 	if analyze {
 		cfg.Logger.Info("Analyze mode, showing DAG")
 	}
@@ -116,7 +120,7 @@ func RunStageWithPaths(cfg *sdkConfig.Config, stage string, analyze bool, cloudI
 		cmdLineArgs := []string{cmdLineYipURI}
 		for _, s := range []string{stageBefore, stage, stageAfter} {
 			if analyze {
-				cfg.CloudInitRunner.Analyze(s, cloudInitPaths...)
+				cfg.CloudInitRunner.Analyze(s, cmdLineArgs...)
 			} else {
 				err = cfg.CloudInitRunner.Run(s, cmdLineArgs...)
 				if err != nil {
@@ -134,7 +138,7 @@ func RunStageWithPaths(cfg *sdkConfig.Config, stage string, analyze bool, cloudI
 
 	for _, s := range []string{stageBefore, stage, stageAfter} {
 		if analyze {
-			cfg.CloudInitRunner.Analyze(s, cloudInitPaths...)
+			cfg.CloudInitRunner.Analyze(s, string(cmdLineOut))
 		} else {
 			err = cfg.CloudInitRunner.Run(s, string(cmdLineOut))
 			if err != nil {
