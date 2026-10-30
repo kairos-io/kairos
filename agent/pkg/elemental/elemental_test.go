@@ -1036,7 +1036,27 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
 			Expect(err).To(BeNil())
 			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
+			Expect(runner.IncludesCmds([][]string{{"tar"}})).To(HaveOccurred(),
+				"the OCI layout is extracted in Go, so the host needs no tar binary (kairos-io/kairos#5573)")
 		})
+
+		DescribeTable("Refuses an OCI layout archive entry that could land outside the extraction directory (kairos-io/kairos#5573)",
+			func(hdr *tar.Header, reason string) {
+				runner.ClearCmds()
+
+				archivePath := filepath.Join(GinkgoT().TempDir(), "hostile.tar")
+				writeTarArchive(archivePath, hdr)
+
+				target := GinkgoT().TempDir()
+				_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(fmt.Sprintf("entry %q %s", hdr.Name, reason)))
+				Expect(os.ReadDir(target)).To(BeEmpty())
+			},
+			Entry("a name that climbs out", &tar.Header{Name: "../escape", Typeflag: tar.TypeReg, Mode: 0644, Size: 3}, "points outside"),
+			Entry("an absolute name", &tar.Header{Name: "/escape", Typeflag: tar.TypeReg, Mode: 0644, Size: 3}, "points outside"),
+			Entry("a symlink", &tar.Header{Name: "blobs", Typeflag: tar.TypeSymlink, Linkname: "/"}, "is not a regular file"),
+		)
 
 		It("Refuses an archive that holds no image, and leaves the target alone", Label("docker"), func() {
 			runner.ClearCmds()
@@ -1543,6 +1563,24 @@ func squashfsArgs(runner *v1mock.FakeRunner) []string {
 // runner for its bookkeeping and the host for the work.
 func realRunner(command string, args ...string) ([]byte, error) {
 	return exec.Command(command, args...).CombinedOutput()
+}
+
+// writeTarArchive writes a tar archive at path holding the single entry hdr.
+// A regular file entry gets hdr.Size bytes of content.
+func writeTarArchive(path string, hdr *tar.Header) {
+	GinkgoHelper()
+
+	f, err := os.Create(path)
+	Expect(err).ToNot(HaveOccurred())
+	defer func() { _ = f.Close() }()
+
+	writer := tar.NewWriter(f)
+	Expect(writer.WriteHeader(hdr)).To(Succeed())
+	if hdr.Typeflag == tar.TypeReg {
+		_, err = writer.Write(bytes.Repeat([]byte("x"), int(hdr.Size)))
+		Expect(err).ToNot(HaveOccurred())
+	}
+	Expect(writer.Close()).To(Succeed())
 }
 
 // saveRootfsImage writes a one layer image carrying /etc/os-release into dir,
