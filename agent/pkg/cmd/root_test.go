@@ -15,11 +15,13 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
 	"github.com/urfave/cli/v2"
 )
@@ -73,6 +75,143 @@ func TestCatalogMissPreservesErrorForNonURI(t *testing.T) {
 	err = installCatalogOrURIExtension(cfg, []string{extensiontypes.DefaultCatalogURL}, "not-a-source", "", "sysext")
 	if err == nil || !strings.Contains(err.Error(), "download failed") {
 		t.Fatalf("expected catalog error for a non-URI request, got %v", err)
+	}
+}
+
+// recordingClient serves documents by URL onto the test filesystem and keeps
+// every URL it was asked for. A URL with no document fails, which is how an
+// unreachable host is simulated.
+type recordingClient struct {
+	fs        vfs.FS
+	documents map[string]string
+	requested []string
+}
+
+func (c *recordingClient) GetURL(_ sdkLogger.KairosLogger, url, destination string) error {
+	c.requested = append(c.requested, url)
+	document, found := c.documents[url]
+	if !found {
+		return errors.New("connection refused")
+	}
+	return c.fs.WriteFile(destination, []byte(document), 0644)
+}
+
+func sysextInstallConfig(t *testing.T, documents map[string]string) (*sdkConfig.Config, *recordingClient, *v1mock.FakeImageExtractor) {
+	t.Helper()
+	fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(cleanup)
+	logger := sdkLogger.NewNullLogger()
+	client := &recordingClient{fs: fs, documents: documents}
+	extractor := v1mock.NewFakeImageExtractor(logger)
+	cfg := agentConfig.NewConfig(
+		agentConfig.WithFs(fs),
+		agentConfig.WithLogger(logger),
+		agentConfig.WithClient(client),
+		agentConfig.WithImageExtractor(extractor),
+	)
+	cfg.Platform.GolangArch = "amd64"
+	return cfg, client, extractor
+}
+
+// A local image installs with no catalog reachable: the path is already the
+// answer, so nothing is fetched before the copy.
+func TestSysextInstallFromAPathFetchesNoCatalog(t *testing.T) {
+	cfg, client, _ := sysextInstallConfig(t, nil)
+	if err := vfs.MkdirAll(cfg.Fs, "/src", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.WriteFile("/src/tools.sysext.raw", []byte("local image"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := installCatalogOrURIExtension(cfg, []string{extensiontypes.DefaultCatalogURL}, "/src/tools.sysext.raw", "", "sysext"); err != nil {
+		t.Fatalf("installing a local image with no catalog reachable: %v", err)
+	}
+	if len(client.requested) != 0 {
+		t.Fatalf("requested %q, want no catalog fetched for a path", client.requested)
+	}
+	copied, err := cfg.Fs.ReadFile("/var/lib/kairos/extensions/tools.sysext.raw")
+	if err != nil {
+		t.Fatalf("the local image was not installed: %v", err)
+	}
+	if string(copied) != "local image" {
+		t.Fatalf("installed content = %q", copied)
+	}
+}
+
+func TestSysextInstallFromARegistryFetchesNoCatalog(t *testing.T) {
+	cfg, client, extractor := sysextInstallConfig(t, nil)
+
+	if err := installCatalogOrURIExtension(cfg, []string{extensiontypes.DefaultCatalogURL}, "docker://ghcr.io/example/tools.sysext.raw:1.0", "", "sysext"); err != nil {
+		t.Fatal(err)
+	}
+	if len(client.requested) != 0 {
+		t.Fatalf("requested %q, want no catalog fetched for an image reference", client.requested)
+	}
+	if !extractor.WasCalledWithImageRef("ghcr.io/example/tools.sysext.raw:1.0") {
+		t.Fatalf("extractor calls = %+v, want the image pulled", extractor.ClientCalls)
+	}
+}
+
+// A failed download is reported as it is, after one attempt, rather than once
+// as a catalog and again as the image.
+func TestSysextInstallFromAnHTTPSURIDownloadsOnce(t *testing.T) {
+	cfg, client, _ := sysextInstallConfig(t, nil)
+	const uri = "https://example.test/tools.sysext.raw"
+
+	err := installCatalogOrURIExtension(cfg, []string{extensiontypes.DefaultCatalogURL}, uri, "", "sysext")
+	if err == nil || !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("expected the download error, got %v", err)
+	}
+	if len(client.requested) != 1 || client.requested[0] != uri {
+		t.Fatalf("requested %q, want only %q, once", client.requested, uri)
+	}
+}
+
+func TestSysextInstallRefusesAVersionOnAReference(t *testing.T) {
+	cfg, client, _ := sysextInstallConfig(t, nil)
+
+	err := installCatalogOrURIExtension(cfg, []string{extensiontypes.DefaultCatalogURL}, "oci:ghcr.io/example/tools.sysext.raw", "1.0.0", "sysext")
+	if err == nil || !strings.Contains(err.Error(), "cannot also take version") {
+		t.Fatalf("expected a version-on-reference error, got %v", err)
+	}
+	if len(client.requested) != 0 {
+		t.Fatalf("requested %q, want nothing fetched", client.requested)
+	}
+}
+
+func TestSysextInstallResolvesANameThroughTheCatalog(t *testing.T) {
+	const digest = "1111111111111111111111111111111111111111111111111111111111111111"
+	const catalogURL = "https://example.test/releases.json"
+	cfg, client, extractor := sysextInstallConfig(t, map[string]string{
+		catalogURL: `{"repo": "kairos-io/hadron-layers", "layers": [{"name": "git", "latest": "2.55.0", "tags": [
+			{"tag": "2.55.0", "sysext": {"amd64": {"oci": "ghcr.io/kairos-io/hadron-layers/sysext/git@sha256:` + digest + `"}}}
+		]}]}`,
+	})
+
+	if err := installCatalogOrURIExtension(cfg, []string{catalogURL}, "git", "", "sysext"); err != nil {
+		t.Fatal(err)
+	}
+	if len(client.requested) != 1 || client.requested[0] != catalogURL {
+		t.Fatalf("requested %q, want the catalog fetched once", client.requested)
+	}
+	if !extractor.WasCalledWithImageRef("ghcr.io/kairos-io/hadron-layers/sysext/git@sha256:" + digest) {
+		t.Fatalf("extractor calls = %+v, want the catalog image pulled", extractor.ClientCalls)
+	}
+}
+
+func TestConfextInstallRefusesANameWithNoCatalog(t *testing.T) {
+	cfg, client, _ := sysextInstallConfig(t, nil)
+
+	err := installCatalogOrURIExtension(cfg, nil, "git", "", "confext")
+	if err == nil || !strings.Contains(err.Error(), "docker:") {
+		t.Fatalf("expected an error listing the accepted sources, got %v", err)
+	}
+	if len(client.requested) != 0 {
+		t.Fatalf("requested %q, want nothing fetched", client.requested)
 	}
 }
 

@@ -1787,26 +1787,21 @@ func extensionCatalogURLs(c *cli.Context, cfg *sdkConfig.Config, extType string)
 }
 
 func installCatalogOrURIExtension(cfg *sdkConfig.Config, catalogURLs []string, requested, version, extType string) error {
-	var catalogErr error
-	if len(catalogURLs) > 0 {
-		err := installCatalogExtension(cfg, catalogURLs, requested, version)
-		if err == nil {
-			return nil
-		}
-		// An explicit version can only mean a catalog lookup, so do not go on
-		// to read the name as a URI and report a confusing parse error.
-		if version != "" {
+	extension := extensiontypes.Extension{Name: requested, Version: version}
+	// A path or URI already names one image, so there is nothing to look up
+	// and the catalogs are not fetched: an install from a local file or a
+	// registry has to work without access to any index.
+	if extension.IsReference() {
+		uri, err := installer.ResolveURI(cfg, nil, extension)
+		if err != nil {
 			return err
 		}
-		catalogErr = err
+		return action.InstallExtension(cfg, uri, extType)
 	}
-	if err := validateSourceSysext(requested); err != nil {
-		if catalogErr != nil {
-			return catalogErr
-		}
-		return err
+	if len(catalogURLs) == 0 {
+		return fmt.Errorf("source %s is neither an absolute path nor an oci:, docker:, container:, file: or http(s) URI", requested)
 	}
-	return action.InstallExtension(cfg, requested, extType)
+	return installCatalogExtension(cfg, catalogURLs, requested, version)
 }
 
 func installCatalogExtension(cfg *sdkConfig.Config, catalogURLs []string, name, version string) error {
@@ -2044,22 +2039,6 @@ func validateSource(source string) error {
 	}
 	if !r.MatchString(source) {
 		return fmt.Errorf("source %s does not match any of oci:, dir:, file: or ocifile: ", source)
-	}
-
-	return nil
-}
-
-func validateSourceSysext(source string) error {
-	if source == "" {
-		return nil
-	}
-
-	r, err := regexp.Compile(`^oci:|^file:|^http:|^https:`)
-	if err != nil {
-		return err
-	}
-	if !r.MatchString(source) {
-		return fmt.Errorf("source %s does not match any of oci:, file: or http(s): ", source)
 	}
 
 	return nil
