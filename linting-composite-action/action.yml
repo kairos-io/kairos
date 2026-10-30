@@ -16,7 +16,7 @@ runs:
       env:
         HADOLINT_VERSION: 2.12.0-alpine
       shell: bash
-      run: find . -path "./examples" -prune -o -name "Dockerfile.*" -print | xargs -r -n1 docker run -v "$PWD":/work -w /work "hadolint/hadolint:${HADOLINT_VERSION}" hadolint
+      run: find . -path "./examples" -prune -o \( -name "Dockerfile" -o -name "Dockerfile.*" \) -print | xargs -r -n1 docker run -v "$PWD":/work -w /work "hadolint/hadolint:${HADOLINT_VERSION}" hadolint
 
     - name: renovate-validate
       env:
@@ -32,4 +32,4 @@ runs:
 
     - name: yamllint
       shell: bash
-      run: find . -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint
+      run: find . -path "./examples" -prune -o \( -name "*.yml" -o -name "*.yaml" \) -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint
