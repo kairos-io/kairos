@@ -23,7 +23,7 @@ import (
 // AuroraBootVersion is the AuroraBoot release the helpers use, both as a
 // release binary and as a container image. Renovate updates it together with
 // the workflow pins.
-const AuroraBootVersion = "v0.28.0"
+const AuroraBootVersion = "v0.29.0"
 
 // AuroraBootImage is the AuroraBoot container image the Docker helpers run.
 const AuroraBootImage = "quay.io/kairos/auroraboot:" + AuroraBootVersion
