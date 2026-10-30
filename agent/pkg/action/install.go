@@ -94,7 +94,12 @@ func (i InstallAction) Run() (err error) {
 		if err != nil {
 			return err
 		}
-		cleanup.Push(func() error { return i.cfg.Fs.RemoveAll(tmpDir) })
+		cleanup.Push(func() error {
+			if err := e.UnmountIso(tmpDir); err != nil {
+				return err
+			}
+			return i.cfg.Fs.RemoveAll(tmpDir)
+		})
 		err = e.UpdateSourcesFormDownloadedISO(tmpDir, &i.spec.Active, &i.spec.Recovery)
 		if err != nil {
 			return err
