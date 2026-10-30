@@ -23,18 +23,18 @@ var _ = Describe("BaseOverlay", func() {
 		base = filepath.Join(GinkgoT().TempDir(), "overlay")
 	})
 
-	It("mounts a tmpfs backing base 0700, nosuid and nodev", func() {
+	It("mounts a tmpfs backing base 0755, nosuid and nodev", func() {
 		operation, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "tmpfs:20%"})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(operation.Target).To(Equal(base))
 		Expect(operation.MountOption.Type).To(Equal("tmpfs"))
 		Expect(operation.MountOption.Source).To(Equal("tmpfs"))
-		Expect(operation.MountOption.Options).To(ConsistOf("nosuid", "nodev", "mode=0700", "size=20%"))
+		Expect(operation.MountOption.Options).To(ConsistOf("nosuid", "nodev", "mode=0755", "size=20%"))
 
 		flags, data := mount.ParseOptions(operation.MountOption.Options)
 		Expect(flags).To(Equal(uintptr(unix.MS_NOSUID | unix.MS_NODEV)))
-		Expect(data).To(ConsistOf("mode=0700", "size=20%"))
+		Expect(data).To(ConsistOf("mode=0755", "size=20%"))
 	})
 
 	It("writes the same options to the fstab entry", func() {
@@ -46,11 +46,11 @@ var _ = Describe("BaseOverlay", func() {
 		Expect(operation.FstabEntry.MntOps).To(Equal(map[string]string{
 			"nosuid": "",
 			"nodev":  "",
-			"mode":   "0700",
+			"mode":   "0755",
 			"size":   "20%",
 		}))
 		Expect(strings.Split(operation.FstabEntry.MntOpsString(), ",")).
-			To(ConsistOf("nosuid", "nodev", "mode=0700", "size=20%"))
+			To(ConsistOf("nosuid", "nodev", "mode=0755", "size=20%"))
 	})
 
 	It("rejects a backing base that is neither a tmpfs nor a device", func() {

@@ -41,7 +41,7 @@ func BaseOverlay(overlay schema.Overlay) (MountOperation, error) {
 	t := dat[0]
 	switch t {
 	case "tmpfs":
-		tmpMount := mount.Mount{Type: "tmpfs", Source: "tmpfs", Options: []string{"nosuid", "nodev", "mode=0700", fmt.Sprintf("size=%s", dat[1])}}
+		tmpMount := mount.Mount{Type: "tmpfs", Source: "tmpfs", Options: []string{"nosuid", "nodev", "mode=0755", fmt.Sprintf("size=%s", dat[1])}}
 		tmpFstab := internalUtils.MountToFstab(tmpMount)
 		tmpFstab.File = internalUtils.CleanSysrootForFstab(overlay.Base)
 		return MountOperation{
