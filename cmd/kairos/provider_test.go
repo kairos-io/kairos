@@ -5,6 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kairos-io/kairos/v4/sdk/bus"
+	"github.com/mudler/go-pluggable"
 )
 
 // writeExe creates a file that looks like an installed provider plugin.
@@ -17,7 +20,17 @@ func writeExe(t *testing.T, dir, name string, mode os.FileMode) string {
 	return path
 }
 
+// isolatePath points PATH at an empty directory, because resolveProvider
+// searches PATH as the agent's bus does and the test host's PATH is not ours.
+func isolatePath(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+	return dir
+}
+
 func TestResolveProviderFindsTheInstalledOne(t *testing.T) {
+	isolatePath(t)
 	dir := t.TempDir()
 	want := writeExe(t, dir, "agent-provider-kairos", 0o755)
 
@@ -34,6 +47,7 @@ func TestResolveProviderFindsTheInstalledOne(t *testing.T) {
 // missing directory is the normal case rather than an error: core images have
 // no /system/providers at all.
 func TestResolveProviderSearchesEveryPathAndSkipsMissingOnes(t *testing.T) {
+	isolatePath(t)
 	absent := filepath.Join(t.TempDir(), "does-not-exist")
 	dir := t.TempDir()
 	want := writeExe(t, dir, "agent-provider-kairos", 0o755)
@@ -51,6 +65,7 @@ func TestResolveProviderSearchesEveryPathAndSkipsMissingOnes(t *testing.T) {
 // "kairos provider get-kubeconfig" on a core node is a reasonable thing for
 // someone to try after reading standard-image docs.
 func TestResolveProviderErrorsWhenNoneInstalled(t *testing.T) {
+	isolatePath(t)
 	dir := t.TempDir()
 
 	_, err := resolveProvider([]string{dir})
@@ -69,6 +84,7 @@ func TestResolveProviderErrorsWhenNoneInstalled(t *testing.T) {
 // (kairos-io/kairos#3926). Rather than silently picking one, say which ones
 // were found so the caller can invoke the one they meant by its own path.
 func TestResolveProviderErrorsWhenSeveralInstalled(t *testing.T) {
+	isolatePath(t)
 	dir := t.TempDir()
 	writeExe(t, dir, "agent-provider-kairos", 0o755)
 	writeExe(t, dir, "agent-provider-rke2", 0o755)
@@ -85,6 +101,7 @@ func TestResolveProviderErrorsWhenSeveralInstalled(t *testing.T) {
 }
 
 func TestResolveProviderIgnoresNonProviderFiles(t *testing.T) {
+	isolatePath(t)
 	dir := t.TempDir()
 	want := writeExe(t, dir, "agent-provider-kairos", 0o755)
 	writeExe(t, dir, "README", 0o755)
@@ -101,6 +118,7 @@ func TestResolveProviderIgnoresNonProviderFiles(t *testing.T) {
 
 // A leftover config or log named like a plugin is not something to exec.
 func TestResolveProviderIgnoresNonExecutableFiles(t *testing.T) {
+	isolatePath(t)
 	dir := t.TempDir()
 	writeExe(t, dir, "agent-provider-kairos", 0o644)
 
@@ -111,6 +129,7 @@ func TestResolveProviderIgnoresNonExecutableFiles(t *testing.T) {
 
 // The same provider installed in both search paths is one provider, not two.
 func TestResolveProviderDeduplicatesAcrossPaths(t *testing.T) {
+	isolatePath(t)
 	first := t.TempDir()
 	second := t.TempDir()
 	want := writeExe(t, first, "agent-provider-kairos", 0o755)
@@ -129,6 +148,7 @@ func TestResolveProviderDeduplicatesAcrossPaths(t *testing.T) {
 // unchanged. "provider" is the dispatcher's token, not part of the command the
 // provider is being asked to run.
 func TestRunProviderExecsWithTheUsersArguments(t *testing.T) {
+	isolatePath(t)
 	dir := t.TempDir()
 	want := writeExe(t, dir, "agent-provider-kairos", 0o755)
 
@@ -153,6 +173,7 @@ func TestRunProviderExecsWithTheUsersArguments(t *testing.T) {
 }
 
 func TestRunProviderReportsFailureToExec(t *testing.T) {
+	isolatePath(t)
 	dir := t.TempDir()
 	writeExe(t, dir, "agent-provider-kairos", 0o755)
 
@@ -166,7 +187,47 @@ func TestRunProviderReportsFailureToExec(t *testing.T) {
 }
 
 func TestRunProviderExitsNonZeroWhenNoProviderInstalled(t *testing.T) {
+	isolatePath(t)
 	if code := runProviderIn([]string{t.TempDir()}, []string{"provider", "role", "list"}); code != 1 {
 		t.Errorf("exit code %d, want 1 when no provider is installed", code)
+	}
+}
+
+// The agent's bus loads providers from PATH as well as from its provider
+// directories, so a provider installed only on PATH is one the agent runs and
+// `kairos provider` has to find too (kairos-io/kairos#5830).
+func TestResolveProviderFindsAProviderOnlyOnPath(t *testing.T) {
+	pathDir := isolatePath(t)
+	want := writeExe(t, pathDir, "agent-provider-kairos", 0o755)
+
+	got, err := resolveProvider([]string{t.TempDir()})
+	if err != nil {
+		t.Fatalf("resolveProvider: %v", err)
+	}
+	if got != want {
+		t.Errorf("resolved %q, want %q", got, want)
+	}
+}
+
+// With the same provider on PATH and in a provider directory, the agent's bus
+// keeps the PATH copy. `kairos provider` must run that same binary rather than
+// a different one of the same name.
+func TestResolveProviderPrefersPathLikeTheAgent(t *testing.T) {
+	pathDir := isolatePath(t)
+	want := writeExe(t, pathDir, "agent-provider-kairos", 0o755)
+	sysDir := t.TempDir()
+	writeExe(t, sysDir, "agent-provider-kairos", 0o755)
+
+	got, err := resolveProvider([]string{sysDir})
+	if err != nil {
+		t.Fatalf("resolveProvider: %v", err)
+	}
+	if got != want {
+		t.Errorf("resolved %q, want the PATH copy %q", got, want)
+	}
+
+	agent := pluggable.NewManager(nil).Autoload(bus.DefaultProviderPrefix, sysDir).Plugins
+	if len(agent) != 1 || agent[0].Executable != got {
+		t.Errorf("agent bus loads %v, kairos provider resolved %q", agent, got)
 	}
 }
