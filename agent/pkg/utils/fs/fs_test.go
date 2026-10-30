@@ -388,5 +388,51 @@ var _ = Describe("FsUtils", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(visited).To(ContainElement("/walk7/z.txt"))
 		})
+		It("keeps walking the siblings when the callback answers a ReadDir failure with SkipDir", func() {
+			if os.Geteuid() == 0 {
+				Skip("running as root, permissions are not enforced")
+			}
+			// Sorted first, so the unreadable directory is visited before
+			// the two files and a wrong answer drops both of them.
+			Expect(fsutils.MkdirAll(tfs, "/walk8/a-noperm", 0755)).To(Succeed())
+			Expect(tfs.WriteFile("/walk8/b.txt", []byte("b"), 0644)).To(Succeed())
+			Expect(tfs.WriteFile("/walk8/c.txt", []byte("c"), 0644)).To(Succeed())
+			Expect(tfs.Chmod("/walk8/a-noperm", 0o000)).To(Succeed())
+			DeferCleanup(func() { _ = tfs.Chmod("/walk8/a-noperm", 0o755) })
+
+			var visited []string
+			err := fsutils.WalkDirFs(tfs, "/walk8", func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					// The documented way to say "this directory is
+					// unreadable, carry on". filepath.WalkDir visits
+					// b.txt and c.txt after this.
+					return filepath.SkipDir
+				}
+				visited = append(visited, path)
+				return nil
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(visited).To(ContainElements("/walk8/b.txt", "/walk8/c.txt"))
+		})
+		It("reports success when the callback returns SkipAll", func() {
+			Expect(fsutils.MkdirAll(tfs, "/walk9/sub", 0755)).To(Succeed())
+			Expect(tfs.WriteFile("/walk9/a.txt", []byte("a"), 0644)).To(Succeed())
+			Expect(tfs.WriteFile("/walk9/sub/b.txt", []byte("b"), 0644)).To(Succeed())
+
+			var visited []string
+			err := fsutils.WalkDirFs(tfs, "/walk9", func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				visited = append(visited, path)
+				if path == "/walk9/a.txt" {
+					return fs.SkipAll
+				}
+				return nil
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(visited).To(ContainElement("/walk9/a.txt"))
+			Expect(visited).ToNot(ContainElement("/walk9/sub/b.txt"))
+		})
 	})
 })

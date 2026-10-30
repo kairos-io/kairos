@@ -192,7 +192,12 @@ func (d *statDirEntry) IsDir() bool                { return d.info.IsDir() }
 func (d *statDirEntry) Type() fs.FileMode          { return d.info.Mode().Type() }
 func (d *statDirEntry) Info() (fs.FileInfo, error) { return d.info, nil }
 
-// WalkDirFs is the same as filepath.WalkDir but accepts a v1.Fs so it can be run on any v1.Fs type
+// WalkDirFs is the same as filepath.WalkDir but accepts a v1.Fs so it can be
+// run on any v1.Fs type.
+//
+// It keeps the two stdlib rules that end a walk without failing it: a
+// callback that returns SkipDir on a directory prunes that subtree, and one
+// that returns SkipAll stops the whole walk. Both report success.
 func WalkDirFs(fs sdkFS.KairosFS, root string, fn fs.WalkDirFunc) error {
 	info, err := fs.Stat(root)
 	if err != nil {
@@ -200,7 +205,7 @@ func WalkDirFs(fs sdkFS.KairosFS, root string, fn fs.WalkDirFunc) error {
 	} else {
 		err = walkDir(fs, root, &statDirEntry{info}, fn)
 	}
-	if errors.Is(err, filepath.SkipDir) {
+	if errors.Is(err, filepath.SkipDir) || errors.Is(err, filepath.SkipAll) {
 		return nil
 	}
 	return err
@@ -220,6 +225,14 @@ func walkDir(fs sdkFS.KairosFS, path string, d fs.DirEntry, walkDirFn fs.WalkDir
 		// Second call, to report ReadDir error.
 		err = walkDirFn(path, d, err)
 		if err != nil {
+			if errors.Is(err, filepath.SkipDir) && d.IsDir() {
+				// The callback answered the ReadDir failure with SkipDir,
+				// which means "this directory is unreadable, carry on". Do
+				// not hand SkipDir to the parent loop: there it means "stop
+				// enumerating the parent", which would drop this
+				// directory's siblings and still report success.
+				err = nil
+			}
 			return err
 		}
 	}
