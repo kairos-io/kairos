@@ -1059,9 +1059,17 @@ func ProviderBuildInstallEvent(sis values.System, logger logger.KairosLogger) er
 		return nil
 	}
 
-	errChan := make(chan error, providerCount)
+	// The bus broadcasts: one Publish reaches every registered plugin, so the
+	// response handler below runs once per plugin per published event, not once
+	// per provider. A plugin that is not the addressee of the payload answers
+	// EventResponseNotApplicable, which is a response like any other.
+	// Under-counting here fills errChan while nothing drains it yet, and the
+	// publishing goroutine never returns.
+	expectedResponses := providerCount * len(manager.Plugins)
+
+	errChan := make(chan error, expectedResponses)
 	var wg sync.WaitGroup
-	wg.Add(providerCount)
+	wg.Add(expectedResponses)
 
 	manager.Response(bus.InitProviderInstall, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
 		logger.Logger.Debug().Str("at", p.Executable).Interface("resp", resp).Msg("Received build-install event from provider")
@@ -1105,7 +1113,7 @@ func ProviderBuildInstallEvent(sis values.System, logger logger.KairosLogger) er
 
 	wg.Wait()
 	var combinedErr error
-	for i := 0; i < providerCount; i++ {
+	for i := 0; i < expectedResponses; i++ {
 		err := <-errChan
 		if err != nil {
 			if combinedErr == nil {
