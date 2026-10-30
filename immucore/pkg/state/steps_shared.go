@@ -325,7 +325,7 @@ func (s *State) MountOemDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 						internalUtils.DiskFSType(source),
 						s.oemMountOptions, time.Duration(internalUtils.GetOemTimeout())*time.Second)
 					for _, f := range fstab {
-						s.fstabs = append(s.fstabs, f)
+						s.appendFstab(f)
 					}
 					return err
 				}
@@ -382,7 +382,7 @@ func (s *State) MountBaseOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) er
 					err2 := operation.Run()
 					// No error, add fstab
 					if err2 == nil {
-						s.fstabs = append(s.fstabs, &operation.FstabEntry)
+						s.appendFstab(&operation.FstabEntry)
 						return nil
 					}
 					// Error but its already mounted error, dont add fstab but dont return error
@@ -425,7 +425,7 @@ func (s *State) MountCustomOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) 
 							multierr = multierror.Append(multierr, err)
 							continue
 						}
-						s.fstabs = append(s.fstabs, &operation.FstabEntry)
+						s.appendFstab(&operation.FstabEntry)
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Overlay mount done")
 					}
 					return multierr.ErrorOrNil()
@@ -482,7 +482,7 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 					30*time.Second,
 				)
 				for _, f := range fstab {
-					s.fstabs = append(s.fstabs, f)
+					s.appendFstab(f)
 				}
 
 				// If its COS_OEM and it fails then we can safely ignore, as it's not mandatory to have COS_OEM
@@ -549,7 +549,7 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 						err2 := operation.Run()
 						if err2 == nil {
 							// Only append to fstabs if there was no error, otherwise we will try to mount it after switch_root
-							s.fstabs = append(s.fstabs, &operation.FstabEntry)
+							s.appendFstab(&operation.FstabEntry)
 						}
 						// Append to errors only if it's not an already mounted error
 						if err2 != nil && !errors.Is(err2, cnst.ErrAlreadyMounted) {
