@@ -10,7 +10,7 @@ require (
 	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
-	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/charmbracelet/lipgloss/v2 v2.0.6
 	github.com/containerd/containerd/v2 v2.4.2
 	github.com/creack/pty v1.1.24
 	github.com/denisbrodbeck/machineid v1.0.1
