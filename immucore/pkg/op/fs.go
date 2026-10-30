@@ -76,16 +76,25 @@ func BindStateDir(mountpoint, root, stateTarget string) string {
 
 // StateName is the flat name the backing directories of mountpoint are named
 // after, by BindStateDir and MountWithBaseOverlay: /var/log/audit is
-// var-log-audit. Every "/" becomes "-" and every "-" already in the path is
-// doubled, so /var/lib/foo-bar is var-lib-foo--bar and does not share a
-// directory with /var/lib/foo/bar, which is var-lib-foo-bar. Reading the name
-// back, "--" is a "-" and a single "-" is a "/".
+// var-log-audit. Every "/" becomes "-", and a "-" or "%" already in the path is
+// written as %2d or %25, so /var/lib/foo-bar is var-lib-foo%2dbar and does not
+// share a directory with /var/lib/foo/bar, which is var-lib-foo-bar. The escape
+// is reversible: reading the name back, "-" is a "/" and %XX is the byte XX.
+// It does not use a backslash, which overlayfs strips from upperdir= and
+// workdir=.
 func StateName(mountpoint string) string {
-	parts := strings.Split(strings.TrimLeft(mountpoint, "/"), "/")
-	for i, p := range parts {
-		parts[i] = strings.ReplaceAll(p, "-", "--")
+	var b strings.Builder
+	for _, c := range []byte(strings.TrimLeft(mountpoint, "/")) {
+		switch c {
+		case '/':
+			b.WriteByte('-')
+		case '-', '%':
+			fmt.Fprintf(&b, "%%%02x", c)
+		default:
+			b.WriteByte(c)
+		}
 	}
-	return strings.Join(parts, "-")
+	return b.String()
 }
 
 // legacyStateName is the name StateName gave before it escaped "-", under which
@@ -94,13 +103,48 @@ func legacyStateName(mountpoint string) string {
 	return strings.ReplaceAll(strings.TrimLeft(mountpoint, "/"), "/", "-")
 }
 
-// migrateStateDir renames the directory a path was backed by under its legacy
-// name to the one it has now, the first time the path is mounted with the
-// escaped name. Nothing is done if the new directory is already there.
-func migrateStateDir(legacy, current string) error {
-	if legacy == current {
-		return nil
+// MigrateStateDirs renames the directory each of mountpoints was backed by
+// under its legacy name, dir(legacyStateName), to dir(StateName), the first
+// time it is mounted with the escaped name. It returns the error of each
+// mountpoint whose directory could not be moved, which must not be mounted
+// over an empty directory while its data sits under the old name.
+//
+// A legacy name is left alone when it is the current name of another of
+// mountpoints, /var/lib/foo/bar's var-lib-foo-bar for /var/lib/foo-bar, as
+// that directory holds the other path's data. So is one that two of
+// mountpoints had in common, /a-b/c and /a/b-c, as there is no telling whose
+// data it holds.
+func MigrateStateDirs(mountpoints []string, dir func(name string) string) map[string]error {
+	current := map[string]bool{}
+	legacy := map[string]int{}
+	for _, p := range mountpoints {
+		current[StateName(p)] = true
+		if l := legacyStateName(p); l != StateName(p) {
+			legacy[l]++
+		}
 	}
+
+	failed := map[string]error{}
+	for _, p := range mountpoints {
+		l, name := legacyStateName(p), StateName(p)
+		if l == name {
+			continue
+		}
+		if current[l] || legacy[l] > 1 {
+			internalUtils.KLog.Logger.Warn().Str("path", p).Str("dir", dir(l)).
+				Msg("Not renaming a state directory another path uses or used; the path starts from an empty one")
+			continue
+		}
+		if err := migrateStateDir(dir(l), dir(name)); err != nil {
+			failed[p] = err
+		}
+	}
+	return failed
+}
+
+// migrateStateDir renames legacy to current. Nothing is done if current is
+// already there or legacy is not.
+func migrateStateDir(legacy, current string) error {
 	if _, err := os.Stat(current); err == nil || !os.IsNotExist(err) {
 		return err
 	}
@@ -150,10 +194,6 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 				return err
 			}
 
-			legacy := filepath.Join(root, stateTarget, fmt.Sprintf("%s.bind", legacyStateName(mountpoint)))
-			if err := migrateStateDir(legacy, stateDir); err != nil {
-				return err
-			}
 			if err := internalUtils.CreateBindStateDir(rootMount, stateDir); err != nil {
 				return err
 			}
@@ -205,10 +245,6 @@ func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 			// bare "lstat <path>: no such file or directory".
 			if err := internalUtils.CreateIfNotExists(rootMount); err != nil {
 				return fmt.Errorf("%w: %s: %w", constants.ErrMountTargetMissing, rootMount, err)
-			}
-			// A block device base keeps the overlay across boots
-			if err := migrateStateDir(filepath.Join(base, legacyStateName(mountpoint)), filepath.Join(base, bindMountPath)); err != nil {
-				return err
 			}
 			// Make sure workdir and/or upper exists
 			_ = os.MkdirAll(upperdir, os.ModePerm)
