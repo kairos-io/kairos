@@ -3,7 +3,6 @@ package schema
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	jsonschemago "github.com/swaggest/jsonschema-go"
@@ -231,15 +230,7 @@ func (kc *KConfig) IsValid() bool {
 
 // HasHeader returns true if the config has one of the valid headers.
 func (kc *KConfig) HasHeader() bool {
-	var found bool
-
-	availableHeaders := []string{"#cloud-config", "#kairos-config", "#node-config"}
-	for _, header := range availableHeaders {
-		if strings.HasPrefix(kc.Source, header) {
-			found = true
-		}
-	}
-	return found
+	return HasValidHeader(kc.Source)
 }
 
 // NewConfigFromYAML is a constructor for KConfig instances. The source of the configuration is passed in YAML and if there are any issues unmarshaling it will return an error.

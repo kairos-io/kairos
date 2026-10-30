@@ -15,9 +15,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unicode"
 
 	"github.com/kairos-io/kairos/v4/sdk/machine"
+	"github.com/kairos-io/kairos/v4/sdk/schema"
 
 	"github.com/avast/retry-go"
 	"github.com/itchyny/gojq"
@@ -75,11 +75,9 @@ func redactErrURL(err error, rawURL string) string {
 	return msg
 }
 
-var ValidFileHeaders = []string{
-	"#cloud-config",
-	"#kairos-config",
-	"#node-config",
-}
+// ValidFileHeaders are the headers a config file may carry. It is the same
+// list HasValidHeader checks against, rather than a second copy of it.
+var ValidFileHeaders = schema.ValidHeaders
 
 type Configs []*Config
 
@@ -755,27 +753,11 @@ func fetchRemoteConfig(url string) (*Config, error) {
 	return result, nil
 }
 
+// HasValidHeader reports whether the data carries a Kairos cloud-config
+// header. The rule lives in the schema package, so that kairos-agent validate
+// answers this question the same way the loader does.
 func HasValidHeader(data string) bool {
-	// Get the first 10 lines
-	headers := strings.SplitN(data, "\n", 10)
-
-	// iterate over them as there could be comments or the jinja template info:
-	// https://cloudinit.readthedocs.io/en/latest/explanation/instancedata.html#example-cloud-config-with-instance-data
-
-	for _, line := range headers {
-		// Trim trailing whitespaces
-		header := strings.TrimRightFunc(line, unicode.IsSpace)
-		// If it starts with a hash check it, in case its a huge line, we dont want to waste time
-		if strings.HasPrefix(header, "#") {
-			// NOTE: we also allow "legacy" headers. Should only allow #cloud-config at
-			// some point.
-			if (header == DefaultHeader) || (header == "#kairos-config") || (header == "#node-config") {
-				return true
-			}
-		}
-	}
-
-	return false
+	return schema.HasValidHeader(data)
 }
 
 func (c Config) Query(s string) (res string, err error) {
