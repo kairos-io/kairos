@@ -380,11 +380,8 @@ func sysextLayer() (v1.Layer, error) {
 	})
 }
 
-// Reproduces kairos-io/kairos#5886: the layer entry metadata (group, xattrs,
-// mtime) is dropped on extraction. These assertions describe the CURRENT
-// (wrong) behaviour.
-var _ = Describe("ExtractFilesFromLastLayer metadata (issue 5886)", Label("sysext"), func() {
-	It("loses group, xattrs and mtime of a PAX entry", func() {
+var _ = Describe("ExtractFilesFromLastLayer metadata", Label("sysext"), func() {
+	It("restores group, xattrs and mtime of a PAX entry", func() {
 		parent, err := os.MkdirTemp(os.Getenv("KAIROS_TEST_TMPDIR"), "")
 		Expect(err).ToNot(HaveOccurred())
 		defer func() { _ = os.RemoveAll(parent) }()
@@ -426,24 +423,15 @@ var _ = Describe("ExtractFilesFromLastLayer metadata (issue 5886)", Label("sysex
 		fi, err := os.Stat(path)
 		Expect(err).ToNot(HaveOccurred())
 
-		// mtime was not restored: it is the extraction time, not 2001.
-		Expect(fi.ModTime().Equal(mtime)).To(BeFalse())
-		Expect(fi.ModTime().Year()).ToNot(Equal(2001))
+		Expect(fi.ModTime().Equal(mtime)).To(BeTrue(), "mtime is %s", fi.ModTime())
+		Expect(int(fi.Sys().(*syscall.Stat_t).Gid)).To(Equal(layerGid))
 
-		// group was not restored.
-		if otherGid < 0 {
-			GinkgoWriter.Println("process has a single group, skipping group assertion")
-		} else {
-			Expect(int(fi.Sys().(*syscall.Stat_t).Gid)).ToNot(Equal(otherGid))
-		}
-
-		// xattr was not restored.
 		buf := make([]byte, 64)
 		n, err := unix.Lgetxattr(path, "user.kairos", buf)
 		if errors.Is(err, unix.ENOTSUP) {
 			Skip("filesystem has no user xattr support")
 		}
-		Expect(err).To(MatchError(unix.ENODATA))
-		Expect(n).To(Equal(-1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(buf[:n])).To(Equal("5886"))
 	})
 })
