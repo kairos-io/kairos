@@ -45,7 +45,6 @@ type RootSchema struct {
 	Arch                      string                   `json:"arch,omitempty" mapstructure:"arch"`
 	SquashFsCompressionConfig []string                 `json:"squash-compression,omitempty" mapstructure:"squash-compression"`
 	SquashFsNoCompression     bool                     `json:"squash-no-compression,omitempty" mapstructure:"squash-no-compression"`
-	UkiMaxEntries             int                      `json:"uki-max-entries,omitempty" mapstructure:"uki-max-entries"`
 	Stages                    map[string][]StageSchema `json:"stages,omitempty" description:"Cloud-init stages to execute"`
 	Logs                      LogsSchema               `json:"logs,omitempty" description:"Extra journal units and files to collect in a support bundle"`
 	BindPCRs                  []string                 `json:"bind-pcrs,omitempty" description:"Trusted Boot only: TPM PCRs to bind an encrypted partition to, as systemd-cryptenroll --tpm2-pcrs. Empty by default."`

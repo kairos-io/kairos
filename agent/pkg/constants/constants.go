@@ -131,8 +131,7 @@ const (
 	SignedShim  = "shim.efi"
 	Rsync       = "rsync"
 
-	UkiEfiDir     = "/efi"
-	UkiMaxEntries = 3
+	UkiEfiDir = "/efi"
 
 	// Upgrade-finalize handoff constants. See the block comment on
 	// UpgradeAction.handoffFinalizeToTarget for the shape of the handoff.
