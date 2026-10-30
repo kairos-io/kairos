@@ -10,7 +10,8 @@ type P2PSchema struct {
 	Role         string   `json:"role,omitempty" default:"" enum:"[\"\",\"master\",\"worker\",\"none\"]" description:"Pin this node to a role. Leave unset (or \"none\") to take the role from the p2p ledger."`
 	NetworkID    string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
 	DNS          bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
-	DisableDHT   bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
+	DHTEnabled   bool     `json:"dht_enabled,omitempty" default:"true" description:"Use the public DHT to discover nodes. Turning it off makes co-ordination discover nodes only in the local network"`
+	DisableDHT   bool     `json:"disable_dht,omitempty" description:"Deprecated spelling of p2p.dht_enabled, with the opposite meaning. Still read, and refused only when p2p.dht_enabled contradicts it"`
 	LogLevel     string   `json:"loglevel,omitempty" default:"debug" enum:"[\"trace\",\"debug\",\"info\",\"warn\",\"error\",\"fatal\"]" description:"Log level of the p2p provider"`
 	MinimumNodes int      `json:"minimum_nodes,omitempty" minimum:"0" description:"Number of nodes the network waits for before assigning roles"`
 	DynamicRoles bool     `json:"dynamic_roles,omitempty" description:"Re-assign roles as nodes join and leave, instead of pinning them on the first election"`

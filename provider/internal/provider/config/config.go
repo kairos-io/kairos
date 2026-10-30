@@ -47,6 +47,32 @@ func resolveEnabled(block string, enabled, deprecated *bool) (*bool, error) {
 	return deprecated, nil
 }
 
+// resolveDHTEnabled folds the deprecated negative `disable_dht` spelling into
+// the positive `dht_enabled` one. The block it sits in reads `dns` and
+// `dynamic_roles` positively, so `disable_dht` was the one key an author had
+// to read backwards. See kairos-io/kairos#1016.
+//
+// The two are refused only when they contradict each other, the same rule
+// resolveEnabled applies, except that agreement here means opposite values:
+// `disable_dht: true` says the same thing as `dht_enabled: false`.
+func resolveDHTEnabled(enabled, deprecatedDisable *bool) (*bool, error) {
+	if deprecatedDisable == nil {
+		return enabled, nil
+	}
+
+	fromDeprecated := !*deprecatedDisable
+	if enabled != nil && *enabled != fromDeprecated {
+		return nil, fmt.Errorf(
+			"p2p.dht_enabled is %t and the deprecated p2p.disable_dht is %t; they disagree, so remove p2p.disable_dht and keep p2p.dht_enabled",
+			*enabled, *deprecatedDisable)
+	}
+	if enabled != nil {
+		return enabled, nil
+	}
+
+	return &fromDeprecated, nil
+}
+
 type P2P struct {
 	NetworkToken string `yaml:"network_token,omitempty"`
 	NetworkID    string `yaml:"network_id,omitempty"`
@@ -55,11 +81,43 @@ type P2P struct {
 	LogLevel     string `yaml:"loglevel,omitempty"`
 	VPN          VPN    `yaml:"vpn,omitempty"`
 
-	MinimumNodes int  `yaml:"minimum_nodes,omitempty"`
-	DisableDHT   bool `yaml:"disable_dht,omitempty"`
-	Auto         Auto `yaml:"auto,omitempty"`
+	MinimumNodes int `yaml:"minimum_nodes,omitempty"`
+	// DHTEnabled turns on the public DHT the nodes use to find each other.
+	// Unset means on, which is what writing neither key has always done.
+	DHTEnabled *bool `yaml:"dht_enabled,omitempty"`
+	// DeprecatedDisableDHT carries the `disable_dht` spelling, which says the
+	// opposite. UnmarshalYAML folds it into DHTEnabled, so every reader has to
+	// use IsDHTEnabled; this field only records that the deprecated spelling
+	// is the one the user wrote.
+	DeprecatedDisableDHT *bool `yaml:"disable_dht,omitempty"`
+	Auto                 Auto  `yaml:"auto,omitempty"`
 
 	DynamicRoles bool `yaml:"dynamic_roles,omitempty"`
+}
+
+// UnmarshalYAML accepts `dht_enabled` and the deprecated `disable_dht`.
+func (p *P2P) UnmarshalYAML(value *yaml.Node) error {
+	type plain P2P
+	var decoded plain
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+	*p = P2P(decoded)
+
+	enabled, err := resolveDHTEnabled(p.DHTEnabled, p.DeprecatedDisableDHT)
+	if err != nil {
+		return err
+	}
+	p.DHTEnabled = enabled
+
+	return nil
+}
+
+// IsDHTEnabled reports whether the nodes should use the public DHT. The
+// default is on, so only an explicit `dht_enabled: false` or
+// `disable_dht: true` turns it off.
+func (p P2P) IsDHTEnabled() bool {
+	return p.DHTEnabled == nil || *p.DHTEnabled
 }
 
 // HardcodedRole returns the role the user pinned this node to, or the empty
@@ -114,6 +172,9 @@ func (c *Config) DeprecatedKeys() []DeprecatedKey {
 	var keys []DeprecatedKey
 
 	if c.P2P != nil {
+		if c.P2P.DeprecatedDisableDHT != nil {
+			keys = append(keys, DeprecatedKey{Key: "p2p.disable_dht", Replacement: "p2p.dht_enabled"})
+		}
 		if c.P2P.Auto.DeprecatedEnable != nil {
 			keys = append(keys, DeprecatedKey{Key: "p2p.auto.enable", Replacement: "p2p.auto.enabled"})
 		}

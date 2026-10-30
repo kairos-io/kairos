@@ -171,7 +171,7 @@ func SetupAPI(apiAddress, rootDir string, start bool, c *providerConfig.Config) 
 	}
 	applyAPIListenerEnv(vpnOpts, c.P2P.VPN.Env)
 
-	if c.P2P.DisableDHT {
+	if !c.P2P.IsDHTEnabled() {
 		vpnOpts["EDGEVPNDHT"] = "false"
 	}
 
@@ -242,7 +242,7 @@ func SetupVPN(logger loggerpkg.KairosLogger, instance, apiAddress, rootDir strin
 		vpnOpts["EDGEVPNTOKEN"] = c.P2P.NetworkToken
 	}
 
-	if c.P2P.DisableDHT {
+	if !c.P2P.IsDHTEnabled() {
 		vpnOpts["EDGEVPNDHT"] = "false"
 	}
 
