@@ -86,7 +86,9 @@ func CopyFile(fs sdkFs.KairosFS, source string, target string) (err error) {
 // Source files are concatenated into target file in the given order.
 // If target is a directory source is copied into that directory using
 // 1st source name file.
-// TODO: Log errors, return errors, whatever but dont ignore them
+// A source that cannot be opened or read stops the copy and is returned as an
+// error, so a caller is never handed a target that is missing a source. The
+// deferred cleanup then removes the partial target.
 func ConcatFiles(fs sdkFs.KairosFS, sources []string, target string) (err error) {
 	if len(sources) == 0 {
 		return fmt.Errorf("empty sources list")
@@ -103,21 +105,22 @@ func ConcatFiles(fs sdkFs.KairosFS, sources []string, target string) (err error)
 		if err == nil {
 			err = targetFile.Close()
 		} else {
+			_ = targetFile.Close()
 			_ = fs.Remove(target)
 		}
 	}()
 
 	for _, source := range sources {
-		sourceFile, err := fs.Open(source)
-		if err != nil {
+		sourceFile, openErr := fs.Open(source)
+		if openErr != nil {
+			err = openErr
 			break
 		}
-		_, err = io.Copy(targetFile, sourceFile)
-		if err != nil {
+		if _, err = io.Copy(targetFile, sourceFile); err != nil {
+			_ = sourceFile.Close()
 			break
 		}
-		err = sourceFile.Close()
-		if err != nil {
+		if err = sourceFile.Close(); err != nil {
 			break
 		}
 	}
