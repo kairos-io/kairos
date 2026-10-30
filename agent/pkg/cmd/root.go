@@ -1356,7 +1356,8 @@ with 'kairos-agent kcrypt unlock-all'.`,
 				Name:  "uninstall",
 				Usage: "Stop the phone-home service and remove all phone-home configs and credentials from this node",
 				Description: "Tears down the phone-home installation on the local node: stops and disables the systemd service, " +
-					"removes the unit file, drops the saved credentials, and removes the phone-home cloud-config files. " +
+					"removes the unit file, drops the saved credentials, and strips the phonehome stanza from every cloud-config " +
+					"under /oem and /usr/local/cloud-config. " +
 					"Run this after a node has been decommissioned on the server (especially when the server could not " +
 					"reach the node to run the teardown remotely).",
 				Action: func(c *cli.Context) error {
