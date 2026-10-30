@@ -14,11 +14,14 @@ stages:
             exit 0
             fi
 
-            # Iterate over users in /etc/passwd and chown their directories
-            awk -F: '$3 >= 1000 && $6 ~ /^\/home\// {print $1, $6}' /etc/passwd | while read -r user homedir; do
+            # Iterate over users in /etc/passwd and chown their directories.
+            # The group is the user's primary gid from /etc/passwd, not a group
+            # named after the user, which does not exist for a user created
+            # with a primary_group of its own (kairos issue #5901).
+            awk -F: '$3 >= 1000 && $6 ~ /^\/home\// {print $1, $4, $6}' /etc/passwd | while read -r user gid homedir; do
                     if [ -d "$homedir" ]; then  # Check if the home directory exists
-                    echo "Changing ownership of $homedir to $user"
-                    chown -R "$user":"$user" "$homedir"
+                    echo "Changing ownership of $homedir to $user:$gid"
+                    chown -R "$user":"$gid" "$homedir"
                     else
                     echo "Directory $homedir does not exist for user $user"
                     fi
