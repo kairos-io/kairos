@@ -37,13 +37,6 @@ func BaseOverlay(overlay schema.Overlay) (MountOperation, error) {
 	if len(dat) != 2 {
 		return MountOperation{}, fmt.Errorf("invalid backing base. must be a tmpfs with a size or a LABEL/UUID device. e.g. tmpfs:30%%, LABEL=COS_PERSISTENT. Input: %s", overlay.BackingBase)
 	}
-	// Only tmpfs takes a colon. ParseMount resolves LABEL= and UUID= and passes
-	// anything else through, so LABEL:X would reach mount as the literal source
-	// and fail at boot with "no such device".
-	if (dat[0] == "LABEL" || dat[0] == "UUID") && len(datDevice) != 2 {
-		return MountOperation{}, fmt.Errorf("invalid backing base %s: a device is written %s=%s", overlay.BackingBase, dat[0], dat[1])
-	}
-
 	t := dat[0]
 	switch t {
 	case "tmpfs":
@@ -56,8 +49,12 @@ func BaseOverlay(overlay schema.Overlay) (MountOperation, error) {
 			Target:      overlay.Base,
 		}, nil
 	case "LABEL", "UUID":
-		fsType := internalUtils.DiskFSType(internalUtils.ParseMount(overlay.BackingBase))
-		blockMount := mount.Mount{Type: fsType, Source: internalUtils.ParseMount(overlay.BackingBase)}
+		// A device may be written LABEL:X or LABEL=X. ParseMount only resolves
+		// the = form and passes anything else through, so normalize first or
+		// LABEL:X reaches mount as the literal source and fails at boot.
+		source := internalUtils.ParseMount(dat[0] + "=" + dat[1])
+		fsType := internalUtils.DiskFSType(source)
+		blockMount := mount.Mount{Type: fsType, Source: source}
 		tmpFstab := internalUtils.MountToFstab(blockMount)
 		// TODO: Check if this is properly written to fstab, currently have no examples
 		tmpFstab.File = internalUtils.CleanSysrootForFstab(overlay.Base)

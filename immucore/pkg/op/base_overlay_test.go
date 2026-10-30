@@ -18,27 +18,22 @@ var _ = Describe("BaseOverlay backing base", func() {
 
 	// ParseMount resolves only LABEL= and UUID=, so a colon form used to reach
 	// mount as the literal source and fail at boot with "no such device".
-	DescribeTable("refuses a device written with a colon",
+	DescribeTable("resolves a device written with either separator",
 		func(backingBase, want string) {
-			_, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: backingBase})
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring(want))
+			operation, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: backingBase})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(operation.MountOption.Source).To(Equal(want))
 		},
-		Entry("LABEL", "LABEL:COS_PERSISTENT", "LABEL=COS_PERSISTENT"),
-		Entry("UUID", "UUID:1234-ABCD", "UUID=1234-ABCD"),
+		Entry("LABEL=", "LABEL=COS_PERSISTENT", "/dev/disk/by-label/COS_PERSISTENT"),
+		Entry("LABEL:", "LABEL:COS_PERSISTENT", "/dev/disk/by-label/COS_PERSISTENT"),
+		Entry("UUID=", "UUID=1234-ABCD", "/dev/disk/by-uuid/1234-ABCD"),
+		Entry("UUID:", "UUID:1234-ABCD", "/dev/disk/by-uuid/1234-ABCD"),
 	)
 
-	It("suggests only forms it accepts when the backing base is invalid", func() {
+	It("suggests a device form when the backing base is invalid", func() {
 		_, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "bogus"})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("LABEL=COS_PERSISTENT"))
-		Expect(err.Error()).ToNot(ContainSubstring("LABEL:"))
-	})
-
-	It("resolves a LABEL= device to its by-label path", func() {
-		operation, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "LABEL=COS_PERSISTENT"})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(operation.MountOption.Source).To(Equal("/dev/disk/by-label/COS_PERSISTENT"))
 	})
 
 	It("keeps the tmpfs colon form", func() {
