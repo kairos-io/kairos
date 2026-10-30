@@ -42,7 +42,7 @@ require (
 	github.com/kairos-io/tpm-helpers v0.0.0-20261020143916-2cc4ae14e34b
 	github.com/klauspost/compress v1.20.3
 	github.com/kube-vip/kube-vip v1.2.4
-	github.com/labstack/echo/v5 v5.4.2
+	github.com/labstack/echo/v5 v5.4.4
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.2
 	github.com/moby/sys/mountinfo v0.7.3
