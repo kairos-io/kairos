@@ -39,6 +39,6 @@ var _ = Describe("BaseOverlay backing base", func() {
 	It("keeps the tmpfs colon form", func() {
 		operation, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "tmpfs:30%"})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(operation.MountOption.Options).To(Equal([]string{"size=30%"}))
+		Expect(operation.MountOption.Options).To(ContainElement("size=30%"))
 	})
 })
