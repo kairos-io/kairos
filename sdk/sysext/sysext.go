@@ -90,12 +90,7 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 		// Only the last layer is extracted, so there is nothing for it to
 		// delete, and overlayfs does not read ".wh." names as whiteouts, so
 		// writing it would leave a junk file in the extension.
-		if base := filepath.Base(name); strings.HasPrefix(base, whiteoutPrefix) {
-			if base == whiteoutOpaqueDir {
-				log.Warnf("Skipping opaque whiteout %s: the extension cannot hide the contents of %s", header.Name, filepath.Dir(name))
-			} else {
-				log.Warnf("Skipping whiteout %s: the extension cannot delete %s", header.Name, filepath.Join(filepath.Dir(name), strings.TrimPrefix(base, whiteoutPrefix)))
-			}
+		if skipWhiteout(name, header.Name, log) {
 			continue
 		}
 		mode := header.FileInfo().Mode()
@@ -163,39 +158,8 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 			}
 		case tar.TypeLink:
 			log.Debugf("%s is a hard link to %s", header.Name, header.Linkname)
-			// A hard link names its target relative to the root of the
-			// archive, which is the one place it differs from a symlink,
-			// whose target is relative to the entry. The target is always an
-			// earlier entry of the same archive. git's "make install" emits
-			// one per helper in /usr/libexec/git-core, and busybox and
-			// coreutils install trees do the same, so an image that carries
-			// any of them is full of them.
-			// Clean the target the way header.Name is cleaned above. A layer
-			// written with "tar -C rootfs -c ." names every entry
-			// "./usr/...", and a raw "./usr/bin/git" matches no allow list
-			// that the entry it points at has already matched.
-			linkname := filepath.Clean(header.Linkname)
-			target := strings.TrimPrefix(linkname, "/")
-			// A target that climbs out of the destination is a broken layer,
-			// so it fails the extraction. The allow list is asked after that,
-			// because a target it excludes is only an entry this same loop
-			// skipped.
-			if !filepath.IsLocal(target) {
-				return fmt.Errorf("%s: hard link target is outside the destination", header.Name)
-			}
-			if !allowList.MatchString(linkname) {
-				// The target was skipped by this same loop, so there is
-				// nothing on disk to link to. The allow list decided that,
-				// not the layer, so drop the entry with a message that names
-				// both paths rather than failing the whole extraction.
-				log.Warnf("Skipping hard link %s: its target %s is outside the extension", header.Name, header.Linkname)
-				continue
-			}
-			if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
-				return fmt.Errorf("mkdir: %w", err)
-			}
-			if err := root.Link(target, name); err != nil {
-				return fmt.Errorf("hard link: %w", err)
+			if err := extractHardLink(root, header, name, allowList, log); err != nil {
+				return err
 			}
 		default:
 			return fmt.Errorf("unsupported type: %d", header.Typeflag)
@@ -206,6 +170,60 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 	}
 	if meta.skipped > 0 {
 		log.Warnf("Could not restore the owner or extended attributes of %d entries in %s: not permitted by the user, the user namespace or the filesystem", meta.skipped, dst)
+	}
+	return nil
+}
+
+// skipWhiteout reports whether name is a whiteout, warning that it is dropped.
+func skipWhiteout(name, headerName string, log sdkLogger.KairosLogger) bool {
+	base := filepath.Base(name)
+	if !strings.HasPrefix(base, whiteoutPrefix) {
+		return false
+	}
+	if base == whiteoutOpaqueDir {
+		log.Warnf("Skipping opaque whiteout %s: the extension cannot hide the contents of %s", headerName, filepath.Dir(name))
+	} else {
+		log.Warnf("Skipping whiteout %s: the extension cannot delete %s", headerName, filepath.Join(filepath.Dir(name), strings.TrimPrefix(base, whiteoutPrefix)))
+	}
+	return true
+}
+
+// extractHardLink creates the hard link a layer entry describes. An entry whose
+// target the allow list excluded is dropped with a warning.
+func extractHardLink(root *os.Root, header *tar.Header, name string, allowList *regexp.Regexp, log sdkLogger.KairosLogger) error {
+	// A hard link names its target relative to the root of the
+	// archive, which is the one place it differs from a symlink,
+	// whose target is relative to the entry. The target is always an
+	// earlier entry of the same archive. git's "make install" emits
+	// one per helper in /usr/libexec/git-core, and busybox and
+	// coreutils install trees do the same, so an image that carries
+	// any of them is full of them.
+	// Clean the target the way header.Name is cleaned above. A layer
+	// written with "tar -C rootfs -c ." names every entry
+	// "./usr/...", and a raw "./usr/bin/git" matches no allow list
+	// that the entry it points at has already matched.
+	linkname := filepath.Clean(header.Linkname)
+	target := strings.TrimPrefix(linkname, "/")
+	// A target that climbs out of the destination is a broken layer,
+	// so it fails the extraction. The allow list is asked after that,
+	// because a target it excludes is only an entry this same loop
+	// skipped.
+	if !filepath.IsLocal(target) {
+		return fmt.Errorf("%s: hard link target is outside the destination", header.Name)
+	}
+	if !allowList.MatchString(linkname) {
+		// The target was skipped by this same loop, so there is
+		// nothing on disk to link to. The allow list decided that,
+		// not the layer, so drop the entry with a message that names
+		// both paths rather than failing the whole extraction.
+		log.Warnf("Skipping hard link %s: its target %s is outside the extension", header.Name, header.Linkname)
+		return nil
+	}
+	if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+		return fmt.Errorf("mkdir: %w", err)
+	}
+	if err := root.Link(target, name); err != nil {
+		return fmt.Errorf("hard link: %w", err)
 	}
 	return nil
 }
