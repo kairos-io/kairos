@@ -128,7 +128,7 @@ jobs:
     permissions:
       contents: read
       packages: write
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     name: ${{ inputs.test }}
     # Backstop only. ginkgo's own --timeout below should always fire first,
     # because it stops the suite with a progress report naming the step,
