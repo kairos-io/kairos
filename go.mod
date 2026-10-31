@@ -33,7 +33,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/mdns v1.0.7
-	github.com/ipfs/go-log v1.0.5
+	github.com/ipfs/go-log/v2 v2.9.2
 	github.com/ipfs/go-log/v2 v2.9.2
 	github.com/itchyny/gojq v0.12.19
 	github.com/jaypipes/ghw v0.26.0
