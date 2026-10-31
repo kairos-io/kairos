@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -123,14 +124,32 @@ func NewClient(cfg *Config, opts ...ClientOption) *Client {
 	return c
 }
 
+// credentialsRejectedError marks a WebSocket upgrade the server refused with
+// 401: it does not know the node's API key, because the node was deleted
+// there or the server lost its state. Run answers it by registering again.
+// It wraps the dial error without changing its text.
+type credentialsRejectedError struct{ error }
+
+func (e credentialsRejectedError) Unwrap() error { return e.error }
+
+// serverURL is the configured phonehome.url in the form credentials record it.
+func (c *Client) serverURL() string {
+	return strings.TrimRight(c.cfg.URL, "/")
+}
+
 // Register contacts the server to register this node. Stores credentials locally.
-// If credentials already exist on disk, they are loaded and registration is skipped.
+// If credentials issued by the configured server already exist on disk, they
+// are loaded and registration is skipped.
 func (c *Client) Register(ctx context.Context) error {
 	// Try loading existing credentials
 	if creds, err := c.loadCredentials(); err == nil {
-		c.credentials = creds
-		c.logger.Infof("loaded existing credentials for node %s", creds.NodeID)
-		return nil
+		if creds.ServerURL == "" || creds.ServerURL == c.serverURL() {
+			c.credentials = creds
+			c.logger.Infof("loaded existing credentials for node %s", creds.NodeID)
+			return nil
+		}
+		c.logger.Infof("saved credentials for node %s were issued by %s, registering with %s",
+			creds.NodeID, creds.ServerURL, c.serverURL())
 	}
 
 	reqBody := RegisterRequest{
@@ -148,7 +167,7 @@ func (c *Client) Register(ctx context.Context) error {
 		return fmt.Errorf("marshal register request: %w", err)
 	}
 
-	reqURL := strings.TrimRight(c.cfg.URL, "/") + "/api/v1/nodes/register"
+	reqURL := c.serverURL() + "/api/v1/nodes/register"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("create register request: %w", err)
@@ -173,6 +192,7 @@ func (c *Client) Register(ctx context.Context) error {
 	if err := json.NewDecoder(resp.Body).Decode(&creds); err != nil {
 		return fmt.Errorf("decode register response: %w", err)
 	}
+	creds.ServerURL = c.serverURL()
 
 	c.credentials = &creds
 	if err := c.saveCredentials(&creds); err != nil {
@@ -239,7 +259,12 @@ func (c *Client) connect(ctx context.Context) (bool, error) {
 
 	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL.String(), nil)
 	if err != nil {
-		return false, fmt.Errorf("websocket dial: %w%s", err, handshakeDetail(resp))
+		rejected := resp != nil && resp.StatusCode == http.StatusUnauthorized
+		err = fmt.Errorf("websocket dial: %w%s", err, handshakeDetail(resp))
+		if rejected {
+			err = credentialsRejectedError{err}
+		}
+		return false, err
 	}
 
 	c.mu.Lock()
@@ -326,26 +351,8 @@ func (c *Client) Run(ctx context.Context) error {
 	c.stopCancel = cancel
 	c.mu.Unlock()
 
-	// Retry registration with backoff until successful or context cancelled
-	regBackoff := c.cfg.ReconnectBackoff
-	for {
-		err := c.Register(ctx)
-		if err == nil {
-			break
-		}
-		if ctx.Err() != nil {
-			return nil
-		}
-		c.logger.Warnf("registration failed: %v, retrying in %s", err, regBackoff)
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(regBackoff):
-		}
-		regBackoff = regBackoff * 2
-		if regBackoff > MaxReconnectBackoff {
-			regBackoff = MaxReconnectBackoff
-		}
+	if !c.registerUntilDone(ctx) {
+		return nil
 	}
 
 	backoff := c.cfg.ReconnectBackoff
@@ -369,6 +376,18 @@ func (c *Client) Run(ctx context.Context) error {
 			backoff = c.cfg.ReconnectBackoff
 		}
 
+		// The server does not know this node's key any more: the node was
+		// deleted there, or the server lost its state. Retrying the same key
+		// is refused for ever, so drop it and register again.
+		if errors.As(err, &credentialsRejectedError{}) {
+			c.logger.Warnf("disconnected: %v, registering again", err)
+			c.dropCredentials()
+			if !c.registerUntilDone(ctx) {
+				return nil
+			}
+			continue
+		}
+
 		if err != nil {
 			c.logger.Warnf("disconnected: %v, reconnecting in %s", err, backoff)
 		}
@@ -388,6 +407,40 @@ func (c *Client) Run(ctx context.Context) error {
 		if backoff > MaxReconnectBackoff {
 			backoff = MaxReconnectBackoff
 		}
+	}
+}
+
+// registerUntilDone retries Register with backoff until it succeeds, and
+// reports false when ctx ends first.
+func (c *Client) registerUntilDone(ctx context.Context) bool {
+	regBackoff := c.cfg.ReconnectBackoff
+	for {
+		err := c.Register(ctx)
+		if err == nil {
+			return true
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+		c.logger.Warnf("registration failed: %v, retrying in %s", err, regBackoff)
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(regBackoff):
+		}
+		regBackoff = regBackoff * 2
+		if regBackoff > MaxReconnectBackoff {
+			regBackoff = MaxReconnectBackoff
+		}
+	}
+}
+
+// dropCredentials forgets the node's credentials in memory and on disk, so the
+// next Register asks the server for new ones.
+func (c *Client) dropCredentials() {
+	c.credentials = nil
+	if err := os.Remove(c.credPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		c.logger.Warnf("could not remove credentials %s: %v", c.credPath, err)
 	}
 }
 
