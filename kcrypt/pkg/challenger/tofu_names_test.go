@@ -131,4 +131,55 @@ var _ = Describe("TOFU object names", func() {
 		Expect(b.VolumeData.SecretName).ToNot(Equal(legacyName))
 		Expect(passphraseOf(b)).ToNot(Equal("old-disk-passphrase"))
 	})
+
+	Context("an old 8-character enrollment with a second partition", func() {
+		legacySecret := func(label, passphrase string) {
+			_, err := kclient.CoreV1().Secrets(ns).Create(context.TODO(), &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: kube.SafeKubeName("tofu-deadbeef-" + label), Namespace: ns,
+					Labels: map[string]string{tpmHashLabel: kube.SafeKubeName(hashA)},
+				},
+				Data: map[string][]byte{"passphrase": []byte(passphrase)},
+			}, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		BeforeEach(func() {
+			legacySecret("cos-persistent", "old-persistent-passphrase")
+			legacySecret("cos-oem", "old-oem-passphrase")
+		})
+
+		It("keeps using the old Secret of a partition added to the recreated SealedVolume", func() {
+			first, err := enroll(hashA)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(passphraseOf(first)).To(Equal("old-persistent-passphrase"))
+
+			ctx, err := determineEnrollmentContext(reconciler, ns, hashA, PartitionInfo{Label: "COS_OEM"}, logr.Discard())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ctx.IsNewPartition).To(BeTrue())
+			Expect(addPartitionToExistingVolume(ctx, reconciler, kclient, ns, logr.Discard())).To(Succeed())
+
+			Expect(ctx.VolumeData.SecretName).To(Equal("tofu-deadbeef-cos-oem"))
+			Expect(passphraseOf(ctx)).To(Equal("old-oem-passphrase"))
+		})
+
+		It("keeps using the old Secret when an operator recreates the SealedVolume without a secret reference", func() {
+			sv := &keyserverv1alpha1.SealedVolume{
+				ObjectMeta: metav1.ObjectMeta{Name: "my-node", Namespace: ns},
+				Spec: keyserverv1alpha1.SealedVolumeSpec{
+					TPMHash:    hashA,
+					Partitions: []keyserverv1alpha1.PartitionSpec{{Label: "COS_OEM"}},
+				},
+			}
+			Expect(reconciler.Create(context.TODO(), sv)).To(Succeed())
+
+			ctx, err := determineEnrollmentContext(reconciler, ns, hashA, PartitionInfo{Label: "COS_OEM"}, logr.Discard())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ctx.IsNewEnrollment || ctx.IsNewPartition).To(BeFalse())
+			Expect(updateEnrollmentData(ctx, attest_, reconciler, kclient, ns, logr.Discard())).To(Succeed())
+
+			Expect(ctx.VolumeData.SecretName).To(Equal("tofu-deadbeef-cos-oem"))
+			Expect(passphraseOf(ctx)).To(Equal("old-oem-passphrase"))
+		})
+	})
 })

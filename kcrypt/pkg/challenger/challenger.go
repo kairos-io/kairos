@@ -255,6 +255,33 @@ func tofuVolumeName(tpmHash string, n int) string {
 	return kube.SafeKubeName(fmt.Sprintf("tofu-%s", tpmHash[:n]))
 }
 
+// reuseLegacyTOFUSecret returns the name of the Secret an earlier enrollment of
+// this TPM left behind under the old 8-character name, or secretName when there
+// is none. That Secret still holds the passphrase of the encrypted partition, so
+// every path that would otherwise create a fresh TOFU Secret must keep using it.
+func reuseLegacyTOFUSecret(kclient kubernetes.Interface, namespace, tpmHash, partitionLabel, secretName string, logger logr.Logger) (string, error) {
+	legacyVolume := SealedVolumeData{
+		PartitionLabel: partitionLabel,
+		VolumeName:     tofuVolumeName(tpmHash, legacyTOFUNameHashLen),
+	}
+	legacyName, _ := legacyVolume.DefaultSecret()
+	if legacyName == secretName {
+		return secretName, nil
+	}
+	legacy, err := kclient.CoreV1().Secrets(namespace).Get(context.TODO(), legacyName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		return secretName, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("looking up legacy TOFU secret: %w", err)
+	}
+	if legacy.Labels[tpmHashLabel] != kube.SafeKubeName(tpmHash) {
+		return secretName, nil
+	}
+	logger.Info("Reusing Secret from an earlier enrollment of this TPM", "secretName", legacyName)
+	return legacyName, nil
+}
+
 // createOrReuseTOFUSecret creates a Kubernetes secret containing the generated passphrase
 // If a secret with the same name already exists, it returns the existing passphrase
 // Returns the passphrase that should be used (either new or existing)
@@ -589,20 +616,9 @@ func performInitialEnrollment(ctx *EnrollmentContext, attestation *ClientAttesta
 	}
 	secretName, secretPath := volumeData.DefaultSecret()
 
-	// A Secret left behind by an earlier enrollment of this TPM under the old
-	// 8-character name still holds the passphrase of the encrypted disk, so keep using it.
-	legacyVolume := SealedVolumeData{
-		PartitionLabel: ctx.Partition.Label,
-		VolumeName:     tofuVolumeName(ctx.TPMHash, legacyTOFUNameHashLen),
-	}
-	if legacyName, _ := legacyVolume.DefaultSecret(); legacyName != secretName {
-		legacy, getErr := kclient.CoreV1().Secrets(namespace).Get(context.TODO(), legacyName, metav1.GetOptions{})
-		if getErr == nil && legacy.Labels[tpmHashLabel] == kube.SafeKubeName(ctx.TPMHash) {
-			logger.Info("Reusing Secret from an earlier enrollment of this TPM", "secretName", legacyName)
-			secretName = legacyName
-		} else if getErr != nil && !errors.IsNotFound(getErr) {
-			return fmt.Errorf("looking up legacy TOFU secret: %w", getErr)
-		}
+	secretName, err := reuseLegacyTOFUSecret(kclient, namespace, ctx.TPMHash, ctx.Partition.Label, secretName, logger)
+	if err != nil {
+		return err
 	}
 
 	// Generate secure passphrase for new enrollment
@@ -652,11 +668,15 @@ func performInitialEnrollment(ctx *EnrollmentContext, attestation *ClientAttesta
 }
 
 // addPartitionToExistingVolume adds a new partition to an existing SealedVolume
-func addPartitionToExistingVolume(ctx *EnrollmentContext, reconciler *controllers.SealedVolumeReconciler, kclient *kubernetes.Clientset, namespace string, logger logr.Logger) error {
+func addPartitionToExistingVolume(ctx *EnrollmentContext, reconciler *controllers.SealedVolumeReconciler, kclient kubernetes.Interface, namespace string, logger logr.Logger) error {
 	logger.Info("Adding new partition to existing SealedVolume")
 
 	// Generate secret name and path for the new partition using DefaultSecret logic
 	secretName, secretPath := ctx.VolumeData.DefaultSecret()
+	secretName, err := reuseLegacyTOFUSecret(kclient, namespace, ctx.TPMHash, ctx.Partition.Label, secretName, logger)
+	if err != nil {
+		return err
+	}
 
 	// Generate secure passphrase for the new partition
 	passphrase, err := generateTOFUPassphrase()
@@ -766,7 +786,7 @@ func verifyAttestationData(ctx *EnrollmentContext, attestation *ClientAttestatio
 }
 
 // updateEnrollmentData updates attestation data for re-enrollment of existing TPMs
-func updateEnrollmentData(ctx *EnrollmentContext, attestation *ClientAttestation, reconciler *controllers.SealedVolumeReconciler, kclient *kubernetes.Clientset, namespace string, logger logr.Logger) error {
+func updateEnrollmentData(ctx *EnrollmentContext, attestation *ClientAttestation, reconciler *controllers.SealedVolumeReconciler, kclient kubernetes.Interface, namespace string, logger logr.Logger) error {
 	// If no attestation data exists, create initial TOFU attestation
 	// This handles the case where an operator creates a SealedVolume without attestation data
 	// (e.g., for static passphrase setup or after SealedVolume recreation)
@@ -794,6 +814,10 @@ func updateEnrollmentData(ctx *EnrollmentContext, attestation *ClientAttestation
 				VolumeName:     ctx.SealedVolume.Name,
 			}
 			secretName, secretPath := volumeData.DefaultSecret()
+			secretName, err := reuseLegacyTOFUSecret(kclient, namespace, ctx.TPMHash, ctx.Partition.Label, secretName, logger)
+			if err != nil {
+				return err
+			}
 
 			// Generate secure passphrase for enrollment
 			passphrase, err := generateTOFUPassphrase()
