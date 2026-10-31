@@ -16,6 +16,7 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	kairoshttp "github.com/kairos-io/kairos/v4/agent/pkg/implementations/http"
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils/partitions"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
@@ -339,6 +340,12 @@ func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string,
 	return "", fmt.Errorf("downloading artifact image after %d attempts: %w", attempts, finalErr)
 }
 
+// artifactDownloadStallTimeout bounds every phase of an artifact download:
+// connecting, the response headers, and each wait for more body bytes. A
+// stalled server then fails the attempt, so the retries run and the command
+// ends instead of staying Running. Specs shorten it.
+var artifactDownloadStallTimeout = time.Second * constants.HTTPTimeout
+
 func downloadArtifactAttempt(ctx context.Context, imageURL, apiKey, artifactID string, systemConfig *sdkConfig.Config) (string, bool, error) {
 	// serverURL is operator-configured via cloud-config, not user input.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil) //nosec G107 -- URL derived from operator cloud-config
@@ -348,7 +355,9 @@ func downloadArtifactAttempt(ctx context.Context, imageURL, apiKey, artifactID s
 	if apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client := kairoshttp.NewStallClient(artifactDownloadStallTimeout)
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", false, ctx.Err()
