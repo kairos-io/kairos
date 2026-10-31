@@ -219,6 +219,68 @@ var _ = Describe("artifact upgrade download", func() {
 		)))
 	})
 
+	Context("when the server stalls", func() {
+		var restoreTimeout time.Duration
+
+		BeforeEach(func() {
+			restoreTimeout = artifactDownloadStallTimeout
+			artifactDownloadStallTimeout = 200 * time.Millisecond
+		})
+
+		AfterEach(func() {
+			artifactDownloadStallTimeout = restoreTimeout
+		})
+
+		// stallingServer answers each request through respond, then holds the
+		// connection open without sending anything more until the spec ends.
+		stallingServer := func(attempts *atomic.Int32, respond func(http.ResponseWriter)) *httptest.Server {
+			release := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				attempts.Add(1)
+				respond(w)
+				select {
+				case <-release:
+				case <-r.Context().Done():
+				}
+			}))
+			DeferCleanup(func() {
+				close(release)
+				server.Close()
+			})
+			return server
+		}
+
+		It("times out a body that stops arriving and retries it", func() {
+			var attempts atomic.Int32
+			server := stallingServer(&attempts, func(w http.ResponseWriter) {
+				w.Header().Set("Content-Length", "1000")
+				_, _ = w.Write([]byte("partial artifact!"))
+				w.(http.Flusher).Flush()
+			})
+
+			_, err := downloadArtifact(
+				context.Background(), server.URL, "api-key", "artifact-123",
+				newMountedConfig(), 2, time.Millisecond,
+			)
+
+			Expect(attempts.Load()).To(Equal(int32(3)))
+			Expect(err).To(MatchError(ContainSubstring("after 3 attempts")))
+		})
+
+		It("times out response headers that never arrive and retries", func() {
+			var attempts atomic.Int32
+			server := stallingServer(&attempts, func(http.ResponseWriter) {})
+
+			_, err := downloadArtifact(
+				context.Background(), server.URL, "api-key", "artifact-123",
+				newMountedConfig(), 2, time.Millisecond,
+			)
+
+			Expect(attempts.Load()).To(Equal(int32(3)))
+			Expect(err).To(MatchError(ContainSubstring("after 3 attempts")))
+		})
+	})
+
 	It("does not retry non-transient HTTP 4xx responses", func() {
 		var attempts atomic.Int32
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
