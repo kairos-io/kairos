@@ -11,3 +11,6 @@ spec:
   concurrency: 1
   # Stop creating new jobs when a job fails
   stopOnFailure: true
+  # CI builds the upgrade image from the same cell as the booted ISO, so the
+  # versions match and the operator preflight would skip the node without force
+  force: true
