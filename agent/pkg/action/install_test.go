@@ -28,6 +28,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
@@ -102,8 +103,15 @@ var _ = Describe("Install action tests", func() {
 		var err error
 		var spec *v1.InstallSpec
 		var installer *action.InstallAction
+		var prevPartitionDevice func(disk, name string) (string, error)
 
 		BeforeEach(func() {
+			// The target is an image file, so the host has no partition
+			// links for it.
+			prevPartitionDevice = elemental.PartitionDevice
+			elemental.PartitionDevice = func(_, name string) (string, error) {
+				return "/dev/" + name, nil
+			}
 			tmpdir, err = os.MkdirTemp("", "install-*")
 			Expect(err).Should(BeNil())
 			device = filepath.Join(tmpdir, "test.img")
@@ -224,6 +232,7 @@ var _ = Describe("Install action tests", func() {
 			Expect(os.RemoveAll(device)).ToNot(HaveOccurred())
 			ghwTest.Clean()
 			Expect(os.RemoveAll(tmpdir)).ToNot(HaveOccurred())
+			elemental.PartitionDevice = prevPartitionDevice
 		})
 
 		It("Successfully installs", func() {
