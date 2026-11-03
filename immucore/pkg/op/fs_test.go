@@ -5,12 +5,59 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sys/unix"
 )
+
+var _ = Describe("BaseOverlay", func() {
+	var base string
+
+	BeforeEach(func() {
+		base = filepath.Join(GinkgoT().TempDir(), "overlay")
+	})
+
+	It("mounts a tmpfs backing base 0755, nosuid and nodev", func() {
+		operation, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "tmpfs:20%"})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(operation.Target).To(Equal(base))
+		Expect(operation.MountOption.Type).To(Equal("tmpfs"))
+		Expect(operation.MountOption.Source).To(Equal("tmpfs"))
+		Expect(operation.MountOption.Options).To(ConsistOf("nosuid", "nodev", "mode=0755", "size=20%"))
+
+		flags, data := mount.ParseOptions(operation.MountOption.Options)
+		Expect(flags).To(Equal(uintptr(unix.MS_NOSUID | unix.MS_NODEV)))
+		Expect(data).To(ConsistOf("mode=0755", "size=20%"))
+	})
+
+	It("writes the same options to the fstab entry", func() {
+		operation, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "tmpfs:20%"})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(operation.FstabEntry.Spec).To(Equal("tmpfs"))
+		Expect(operation.FstabEntry.VfsType).To(Equal("tmpfs"))
+		Expect(operation.FstabEntry.MntOps).To(Equal(map[string]string{
+			"nosuid": "",
+			"nodev":  "",
+			"mode":   "0755",
+			"size":   "20%",
+		}))
+		Expect(strings.Split(operation.FstabEntry.MntOpsString(), ",")).
+			To(ConsistOf("nosuid", "nodev", "mode=0755", "size=20%"))
+	})
+
+	It("rejects a backing base that is neither a tmpfs nor a device", func() {
+		_, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "tmpfs"})
+		Expect(err).To(HaveOccurred())
+	})
+})
 
 var _ = Describe("BindStateDir", func() {
 	It("mangles the path the way the bind mount does", func() {
@@ -200,5 +247,77 @@ var _ = Describe("MountWithBaseOverlay", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(errors.Is(err, constants.ErrMountTargetMissing)).To(BeTrue())
 		Expect(err.Error()).To(ContainSubstring(filepath.Join(readOnly, "mnt")))
+	})
+})
+
+var _ = Describe("MountBind onto a symlink", func() {
+	var root string
+
+	BeforeEach(func() {
+		root = GinkgoT().TempDir()
+		Expect(os.MkdirAll(filepath.Join(root, "etc/ssl"), 0o755)).To(Succeed())
+	})
+
+	// No rsync is needed in here: the refusal happens before the state is
+	// synced, which is the point of refusing.
+
+	It("refuses an absolute symlink, the shape the Red Hat and SUSE images ship", func() {
+		// rockylinux 9 and fedora 40 ship /etc/ssl/certs as a symlink into
+		// /etc/pki, opensuse leap into /var/lib/ca-certificates. The target is
+		// absolute, so it resolves against the initramfs root immucore runs in
+		// and not against the sysroot.
+		Expect(os.Symlink("/etc/pki/tls/certs", filepath.Join(root, "etc/ssl/certs"))).To(Succeed())
+
+		err := op.MountBind("/etc/ssl/certs", root, "/usr/local/.state").PrepareCallback()
+
+		Expect(errors.Is(err, constants.ErrMountTargetIsSymlink)).To(BeTrue(), "got %v", err)
+		Expect(err.Error()).To(ContainSubstring(filepath.Join(root, "etc/ssl/certs")))
+		Expect(err.Error()).To(ContainSubstring("/etc/pki/tls/certs"))
+
+		// The mountpoint is left as it was found, rather than replaced by a
+		// directory, and nothing is set up to back a bind that will not happen.
+		info, lerr := os.Lstat(filepath.Join(root, "etc/ssl/certs"))
+		Expect(lerr).ToNot(HaveOccurred())
+		Expect(info.Mode() & os.ModeSymlink).ToNot(BeZero())
+		Expect(op.BindStateDir("/etc/ssl/certs", root, "/usr/local/.state")).ToNot(BeADirectory())
+	})
+
+	It("refuses a relative symlink instead of persisting the image content it resolves to", func() {
+		// The damaging one. Without the guard os.Stat follows the link, so
+		// every check passes, the image certificate directory is copied into
+		// the persistent state and mount(2) then binds the copy over it. rsync
+		// runs with no --delete, so a CA the image later distrusts would
+		// outlive every upgrade.
+		Expect(os.MkdirAll(filepath.Join(root, "etc/pki/tls/certs"), 0o755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(root, "etc/pki/tls/certs/ca-bundle.crt"), []byte("image CA\n"), 0o644)).To(Succeed())
+		Expect(os.Symlink("../pki/tls/certs", filepath.Join(root, "etc/ssl/certs"))).To(Succeed())
+
+		operation := op.MountBind("/etc/ssl/certs", root, "/usr/local/.state")
+		err := operation.PrepareCallback()
+
+		Expect(errors.Is(err, constants.ErrMountTargetIsSymlink)).To(BeTrue(), "got %v", err)
+		Expect(op.BindStateDir("/etc/ssl/certs", root, "/usr/local/.state")).ToNot(BeADirectory())
+
+		// Where the bind would have landed, which is not the path that was asked for.
+		resolved, rerr := filepath.EvalSymlinks(operation.Target)
+		Expect(rerr).ToNot(HaveOccurred())
+		Expect(resolved).To(Equal(filepath.Join(root, "etc/pki/tls/certs")))
+		Expect(resolved).ToNot(Equal(operation.Target))
+	})
+
+	It("does not refuse a mountpoint that is a real directory", func() {
+		// The guard has to be about symlinks and nothing else. This asserts
+		// only that, so that it does not need the rsync the sync step calls.
+		Expect(os.MkdirAll(filepath.Join(root, "etc/ssl/certs"), 0o755)).To(Succeed())
+
+		err := op.MountBind("/etc/ssl/certs", root, "/usr/local/.state").PrepareCallback()
+
+		Expect(errors.Is(err, constants.ErrMountTargetIsSymlink)).To(BeFalse(), "got %v", err)
+	})
+
+	It("does not refuse a mountpoint the image does not ship at all", func() {
+		err := op.MountBind("/var/lib/rancher", root, "/usr/local/.state").PrepareCallback()
+
+		Expect(errors.Is(err, constants.ErrMountTargetIsSymlink)).To(BeFalse(), "got %v", err)
 	})
 })

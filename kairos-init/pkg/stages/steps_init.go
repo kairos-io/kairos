@@ -211,10 +211,15 @@ func GetKairosReleaseStage(sis values.System, log logger.KairosLogger) []schema.
 	}
 
 	// Todo: Change this to allow getting info from several providers? No idea how to store it, the current below is only for k3s/k0s I think
-	versionInfo, err := getProviderInfo(log)
-	if err == nil && versionInfo.Provider != "" && versionInfo.Version != "" {
-		env["KAIROS_SOFTWARE_VERSION"] = versionInfo.Version
-		env["KAIROS_SOFTWARE_VERSION_PREFIX"] = versionInfo.Provider
+	// A dry run never invokes provider hooks, so the software version is left out of the preview
+	if config.DefaultConfig.DryRun {
+		log.Logger.Info().Msg("Dry-run: skipping provider info event")
+	} else {
+		versionInfo, err := getProviderInfo(log)
+		if err == nil && versionInfo.Provider != "" && versionInfo.Version != "" {
+			env["KAIROS_SOFTWARE_VERSION"] = versionInfo.Version
+			env["KAIROS_SOFTWARE_VERSION_PREFIX"] = versionInfo.Provider
+		}
 	}
 
 	log.Logger.Debug().Interface("env", env).Msg("Kairos release stage")

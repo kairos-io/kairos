@@ -50,7 +50,7 @@ func runProviderIn(dirs []string, args []string) int {
 	// Hand the process over rather than wrapping it: the provider's commands
 	// are interactive (register takes a screenshot, bridge holds a VPN open),
 	// so it needs the terminal and the signals, and its exit code has to be
-	// ours. args[0] is "provider" here, having been shifted by the dispatcher;
+	// ours. args[0] is "provider" here, set by the root's passthrough;
 	// the plugin is told its own name instead.
 	argv := append([]string{filepath.Base(path)}, args[1:]...)
 	if err := execProvider(path, argv, os.Environ()); err != nil {

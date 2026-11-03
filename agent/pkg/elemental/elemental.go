@@ -569,7 +569,7 @@ func (e *Elemental) imageFromArchive(archivePath string) (ggcrv1.Image, func(), 
 
 	img, dockerErr := tarball.ImageFromPath(archivePath, nil)
 	if dockerErr == nil {
-		return img, noop, nil
+		return img, noop, e.checkArchivePlatform(archivePath, img)
 	}
 
 	// Some tools save an image without a repository tag. Ask for the
@@ -579,7 +579,7 @@ func (e *Elemental) imageFromArchive(archivePath string) (ggcrv1.Image, func(), 
 		return nil, noop, fmt.Errorf("failed to create tag reference: %w", err)
 	}
 	if img, err = tarball.ImageFromPath(archivePath, &tag); err == nil {
-		return img, noop, nil
+		return img, noop, e.checkArchivePlatform(archivePath, img)
 	}
 
 	e.config.Logger.Infof("%s is not a docker image archive (%v), reading it as an OCI layout", archivePath, dockerErr)
@@ -592,6 +592,32 @@ func (e *Elemental) imageFromArchive(archivePath string) (ggcrv1.Image, func(), 
 		"reading %s as an image archive: not a docker archive (%w), not an OCI layout (%v)",
 		archivePath, dockerErr, ociErr,
 	)
+}
+
+// checkArchivePlatform refuses a docker save archive whose image config names
+// an OS or architecture other than the one this run targets. The OCI layout
+// path does the same through imageFromIndex. An archive whose config names
+// neither is accepted, since a save of an image built without that metadata is
+// legitimate and there is nothing to compare.
+func (e *Elemental) checkArchivePlatform(archivePath string, img ggcrv1.Image) error {
+	if e.config.Platform == nil {
+		return nil
+	}
+
+	cfg, err := img.ConfigFile()
+	if err != nil {
+		return fmt.Errorf("reading the image config of %s: %w", archivePath, err)
+	}
+
+	if (cfg.OS != "" && cfg.OS != e.config.Platform.OS) ||
+		(cfg.Architecture != "" && cfg.Architecture != e.config.Platform.GolangArch) {
+		return fmt.Errorf(
+			"%s holds an image for %s/%s, not for %s",
+			archivePath, cfg.OS, cfg.Architecture, e.platformName(),
+		)
+	}
+
+	return nil
 }
 
 // imageFromOCILayoutArchive unpacks an archive into a temporary directory and

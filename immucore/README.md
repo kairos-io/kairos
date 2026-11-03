@@ -61,10 +61,12 @@ The immutable rootfs can be configured with the following kernel parameters:
   (`UUID=<blk_uuid>`)
   Backwards compatible with the old `rd.cos.overlay` directive.
 
-* `rd.immucore.mount=LABEL:<blk_label>:<mountpoint>`: This option defines a
+* `rd.immucore.mount=LABEL=<blk_label>:<mountpoint>`: This option defines a
   persistent block device and its mountpoint. Block devices can also be
-  defined by UUID (`UUID=<blk_uuid>:<mountpoint>`). This option can be passed
-  multiple times.
+  defined by UUID (`UUID=<blk_uuid>:<mountpoint>`) or by path
+  (`/dev/disk/by-path/<path>:<mountpoint>`). The mountpoint follows the last
+  colon, so a device path may contain colons. An entry that cannot be parsed
+  is logged and skipped. This option can be passed multiple times.
   Backwards compatible with the old `rd.cos.mount` directive.
 
 * `rd.immucore.oemlabel=<label>`: This option sets the label to search for in order
@@ -347,6 +349,13 @@ In the environment file, a few options are available:
 
   The persistent state paths are bind mounted after being mirrored with the
   original content.
+
+  **Note**: A path that is a symlink is skipped, with a warning that names the
+  path and its target. `mount(2)` follows the link, so the bind would land on
+  the target and not on the path that was asked for. The path is not persisted,
+  the rest of the list still is, and the boot carries on. To persist the
+  target, name the target. `/etc/ssl/certs` is a symlink on the Red Hat and
+  SUSE families.
 
 Note that persistent state is set up once the ephemeral paths and persistent
 volumes are mounted. Persistent state paths can't be an already existing mount
