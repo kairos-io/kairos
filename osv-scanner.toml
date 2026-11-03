@@ -119,3 +119,21 @@ version = "4.15.4"
 ignore = true
 effectiveUntil = 2026-11-19
 reason = "upstream-fix-pending: labstack/echo/v4 v4.15.4, fixed in v4.16.1 (GHSA-9969-6676-49h5, GHSA-cxf3-9h37-7rr8, GHSA-f48p-c9v4-h7xv, GHSA-h7wr-284f-5qvc). Only in the prebuilt edgevpn v0.35.5 binary; edgevpn master has not taken the bump yet."
+
+# ---------------------------------------------------------------------------
+# major-upgrade-required -- fixed only in a new major version.
+# ---------------------------------------------------------------------------
+
+# provider-kairos links labstack/echo/v4 v4.16.1. Both advisories are fixed
+# only in echo v5 (no v4 release carries the fix), so clearing them means
+# moving provider-kairos to echo/v5. Same advisories as AuroraBoot, tracked
+# in https://github.com/kairos-io/kairos/issues/5763.
+[[IgnoredVulns]]
+id = "GHSA-246p-cpwv-v3jq"
+ignoreUntil = 2026-12-03
+reason = "major-upgrade-required: labstack/echo/v4 RealIP() trusts client X-Forwarded-For/X-Real-IP when no IPExtractor is set; fixed only in echo v5.1.0. In the bundle via provider-kairos (echo/v4 v4.16.1). Tracking: kairos-io/kairos#5763."
+
+[[IgnoredVulns]]
+id = "GHSA-99jh-6h7p-pp36"
+ignoreUntil = 2026-12-03
+reason = "major-upgrade-required: labstack/echo/v4 middleware.Proxy issue, fixed only in echo v5.4.0. In the bundle via provider-kairos (echo/v4 v4.16.1). Tracking: kairos-io/kairos#5763."
