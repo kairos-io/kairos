@@ -9,6 +9,7 @@ import (
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
+	"github.com/kairos-io/kairos/v4/agent/pkg/state"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -27,6 +28,10 @@ const (
 	// does not have /tmp on it and /tmp is then whatever the image left there,
 	// read-only root included.
 	auditStashRoot = "/run"
+	// stateStashPrefix is the prefix of the staging directory the state file
+	// is held in while the persistent partition is being formatted. It sits
+	// next to the audit trail stash, under auditStashRoot.
+	stateStashPrefix = "kairos-state-"
 )
 
 // StashAuditLog copies the audit trail off the persistent partition into a
@@ -123,6 +128,54 @@ func RestoreAuditLog(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition,
 		}
 		cfg.Logger.Infof("Restored %s onto the persistent partition", cnst.AuditLogPath)
 		return nil
+	})
+}
+
+// StashStateFile copies the state file off the persistent partition into a
+// staging directory under /run, and returns that directory. It returns an
+// empty string when there is no state file. The state file records the first
+// install, which a reset is not meant to forget.
+func StashStateFile(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition) (string, error) {
+	if persistent == nil {
+		return "", nil
+	}
+
+	var stash string
+	err := withPersistentMounted(cfg, persistent, func(root string) error {
+		src := state.Path(root)
+		exists, err := fsutils.Exists(cfg.Fs, src)
+		if err != nil || !exists {
+			return err
+		}
+		stash, err = fsutils.TempDir(cfg.Fs, auditStashRoot, stateStashPrefix)
+		if err != nil {
+			return err
+		}
+		if err := fsutils.Copy(cfg.Fs, src, filepath.Join(stash, state.FileName)); err != nil {
+			_ = cfg.Fs.RemoveAll(stash)
+			stash = ""
+			return err
+		}
+		return nil
+	})
+
+	return stash, err
+}
+
+// RestoreStateFile copies a state file staged by StashStateFile back onto the
+// freshly formatted persistent partition and removes the staging directory.
+func RestoreStateFile(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition, stash string) error {
+	if persistent == nil || stash == "" {
+		return nil
+	}
+	defer func() {
+		if err := cfg.Fs.RemoveAll(stash); err != nil {
+			cfg.Logger.Warnf("could not remove the state file staging dir %s: %s", stash, err)
+		}
+	}()
+
+	return withPersistentMounted(cfg, persistent, func(root string) error {
+		return fsutils.Copy(cfg.Fs, filepath.Join(stash, state.FileName), state.Path(root))
 	})
 }
 
