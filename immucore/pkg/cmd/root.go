@@ -1,6 +1,6 @@
-// Package cmd is the importable entrypoint of immucore. It exposes the CLI app
-// so both the standalone immucore binary and the multi-call kairos binary can
-// dispatch into it.
+// Package cmd is the importable entrypoint of immucore. It exposes the CLI
+// command so both the standalone immucore binary and the multi-call kairos
+// binary can dispatch into it.
 package cmd
 
 import (
@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/immucore/internal/utils"
@@ -18,143 +19,207 @@ import (
 	"github.com/kairos-io/kairos/v4/immucore/pkg/state"
 	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/spectrocloud-labs/herd"
-	"github.com/urfave/cli/v2"
+	"github.com/spf13/cobra"
 )
 
-// NewApp returns the immucore urfave/cli app, ready to be Run.
-func NewApp() *cli.App {
-	app := cli.NewApp()
-	app.Name = "immucore"
-	app.Version = version.Version
-	app.Authors = []*cli.Author{{Name: "Kairos authors"}}
-	app.Copyright = "kairos authors"
-	app.Action = func(c *cli.Context) (err error) {
-		var targetDevice, targetImage string
-		var st *state.State
+// NewCommand returns the immucore root command, ready to be executed.
+func NewCommand() *cobra.Command {
+	var dryRun bool
 
-		utils.MountBasic()
-		utils.SetLogger()
-
-		utils.KLog.Logger.Info().Str("version", version.Version).Str("go", runtime.Version()).Msg("Immucore")
-
-		cmdline, _ := os.ReadFile(utils.GetHostProcCmdline())
-		utils.KLog.Logger.Debug().Str("content", string(cmdline)).Msg("cmdline")
-		g := herd.DAG(herd.EnableInit)
-
-		// Get targets and state
-		targetImage, targetDevice, err = utils.GetTarget(c.Bool("dry-run"))
-		if err != nil {
-			return err
-		}
-
-		st = &state.State{
-			Rootdir:       utils.GetRootDir(),
-			TargetDevice:  targetDevice,
-			TargetImage:   targetImage,
-			RootMountMode: utils.RootRW(),
-			OverlayBase:   utils.GetOverlayBase(),
-			InRAM:         utils.BootInRAM(),
-		}
-
-		// normalBoot tracks whether we took the full active/passive/recovery mount
-		// pipeline. Only that path should drop to an emergency shell on failure:
-		// live media intentionally disables immucore, and UKI already drops to a
-		// shell from inside its own steps.
-		var normalBoot bool
-		switch {
-		case st.InRAM && utils.IsUKI():
-			// Trusted boot in-RAM: the UKI is already the whole system in
-			// RAM, so the regular UKI DAG applies — RegisterUKI keys off
-			// st.InRAM to add partition provisioning (encrypted with the TPM
-			// policy) and to skip the removable-media unlock/sentinel gates.
-			utils.KLog.Logger.Info().Msg("UKI booting in-RAM (kairos.ram) with OEM+persistent from disk!")
-			err = dag.RegisterUKI(st, g)
-		case st.InRAM:
-			// kairos.ram must win over DisableImmucore below: an in-RAM boot
-			// still has live:LABEL / netboot on the cmdline (that is how the
-			// squashfs got copied into RAM in the first place), and we do NOT
-			// want the live-media no-op path — we still need to mount OEM +
-			// persistent + apply cloud-init from disk.
-			utils.KLog.Logger.Info().Msg("Booting in-RAM (kairos.ram) with OEM+persistent from disk.")
-			normalBoot = true
-			err = dag.RegisterInRAMBoot(st, g)
-		case utils.DisableImmucore():
-			utils.KLog.Logger.Info().Msg("Stanza rd.cos.disable/rd.immucore.disable on the cmdline or booting from CDROM/Netboot/Squash recovery. Disabling immucore.")
-			err = dag.RegisterLiveMedia(st, g)
-		case utils.IsUKI():
-			utils.KLog.Logger.Info().Msg("UKI booting!")
-			err = dag.RegisterUKI(st, g)
-		default:
-			utils.KLog.Logger.Info().Msg("Booting on active/passive/recovery.")
-			normalBoot = true
-			err = dag.RegisterNormalBoot(st, g)
-		}
-
-		if err != nil {
-			return err
-		}
-
-		utils.KLog.Logger.Info().Msg(st.WriteDAG(g))
-
-		if steps := utils.BreakpointSteps(); len(steps) > 0 {
-			utils.KLog.Logger.Info().Strs("steps", steps).Msg("Breakpoints requested via rd.immucore.break; a name that is not a step listed above is ignored")
-		}
-
-		// Once we print the dag we can exit already
-		if c.Bool("dry-run") {
-			return nil
-		}
-
-		// A signal that arrives while the DAG is still running means the mount
-		// graph never completed. Exiting quietly here is what leaves a booted
-		// system with no binds, no /etc overlay and no /usr/local, so take over
-		// the console instead of letting the boot continue.
-		stopWatching := watchForTermination(normalBoot, haltTerminated)
-		defer stopWatching()
-
-		err = g.Run(context.Background())
-		utils.KLog.Logger.Info().Msg(st.WriteDAG(g))
-		// Emit the boot timeline (slowest-first) to the log and a machine-readable
-		// trace file under constants.LogDir for diagnosing slow/hung boots.
-		utils.KLog.Logger.Info().Msg(state.RenderTimeline())
-		state.LogTimeline(constants.LogDir)
-
-		// On a normal-boot failure, print and persist a failure summary so the
-		// operator can see which DAG step broke and where the logs are, then return
-		// the error. We do NOT exec our own shell here: normal boot runs immucore as
-		// a dracut hook (not as init), so dracut owns the emergency shell. Exec-ing a
-		// shell ourselves would either hang (no console) or continue booting into the
-		// broken system on shell exit. UKI drops to a shell from inside its own steps
-		// because there immucore is the init; live media is intentionally disabled.
-		if err != nil && normalBoot {
-			summary := utils.RenderFailureSummary(st.FailureReason(g), constants.LogDir)
-			fmt.Fprint(os.Stderr, summary)
-			if _, werr := utils.WriteFailureSummary(constants.LogDir, summary); werr != nil {
-				utils.KLog.Logger.Err(werr).Msg("writing failure summary")
-			}
-		}
-		return err
-	}
-	app.Flags = []cli.Flag{
-		&cli.BoolFlag{
-			Name: "dry-run",
+	cmd := &cobra.Command{
+		Use:     "immucore",
+		Short:   "Mount the Kairos root filesystems from the initramfs",
+		Version: version.Version,
+		// Under UKI immucore is /init, and the kernel hands init every
+		// command-line word it does not recognise as an argument. Those have
+		// always been ignored, and refusing them here would exit pid 1.
+		Args: cobra.ArbitraryArgs,
+		// runApp writes the error to stderr itself, and a mount failure is not
+		// a usage mistake, so the usage text would only bury the summary.
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(*cobra.Command, []string) error {
+			return run(dryRun)
 		},
 	}
-	return app
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "print the mount DAG for this boot and exit without running it")
+	return cmd
+}
+
+// run is the immucore boot flow: it builds the mount DAG for this boot and,
+// unless dryRun is set, runs it.
+func run(dryRun bool) (err error) {
+	var targetDevice, targetImage string
+	var st *state.State
+
+	utils.MountBasic()
+	utils.SetLogger()
+
+	utils.KLog.Logger.Info().Str("version", version.Version).Str("go", runtime.Version()).Msg("Immucore")
+
+	cmdline, _ := os.ReadFile(utils.GetHostProcCmdline())
+	utils.KLog.Logger.Debug().Str("content", string(cmdline)).Msg("cmdline")
+	g := herd.DAG(herd.EnableInit)
+
+	// Get targets and state
+	targetImage, targetDevice, err = utils.GetTarget(dryRun)
+	if err != nil {
+		return err
+	}
+
+	// WriteProtected answers false on boots the layout does not apply to (UKI,
+	// live media), so every DAG sees a consistent answer from one place.
+	writeProtected := utils.WriteProtected()
+	rootMountMode := rootMountModeFor(writeProtected, utils.RootRW())
+
+	st = &state.State{
+		Rootdir:        utils.GetRootDir(),
+		TargetDevice:   targetDevice,
+		TargetImage:    targetImage,
+		RootMountMode:  rootMountMode,
+		OverlayBase:    utils.GetOverlayBase(),
+		InRAM:          utils.BootInRAM(),
+		WriteProtected: writeProtected,
+	}
+
+	// normalBoot tracks whether we took the full active/passive/recovery mount
+	// pipeline. Only that path should drop to an emergency shell on failure:
+	// live media intentionally disables immucore.
+	//
+	// ukiBoot tracks the trusted boot DAG. It usually takes the console from
+	// inside its own steps, but a fatal op (the persistent state binds) stops
+	// the graph before OpUkiInit is reached, and under UKI immucore is the
+	// init, so returning the error there would exit pid 1 and panic the
+	// kernel with nothing on screen. That path takes the console below.
+	var normalBoot, ukiBoot bool
+	switch {
+	case st.InRAM && utils.IsUKI():
+		// Trusted boot in-RAM: the UKI is already the whole system in
+		// RAM, so the regular UKI DAG applies — RegisterUKI keys off
+		// st.InRAM to add partition provisioning (encrypted with the TPM
+		// policy) and to skip the removable-media unlock/sentinel gates.
+		utils.KLog.Logger.Info().Msg("UKI booting in-RAM (kairos.ram) with OEM+persistent from disk!")
+		ukiBoot = true
+		err = dag.RegisterUKI(st, g)
+	case st.InRAM:
+		// kairos.ram must win over DisableImmucore below: an in-RAM boot
+		// still has live:LABEL / netboot on the cmdline (that is how the
+		// squashfs got copied into RAM in the first place), and we do NOT
+		// want the live-media no-op path — we still need to mount OEM +
+		// persistent + apply cloud-init from disk.
+		utils.KLog.Logger.Info().Msg("Booting in-RAM (kairos.ram) with OEM+persistent from disk.")
+		normalBoot = true
+		err = dag.RegisterInRAMBoot(st, g)
+	case utils.DisableImmucore():
+		utils.KLog.Logger.Info().Msg("Stanza rd.cos.disable/rd.immucore.disable on the cmdline or booting from CDROM/Netboot/Squash recovery. Disabling immucore.")
+		err = dag.RegisterLiveMedia(st, g)
+	case utils.IsUKI():
+		utils.KLog.Logger.Info().Msg("UKI booting!")
+		ukiBoot = true
+		err = dag.RegisterUKI(st, g)
+	default:
+		utils.KLog.Logger.Info().Msg("Booting on active/passive/recovery.")
+		normalBoot = true
+		err = dag.RegisterNormalBoot(st, g)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	utils.KLog.Logger.Info().Msg(st.WriteDAG(g))
+
+	if steps := utils.BreakpointSteps(); len(steps) > 0 {
+		utils.KLog.Logger.Info().Strs("steps", steps).Msg("Breakpoints requested via rd.immucore.break; a name that is not a step listed above is ignored")
+	}
+
+	// Once we print the dag we can exit already
+	if dryRun {
+		return nil
+	}
+
+	// A signal that arrives while the DAG is still running can mean the
+	// mount graph never completes. Exiting quietly there is what leaves a
+	// booted system with no binds, no /etc overlay and no /usr/local, so
+	// take over the console instead of letting the boot continue.
+	//
+	// Closing dagDone is what tells the watch the graph is no longer in
+	// flight. A signal does not stop the DAG, and on a boot where it runs
+	// to the end anyway every bind and overlay is in place, so there is
+	// nothing to report. From here on immucore's own failure summary below
+	// owns the outcome.
+	dagDone := make(chan struct{})
+	stopWatching := watchForTermination(normalBoot, dagDone, terminationGrace, haltTerminated)
+	defer stopWatching()
+
+	err = g.Run(context.Background())
+	close(dagDone)
+	utils.KLog.Logger.Info().Msg(st.WriteDAG(g))
+	// Emit the boot timeline (slowest-first) to the log and a machine-readable
+	// trace file under constants.LogDir for diagnosing slow/hung boots.
+	utils.KLog.Logger.Info().Msg(state.RenderTimeline())
+	state.LogTimeline(constants.LogDir)
+
+	// On a normal-boot failure, print and persist a failure summary so the
+	// operator can see which DAG step broke and where the logs are, then return
+	// the error. We do NOT exec our own shell here: normal boot runs immucore as
+	// a dracut hook (not as init), so dracut owns the emergency shell. Exec-ing a
+	// shell ourselves would either hang (no console) or continue booting into the
+	// broken system on shell exit. UKI drops to a shell from inside its own steps
+	// because there immucore is the init; live media is intentionally disabled.
+	if err != nil && normalBoot {
+		summary := utils.RenderFailureSummary(st.FailureReason(g), constants.LogDir)
+		fmt.Fprint(os.Stderr, summary)
+		if _, werr := utils.WriteFailureSummary(constants.LogDir, summary); werr != nil {
+			utils.KLog.Logger.Err(werr).Msg("writing failure summary")
+		}
+	}
+
+	// Under UKI immucore is the init. A fatal op stops the graph before
+	// OpUkiInit, so the step that would normally take the console never
+	// runs, and returning here would exit pid 1. Print, persist and take
+	// the console from here instead. DropToEmergencyShellWithError does
+	// not return on a host with a shell.
+	if err != nil && ukiBoot {
+		utils.DropToEmergencyShellWithError(st.FailureReason(g))
+	}
+
+	return err
 }
 
 // Run runs the immucore CLI with os.Args and returns a process exit code.
 func Run() int {
-	if err := NewApp().Run(os.Args); err != nil {
-		fmt.Println(err)
+	return runApp(NewCommand(), os.Args)
+}
+
+// runApp runs cmd with args, args[0] being the program name as in os.Args, and
+// returns a process exit code. A fatal error is written to stderr, next to the
+// boot-failure summary the boot flow already prints there, so stdout carries
+// only what the command was asked to produce.
+func runApp(cmd *cobra.Command, args []string) int {
+	cmd.SetArgs(args[1:])
+	if err := cmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	return 0
 }
 
-// watchForTermination calls onSignal if immucore is signalled before its mount
-// DAG finishes. It returns a function that stops the watch, to be deferred by
-// the caller once the DAG has run. Production passes haltTerminated.
+// terminationGrace is how long a signalled immucore waits for the mount DAG
+// before it gives up on it and takes over the console.
+//
+// A signal does not stop the DAG: herd runs on, and most signalled boots
+// finish the graph within a second or two. The wait is what keeps the failure
+// screen off those boots. The ceiling is systemd's stop timeout, 90s by
+// default, after which the SIGTERM is followed by a SIGKILL and there is no
+// process left to paint anything, so the grace has to stay well under it.
+const terminationGrace = 15 * time.Second
+
+// watchForTermination calls onSignal when immucore is signalled and its mount
+// DAG is still unfinished grace later. Closing dagDone is what marks the DAG
+// as no longer in flight. The returned function ends the watch and waits for
+// it to settle, to be deferred by the caller. Production passes
+// terminationGrace and haltTerminated.
 //
 // Only a normal boot is guarded. Live media runs a no-op DAG, and UKI makes
 // immucore the init, where a signal is not a mid-mount interruption of a
@@ -163,14 +228,14 @@ func Run() int {
 // The oneshot unit keeps RemainAfterExit=yes, so on a healthy boot the process
 // has already exited by the time systemd acts on Conflicts= during the switch
 // to the real root. Nothing is left to signal, and this watch never fires.
-func watchForTermination(normalBoot bool, onSignal func(os.Signal)) func() {
+func watchForTermination(normalBoot bool, dagDone <-chan struct{}, grace time.Duration, onSignal func(os.Signal)) func() {
 	if !normalBoot {
 		return func() {}
 	}
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM, syscall.SIGINT)
-	stop := watchSignals(signals, onSignal)
+	stop := watchSignals(signals, dagDone, grace, onSignal)
 
 	return func() {
 		signal.Stop(signals)
@@ -178,21 +243,49 @@ func watchForTermination(normalBoot bool, onSignal func(os.Signal)) func() {
 	}
 }
 
-// watchSignals calls onSignal with the first signal to arrive on ch. The
-// returned function ends the watch; calling it after a signal has already been
-// handled is harmless.
-func watchSignals(ch <-chan os.Signal, onSignal func(os.Signal)) func() {
+// watchSignals waits for the first signal on ch and then gives the mount DAG
+// grace to finish. onSignal is called only if dagDone is still open when that
+// grace runs out.
+//
+// The returned function ends the watch and blocks until the watch goroutine
+// has settled, so the caller cannot exit the process while onSignal is
+// painting the console. When onSignal has committed to holding the boot it
+// never returns, and neither does this.
+func watchSignals(ch <-chan os.Signal, dagDone <-chan struct{}, grace time.Duration, onSignal func(os.Signal)) func() {
 	done := make(chan struct{})
+	settled := make(chan struct{})
+
 	go func() {
+		defer close(settled)
+
+		var sig os.Signal
 		select {
-		case sig := <-ch:
-			onSignal(sig)
+		case sig = <-ch:
 		case <-done:
+			return
 		}
+
+		timer := time.NewTimer(grace)
+		defer timer.Stop()
+
+		select {
+		case <-dagDone:
+			utils.KLog.Logger.Warn().Str("signal", sig.String()).
+				Msg("signalled while the mount DAG was running, but the DAG finished; leaving the boot alone")
+			return
+		case <-done:
+			return
+		case <-timer.C:
+		}
+
+		onSignal(sig)
 	}()
 
 	var once sync.Once
-	return func() { once.Do(func() { close(done) }) }
+	return func() {
+		once.Do(func() { close(done) })
+		<-settled
+	}
 }
 
 // haltTerminated takes over the console and stops the boot. Nothing mounted
@@ -208,4 +301,17 @@ func haltTerminated(sig os.Signal) {
 	// point, so stop the process rather than letting a half-mounted root come
 	// up.
 	os.Exit(1)
+}
+
+// rootMountModeFor is the mode the root filesystems are mounted with.
+// rd.immucore.debugrw asks for read-write, which on write-protected media
+// cannot be granted: the kernel refuses the write open with EACCES and there is
+// nothing to fall back to, so the request is ignored there.
+func rootMountModeFor(writeProtected bool, requested string) string {
+	if writeProtected && requested != "ro" {
+		utils.KLog.Logger.Warn().
+			Msg("Ignoring the request to mount root RW: the media is write-protected")
+		return "ro"
+	}
+	return requested
 }

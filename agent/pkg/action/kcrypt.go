@@ -14,31 +14,19 @@ import (
 // resolveNVIndexAndDevice resolves the NV index and TPM device from flags, config, or defaults.
 // Priority: explicit flag > config > default
 func resolveNVIndexAndDevice(cfg *sdkConfig.Config, nvIndex, tpmDevice string) (targetIndex, targetTPMDevice string) {
-	// Determine NV index
-	if nvIndex != "" {
-		targetIndex = nvIndex
-	} else {
-		// Get kcrypt config from the embedded collector.Config
-		var ok bool
-		var kcryptConfig map[string]interface{}
-		if kcryptConfig, ok = cfg.Collector.Values["kcrypt"].(map[string]interface{}); ok {
-			targetIndex, _ = kcryptConfig["nv_index"].(string)
-		}
+	kcryptConfig := kcrypt.KcryptConfigFromCollector(&cfg.Collector, cfg.Logger)
+
+	targetIndex = nvIndex
+	if targetIndex == "" {
+		targetIndex = kcryptConfig.NVIndex
 	}
 	if targetIndex == "" { // If still empty, use default
 		targetIndex = kcrypt.DefaultLocalPassphraseNVIndex
 	}
 
-	// Determine TPM device
-	if tpmDevice != "" {
-		targetTPMDevice = tpmDevice
-	} else {
-		// Get kcrypt config from the embedded collector.Config
-		var ok bool
-		var kcryptConfig map[string]interface{}
-		if kcryptConfig, ok = cfg.Collector.Values["kcrypt"].(map[string]interface{}); ok {
-			targetTPMDevice, _ = kcryptConfig["tpm_device"].(string)
-		}
+	targetTPMDevice = tpmDevice
+	if targetTPMDevice == "" {
+		targetTPMDevice = kcryptConfig.TPMDevice
 	}
 
 	return targetIndex, targetTPMDevice
@@ -52,20 +40,7 @@ func resolveCIndex(cfg *sdkConfig.Config, cIndex string) string {
 		return cIndex
 	}
 
-	// Otherwise, try to get from config
-	var kcryptConfig map[string]interface{}
-	var ok bool
-	if kcryptConfig, ok = cfg.Collector.Values["kcrypt"].(map[string]interface{}); !ok {
-		return ""
-	}
-
-	var challengerConfig map[string]interface{}
-	if challengerConfig, ok = kcryptConfig["challenger"].(map[string]interface{}); !ok {
-		return ""
-	}
-
-	configCIndex, _ := challengerConfig["c_index"].(string)
-	return configCIndex
+	return kcrypt.KcryptConfigFromCollector(&cfg.Collector, cfg.Logger).CIndex
 }
 
 // KcryptReadNV reads and decrypts the value from a TPM NV index.

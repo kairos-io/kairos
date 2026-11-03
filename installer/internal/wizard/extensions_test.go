@@ -116,6 +116,16 @@ var _ = Describe("extension discovery", func() {
 		Expect(found).To(HaveLen(1))
 		Expect(found[0].Label).To(Equal("tools"))
 	})
+
+	It("lists the live media images on the step instead of offering them", func() {
+		writeLiveMedia(root, "tailscale.sysext.raw", "tools.sysext.raw")
+		env := &SystemEnv{LiveMediaDir: root, Catalogs: []string{server.URL}, Client: client, Architecture: "amd64"}
+
+		s := ExtensionsStep(context.Background(), env)
+		Expect(s.Notice).To(Equal("Always installed from the live media: tailscale, tools."))
+		Expect(s.Fields[0].Choices).To(HaveLen(1))
+		Expect(s.Fields[0].Choices[0].Value).To(Equal("nvidia"))
+	})
 })
 
 // unpublishedCatalogJSON is the shape of a real catalog that indexes a layer

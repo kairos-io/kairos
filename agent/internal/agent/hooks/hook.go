@@ -67,7 +67,7 @@ func lockPartitions(log sdkLogger.KairosLogger) {
 	_, _ = utils.SH("udevadm trigger --type=all || udevadm trigger")
 
 	// Get list of active mapper devices
-	dmOutput, err := utils.SH("dmsetup ls --target crypt")
+	dmOutput, err := utils.SHStdout("dmsetup ls --target crypt")
 	if err != nil {
 		log.Debugf("could not list dm devices: %v", err)
 		return

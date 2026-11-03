@@ -51,37 +51,43 @@ func ListBootEntries(cfg *sdkConfig.Config) error {
 // This is needed because GRUB can't read the OEM partition before decryption. However, note that setting
 // next boot entry will NOT work reliably when OEM is encrypted because GRUB's grub.cfg
 // (https://raw.githubusercontent.com/kairos-io/packages/refs/heads/main/packages/static/grub-config/files/grub.cfg)
-// loads OEM env first (if available), then STATE env (which overwrites OEM). Even though
-// we write to both OEM and STATE grubenv when OEM is encrypted, GRUB loads STATE env after
-// OEM (which overwrites OEM), so if STATE grubenv has a stale value, it will overwrite the
+// loads OEM env first (if available), then STATE env, which overwrites OEM. We write only to
+// the STATE grubenv here, because it is the one GRUB reads last and the one it can read
+// without the OEM passphrase, but a stale value already in it would still win over the
 // next_entry we set. There are more pending TODOs around encrypted OEM support:
 // https://github.com/kairos-io/kairos-agent/blob/485d9f7ec23b84ccf5af5ba0e58569b10011ad08/internal/agent/hooks/gruboptions.go#L49-L51
-func writeStateGrubenvWhenOemEncrypted(cfg *sdkConfig.Config, vars map[string]string) {
-	cfg.Logger.Debugf("OEM is encrypted, also writing to STATE partition's grubenv")
+//
+// Every failure here is returned, because writing the variables is the whole point of the
+// call: a caller that swallowed the error would report a boot entry it never set.
+func writeStateGrubenvWhenOemEncrypted(cfg *sdkConfig.Config, vars map[string]string) error {
+	cfg.Logger.Debugf("OEM is encrypted, writing to STATE partition's grubenv")
 	// Mount STATE partition and remount as RW (it's typically mounted as RO)
 	stateDevice, err := utils.GetDeviceByLabel(cfg, cnst.StateLabel, 3)
 	if err != nil {
-		cfg.Logger.Debugf("Could not get STATE device by label: %s", err)
-		return
+		return fmt.Errorf("could not get the %s device by label: %w", cnst.StateLabel, err)
 	}
 	// Ensure STATE is mounted
 	_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{})
 	// Remount as RW
 	remountErr := cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "rw"})
 	if remountErr != nil {
+		// Not fatal on its own: the partition may already be writable. If it is not, the
+		// write below fails and that error is the one the caller gets.
 		cfg.Logger.Debugf("Could not remount STATE partition as RW: %s", remountErr)
 	}
+	// Remount STATE as RO whichever way the write goes, so a failure does not leave the
+	// partition writable for the rest of the boot.
+	defer func() {
+		_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "ro"})
+	}()
 
 	stateGrubenvPath := filepath.Join(cnst.StateDir, cnst.GrubEnv)
-	err = utils.SetPersistentVariables(stateGrubenvPath, vars, cfg)
-	if err != nil {
-		cfg.Logger.Warnf("Could not set default boot entry in STATE grubenv (non-critical): %s", err)
-	} else {
-		cfg.Logger.Debugf("Successfully set next_entry in STATE grubenv")
+	if err := utils.SetPersistentVariables(stateGrubenvPath, vars, cfg); err != nil {
+		return fmt.Errorf("could not write the STATE grubenv %s: %w", stateGrubenvPath, err)
 	}
+	cfg.Logger.Debugf("Successfully set next_entry in STATE grubenv")
 
-	// Remount STATE as RO
-	_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "ro"})
+	return nil
 }
 
 // selectBootEntryGrub sets the default boot entry to the selected entry by modifying /oem/grubenv
@@ -117,14 +123,14 @@ func selectBootEntryGrub(cfg *sdkConfig.Config, entry string) error {
 	// When OEM is not encrypted: only write to OEM partition (grubenv) to avoid having two grubenv files
 	// When OEM is encrypted: only write to STATE partition (grubenv) since GRUB can't read OEM before decryption
 	if oemEncrypted {
-		writeStateGrubenvWhenOemEncrypted(cfg, vars)
+		err = writeStateGrubenvWhenOemEncrypted(cfg, vars)
 	} else {
 		// Set the default entry to the selected entry on /oem/grubenv
 		err = utils.SetPersistentVariables("/oem/grubenv", vars, cfg)
-		if err != nil {
-			cfg.Logger.Errorf("could not set default boot entry: %s\n", err)
-			return err
-		}
+	}
+	if err != nil {
+		cfg.Logger.Errorf("could not set default boot entry: %s\n", err)
+		return err
 	}
 
 	cfg.Logger.Infof("Default boot entry set to %s", entry)

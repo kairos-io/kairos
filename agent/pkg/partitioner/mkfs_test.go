@@ -19,6 +19,7 @@ package partitioner
 import (
 	"errors"
 
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -39,7 +40,7 @@ var _ = ginkgo.Describe("Mkfs", ginkgo.Label("mkfs"), func() {
 			_, err := mkfs.Apply()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(runner.CmdsMatch([][]string{
-				{"mkfs.ext4", "-L", "OEM", "/dev/device1"},
+				{"mkfs.ext4", "-L", "OEM", "-O", constants.ExtDisabledFeatures, "/dev/device1"},
 			})).To(Succeed())
 		})
 
@@ -48,7 +49,7 @@ var _ = ginkgo.Describe("Mkfs", ginkgo.Label("mkfs"), func() {
 			_, err := mkfs.Apply()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(runner.CmdsMatch([][]string{
-				{"mkfs.ext2", "/dev/device1"},
+				{"mkfs.ext2", "-O", constants.ExtDisabledFeatures, "/dev/device1"},
 			})).To(Succeed())
 		})
 
@@ -57,7 +58,7 @@ var _ = ginkgo.Describe("Mkfs", ginkgo.Label("mkfs"), func() {
 			_, err := mkfs.Apply()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(runner.CmdsMatch([][]string{
-				{"mkfs.ext3", "-L", "BOOT", "-F", "-b", "4096", "/dev/device1"},
+				{"mkfs.ext3", "-L", "BOOT", "-O", constants.ExtDisabledFeatures, "-F", "-b", "4096", "/dev/device1"},
 			})).To(Succeed())
 		})
 
@@ -123,7 +124,7 @@ var _ = ginkgo.Describe("Mkfs", ginkgo.Label("mkfs"), func() {
 		ginkgo.It("formats a device with the proper command", func() {
 			Expect(FormatDevice(log, runner, "/dev/device1", "ext4", "MY_LABEL")).To(Succeed())
 			Expect(runner.CmdsMatch([][]string{
-				{"mkfs.ext4", "-L", "MY_LABEL", "/dev/device1"},
+				{"mkfs.ext4", "-L", "MY_LABEL", "-O", constants.ExtDisabledFeatures, "/dev/device1"},
 			})).To(Succeed())
 		})
 
@@ -145,6 +146,49 @@ var _ = ginkgo.Describe("Mkfs", ginkgo.Label("mkfs"), func() {
 			err := FormatDevice(log, runner, "/dev/device1", "ntfs", "MY_LABEL")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unsupported filesystem"))
+		})
+	})
+
+	// The filesystems GRUB has to read before a kernel exists are created by
+	// this package. GRUB refuses an ext filesystem carrying an INCOMPAT
+	// feature it does not know, so any such feature in the mkfs defaults makes
+	// the disk unbootable on the GRUB builds that predate it. These assert the
+	// literal flag rather than the constant, so that changing the constant has
+	// to be a deliberate edit here too.
+	ginkgo.Describe("ext feature set", func() {
+		ginkgo.It("turns metadata_csum_seed off for every ext filesystem", func() {
+			for _, fs := range []string{"ext2", "ext3", "ext4"} {
+				runner = mocks.NewFakeRunner()
+				_, err := NewMkfsCall("/dev/device1", fs, "COS_OEM", runner).Apply()
+				Expect(err).ToNot(HaveOccurred(), fs)
+				Expect(runner.CmdsMatch([][]string{
+					{"mkfs." + fs, "-L", "COS_OEM", "-O", "^metadata_csum_seed", "/dev/device1"},
+				})).To(Succeed(), fs)
+			}
+		})
+
+		ginkgo.It("leaves filesystems that have no -O alone", func() {
+			for _, c := range []struct{ fs, labelFlag string }{
+				{"xfs", "-L"},
+				{"vfat", "-n"},
+				{"fat", "-n"},
+			} {
+				runner = mocks.NewFakeRunner()
+				_, err := NewMkfsCall("/dev/device1", c.fs, "COS_OEM", runner).Apply()
+				Expect(err).ToNot(HaveOccurred(), c.fs)
+				Expect(runner.CmdsMatch([][]string{
+					{"mkfs." + c.fs, c.labelFlag, "COS_OEM", "/dev/device1"},
+				})).To(Succeed(), c.fs)
+			}
+		})
+
+		ginkgo.It("keeps the exclusion when the caller passes its own options", func() {
+			_, err := NewMkfsCall("/dev/device1", "ext4", "COS_RECOVERY", runner, "-O", "^has_journal").Apply()
+			Expect(err).ToNot(HaveOccurred())
+			// mke2fs concatenates repeated -O values, so both survive.
+			Expect(runner.CmdsMatch([][]string{
+				{"mkfs.ext4", "-L", "COS_RECOVERY", "-O", "^metadata_csum_seed", "-O", "^has_journal", "/dev/device1"},
+			})).To(Succeed())
 		})
 	})
 })

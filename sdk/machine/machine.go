@@ -8,7 +8,11 @@ import (
 
 	"github.com/denisbrodbeck/machineid"
 	"github.com/kairos-io/kairos/v4/sdk/machine/service"
+	"github.com/mudler/yip/pkg/console"
+	"github.com/mudler/yip/pkg/executor"
+	"github.com/twpayne/go-vfs/v4"
 
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
@@ -98,14 +102,37 @@ func SentinelExist(f string) bool {
 	return false
 }
 
-func ExecuteInlineCloudConfig(cloudConfig, stage string) error {
-	_, err := utils.ShellSTDIN(cloudConfig, fmt.Sprintf("elemental run-stage -s %s -", stage))
-	return err
+// runStage drives yip in this process over a single source: either a
+// cloud-config document or a path to one.
+//
+// It does not shell out. The command these two helpers used to run,
+// "elemental run-stage", is not in any Kairos image: kairos-init/pkg/bundled
+// embeds kairos, provider-kairos, kairos-installer and edgevpn, and no package
+// list installs elemental. Every other stage call in the tree goes through
+// "kairos-agent run-stage", which takes the stage as a positional argument and
+// cannot read a document from standard input, so it is not a drop-in either.
+//
+// Only the source it is handed runs. /oem and the other default cloud-config
+// directories are deliberately left out: the caller asked for one document,
+// and running the system's whole config as a side effect of that would be a
+// surprise. Use the agent's RunStage when you want the default paths.
+//
+// runStage is a variable so a spec can exercise the callers without a yip run.
+var runStage = func(stage, source string) error {
+	e := executor.NewExecutor(executor.WithLogger(logger.NewKairosLogger("sdk", "info", false)))
+	return e.Run(stage, vfs.OSFS, console.NewStandardConsole(), source)
 }
 
+// ExecuteInlineCloudConfig runs one stage of the cloud-config document it is
+// given against the running system.
+func ExecuteInlineCloudConfig(cloudConfig, stage string) error {
+	return runStage(stage, cloudConfig)
+}
+
+// ExecuteCloudConfig runs one stage of the cloud-config file at the given path
+// against the running system.
 func ExecuteCloudConfig(file, stage string) error {
-	_, err := utils.SH(fmt.Sprintf("elemental run-stage -s %s %s", stage, file))
-	return err
+	return runStage(stage, file)
 }
 
 func FindCommand(def string, options []string) string {

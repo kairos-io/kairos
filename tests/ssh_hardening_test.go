@@ -161,6 +161,12 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 			// sshd-04/sshd-05 assert about /etc/ssh and sshd_config in
 			// a hardened system. moduli is copied so sshd-48's DH-primes
 			// bash check finds it under the same custom path.
+			//
+			// OpenSSH 10.6 made TCPKeepAlive multi-valued, and sshd -T
+			// prints the off state as "false" where sshd-35 compares
+			// against "no". The sed maps that one spelling back so the
+			// control still proves keepalives are off: an enabled
+			// keepalive prints "true" and fails as it should.
 			sshPort := vm.SSHPort()
 			cmd := exec.Command("ssh",
 				"-i", keyPath,
@@ -173,7 +179,11 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 				`sudo sh -c '
 					set -eu
 					mkdir -p /tmp/sshd-effective
-					sshd -T > /tmp/sshd-effective/sshd_config
+					sshd -T > /tmp/sshd-effective/sshd_config.raw
+					sed -e "s/^TCPKeepAlive false$/TCPKeepAlive no/" \
+						-e "s/^tcpkeepalive false$/tcpkeepalive no/" \
+						/tmp/sshd-effective/sshd_config.raw > /tmp/sshd-effective/sshd_config
+					rm /tmp/sshd-effective/sshd_config.raw
 					cp /etc/ssh/moduli /tmp/sshd-effective/moduli
 					chown -R root:root /tmp/sshd-effective
 					chmod 755 /tmp/sshd-effective
@@ -254,7 +264,7 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 			// so the artifact bundle carries both a human-readable
 			// listing and the machine-readable report.
 			_ = os.WriteFile(filepath.Join(reportDir, "ssh-baseline.cli.log"), out, 0o644)
-			summarizeFailedControls(reportPath)
+			summarizeFailedControls("ssh-baseline", reportPath)
 		}
 		Expect(err).ToNot(HaveOccurred(),
 			"ssh-baseline profile reported failures; failed controls are printed above; %s and %s are attached as artifacts",
@@ -328,11 +338,11 @@ func dumpGuestState(vm VM, keyPath string) {
 	}
 }
 
-// summarizeFailedControls parses the cinc-auditor JSON report and
+// summarizeFailedControls parses a cinc-auditor JSON report and
 // prints every failed control's id, title and each failing example's
 // message to GinkgoWriter, so the failure summary in the CI log holds
 // enough context to diagnose without downloading the artifact.
-func summarizeFailedControls(reportPath string) {
+func summarizeFailedControls(label, reportPath string) {
 	raw, err := os.ReadFile(reportPath)
 	if err != nil {
 		GinkgoWriter.Printf("summarizeFailedControls: cannot read %s: %v\n", reportPath, err)
@@ -358,7 +368,7 @@ func summarizeFailedControls(reportPath string) {
 		GinkgoWriter.Printf("summarizeFailedControls: cannot parse %s: %v\n", reportPath, err)
 		return
 	}
-	GinkgoWriter.Printf("\n=== ssh-baseline failed controls ===\n")
+	GinkgoWriter.Printf("\n=== %s failed controls ===\n", label)
 	var failed int
 	for _, p := range report.Profiles {
 		for _, ctl := range p.Controls {

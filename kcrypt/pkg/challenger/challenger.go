@@ -202,16 +202,25 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+// DefaultSecret returns the name of the Secret that holds the passphrase for
+// this volume, and the key inside it.
+//
+// Only the name we generate ourselves is sanitized. SecretName and SecretPath
+// come straight out of the operator's SealedVolume and point at an object the
+// operator already created, so rewriting them makes the lookup miss: a Secret
+// named "kcrypt.passphrase" is a legal RFC 1123 subdomain, and a key named
+// "pass_phrase" is a legal Secret key, but SafeKubeName turns both dots and
+// underscores into hyphens.
 func (s SealedVolumeData) DefaultSecret() (string, string) {
-	secretName := fmt.Sprintf("%s-%s", s.VolumeName, s.PartitionLabel)
-	secretPath := "passphrase"
-	if s.SecretName != "" {
-		secretName = s.SecretName
+	secretName := s.SecretName
+	if secretName == "" {
+		secretName = kube.SafeKubeName(fmt.Sprintf("%s-%s", s.VolumeName, s.PartitionLabel))
 	}
-	if s.SecretPath != "" {
-		secretPath = s.SecretPath
+	secretPath := s.SecretPath
+	if secretPath == "" {
+		secretPath = "passphrase"
 	}
-	return kube.SafeKubeName(secretName), kube.SafeKubeName(secretPath)
+	return secretName, secretPath
 }
 
 // generateTOFUPassphrase creates a cryptographically secure random passphrase for TOFU enrollment
@@ -228,10 +237,28 @@ func generateTOFUPassphrase() (string, error) {
 	return passphrase, nil
 }
 
+// tpmHashLabel is the Secret label that records which TPM a TOFU Secret was created for.
+const tpmHashLabel = "kcrypt.kairos.io/tpm-hash"
+
+// tofuNameHashLen is how many hex characters of the TPM hash go into TOFU
+// object names. 32 characters are 128 bits, so two TPMs never share a name in
+// practice. Names used to carry only 8 (legacyTOFUNameHashLen).
+const tofuNameHashLen = 32
+
+const legacyTOFUNameHashLen = 8
+
+// tofuVolumeName returns the SealedVolume name for a TPM, using the first n hex characters of its hash.
+func tofuVolumeName(tpmHash string, n int) string {
+	if len(tpmHash) < n {
+		n = len(tpmHash)
+	}
+	return kube.SafeKubeName(fmt.Sprintf("tofu-%s", tpmHash[:n]))
+}
+
 // createOrReuseTOFUSecret creates a Kubernetes secret containing the generated passphrase
 // If a secret with the same name already exists, it returns the existing passphrase
 // Returns the passphrase that should be used (either new or existing)
-func createOrReuseTOFUSecret(kclient *kubernetes.Clientset, namespace, secretName, secretPath, passphrase, tpmHash, partitionLabel string, logger logr.Logger) (string, error) {
+func createOrReuseTOFUSecret(kclient kubernetes.Interface, namespace, secretName, secretPath, passphrase, tpmHash, partitionLabel string, logger logr.Logger) (string, error) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      secretName,
@@ -239,7 +266,7 @@ func createOrReuseTOFUSecret(kclient *kubernetes.Clientset, namespace, secretNam
 			Labels: map[string]string{
 				"app.kubernetes.io/name":      "kcrypt-challenger",
 				"app.kubernetes.io/component": "encryption-secret",
-				"kcrypt.kairos.io/tpm-hash":   kube.SafeKubeName(tpmHash),
+				tpmHashLabel:                  kube.SafeKubeName(tpmHash),
 				"kcrypt.kairos.io/partition":  partitionLabel,
 				"kcrypt.kairos.io/managed-by": "kcrypt-challenger", // Additional safety label
 			},
@@ -262,6 +289,12 @@ func createOrReuseTOFUSecret(kclient *kubernetes.Clientset, namespace, secretNam
 				return "", fmt.Errorf("retrieving existing secret: %w", getErr)
 			}
 
+			// The name is derived from the TPM hash, so a Secret we did not
+			// create for this TPM must never be handed out.
+			if existingSecret.Labels[tpmHashLabel] != kube.SafeKubeName(tpmHash) {
+				return "", fmt.Errorf("secret %q already exists and belongs to a different TPM", secretName)
+			}
+
 			existingPassphrase, exists := existingSecret.Data[secretPath]
 			if !exists || len(existingPassphrase) == 0 {
 				return "", fmt.Errorf("existing secret does not contain expected passphrase data at path %s", secretPath)
@@ -279,7 +312,7 @@ func createOrReuseTOFUSecret(kclient *kubernetes.Clientset, namespace, secretNam
 
 // createTOFUSealedVolumeWithAttestation creates a SealedVolume resource with pre-created attestation data
 func createTOFUSealedVolumeWithAttestation(reconciler *controllers.SealedVolumeReconciler, namespace, tpmHash, secretName, secretPath string, partition PartitionInfo, attestation *keyserverv1alpha1.AttestationSpec) error {
-	volumeName := kube.SafeKubeName(fmt.Sprintf("tofu-%s", tpmHash[:8]))
+	volumeName := tofuVolumeName(tpmHash, tofuNameHashLen)
 
 	sealedVolume := &keyserverv1alpha1.SealedVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -545,16 +578,32 @@ func handleTPMAttestation(w http.ResponseWriter, r *http.Request, logger logr.Lo
 }
 
 // performInitialEnrollment creates TOFU enrollment for new TPMs
-func performInitialEnrollment(ctx *EnrollmentContext, attestation *ClientAttestation, reconciler *controllers.SealedVolumeReconciler, kclient *kubernetes.Clientset, namespace string, logger logr.Logger) error {
+func performInitialEnrollment(ctx *EnrollmentContext, attestation *ClientAttestation, reconciler *controllers.SealedVolumeReconciler, kclient kubernetes.Interface, namespace string, logger logr.Logger) error {
 	logger.Info("Creating new TOFU enrollment")
 
 	// Generate secret name and path for new enrollment using DefaultSecret logic
-	safeVolumeName := kube.SafeKubeName(fmt.Sprintf("tofu-%s", ctx.TPMHash[:8]))
+	safeVolumeName := tofuVolumeName(ctx.TPMHash, tofuNameHashLen)
 	volumeData := SealedVolumeData{
 		PartitionLabel: ctx.Partition.Label,
 		VolumeName:     safeVolumeName,
 	}
 	secretName, secretPath := volumeData.DefaultSecret()
+
+	// A Secret left behind by an earlier enrollment of this TPM under the old
+	// 8-character name still holds the passphrase of the encrypted disk, so keep using it.
+	legacyVolume := SealedVolumeData{
+		PartitionLabel: ctx.Partition.Label,
+		VolumeName:     tofuVolumeName(ctx.TPMHash, legacyTOFUNameHashLen),
+	}
+	if legacyName, _ := legacyVolume.DefaultSecret(); legacyName != secretName {
+		legacy, getErr := kclient.CoreV1().Secrets(namespace).Get(context.TODO(), legacyName, metav1.GetOptions{})
+		if getErr == nil && legacy.Labels[tpmHashLabel] == kube.SafeKubeName(ctx.TPMHash) {
+			logger.Info("Reusing Secret from an earlier enrollment of this TPM", "secretName", legacyName)
+			secretName = legacyName
+		} else if getErr != nil && !errors.IsNotFound(getErr) {
+			return fmt.Errorf("looking up legacy TOFU secret: %w", getErr)
+		}
+	}
 
 	// Generate secure passphrase for new enrollment
 	passphrase, err := generateTOFUPassphrase()

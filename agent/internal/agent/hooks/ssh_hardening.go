@@ -1,7 +1,6 @@
 package hook
 
 import (
-	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 	"github.com/mudler/yip/pkg/schema"
@@ -41,12 +40,11 @@ func (SSHHardening) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	}
 	c.Logger.Logger.Debug().Msg("Running SSHHardening hook")
 
-	if err := machine.Mount("COS_OEM", "/oem"); err != nil {
+	umount, err := mountOEM()
+	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = machine.Umount("/oem")
-	}()
+	defer umount()
 
 	cfg := schema.YipConfig{
 		Stages: map[string][]schema.Stage{
@@ -76,7 +74,7 @@ func (SSHHardening) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		},
 	}
 
-	if err := saveCloudConfig("ssh_hardening", cfg); err != nil {
+	if err := saveCloudConfig(c.Fs, "ssh_hardening", cfg); err != nil {
 		return err
 	}
 	c.Logger.Logger.Debug().Msg("Finish SSHHardening hook")

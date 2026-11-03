@@ -124,12 +124,18 @@ func (c *configURLServer) Close() {
 var _ = Describe("kairos install test", Label("install"), func() {
 
 	var vm VM
+	var payloadServer *configURLServer
 	BeforeEach(func() {
 		_, vm = startVM()
 		vm.EventuallyConnects(1200)
 	})
 
 	AfterEach(func() {
+		if payloadServer != nil {
+			payloadServer.Close()
+			payloadServer = nil
+		}
+
 		if CurrentSpecReport().Failed() {
 			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
 			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
@@ -144,11 +150,17 @@ var _ = Describe("kairos install test", Label("install"), func() {
 	})
 
 	Context("install", func() {
-		It("cloud-config syntax mixed with extended syntax", func() {
+		// One install covers both the mixed syntax and a reachable config_url,
+		// so the suite boots one VM fewer. The payload only adds a network
+		// stage marker, which none of the other checks look at.
+		It("cloud-config syntax mixed with extended syntax, with a reachable config_url", func() {
 
 			expectSecureBootEnabled(vm)
 
-			_ = testInstall(`#cloud-config
+			payloadServer = startConfigURLServer()
+
+			_ = testInstall(fmt.Sprintf(`#cloud-config
+config_url: "%s"
 install:
   bind_mounts:
   - /var/bind1
@@ -173,7 +185,7 @@ bundles:
 - rootfs_path: "/usr/local/bin"
   targets:
   - container://quay.io/mocaccino/extra:edgevpn-utils-0.15.0
-`, vm)
+`, payloadServer.URL()), vm)
 
 			expectSecureBootEnabled(vm)
 
@@ -197,6 +209,19 @@ bundles:
 			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("peerguard"))
 
 			stateAssertVM(vm, "persistent.found", "true")
+
+			By("Checking the config_url payload was applied", func() {
+				Eventually(func() string {
+					out, _ := vm.Sudo("cat " + configURLMarkerPath)
+					return out
+				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring(configURLMarkerContent),
+					"the config_url payload was not applied: %s is missing", configURLMarkerPath)
+
+				// Separates "the guest applied our payload" from "the guest
+				// already had a marker lying around".
+				Expect(payloadServer.Hits()).To(BeNumerically(">", 0),
+					"the guest never fetched the config_url payload")
+			})
 
 			By("Checking the multi-call binary layout", func() {
 				out, err := vm.Sudo("test -f /usr/bin/kairos && ! test -L /usr/bin/kairos && echo ok")
@@ -284,49 +309,6 @@ bundles:
 		})
 
 		Context("with config_url", func() {
-			var payloadServer *configURLServer
-
-			AfterEach(func() {
-				if payloadServer != nil {
-					payloadServer.Close()
-					payloadServer = nil
-				}
-			})
-
-			It("succeeds when config_url is accessible", func() {
-				payloadServer = startConfigURLServer()
-
-				testInstall(fmt.Sprintf(`#cloud-config
-config_url: "%s"
-users:
-- name: "kairos"
-  passwd: "kairos"
-  groups:
-    - "admin"
-`, payloadServer.URL()), vm)
-
-				Eventually(func() string {
-					out, err := vm.Sudo("kairos-agent state")
-					Expect(err).ToNot(HaveOccurred())
-					return out
-				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("boot: active_boot"))
-
-				// The state check above only says the machine booted, not that
-				// the remote config was merged.
-				By("Checking the remote payload was applied", func() {
-					Eventually(func() string {
-						out, _ := vm.Sudo("cat " + configURLMarkerPath)
-						return out
-					}, 5*time.Minute, 10*time.Second).Should(ContainSubstring(configURLMarkerContent),
-						"the config_url payload was not applied: %s is missing", configURLMarkerPath)
-				})
-
-				// Separates "the guest applied our payload" from "the guest
-				// already had a marker lying around".
-				Expect(payloadServer.Hits()).To(BeNumerically(">", 0),
-					"the guest never fetched the config_url payload")
-			})
-
 			It("succeeds when config_url is not accessible (and prints a warning)", func() {
 				out := testInstall(`#cloud-config
 config_url: "https://thisurldoesntexist.org"

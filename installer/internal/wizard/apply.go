@@ -36,7 +36,7 @@ func Apply(steps []Step, a Answers, stepID string, values map[string]string) (An
 	case StepUser:
 		errs = applyUser(a, &out, values)
 	case StepSSHKeys:
-		out.SSHKeys = lines(values[FieldSSHKeys])
+		errs = applySSHKeys(a, &out, values)
 	case StepHostname:
 		errs = applyHostname(&out, values)
 	case StepLocale:
@@ -80,6 +80,8 @@ func applyDisk(step Step, out *Answers, values map[string]string) []FieldError {
 func applyUser(prev Answers, out *Answers, values map[string]string) []FieldError {
 	name, pw, confirm := get(values, FieldUsername), values[FieldPassword], values[FieldPassword+ConfirmSuffix]
 	switch {
+	case name == "" && len(prev.SSHKeys) > 0:
+		return fieldErr(FieldUsername, "Clear the SSH keys first, or keep a username. The keys are added to the user's account, so an install with no user has nowhere to put them.")
 	case name == "":
 		out.Username, out.PasswordHash = "", ""
 	case !usernameRe.MatchString(name):
@@ -97,6 +99,20 @@ func applyUser(prev Answers, out *Answers, values map[string]string) []FieldErro
 	default:
 		out.Username = name
 	}
+	return nil
+}
+
+// applySSHKeys folds the keys in. Render writes them as the authorized keys
+// of the user from the step before, so there is nowhere to put them when no
+// username was set. The step says so rather than taking keys it would drop
+// later, which is how an operator ended up with a machine that had neither a
+// password nor a key to log in with.
+func applySSHKeys(prev Answers, out *Answers, values map[string]string) []FieldError {
+	keys := lines(values[FieldSSHKeys])
+	if len(keys) > 0 && prev.Username == "" {
+		return fieldErr(FieldSSHKeys, "Set a username first. The keys are added to that user's account, and an install with no user has nowhere to put them.")
+	}
+	out.SSHKeys = keys
 	return nil
 }
 

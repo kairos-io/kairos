@@ -93,7 +93,7 @@ func (p *installOptionsPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			// survives a detour through the customization page.
 			p.applyFinish()
 			if p.cursor == 0 {
-				return p, func() tea.Msg { return GoToPageMsg{PageID: "summary"} }
+				return p, func() tea.Msg { return GoToPageMsg{PageID: summaryPageID} }
 			}
 			return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 		}
@@ -141,4 +141,4 @@ func (p *installOptionsPage) Help() string {
 	return "↑/k: up • ↓/j: down • enter: select • To select action after install (←/h: left • →/l: right)"
 }
 
-func (p *installOptionsPage) ID() string { return "install_options" }
+func (p *installOptionsPage) ID() string { return installOptionsPageID }

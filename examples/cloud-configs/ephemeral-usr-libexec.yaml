@@ -1,0 +1,83 @@
+#cloud-config
+#
+# Make /usr/libexec writable again, without persisting it across slots.
+#
+# THE PROBLEM THIS SOLVES
+#
+# Kairos 4.4.0 dropped /usr/libexec from PERSISTENT_STATE_PATHS in
+# 00_rootfs.yaml (kairos-io/kairos#4304). /usr/libexec is image content, and
+# persisting it merged one slot's binaries into the other and broke rollback
+# across OS versions.
+#
+# The default RW_PATHS ("/var /etc /srv") does not cover /usr, so after that
+# change /usr/libexec is read-only once the system is booted. Anything that
+# expects to create a directory there now fails. The known case is the
+# kube-controller-manager flexvolume plugin directory, which defaults to
+#
+#   /usr/libexec/kubernetes/kubelet-plugins/volume/exec
+#
+# and fails the pod with:
+#
+#   mkdir /usr/libexec/kubernetes: read-only file system
+#
+# PICK ONE OF THE TWO FIXES
+#
+# 1. Point the component at a writable path. This is the better answer when the
+#    component lets you: /usr/local is the persistent volume (COS_PERSISTENT),
+#    so a flexvolume directory under it survives reboots AND upgrades. For
+#    kube-controller-manager, set --flex-volume-plugin-dir.
+#
+# 2. Make /usr/libexec an ephemeral overlay, which is what this file does. Use
+#    it when the path is not configurable. The directory becomes writable, and
+#    the writes are a tmpfs that is discarded on reboot, so nothing leaks into
+#    the next slot and rollback still works.
+#
+# WHY /usr/libexec AND NOT /usr/libexec/kubernetes
+#
+# An ephemeral path has to exist in the OS image. immucore mounts the overlay
+# onto an existing directory; if the path is absent it logs
+#
+#   Skipping ephemeral overlay: path is not in the OS image.
+#
+# and carries on, so the mount silently does not happen. /usr/libexec ships in
+# the image and /usr/libexec/kubernetes does not, so overlay the parent and let
+# the component create its own subdirectory at runtime.
+#
+# HOW IT TAKES EFFECT
+#
+# install.ephemeral_mounts is read at install time: the agent writes the list to
+# /oem/10_user_custom_mounts.yaml as CUSTOM_EPHEMERAL_MOUNTS, and 00_rootfs.yaml
+# appends it to RW_PATHS in the rootfs.after stage on every boot.
+#
+# On an ALREADY INSTALLED node, install.* is not re-read. Drop the equivalent
+# directly into /oem instead and reboot:
+#
+#   cat <<'EOF' | sudo tee /oem/10_user_custom_mounts.yaml
+#   name: "user_custom_mounts"
+#   stages:
+#     rootfs:
+#       - name: "user_custom_mounts"
+#         environment_file: /run/cos/custom-layout.env
+#         environment:
+#           CUSTOM_BIND_MOUNTS: ""
+#           CUSTOM_EPHEMERAL_MOUNTS: "/usr/libexec"
+#   EOF
+#
+# VERIFYING IT
+#
+#   findmnt /usr/libexec        # expect an overlay backed by tmpfs
+#   grep RW_PATHS /run/cos/cos-layout.env
+#
+install:
+  device: "auto"
+  auto: true
+  # Appended to RW_PATHS. Writable from boot, discarded at reboot, never
+  # merged into the other slot.
+  ephemeral_mounts:
+    - /usr/libexec
+
+users:
+  - name: "kairos"
+    passwd: "kairos"
+    groups:
+      - "admin"

@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -59,7 +60,7 @@ func ListNewerReleases(includePrereleases bool, registry string) ([]string, erro
 }
 
 func Upgrade(
-	source string, strictValidations bool, dirs []string, upgradeEntry string, allowInsecureRegistries bool, excludes ...string) error {
+	source string, strictValidations bool, dirs []string, upgradeEntry string, allowInsecureRegistries bool, dryRun bool, excludes ...string) error {
 	bus.Manager.Initialize()
 
 	fixedDirs := make([]string, len(dirs))
@@ -72,13 +73,13 @@ func Upgrade(
 	}
 
 	if internalutils.UkiBootMode() == internalutils.UkiHDD {
-		return upgradeUki(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries)
+		return upgradeUki(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries, dryRun)
 	} else {
-		return upgrade(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries, excludes...)
+		return upgrade(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries, dryRun, excludes...)
 	}
 }
 
-func upgrade(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, excludes ...string) error {
+func upgrade(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, dryRun bool, excludes ...string) error {
 	c, err := getConfig(sourceImageURL, dirs, upgradeEntry, strictValidations, allowInsecureRegistries, excludes...)
 	if err != nil {
 		return err
@@ -100,6 +101,11 @@ func upgrade(sourceImageURL string, dirs []string, upgradeEntry string, strictVa
 		return err
 	}
 
+	if dryRun {
+		writeUpgradeSummary(os.Stdout, upgradeSpec)
+		return nil
+	}
+
 	upgradeAction := action.NewUpgradeAction(c, upgradeSpec)
 
 	err = upgradeAction.Run()
@@ -110,7 +116,7 @@ func upgrade(sourceImageURL string, dirs []string, upgradeEntry string, strictVa
 	return hook.Run(*c, upgradeSpec, hook.FinishUpgrade...)
 }
 
-func upgradeUki(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool) error {
+func upgradeUki(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, dryRun bool) error {
 	c, err := getConfig(sourceImageURL, dirs, upgradeEntry, strictValidations, allowInsecureRegistries)
 	if err != nil {
 		return err
@@ -131,6 +137,11 @@ func upgradeUki(sourceImageURL string, dirs []string, upgradeEntry string, stric
 	err = upgradeSpec.Sanitize()
 	if err != nil {
 		return err
+	}
+
+	if dryRun {
+		writeUkiUpgradeSummary(os.Stdout, upgradeSpec)
+		return nil
 	}
 
 	upgradeAction := uki.NewUpgradeAction(c, upgradeSpec)

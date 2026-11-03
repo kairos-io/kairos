@@ -3,6 +3,8 @@ package state
 import (
 	"syscall"
 
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -35,6 +37,9 @@ var _ = Describe("UKI base mount table", func() {
 				"%s is mounted without MS_NOSUID", mountpoint)
 			Expect(flags&syscall.MS_NODEV).To(Equal(uintptr(syscall.MS_NODEV)),
 				"%s is mounted without MS_NODEV", mountpoint)
+			// CIS 1.1.5 (/tmp) and 1.1.17 (/dev/shm).
+			Expect(flags&syscall.MS_NOEXEC).To(Equal(uintptr(syscall.MS_NOEXEC)),
+				"%s is mounted without MS_NOEXEC", mountpoint)
 		},
 		Entry("/dev/shm", "/dev/shm"),
 		Entry("/tmp", "/tmp"),
@@ -56,5 +61,18 @@ var _ = Describe("UKI base mount table", func() {
 		flags, found := flagsFor("/tmp")
 		Expect(found).To(BeTrue())
 		Expect(flags&syscall.MS_SHARED).To(BeZero(), "flagsFor read the propagation entry")
+	})
+})
+
+var _ = Describe("GRUB /tmp and /dev/shm mounts", func() {
+	It("mounts /tmp nodev, nosuid and noexec (CIS 1.1.3-1.1.5)", func() {
+		Expect(cnst.TmpMountOptions).To(ContainElements("nodev", "nosuid", "noexec"))
+	})
+
+	It("remounts /dev/shm nodev, nosuid and noexec (CIS 1.1.17)", func() {
+		Expect(cnst.DevShmRemountFlags & syscall.MS_REMOUNT).ToNot(BeZero())
+		Expect(cnst.DevShmRemountFlags & syscall.MS_NODEV).ToNot(BeZero())
+		Expect(cnst.DevShmRemountFlags & syscall.MS_NOSUID).ToNot(BeZero())
+		Expect(cnst.DevShmRemountFlags & syscall.MS_NOEXEC).ToNot(BeZero())
 	})
 })

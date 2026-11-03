@@ -16,6 +16,8 @@ import (
 
 // Run starts the agent provider emitting the bootstrap event.
 func Run(opts ...Option) error {
+	bus.Manager.Initialize()
+
 	o := &Options{}
 	if err := o.Apply(opts...); err != nil {
 		return err

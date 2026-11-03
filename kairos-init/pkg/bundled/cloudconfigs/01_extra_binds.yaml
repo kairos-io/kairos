@@ -1,6 +1,24 @@
 # This file will set specific binds for specific distros
 # both in Normal and trusted boot paths.
 # Does not apply to livecd, recovery or reset.
+#
+# A path listed here has to satisfy both of the rules below, because a
+# PERSISTENT_STATE_PATHS entry is rsynced into /usr/local/.state and then
+# bind-mounted over the running slot:
+#
+#   - the image has to ship the directory, or it has to sit under an overlay
+#     from RW_PATHS (/var, /etc, /srv). immucore creates a missing mountpoint,
+#     and everywhere else the rootfs is read-only, so the bind fails on every
+#     boot. That is kairos-io/kairos#3442, which this file was added to fix.
+#   - it has to be machine-owned, not image content. Nothing under /usr except
+#     /usr/local, which is the persistent partition itself. Persisting image
+#     content merges one slot into the other and breaks rollback, see
+#     kairos-io/kairos#4304.
+#
+# The Red Hat and SUSE families used to get /usr/share/pki/trust here. It broke
+# both rules at once: only SUSE has that directory, so the Red Hat family it
+# was added for hit #3442 on every boot, and on SUSE it is the distro CA bundle,
+# so it hit #4304. See kairos-io/kairos#4747.
 name: "Extra binds for specific distros"
 stages:
   rootfs:
@@ -9,15 +27,11 @@ stages:
       name: "Extra layout configuration for active/passive mode (Ubuntu/Debian)"
       environment_file: /run/cos/extra-layout.env
       environment:
+        # /snap is on the rootfs and the base image does not ship it, so
+        # steps_init.go creates it at build time. /var/snap and /var/lib/snapd
+        # are absent too but sit under the /var overlay, so immucore can create
+        # them.
         PERSISTENT_STATE_PATHS: >-
           /snap
           /var/snap
           /var/lib/snapd
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -e "/run/cos/uki_install_mode" ] && [ ! -e "/run/cos/autoreset_mode" ]'
-      only_os: "Red.*Hat.*|CentOS.*|Fedora.*|Rocky.*|AlmaLinux.*|Oracle.*Linux.*|SLES.*|[Oo]penSUSE.*|SUSE.*"
-      name: "Extra layout configuration for active/passive mode"
-      environment_file: /run/cos/extra-layout.env
-      environment:
-        PERSISTENT_STATE_PATHS: >-
-          /usr/share/pki/trust
-          /usr/share/pki/trust/anchors

@@ -74,11 +74,16 @@ const (
 	ErrorPrefix           = "ERROR:"
 )
 
+// Navigation IDs of the two pages the model itself has to reason about. The
+// other pages return their literal from ID(); these are named because goBack
+// compares against them.
+const (
+	installOptionsPageID = "install_options"
+	summaryPageID        = "summary"
+)
+
 // DebugBundlePageID is the navigation ID of the debug bundle page.
 const DebugBundlePageID = "debug_bundle"
-
-// version is the installer version, overridable at build time via -ldflags.
-var version = "dev"
 
 // Installation steps for show
 const (

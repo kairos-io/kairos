@@ -1,15 +1,40 @@
 package mounts
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/kairos-io/kairos/v4/sdk/blockdev"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
+// ErrReadOnlyDevice is returned when the caller asked to write to a partition on
+// media the kernel refuses writes to. It lets a caller tell "this cannot be
+// persisted, and no remount will change that" from an ordinary mount failure;
+// the two callers today simply propagate it.
+var ErrReadOnlyDevice = errors.New("device is read-only")
+
 func PrepareWrite(partition state.PartitionState, mountpath string) error {
+	// Checked before the remount below, because that remount is the wrong answer
+	// here. PartitionState.IsReadOnly is derived from the mount options (ghw
+	// reads /proc/mounts and looks for "rw"), so it means "this mount is ro",
+	// for which remounting rw is a perfectly good fix. Hardware write protection
+	// is a different thing that no remount can undo, and attempting it is
+	// refused with a bare EACCES that says nothing about why.
+	if partition.Name != "" {
+		device := partition.Name
+		if !filepath.IsAbs(device) {
+			device = filepath.Join("/dev", device)
+		}
+		if ro, err := blockdev.ReadOnly(device); err == nil && ro {
+			return fmt.Errorf("%w: %s is write-protected, so remounting it read-write cannot succeed", ErrReadOnlyDevice, device)
+		}
+	}
+
 	if partition.Mounted && partition.IsReadOnly {
 		if mountpath == partition.MountPoint {
 			return remount("rw", partition.MountPoint)
@@ -46,7 +71,7 @@ func umount(path string) error {
 func remount(opt, path string) error {
 	out, err := utils.SH(fmt.Sprintf("mount -o %s,remount %s", opt, path))
 	if err != nil {
-		return fmt.Errorf("failed umounting: %s: %w", out, err)
+		return fmt.Errorf("failed remounting %s as %s: %s: %w", path, opt, out, err)
 	}
 	return nil
 }

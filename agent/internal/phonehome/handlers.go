@@ -16,6 +16,8 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/agent/pkg/utils/partitions"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -51,25 +53,48 @@ const (
 
 var selectBootEntry = action.SelectBootEntry
 var rebootScheduler = scheduleReboot
-var persistentDir = constants.PersistentDir
 
+// createArtifactTempFile creates the file an artifact image is downloaded
+// into. It lives on the persistent partition: /tmp is a tmpfs sized from RAM,
+// and an image can be larger than it.
 func createArtifactTempFile(config *sdkConfig.Config, artifactID string) (*os.File, error) {
-	if config == nil || config.Mounter == nil {
-		return nil, fmt.Errorf("cannot verify the persistent partition mount")
+	if config == nil {
+		return nil, fmt.Errorf("cannot look up the persistent partition")
 	}
-	notMounted, err := config.Mounter.IsLikelyNotMountPoint(persistentDir)
+	mountPoint, err := persistentMountPoint(config)
 	if err != nil {
-		return nil, fmt.Errorf("checking persistent partition mount: %w", err)
-	}
-	if notMounted {
-		return nil, fmt.Errorf("persistent partition %s is not mounted", persistentDir)
+		return nil, err
 	}
 
-	tempDir := filepath.Join(persistentDir, "tmp")
+	tempDir := filepath.Join(mountPoint, "tmp")
 	if err := os.MkdirAll(tempDir, 0750); err != nil {
 		return nil, fmt.Errorf("creating persistent temporary directory: %w", err)
 	}
 	return os.CreateTemp(tempDir, fmt.Sprintf("phonehome-upgrade-%s-*.tar", artifactID))
+}
+
+// persistentMountPoint returns where COS_PERSISTENT is mounted on the running
+// system: /usr/local, where immucore mounts it. constants.PersistentDir is
+// only where the agent mounts the partition itself during install and upgrade
+// hooks, and nothing is mounted there while the system runs. The lookup is
+// the one NewUpgradeSpec makes: the plain partition first, then an unlocked
+// encrypted one through device-mapper.
+func persistentMountPoint(config *sdkConfig.Config) (string, error) {
+	parts, err := partitions.GetAllPartitions(&config.Logger)
+	if err != nil {
+		return "", fmt.Errorf("listing partitions: %w", err)
+	}
+	part := spec.GetPartitionByNameOrLabel("", sdkConstants.PersistentLabel, parts)
+	if part == nil && config.Fs != nil {
+		part = partitions.GetPartitionViaDM(config.Fs, sdkConstants.PersistentLabel)
+	}
+	if part == nil {
+		return "", fmt.Errorf("no persistent partition (%s) found", sdkConstants.PersistentLabel)
+	}
+	if part.MountPoint == "" {
+		return "", fmt.Errorf("persistent partition %s is not mounted", sdkConstants.PersistentLabel)
+	}
+	return part.MountPoint, nil
 }
 
 // DefaultCommandHandler returns a CommandHandler that handles all phone-home commands.

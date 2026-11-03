@@ -1,16 +1,21 @@
 package bundled_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/twpayne/go-vfs/v4/vfst"
 )
 
 // section returns the body of one ini section of a unit file, so an assertion
@@ -26,6 +31,110 @@ func section(unit, name string) string {
 		return rest[:next]
 	}
 	return rest
+}
+
+// unitDirective collects every value one [Unit] directive is given, so an
+// assertion about ordering reads the directives rather than the file text:
+// systemd accepts the same unit listed on its own line or space separated
+// with others, and a word in a comment is not a dependency at all.
+func unitDirective(unit, key string) []string {
+	var out []string
+	for _, line := range strings.Split(section(unit, "Unit"), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+		v, ok := strings.CutPrefix(line, key+"=")
+		if !ok {
+			continue
+		}
+		out = append(out, strings.Fields(v)...)
+	}
+	return out
+}
+
+// defaultServiceAfter is the implicit ordering systemd.service(5) gives a
+// service unit that does not set DefaultDependencies=no: "dependencies of
+// type Requires= and After= on sysinit.target, a dependency of type After= on
+// basic.target as well as dependencies of type Conflicts= and Before= on
+// shutdown.target".
+var defaultServiceAfter = []string{"sysinit.target", "basic.target"}
+
+// effectiveAfter is what a service unit really waits for: the After= it
+// declares plus the implicit ordering, unless it has opted out. Reading only
+// the declared After= would call a unit early that systemd holds until
+// basic.target.
+func effectiveAfter(unit string) []string {
+	after := unitDirective(unit, "After")
+	if !slices.Contains(unitDirective(unit, "DefaultDependencies"), "no") {
+		after = append(after, defaultServiceAfter...)
+	}
+	return after
+}
+
+// bootOrder returns the units the splash is ordered against, earliest first,
+// by sorting the ordering edges it declares together with the ones systemd's
+// own units declare. It reports an error when the edges cannot be sorted,
+// which is the ordering cycle systemd would log and then break at random.
+//
+// The fixed edges are read off the shipped units: systemd-vconsole-setup and
+// systemd-sysctl both carry Before=sysinit.target and declare no edge between
+// each other, getty@.service carries Before=getty.target
+// and has default dependencies, and sysinit.target is before basic.target.
+func bootOrder(unit, name string) ([]string, error) {
+	before := map[string][]string{
+		"systemd-vconsole-setup.service": {"sysinit.target"},
+		"systemd-sysctl.service":         {"sysinit.target"},
+		"sysinit.target":                 {"basic.target"},
+		"basic.target":                   {"getty@tty1.service", "getty.target"},
+		"getty@tty1.service":             {"getty.target"},
+	}
+	edge := func(from, to string) { before[from] = append(before[from], to) }
+	for _, u := range effectiveAfter(unit) {
+		edge(u, name)
+	}
+	for _, u := range unitDirective(unit, "Before") {
+		edge(name, u)
+	}
+
+	nodes := map[string]bool{name: true}
+	for from, tos := range before {
+		nodes[from] = true
+		for _, to := range tos {
+			nodes[to] = true
+		}
+	}
+	indeg := map[string]int{}
+	for n := range nodes {
+		indeg[n] += 0
+		for _, to := range before[n] {
+			indeg[to]++
+		}
+	}
+	var ready []string
+	for n, d := range indeg {
+		if d == 0 {
+			ready = append(ready, n)
+		}
+	}
+	var order []string
+	for len(ready) > 0 {
+		// Sort the frontier so the result does not depend on map order.
+		slices.Sort(ready)
+		n := ready[0]
+		ready = ready[1:]
+		order = append(order, n)
+		for _, to := range before[n] {
+			indeg[to]--
+			if indeg[to] == 0 {
+				ready = append(ready, to)
+			}
+		}
+	}
+	if len(order) != len(nodes) {
+		return order, fmt.Errorf("ordering cycle: sorted %d of %d units", len(order), len(nodes))
+	}
+	return order, nil
 }
 
 // menuentry returns the body of one grub menuentry block, selected by its
@@ -127,8 +236,80 @@ var _ = Describe("SplashService", func() {
 		Expect(svc).To(ContainSubstring("TimeoutStartSec="))
 	})
 
+	// getty@.service ships Before=getty.target itself, so ordering the splash
+	// before the target only makes the two siblings of it: nothing keeps
+	// getty@tty1.service from starting while the splash still animates, and
+	// the login prompt is then drawn over it. The unit has to be ordered
+	// before the getty instance that owns the console it writes to.
+	It("is ordered before the getty on the console it writes to", func() {
+		u := section(unit(), "Unit")
+		Expect(section(unit(), "Service")).To(ContainSubstring("TTYPath=/dev/tty1"))
+		Expect(u).To(ContainSubstring("Before=getty@tty1.service"))
+	})
+
 	It("is a no-op when started a second time", func() {
 		Expect(section(unit(), "Service")).To(ContainSubstring("RemainAfterExit=yes"))
+	})
+
+	// The initramfs animation is killed at switch-root. If this unit waits
+	// for basic.target, which is what systemd gives a service that keeps its
+	// default dependencies, the console is blank with systemd status on it
+	// for the whole of sysinit: 2.7 s on the boot in kairos-io/kairos#5272.
+	// None of that work is anything the animation reads.
+	It("does not wait for the whole of sysinit before it draws", func() {
+		Expect(effectiveAfter(unit())).ToNot(ContainElement("basic.target"),
+			"the booted splash is held until basic.target, so the console "+
+				"stays blank from switch-root until sysinit is done")
+		Expect(effectiveAfter(unit())).ToNot(ContainElement("sysinit.target"))
+	})
+
+	// The console font is loaded by systemd-vconsole-setup.service. The
+	// wordmark is block art, so a font swap underneath a painted frame is
+	// visible, and the unit is Before=sysinit.target anyway: waiting for it
+	// costs nothing of the gap this unit exists to fill.
+	It("waits for the console font before painting block art", func() {
+		Expect(unitDirective(unit(), "After")).
+			To(ContainElement("systemd-vconsole-setup.service"))
+	})
+
+	// The splash saves kernel.printk on start and writes it back on exit. If
+	// systemd-sysctl applies a kernel.printk from /etc/sysctl.d during the
+	// animation, the saved value wins when the animation ends and the image's
+	// setting is gone until the next boot. basic.target used to order the two
+	// and stock systemd puts no edge between sysctl and vconsole-setup, so
+	// this unit has to declare it.
+	It("waits for the sysctls before it saves the console log level", func() {
+		Expect(unitDirective(unit(), "After")).
+			To(ContainElement("systemd-sysctl.service"))
+		order, err := bootOrder(unit(), "kairos-splash.service")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(slices.Index(order, "systemd-sysctl.service")).
+			To(BeNumerically("<", slices.Index(order, "kairos-splash.service")))
+	})
+
+	// Opting out of the default dependencies also opts out of the two that
+	// take a unit down with the system, so they have to be written back. A
+	// oneshot with RemainAfterExit=yes is still active at shutdown, and
+	// without these systemd has no order in which to stop it.
+	It("is still stopped at shutdown without the default dependencies", func() {
+		if slices.Contains(unitDirective(unit(), "DefaultDependencies"), "no") {
+			Expect(unitDirective(unit(), "Conflicts")).To(ContainElement("shutdown.target"))
+			Expect(unitDirective(unit(), "Before")).To(ContainElement("shutdown.target"))
+		}
+	})
+
+	// Ordering a unit earlier is only safe if the edges it declares still
+	// sort against the ones the shipped systemd units declare. Sorting them
+	// catches the cycle that an After= on something downstream of getty
+	// would make, which systemd logs and then breaks by dropping an edge of
+	// its choice.
+	It("sorts between the console setup and the getty on tty1", func() {
+		order, err := bootOrder(unit(), "kairos-splash.service")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(slices.Index(order, "systemd-vconsole-setup.service")).
+			To(BeNumerically("<", slices.Index(order, "kairos-splash.service")))
+		Expect(slices.Index(order, "kairos-splash.service")).
+			To(BeNumerically("<", slices.Index(order, "getty@tty1.service")))
 	})
 
 	// The live ISO runs the interactive installer on tty1 and an automatic
@@ -260,6 +441,7 @@ declare systemdsystemunitdir=/usr/lib/systemd/system
 require_binaries() { for b in "$@"; do echo "require_binaries $b" >> %[2]s; done; return %[3]d; }
 inst_multiple() { for f in "$@"; do echo "inst_multiple $f" >> %[2]s; done; }
 inst_simple() { echo "inst_simple $1 ${2:-}" >> %[2]s; }
+instmods() { echo "instmods hostonly=[${hostonly-unset}] $*" >> %[2]s; }
 ln_r() { echo "ln_r $1 $2" >> %[2]s; }
 derror() { echo "derror $*" >> %[2]s; }
 source %[1]s/module-setup.sh
@@ -381,6 +563,46 @@ source %[1]s/module-setup.sh
 			"splash_branding_dir="+filepath.Join(dir, "absent"))
 		Expect(recorded).ToNot(ContainSubstring("absent"))
 	})
+
+	// Omitting plymouth takes dracut's drm and simpledrm modules with it, so
+	// an initramfs built from this config has no KMS driver and draws on the
+	// firmware text console. The booted half draws on a framebuffer, so the
+	// logo changes size halfway through the boot unless the module brings a
+	// driver of its own.
+	It("pulls a KMS driver into the initramfs", func() {
+		_, recorded := run("installkernel", 0)
+		for _, mod := range []string{"simpledrm", "bochs", "virtio-gpu"} {
+			Expect(recorded).To(MatchRegexp(`instmods .*\b`+regexp.QuoteMeta(mod)+`\b`), mod)
+		}
+	})
+
+	// hostonly="no" is set image-wide, so dracut has no host to narrow the
+	// driver set down to. Asking for the whole of drivers/gpu/drm there is
+	// tens of megabytes of initramfs, which is what dracut's own drm module
+	// would do and why this module names drivers instead of depending on it.
+	It("names drivers rather than depending on dracut's drm module", func() {
+		_, depended := run("depends", 0)
+		Expect(depended).To(BeEmpty())
+		_, recorded := run("installkernel", 0)
+		Expect(recorded).ToNot(ContainSubstring("=drivers/"))
+	})
+
+	// The image is built somewhere that has nothing to do with the machine it
+	// boots on, so the drivers have to go in whether or not the builder has
+	// that hardware. Dropping the prefix would inherit dracut's own hostonly
+	// and silently produce an initramfs that only animates on the build host.
+	It("installs the drivers regardless of the build host's hardware", func() {
+		_, recorded := run("installkernel", 0)
+		Expect(recorded).To(ContainSubstring("instmods hostonly=[] "))
+	})
+
+	// instmods is optional unless it is called with -c. A -c here would turn
+	// a kernel built without, say, virtio-gpu into a failed image build.
+	It("does not fail the build when a driver is not in the kernel", func() {
+		_, recorded := run("installkernel", 0)
+		Expect(recorded).To(ContainSubstring("instmods "))
+		Expect(recorded).ToNot(MatchRegexp(`instmods .*\s-c\b`))
+	})
 })
 
 var _ = Describe("BootArgsCfg", func() {
@@ -407,5 +629,244 @@ var _ = Describe("BootArgsCfg", func() {
 			Expect(entry).To(ContainSubstring("$kernel $kernelcmd"), id)
 			Expect(entry).ToNot(ContainSubstring("kairos.splash=0"), id)
 		}
+	})
+})
+
+// kernelCmdlineAllows evaluates every ConditionKernelCommandLine= of a unit
+// section against a command line the way systemd does: a value with a "="
+// must equal a whole word, a value without one matches the bare word or any
+// word that assigns it, and a leading "!" negates. The conditions are ANDed.
+func kernelCmdlineAllows(unitSection, cmdline string) bool {
+	words := strings.Fields(cmdline)
+	for _, line := range strings.Split(unitSection, "\n") {
+		value, ok := strings.CutPrefix(strings.TrimSpace(line), "ConditionKernelCommandLine=")
+		if !ok {
+			continue
+		}
+		// A triggering condition ("|") is ORed rather than ANDed. None of the
+		// units use one, and this evaluator would get it wrong.
+		Expect(value).ToNot(HavePrefix("|"), line)
+		value, negate := strings.CutPrefix(value, "!")
+		found := false
+		for _, w := range words {
+			if strings.Contains(value, "=") {
+				found = found || w == value
+			} else {
+				found = found || w == value || strings.HasPrefix(w, value+"=")
+			}
+		}
+		if found == negate {
+			return false
+		}
+	}
+	return true
+}
+
+// grubCmdline builds the kernel command line a GrubCfg menuentry boots, out
+// of the same pieces GRUB uses: the entry's own label and image, BootArgsCfg's
+// baseCmd and the baseRootCmd for that image, and whatever the entry appends
+// after the extra_*_cmdline variables. squashfs picks the recovery image
+// shipped as a squashfs (root=live:...) over the .img file.
+func grubCmdline(id string, squashfs bool) string {
+	entry := menuentry(bundled.GrubCfg, id)
+	Expect(entry).ToNot(BeEmpty(), "no menuentry --id %s", id)
+
+	vars := map[string]string{
+		"label": regexp.MustCompile(`set label=(\S+)`).FindStringSubmatch(entry)[1],
+	}
+	imgs := regexp.MustCompile(`set img=(\S+)`).FindAllStringSubmatch(entry, -1)
+	Expect(imgs).ToNot(BeEmpty(), id)
+	vars["img"] = imgs[len(imgs)-1][1]
+	rootCmd := regexp.MustCompile(`set baseRootCmd="(root=LABEL[^"]*)"`)
+	if squashfs {
+		Expect(entry).To(ContainSubstring("set recoverylabel="), id)
+		vars["img"] = imgs[0][1]
+		vars["recoverylabel"] = regexp.MustCompile(`set recoverylabel=(\S+)`).FindStringSubmatch(entry)[1]
+		rootCmd = regexp.MustCompile(`set baseRootCmd="(root=live:[^"]*)"`)
+	}
+
+	base := regexp.MustCompile(`set baseCmd="([^"]*)"`).FindStringSubmatch(bundled.BootArgsCfg)
+	Expect(base).ToNot(BeNil())
+	root := rootCmd.FindStringSubmatch(bundled.BootArgsCfg)
+	Expect(root).ToNot(BeNil())
+	tail := regexp.MustCompile(`\$kernelcmd \$\{extra_cmdline\} \$\{extra_\w+_cmdline\}(.*)`).
+		FindStringSubmatch(entry)
+	Expect(tail).ToNot(BeNil(), id)
+
+	cmdline := base[1] + " " + root[1] + tail[1]
+	for k, v := range vars {
+		cmdline = strings.ReplaceAll(cmdline, "$"+k, v)
+	}
+	Expect(cmdline).ToNot(ContainSubstring("$"), id)
+	return cmdline
+}
+
+// immucore decides what kind of boot this is from the command line and
+// writes /run/cos/recovery_mode or autoreset_mode, which is what keeps the
+// booted-system unit off those boots. The initramfs unit starts before that
+// file exists, so it has to reach the same answer from the command line on
+// its own. These specs boot every GRUB entry through both and require them to
+// agree: the splash runs exactly on the boots immucore calls active or
+// passive.
+var _ = Describe("SplashServiceDracut on each boot entry", func() {
+	unitSection := func() string { return section(bundled.SplashServiceDracut, "Unit") }
+
+	bootState := func(cmdline string) state.Boot {
+		fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/proc/cmdline": cmdline})
+		Expect(err).ToNot(HaveOccurred())
+		defer cleanup()
+		b, err := state.DetectBootWithVFS(fs)
+		Expect(err).ToNot(HaveOccurred())
+		return b
+	}
+
+	DescribeTable("animates only where immucore will not write recovery_mode or autoreset_mode",
+		func(id string, squashfs bool, extra string, want state.Boot) {
+			cmdline := grubCmdline(id, squashfs) + extra
+			Expect(bootState(cmdline)).To(Equal(want), cmdline)
+			Expect(kernelCmdlineAllows(unitSection(), cmdline)).To(
+				Equal(want == state.Active || want == state.Passive), cmdline)
+		},
+		Entry("active", "cos", false, "", state.Active),
+		Entry("fallback", "fallback", false, "", state.Passive),
+		Entry("recovery from recovery.img", "recovery", false, "", state.Recovery),
+		Entry("recovery from recovery.squashfs", "recovery", true, "", state.Recovery),
+		Entry("state reset from recovery.img", "statereset", false, "", state.AutoReset),
+		Entry("state reset from recovery.squashfs", "statereset", true, "", state.AutoReset),
+		// No shipped entry adds kairos.reset to an active root, but immucore
+		// reads it ahead of every other marker, so a custom grubmenu entry that
+		// does must not get an animation either.
+		Entry("an active root with kairos.reset", "cos", false, " kairos.reset", state.AutoReset),
+	)
+
+	It("still needs the splash word on an active boot", func() {
+		cmdline := strings.Replace(grubCmdline("cos", false), " splash ", " ", 1)
+		Expect(cmdline).ToNot(MatchRegexp(`\bsplash\b`))
+		Expect(kernelCmdlineAllows(unitSection(), cmdline)).To(BeFalse())
+	})
+})
+
+// grubToBash rewrites the subset of GRUB script BootArgsCfg uses into bash, so
+// that a test can run the real thing and read the command line it builds
+// rather than pattern-match its source.
+//
+// Three rewrites, and no others. Each one is a syntax difference, never a
+// behaviour one:
+//
+//  1. "(loop0)" is GRUB's name for the mounted system image. It becomes
+//     $LOOP0, a directory the test fills with os-release and kairos-release,
+//     so the "source" lines and the [ -f ] guard run for real.
+//  2. GRUB spells assignment "set var=value"; bash spells it "var=value".
+//  3. GRUB's test is a token-stream parser, so the "-o test" in setSelinux
+//     parses as "-o" followed by a one-argument test of the word "test",
+//     which is a non-empty string and therefore true, ANDed with the
+//     comparison that follows. bash's test rejects the extra word outright.
+//     Dropping it keeps GRUB's meaning.
+//
+// Anything else has to run as written. The caller asserts on an empty stderr,
+// which is what stops a construct this does not model from passing silently.
+func grubToBash(script string) string {
+	script = strings.ReplaceAll(script, "(loop0)", "${LOOP0}")
+	script = strings.ReplaceAll(script, " -o test ", " -o ")
+	script = strings.ReplaceAll(script, " -a test ", " -a ")
+
+	lines := strings.Split(script, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		indent := line[:len(line)-len(trimmed)]
+		if rest, ok := strings.CutPrefix(trimmed, "set "); ok && strings.Contains(rest, "=") {
+			lines[i] = indent + rest
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// entryLabel reads the "set label=" a menuentry assigns before it sources
+// bootargs.cfg. The quiet carve-out keys off that value, so the test takes it
+// from GrubCfg instead of restating it: moving an entry to a different label
+// has to show up here.
+func entryLabel(id string) string {
+	for _, line := range strings.Split(menuentry(bundled.GrubCfg, id), "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "set label="); ok {
+			return rest
+		}
+	}
+	return ""
+}
+
+var _ = Describe("BootArgsCfg quiet", func() {
+	var dir string
+
+	BeforeEach(func() {
+		dir = GinkgoT().TempDir()
+		Expect(os.MkdirAll(filepath.Join(dir, "loop0", "etc"), 0o755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "loop0", "etc", "os-release"),
+			[]byte("ID=alpine\n"), 0o644)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "loop0", "etc", "kairos-release"),
+			[]byte("KAIROS_FAMILY=alpine\nKAIROS_MODEL=generic\n"), 0o644)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(dir, "bootargs.sh"),
+			[]byte(grubToBash(bundled.BootArgsCfg)), 0o644)).To(Succeed())
+	})
+
+	// cmdline runs bootargs.cfg with the variables a menuentry has set by the
+	// time it sources the file, and returns the $kernelcmd it builds.
+	cmdline := func(label, recoverylabel, img string) string {
+		script := filepath.Join(dir, "bootargs.sh")
+		cmd := exec.Command("bash", "-c", "source "+script+"; printf '%s' \"$kernelcmd\"")
+		cmd.Env = append(os.Environ(),
+			"LOOP0="+filepath.Join(dir, "loop0"),
+			"label="+label,
+			"recoverylabel="+recoverylabel,
+			"img="+img,
+			"selinux_enabled=false",
+			"selinux_mode=permissive",
+		)
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		Expect(err).ToNot(HaveOccurred(), stderr.String())
+		// An untranslated GRUB construct shows up here as a bash diagnostic,
+		// and a silently mis-evaluated branch is exactly the failure this
+		// whole helper would otherwise hide.
+		Expect(stderr.String()).To(BeEmpty())
+		Expect(string(out)).ToNot(BeEmpty())
+		return string(out)
+	}
+
+	// The splash cannot cover the text that is printed before it can draw:
+	// the kernel starts logging at its own loglevel long before PID 1, and
+	// the initramfs unit has to wait for udev to create /dev/tty1. quiet on
+	// the command line is what closes that window.
+	It("asks for quiet on the entries that animate", func() {
+		for _, id := range []string{"cos", "fallback"} {
+			label := entryLabel(id)
+			Expect(label).ToNot(BeEmpty(), "no label in menuentry %s", id)
+			Expect(cmdline(label, "", "/cOS/"+id+".img")).To(
+				MatchRegexp(`(^|\s)quiet(\s|$)`), id)
+		}
+	})
+
+	// Recovery and the state reset are where someone goes to read a boot that
+	// went wrong, and the booted-system animation is already refused there by
+	// SplashService's /run/cos sentinels. Both entries boot the recovery
+	// image, as a squashfs when there is one and as a .img when there is not,
+	// and only the squashfs case sets recoverylabel. The carve-out has to
+	// cover both.
+	It("leaves recovery and the state reset verbose", func() {
+		for _, id := range []string{"recovery", "statereset"} {
+			Expect(entryLabel(id)).To(Equal("COS_SYSTEM"), id)
+		}
+		for _, recoverylabel := range []string{"COS_RECOVERY", ""} {
+			Expect(cmdline("COS_SYSTEM", recoverylabel, "/cOS/recovery.img")).ToNot(
+				MatchRegexp(`(^|\s)quiet(\s|$)`), recoverylabel)
+		}
+	})
+
+	// quiet would be pointless on an entry that does not ask for the splash,
+	// and misleading on one that does not get it, so the two tokens have to
+	// keep travelling together on the animated entries.
+	It("keeps quiet and splash on the same entries", func() {
+		Expect(cmdline(entryLabel("cos"), "", "/cOS/active.img")).To(
+			MatchRegexp(`(^|\s)splash(\s|$)`))
 	})
 })

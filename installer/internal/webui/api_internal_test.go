@@ -51,8 +51,7 @@ func (providerEnv) ProviderPrompts() []sdkBus.YAMLPrompt {
 var _ = Describe("the wizard API", func() {
 	var srv *httptest.Server
 	BeforeEach(func() {
-		srv = httptest.NewServer(newServer(Options{Env: webEnv{}, Source: "oci:boot"}))
-		DeferCleanup(srv.Close)
+		srv = newTestServer(Options{Env: webEnv{}, Source: "oci:boot"})
 	})
 
 	post := func(path string, body any, out any) *http.Response {
@@ -90,7 +89,7 @@ var _ = Describe("the wizard API", func() {
 			env  wizard.Env
 			want bool
 		}{{webEnv{}, false}, {brandedEnv{}, true}} {
-			s := httptest.NewServer(newServer(Options{Env: tc.env}))
+			s := newTestServer(Options{Env: tc.env})
 			resp, err := http.Get(s.URL + "/api/wizard")
 			Expect(err).ToNot(HaveOccurred())
 			var raw map[string]json.RawMessage
@@ -223,8 +222,7 @@ echo '{"event":"step","step":"done"}'
 	})
 
 	It("writes no provider section when the provider step is submitted with its defaults", func() {
-		psrv := httptest.NewServer(newServer(Options{Env: providerEnv{}}))
-		DeferCleanup(psrv.Close)
+		psrv := newTestServer(Options{Env: providerEnv{}})
 		b, _ := json.Marshal(map[string]any{"answers": map[string]any{}, "values": map[string]string{
 			"p2p.network_token" + wizard.AskSuffix: "false", "p2p.network_token": "", "k3s.enabled": "false",
 		}})
@@ -238,8 +236,7 @@ echo '{"event":"step","step":"done"}'
 
 	Describe("behind the token", func() {
 		It("refuses /api/wizard without it and serves it with it", func() {
-			guarded := httptest.NewServer(newServer(Options{Env: webEnv{}, WebUI: branding.WebUI{Token: "tok"}}))
-			DeferCleanup(guarded.Close)
+			guarded := newTestServer(Options{Env: webEnv{}, WebUI: branding.WebUI{Token: "tok"}})
 
 			resp := get("/api/wizard")(noRedirect(), guarded.URL, nil)
 			Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized))

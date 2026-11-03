@@ -6,7 +6,33 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/internal/version"
 )
+
+var _ = Describe("bundleContext", func() {
+	// The bundle is what a user attaches to a bug report, so the version it
+	// records has to be the build's own. A literal local to this package is
+	// never stamped by the Makefile's -ldflags and reports the same string for
+	// every release, which is the bug this guards.
+	It("records the version the build stamps, not a package default", func() {
+		old := version.Version
+		version.Version = "v9.9.9-stamped"
+		DeferCleanup(func() { version.Version = old })
+
+		Expect(bundleContext().Version).To(Equal("v9.9.9-stamped"))
+	})
+
+	It("records the selected disk and install source", func() {
+		old := mainModel.answers
+		mainModel.answers.Disk = "/dev/sdz"
+		mainModel.answers.Source = "oci:quay.io/kairos/fedora:latest"
+		DeferCleanup(func() { mainModel.answers = old })
+
+		ctx := bundleContext()
+		Expect(ctx.Disk).To(Equal("/dev/sdz"))
+		Expect(ctx.Source).To(Equal("oci:quay.io/kairos/fedora:latest"))
+	})
+})
 
 var _ = Describe("formatRetrievalText", func() {
 	It("lists every URL and the local path", func() {

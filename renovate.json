@@ -63,10 +63,12 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/.github/workflows/.*.ya?ml/"
+        "/.github/workflows/.*.ya?ml/",
+        "/internal/testartifacts/.*\\.go$/"
       ],
       "matchStrings": [
         "quay.io/kairos/auroraboot:(?<currentValue>[a-zA-Z0-9_.-]+)",
+        "AuroraBootVersion = \\\"(?<currentValue>[a-zA-Z0-9_.-]+)\\\"",
         "auroraboot_version:\\s*[\\\"']?(?<currentValue>[a-zA-Z0-9_.-]+)[\\\"']?"
       ],
       "depNameTemplate": "quay.io/kairos/auroraboot",
@@ -94,6 +96,19 @@
       "versioningTemplate": "semver"
     },
     {
+      "description": "zizmor-action runs whichever zizmor release it is given, and a new release can bring new audits, so the version is pinned in the workflow.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/zizmor\\.yaml$/"
+      ],
+      "matchStrings": [
+        "ZIZMOR_VERSION:\\s*'(?<currentValue>[0-9.]+)'"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "zizmorcore/zizmor",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
       "description": "kairos-init/README.md's Quick example pins the image in a fenced code block, so the dockerfile manager (which only scans files literally named Dockerfile/Containerfile) never sees it.",
       "customType": "regex",
       "managerFilePatterns": [
@@ -101,6 +116,18 @@
       ],
       "matchStrings": [
         "quay.io/kairos/kairos-init:(?<currentValue>[a-zA-Z0-9_.-]+)"
+      ],
+      "depNameTemplate": "quay.io/kairos/kairos-init",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "description": "images/Dockerfile defaults KAIROS_INIT to a tag of quay.io/kairos/kairos-init. Builds that do not override it (reusable-factory.yaml without a dockerfile_path, a plain docker build) get that version, so it has to follow the releases.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^images/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG KAIROS_INIT=(?<currentValue>v[a-zA-Z0-9_.-]+)"
       ],
       "depNameTemplate": "quay.io/kairos/kairos-init",
       "datasourceTemplate": "docker"

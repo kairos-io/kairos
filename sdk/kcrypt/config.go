@@ -234,6 +234,22 @@ func asConfigValues(v interface{}) (collector.ConfigValues, bool) {
 	return nil, false
 }
 
+// KcryptConfigFromCollector extracts the kcrypt configuration from an
+// already-scanned collector config, for a caller that holds one (the agent's
+// kcrypt subcommands, which scan the configuration before they run). It is the
+// same reader GetEncryptorFromConfig uses, so what the subcommands report and
+// what the encryptor acts on cannot drift: a node whose config sets
+// kcrypt.nv_index must have `kairos-agent kcrypt readnv` look at that index and
+// not at the default one. A nil config means no configuration exists and
+// yields an empty, non-nil result.
+func KcryptConfigFromCollector(collectorConfig *collector.Config, log sdkLogger.KairosLogger) *bus.KcryptConfig {
+	if collectorConfig == nil {
+		return &bus.KcryptConfig{}
+	}
+
+	return extractKcryptConfigFromCollector(*collectorConfig, log)
+}
+
 // extractKcryptConfigFromCollector extracts kcrypt configuration from a collector.Config.
 func extractKcryptConfigFromCollector(collectorConfig collector.Config, log sdkLogger.KairosLogger) *bus.KcryptConfig {
 	config := &bus.KcryptConfig{}
@@ -249,15 +265,19 @@ func extractKcryptConfigFromCollector(collectorConfig collector.Config, log sdkL
 		return config
 	}
 
-	kcryptMap, ok := kcryptVal.(collector.ConfigValues)
+	// asConfigValues rather than a bare type assertion: the collector hands a
+	// scanned YAML block back as collector.ConfigValues, but a config that
+	// reached it through the JSON reader fallback is a plain
+	// map[string]interface{}. Asserting only one of the two shapes
+	// drops the whole block for the other, silently.
+	kcryptMap, ok := asConfigValues(kcryptVal)
 	if !ok {
-		log.Debugf("extractKcryptConfigFromCollector: kcrypt value is not ConfigValues, it's %T", kcryptVal)
+		log.Debugf("extractKcryptConfigFromCollector: kcrypt value is not a map, it's %T", kcryptVal)
 		return config
 	}
 
 	// Extract from challenger block if present (for remote KMS)
-	challengerVal := kcryptMap["challenger"]
-	if challengerMap, ok := challengerVal.(collector.ConfigValues); ok {
+	if challengerMap, ok := asConfigValues(kcryptMap["challenger"]); ok {
 		if server, ok := challengerMap["challenger_server"].(string); ok {
 			config.ChallengerServer = server
 		}

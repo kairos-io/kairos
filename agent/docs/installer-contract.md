@@ -74,7 +74,7 @@ variable `KAIROS_AGENT_PROGRESS=1` in that child process.
 
 ## Progress events (stdout)
 
-When `KAIROS_AGENT_PROGRESS` is non-empty, the install action writes one JSON
+When `KAIROS_AGENT_PROGRESS` is non-empty, the agent writes one JSON
 object per line ("JSON Lines") to stdout. Each line has an `event` field.
 
 Step events:
@@ -92,6 +92,13 @@ sequence as monotonic-but-possibly-sparse, not a fixed-length list.
 Failure event:
 
     {"event":"error","message":"<message>"}
+
+Emitted once for any failure that ends the command, including the ones before
+the install starts: an unreadable or invalid cloud-config, an unsupported
+`--source`, running without root, and the spec checks (`CheckConfigForUsers`,
+`CheckConfigForExtraPartitions`, `installSpec.Sanitize`). The agent writes the
+same text to stderr, which the installer may capture for its logs; the error
+event is the only copy on stdout.
 
 Consumers should parse each line as JSON; lines that are not valid JSON are
 ordinary agent log output and may be shown or ignored. For forward

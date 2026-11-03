@@ -1,0 +1,24 @@
+# Vulnerability ignore list for the kairos-tests module. tests/ is its own
+# Go module, and scanners such as OpenSSF Scorecard read the
+# osv-scanner.toml next to each go.mod, so the root list does not cover
+# it. The policy is the one at the top of ../osv-scanner.toml: bump the
+# component when a fix exists, and list here only what cannot be fixed.
+#
+# These are the root list's no-fix-available entries for the
+# dependencies this module shares with the root module; keep the dates
+# and reasons in step with it.
+
+[[IgnoredVulns]]
+id = "GO-2024-3218"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2023-26248, github.com/libp2p/go-libp2p-kad-dht. No fixed version published. Transitive via provider-kairos."
+
+[[IgnoredVulns]]
+id = "GHSA-q7pp-wcgr-pffx"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2023-36308, github.com/disintegration/imaging. No fixed version published; upstream is effectively unmaintained."
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: golang.org/x/crypto. No fixed version published at any of the versions in the bundle."

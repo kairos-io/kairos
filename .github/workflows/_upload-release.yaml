@@ -14,19 +14,24 @@ on:
         default: ''
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   upload:
+    permissions:
+      contents: write
+      # Keyless cosign signing of checksums.txt.
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: false
 
       - name: Download every arch's archives
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           pattern: '@(kairos|kairos-init|kcrypt-challenger)-linux-*'
           path: dist/download
@@ -36,8 +41,19 @@ jobs:
           set -euo pipefail
           mkdir -p dist/release
           find dist/download -name '*.tar.gz' -exec cp {} dist/release/ \;
-          find dist/download -name 'checksums-*.txt' -exec cat {} \; | sort -u > dist/release/checksums.txt
+          # Checksum the archives being uploaded, rather than joining the
+          # per-build checksum files: not every build artifact carries one.
+          (cd dist/release && sha256sum -- *.tar.gz > checksums.txt)
           ls -l dist/release/
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+        with:
+          cosign-release: "v3.1.4"
+
+      - name: Sign checksums
+        # checksums.txt covers every archive, so signing it signs them all.
+        run: cosign sign-blob --yes --bundle=dist/release/checksums.txt.sigstore.json dist/release/checksums.txt
 
       - name: Upload to GitHub Release
         env:

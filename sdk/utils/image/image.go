@@ -210,7 +210,15 @@ func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string)
 type GetOption func(*getOptions)
 
 type getOptions struct {
-	insecure bool
+	insecure     bool
+	authRegistry string
+}
+
+// WithAuthRegistry restricts explicit credentials to a registry host, including
+// its port. Other registries use the default keychain. An empty host leaves
+// explicit credentials unscoped for compatibility with direct SDK callers.
+func WithAuthRegistry(host string) GetOption {
+	return func(o *getOptions) { o.authRegistry = host }
 }
 
 // WithInsecureRegistry allows pulling from registries that serve over plain
@@ -307,7 +315,7 @@ func GetImage(targetImage, targetPlatform string, auth *registrytypes.AuthConfig
 		remote.WithTransport(tr),
 		remote.WithPlatform(*platform),
 	}
-	if auth != nil {
+	if auth != nil && (o.authRegistry == "" || ref.Context().RegistryStr() == o.authRegistry) {
 		remoteOpts = append(remoteOpts, remote.WithAuth(staticAuth{auth}))
 	} else {
 		remoteOpts = append(remoteOpts, remote.WithAuthFromKeychain(authn.DefaultKeychain))

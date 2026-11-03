@@ -24,12 +24,12 @@ stages:
             # https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes/a3327deff89d2428d48596ce0e643531f9944f99
             ExecStartPre=-/bin/sh -c "sysctl -w net.core.rmem_max=7500000"
             # Stop systemd messages on tty
-            ExecStartPre=-/usr/bin/kill -SIGRTMIN+21 1
+            ExecStartPre=-/bin/bash -c "kill -SIGRTMIN+21 1"
             TTYPath=/dev/tty1
             RemainAfterExit=yes
             ExecStart=/usr/bin/kairos-agent recovery
             # Start systemd messages on tty
-            ExecStartPost=-/usr/bin/kill -SIGRTMIN+20 1
+            ExecStartPost=-/bin/bash -c "kill -SIGRTMIN+20 1"
             [Install]
             WantedBy=multi-user.target
       commands:

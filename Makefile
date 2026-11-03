@@ -82,7 +82,7 @@ lint-workflows: lint-workflows-yaml lint-workflows-actions
 	@echo 'workflow lint: ok'
 
 # yamllint runs twice: strict (warnings -> errors) over the canonical
-# pipeline files (pr.yaml, master.yaml, release.yaml and every
+# pipeline files (pr.yaml, pr-full.yaml, master.yaml, release.yaml and every
 # `_*.yaml` reusable we own) so a warning that tomorrow's yamllint
 # image promotes to error cannot slip through, and non-strict over
 # the leftover independent workflows (upload-cloud-images.yaml,
@@ -90,11 +90,11 @@ lint-workflows: lint-workflows-yaml lint-workflows-actions
 # contract without dragging in unrelated cleanup.
 lint-workflows-yaml:
 	@find .github/workflows -maxdepth 1 \
-	    \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \) \
+	    \( -name 'pr.yaml' -o -name 'pr-full.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \) \
 	    -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint --strict
 	@find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) \
-	    ! -name 'pr.yaml' ! -name 'master.yaml' ! -name 'release.yaml' \
+	    ! -name 'pr.yaml' ! -name 'pr-full.yaml' ! -name 'master.yaml' ! -name 'release.yaml' \
 	    ! -name '_*.yaml' -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint
 
@@ -105,7 +105,33 @@ lint-workflows-yaml:
 lint-workflows-actions:
 	@docker run --rm -v "$$PWD":/repo -w /repo rhysd/actionlint -color \
 	    $$(find .github/workflows -maxdepth 1 \
-	        \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \))
+	        \( -name 'pr.yaml' -o -name 'pr-full.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \))
+
+# ============================================================================
+# k8s image-tag derivation regression guard (kairos-io/kairos#4579).
+#
+# reusable-factory.yaml derives the $K8S image-tag segment in shell, and
+# reusable-qemu-test.yaml / _uki-test.yaml each hand-reconstruct the same
+# segment to find the image a test consumes -- reusable-factory.yaml is a
+# cross-repo callable, so the three copies cannot be collapsed into one
+# composite action/script. #4579 was exactly that: the derivation drifted
+# and a k3s cell and a k0s cell silently collided on the same pushed tag.
+#
+# .github/scripts/verify_k8s_tag.py extracts the real `run:` shell out of
+# all three files via PyYAML and executes it under bash, so a future
+# drift shows up as a mismatch rather than as a passing test of stale
+# text. It also walks pr.yaml/master.yaml and requires every qemu/UKI
+# test job to resolve to exactly one build-iso matrix cell, which is the
+# other half of #4579: a test job whose kubernetes_distro does not match
+# the cell it consumes boots one image and reports as another's coverage.
+# Like actionlint above, this is a local-only check -- not currently
+# wired into a CI job -- because it needs PyYAML and this is otherwise a
+# Python-free repo. Requires: pip install pyyaml.
+# ============================================================================
+
+.PHONY: verify-k8s-tag
+verify-k8s-tag:
+	@python3 .github/scripts/verify_k8s_tag.py
 
 # ============================================================================
 # Local Go lint. Mirrors the golangci-lint step in

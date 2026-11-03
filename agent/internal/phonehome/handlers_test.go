@@ -11,57 +11,110 @@ import (
 	"sync/atomic"
 	"time"
 
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/mount-utils"
+	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
 var _ = Describe("artifact upgrade download", func() {
-	originalPersistentDir := persistentDir
+	// withPersistent fakes the disk layout ghw reads: COS_PERSISTENT mounted
+	// at mountPoint, or not mounted when mountPoint is empty. A running
+	// system has it at /usr/local, where immucore mounts it.
+	withPersistent := func(mountPoint string) *sdkConfig.Config {
+		ghwTest := ghwMock.GhwMock{}
+		ghwTest.AddDisk(sdkPartitions.Disk{Name: "vda", Partitions: []*sdkPartitions.Partition{{
+			Name:            "vda5",
+			Path:            "/dev/vda5",
+			FilesystemLabel: sdkConstants.PersistentLabel,
+			FS:              "ext4",
+			MountPoint:      mountPoint,
+		}}})
+		ghwTest.CreateDevices()
+		DeferCleanup(ghwTest.Clean)
+		return &sdkConfig.Config{Logger: sdkLogger.NewNullLogger()}
+	}
 
-	AfterEach(func() {
-		persistentDir = originalPersistentDir
-	})
-
-	It("creates the temporary image on the mounted persistent partition", func() {
-		persistentDir = GinkgoT().TempDir()
-		config := &sdkConfig.Config{Mounter: mount.NewFakeMounter([]mount.MountPoint{
-			{Device: "/dev/persistent", Path: persistentDir},
-		})}
+	It("creates the temporary image where the persistent partition is mounted", func() {
+		mountPoint := GinkgoT().TempDir()
+		config := withPersistent(mountPoint)
 
 		file, err := createArtifactTempFile(config, "artifact-123")
 		Expect(err).ToNot(HaveOccurred())
 		defer func() { _ = os.Remove(file.Name()) }()
 		defer func() { _ = file.Close() }()
 
-		Expect(filepath.Dir(file.Name())).To(Equal(filepath.Join(persistentDir, "tmp")))
+		Expect(filepath.Dir(file.Name())).To(Equal(filepath.Join(mountPoint, "tmp")))
 		Expect(filepath.Base(file.Name())).To(HavePrefix("phonehome-upgrade-artifact-123-"))
 		Expect(filepath.Ext(file.Name())).To(Equal(".tar"))
 	})
 
 	It("refuses to download when the persistent partition is not mounted", func() {
-		persistentDir = GinkgoT().TempDir()
-		config := &sdkConfig.Config{Mounter: mount.NewFakeMounter(nil)}
+		config := withPersistent("")
 
 		_, err := createArtifactTempFile(config, "artifact-123")
 
 		Expect(err).To(MatchError(ContainSubstring("is not mounted")))
 	})
 
-	It("refuses to download when the persistent partition mount cannot be verified", func() {
+	It("refuses to download when there is no persistent partition", func() {
+		ghwTest := ghwMock.GhwMock{}
+		ghwTest.AddDisk(sdkPartitions.Disk{Name: "vda", Partitions: []*sdkPartitions.Partition{{
+			Name: "vda2", Path: "/dev/vda2", FilesystemLabel: sdkConstants.OEMLabel, FS: "ext4", MountPoint: "/oem",
+		}}})
+		ghwTest.CreateDevices()
+		DeferCleanup(ghwTest.Clean)
+
+		_, err := createArtifactTempFile(&sdkConfig.Config{Logger: sdkLogger.NewNullLogger()}, "artifact-123")
+
+		Expect(err).To(MatchError(ContainSubstring("no persistent partition")))
+	})
+
+	// kcrypt encrypts COS_PERSISTENT: the label lives on the filesystem
+	// inside the LUKS container, so the partition is only found through the
+	// unlocked device-mapper device.
+	It("creates the temporary image on an encrypted persistent partition", func() {
+		mountPoint := GinkgoT().TempDir()
+		// The mount point is read only once the parent disk resolves, and
+		// it resolves on the real filesystem under /dev/disk/by-path.
+		// Climbing out of that directory lands on a temporary one that
+		// exists on any host.
+		parentDisk := GinkgoT().TempDir()
+		Expect(os.Setenv("GHW_CHROOT", "")).To(Succeed())
+		DeferCleanup(func() { Expect(os.Unsetenv("GHW_CHROOT")).To(Succeed()) })
+		fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{
+			"/sys/block/dm-0/dev":             "253:0\n",
+			"/sys/block/dm-0/slaves/vda5/dev": "8:5\n",
+			"/run/udev/data/b253:0": fmt.Sprintf("E:ID_FS_LABEL=%s\nE:ID_FS_TYPE=ext4\nE:DM_NAME=vda5\n",
+				sdkConstants.PersistentLabel),
+			"/run/udev/data/b8:0": "E:ID_PATH=../../.." + parentDisk + "\n",
+			"/proc/mounts":        fmt.Sprintf("/dev/mapper/vda5 %s ext4 rw 0 0\n", mountPoint),
+		})
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(cleanup)
+
+		file, err := createArtifactTempFile(&sdkConfig.Config{Logger: sdkLogger.NewNullLogger(), Fs: fs}, "artifact-123")
+		Expect(err).ToNot(HaveOccurred())
+		defer func() { _ = os.Remove(file.Name()) }()
+		defer func() { _ = file.Close() }()
+
+		Expect(filepath.Dir(file.Name())).To(Equal(filepath.Join(mountPoint, "tmp")))
+	})
+
+	It("refuses to download when the persistent partition cannot be looked up", func() {
 		_, err := createArtifactTempFile(nil, "artifact-123")
 
-		Expect(err).To(MatchError("cannot verify the persistent partition mount"))
+		Expect(err).To(MatchError("cannot look up the persistent partition"))
 	})
 
 	It("reports an error when the persistent temporary directory cannot be created", func() {
-		tempDir := GinkgoT().TempDir()
-		persistentDir = filepath.Join(tempDir, "persistent")
-		Expect(os.WriteFile(persistentDir, []byte("not a directory"), 0600)).To(Succeed())
-		config := &sdkConfig.Config{Mounter: mount.NewFakeMounter([]mount.MountPoint{
-			{Device: "/dev/persistent", Path: persistentDir},
-		})}
+		mountPoint := GinkgoT().TempDir()
+		Expect(os.WriteFile(filepath.Join(mountPoint, "tmp"), []byte("not a directory"), 0600)).To(Succeed())
+		config := withPersistent(mountPoint)
 
 		_, err := createArtifactTempFile(config, "artifact-123")
 
@@ -69,10 +122,7 @@ var _ = Describe("artifact upgrade download", func() {
 	})
 
 	newMountedConfig := func() *sdkConfig.Config {
-		persistentDir = GinkgoT().TempDir()
-		return &sdkConfig.Config{Mounter: mount.NewFakeMounter([]mount.MountPoint{
-			{Device: "/dev/persistent", Path: persistentDir},
-		})}
+		return withPersistent(GinkgoT().TempDir())
 	}
 
 	It("sends the node API key as a bearer header, and keeps it out of the URL", func() {

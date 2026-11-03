@@ -1,71 +1,21 @@
-<h1 align="center">
-  <br>
-     <img width="184" alt="kairos-white-column 5bc2fe34" src="https://user-images.githubusercontent.com/2420543/193010398-72d4ba6e-7efe-4c2e-b7ba-d3a826a55b7d.png"><br>
-    Kcrypt challenger
-<br>
-</h1>
+# kcrypt
 
-<h3 align="center">Kcrypt TPM challenger</h3>
-<p align="center">
-  <a href="https://opensource.org/licenses/">
-    <img src="https://img.shields.io/badge/licence-APL2-brightgreen"
-         alt="license">
-  </a>
-  <a href="https://github.com/kairos-io/kairos/issues"><img src="https://img.shields.io/github/issues/kairos-io/kairos"></a>
-  <a href="https://kairos.io/docs/" target=_blank> <img src="https://img.shields.io/badge/Documentation-blue"
-         alt="docs"></a>
-  <img src="https://img.shields.io/badge/made%20with-Go-blue">
-</p>
+kcrypt is the disk encryption part of the Kairos monorepo. It has two
+halves:
 
+- the device-side discovery client (`kcrypt/discovery`, `kcrypt/cmd/discovery`
+  and `kcrypt/pkg/attestation`), which runs on the node and asks a
+  challenger for the passphrase of an encrypted partition
+- the in-cluster challenger (`kcrypt/challenger`, `kcrypt/controllers`,
+  `kcrypt/pkg/challenger` and `kcrypt/api`), a Kubernetes controller that
+  manages `SealedVolume` resources and hands out passphrases
 
-With Kairos you can build immutable, bootable Kubernetes and OS images for your edge devices as easily as writing a Dockerfile. Optional P2P mesh with distributed ledger automates node bootstrapping and coordination. Updating nodes is as easy as CI/CD: push a new image to your container registry and let secure, risk-free A/B atomic upgrades do the rest.
-
-
-<table>
-<tr>
-<th align="center">
-<img width="640" height="1px">
-<p>
-<small>
-Documentation
-</small>
-</p>
-</th>
-<th align="center">
-<img width="640" height="1">
-<p>
-<small>
-Contribute
-</small>
-</p>
-</th>
-</tr>
-<tr>
-<td>
-
- 📚 [Getting started with Kairos](https://kairos.io/docs/getting-started) <br> :bulb: [Examples](https://kairos.io/docs/examples) <br> :movie_camera: [Video](https://kairos.io/docs/media/) <br> :open_hands:[Engage with the Community](https://kairos.io/community/)
-
-</td>
-<td>
-
-🙌[ CONTRIBUTING.md ]( https://github.com/kairos-io/kairos/blob/master/CONTRIBUTING.md ) <br> :raising_hand: [ GOVERNANCE ]( https://github.com/kairos-io/kairos/blob/master/GOVERNANCE.md ) <br>:construction_worker:[Code of conduct](https://github.com/kairos-io/kairos/blob/master/CODE_OF_CONDUCT.md)
-
-</td>
-</tr>
-</table>
-
-> kcrypt lives in the Kairos monorepo. See the
-> [root README](../README.md) for the full repository layout. Import
-> paths: `github.com/kairos-io/kairos/v4/kcrypt/discovery` for the
-> device-side discovery binary and
-> `github.com/kairos-io/kairos/v4/kcrypt/challenger` for the in-cluster
-> server. The `kcrypt-challenger` binary is built at
-> `cmd/kcrypt-challenger/` and ships as its own container image.
+Import paths: `github.com/kairos-io/kairos/v4/kcrypt/discovery` for the
+device-side client and `github.com/kairos-io/kairos/v4/kcrypt/challenger` for
+the in-cluster server.
 
 | :exclamation: | This is experimental! |
 |-|:-|
-
-This is the Kairos kcrypt-challenger Kubernetes Native Extension.
 
 ## Usage
 
@@ -124,18 +74,39 @@ TEST SUITE: None
 $ helm install kairos-challenger kairos/kcrypt-challenger
 ```
 
-## Building Kairos images
+## Building and testing
 
-Kairos ISO and UKI builds are driven from the monorepo root, not
-from this directory. The canonical pipeline lives under
-`.github/workflows/` (see `_build-iso.yaml` and the release
-workflow); for local one-off builds, the root `Makefile` and the
-kairos-init image are the entry points.
+kcrypt has no build of its own. It is part of the root Go module, so it is
+built and tested together with the rest of the repository:
 
-The legacy `kcrypt/Makefile` targets `kairos-iso` and `kairos-iso-uki`
-still exist but pin `IMMUCORE_REF` / `KAIROS_AGENT_REF` against the
-now-archived per-repo sources; they are scheduled for removal along
-with `kcrypt/Dockerfile.kairos-image` (see #4367).
+```bash
+# device-side discovery client (also linked into the multi-call kairos binary)
+go build ./kcrypt/cmd/discovery
+
+# in-cluster challenger server
+make kcrypt-challenger
+
+# unit tests (the root Makefile also creates the embed stubs kairos-init needs)
+make test
+go test ./kcrypt/... ./sdk/kcrypt/...
+```
+
+The challenger container image is built from `cmd/kcrypt-challenger/Dockerfile`
+by the CI workflows under `.github/workflows/`. The end-to-end encryption tests
+in `tests/` deploy it with the manifests in `kcrypt/config/default`.
+
+### Regenerating the CRD, RBAC and deepcopy code
+
+The `SealedVolume` CRD (`config/crd/bases`), the manager role (`config/rbac/role.yaml`)
+and `api/v1alpha1/zz_generated.deepcopy.go` are generated from the kubebuilder
+markers in `api/` and `controllers/` with
+[controller-gen](https://github.com/kubernetes-sigs/controller-tools). Run from
+`kcrypt/`:
+
+```bash
+controller-gen rbac:roleName=manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
+controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
+```
 
 ## Remote Attestation Flow
 
