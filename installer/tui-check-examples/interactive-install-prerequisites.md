@@ -136,7 +136,8 @@ is `{ID, Success, Message}`.
 Changing any answer clears a pending failure, so the user can adjust their
 selection (e.g. deselect the disk that failed to wipe) and continue or retry
 from a clean state. A transport/exec error talking to the provider is always
-treated as blocking.
+treated as blocking. That holds while gathering the checks too: the screen
+shows the error and enter or `r` runs the plugins again.
 
 All checks render in a **single list** on one screen; the user answers each and
 a **single combined apply** runs on continue. Providers return one
@@ -192,8 +193,9 @@ factory.Run(pluggable.EventType(os.Args[1]), os.Stdin, os.Stdout)
 
 > **Important:** report problems through the returned data
 > (`Severity: "error"` on a check, or `Success: false` on a result), **never**
-> through `EventResponse.Error`. A non-empty `Error` is logged and that plugin's
-> checks are dropped.
+> through `EventResponse.Error`. A non-empty `Error`, or a plugin that crashes or
+> exits non-zero, counts as that plugin failing: a failure on either event keeps
+> the installer on the prerequisites page until a retry succeeds.
 
 ### Building and installing the examples
 

@@ -28,17 +28,17 @@ See the documentation in our website: https://kairos.io/docs/advanced/partition_
 
 During development and testing, the kcrypt-challenger may store passphrases in TPM non-volatile (NV) memory. These passphrases persist across reboots and can accumulate over time, taking up space in the TPM.
 
-To clean up TPM NV memory used by the challenger:
+To clean up TPM NV memory used by the challenger, run `kairos-agent kcrypt cleanupnv` as root:
 
 ```bash
 # Clean up the default NV index (respects config or defaults to 0x1500000)
-kcrypt-discovery-challenger cleanup
+kairos-agent kcrypt cleanupnv
 
 # Clean up a specific NV index
-kcrypt-discovery-challenger cleanup --nv-index=0x1500001
+kairos-agent kcrypt cleanupnv --nv-index=0x1500001
 
 # Clean up with specific TPM device
-kcrypt-discovery-challenger cleanup --tpm-device=/dev/tpmrm0
+kairos-agent kcrypt cleanupnv --tpm-device=/dev/tpmrm0
 ```
 
 **Safety Features:**

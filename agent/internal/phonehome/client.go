@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kairos-io/kairos/v4/internal/version"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -62,6 +63,12 @@ type Client struct {
 	mu   sync.Mutex
 	conn *websocket.Conn
 
+	// unsent holds command statuses that found no session to go out on. A
+	// command handler can outlive the session it was started from, so its
+	// result waits here for the next one rather than going to a closed
+	// connection. Guarded by mu.
+	unsent [][]byte
+
 	// cpu keeps the previous /proc/stat reading across heartbeats, because CPU
 	// usage only exists as a delta between two samples.
 	cpu cpuTracker
@@ -95,10 +102,10 @@ func (c *Client) APIKey() string {
 
 // NewClient creates a new phone-home client.
 func NewClient(cfg *Config, opts ...ClientOption) *Client {
-	if cfg.HeartbeatInterval == 0 {
+	if cfg.HeartbeatInterval <= 0 {
 		cfg.HeartbeatInterval = DefaultHeartbeatInterval
 	}
-	if cfg.ReconnectBackoff == 0 {
+	if cfg.ReconnectBackoff <= 0 {
 		cfg.ReconnectBackoff = DefaultReconnectBackoff
 	}
 
@@ -244,6 +251,7 @@ func (c *Client) connect(ctx context.Context) (bool, error) {
 
 	c.mu.Lock()
 	c.conn = conn
+	c.flushUnsent()
 	c.mu.Unlock()
 
 	defer func() {
@@ -308,7 +316,7 @@ func (c *Client) connect(ctx context.Context) (bool, error) {
 				c.logger.Warnf("invalid command data: %v", err)
 				continue
 			}
-			go c.handleCommand(ctx, conn, cmd)
+			go c.handleCommand(cmd)
 		default:
 			c.logger.Warnf("unknown message type: %s", msg.Type)
 		}
@@ -328,24 +336,19 @@ func (c *Client) Run(ctx context.Context) error {
 
 	// Retry registration with backoff until successful or context cancelled
 	regBackoff := c.cfg.ReconnectBackoff
-	for {
-		err := c.Register(ctx)
-		if err == nil {
-			break
-		}
-		if ctx.Err() != nil {
-			return nil
-		}
-		c.logger.Warnf("registration failed: %v, retrying in %s", err, regBackoff)
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(regBackoff):
-		}
-		regBackoff = regBackoff * 2
-		if regBackoff > MaxReconnectBackoff {
-			regBackoff = MaxReconnectBackoff
-		}
+	regDelay := retry.Exponential(regBackoff, MaxReconnectBackoff)
+	regErr := retry.Do(func() error {
+		return c.Register(ctx)
+	}, retry.Config{
+		Ctx:   ctx,
+		Delay: regDelay,
+		OnRetry: func(n uint, err error) {
+			c.logger.Warnf("registration failed: %v, retrying in %s", err, regDelay(n))
+		},
+	})
+	if regErr != nil {
+		// Only ctx being done can end an unlimited-attempts retry loop early.
+		return nil
 	}
 
 	backoff := c.cfg.ReconnectBackoff
@@ -433,11 +436,11 @@ func (c *Client) sendHeartbeat(conn *websocket.Conn) error {
 	return conn.WriteMessage(websocket.TextMessage, msgBytes)
 }
 
-func (c *Client) handleCommand(ctx context.Context, conn *websocket.Conn, cmd CommandData) {
+func (c *Client) handleCommand(cmd CommandData) {
 	c.logger.Infof("executing command %s: %s", cmd.ID, cmd.Command)
 
 	// Report running
-	c.sendCommandStatus(conn, cmd.ID, "Running", "")
+	c.sendCommandStatus(cmd.ID, "Running", "")
 
 	var result string
 	var err error
@@ -450,13 +453,16 @@ func (c *Client) handleCommand(ctx context.Context, conn *websocket.Conn, cmd Co
 	}
 
 	if err != nil {
-		c.sendCommandStatus(conn, cmd.ID, "Failed", err.Error())
+		c.sendCommandStatus(cmd.ID, "Failed", err.Error())
 	} else {
-		c.sendCommandStatus(conn, cmd.ID, "Completed", result)
+		c.sendCommandStatus(cmd.ID, "Completed", result)
 	}
 }
 
-func (c *Client) sendCommandStatus(conn *websocket.Conn, id, phase, result string) {
+// sendCommandStatus writes a command status to the session that is up now,
+// which is not necessarily the one the command came in on. With no session,
+// or when the write fails, the status is kept for the next session.
+func (c *Client) sendCommandStatus(id, phase, result string) {
 	status := CommandStatusData{ID: id, Phase: phase, Result: result}
 	data, _ := json.Marshal(status)
 	msg := WSMessage{Type: "command_status", Data: data}
@@ -464,8 +470,23 @@ func (c *Client) sendCommandStatus(conn *websocket.Conn, id, phase, result strin
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if err := conn.WriteMessage(websocket.TextMessage, msgBytes); err != nil {
-		c.logger.Errorf("failed to send command status: %v", err)
+	c.unsent = append(c.unsent, msgBytes)
+	c.flushUnsent()
+}
+
+// flushUnsent writes the held command statuses, oldest first, to the current
+// session, and keeps whatever it could not write. The caller holds mu.
+func (c *Client) flushUnsent() {
+	if c.conn == nil {
+		c.logger.Warnf("no session to send %d command status(es) on, holding them for the next one", len(c.unsent))
+		return
+	}
+	for len(c.unsent) > 0 {
+		if err := c.conn.WriteMessage(websocket.TextMessage, c.unsent[0]); err != nil {
+			c.logger.Errorf("failed to send command status, holding it for the next session: %v", err)
+			return
+		}
+		c.unsent = c.unsent[1:]
 	}
 }
 

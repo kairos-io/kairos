@@ -1,0 +1,10 @@
+{
+  "@odata.id": "/redfish/v1/Managers/1",
+  "@odata.type": "#Manager.v1_5_1.Manager",
+  "Id": "1",
+  "Name": "Manager",
+  "ManagerType": "BMC",
+  "Model": "iLO 5",
+  "FirmwareVersion": "iLO 5 v2.44",
+  "VirtualMedia": { "@odata.id": "/redfish/v1/Managers/1/VirtualMedia" }
+}

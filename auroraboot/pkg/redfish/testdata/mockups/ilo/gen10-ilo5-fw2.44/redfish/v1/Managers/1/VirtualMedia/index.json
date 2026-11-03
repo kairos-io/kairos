@@ -1,0 +1,10 @@
+{
+  "@odata.id": "/redfish/v1/Managers/1/VirtualMedia",
+  "@odata.type": "#VirtualMediaCollection.VirtualMediaCollection",
+  "Name": "Virtual Media Services",
+  "Members@odata.count": 2,
+  "Members": [
+    { "@odata.id": "/redfish/v1/Managers/1/VirtualMedia/1" },
+    { "@odata.id": "/redfish/v1/Managers/1/VirtualMedia/2" }
+  ]
+}

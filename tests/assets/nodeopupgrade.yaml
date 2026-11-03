@@ -11,3 +11,7 @@ spec:
   concurrency: 1
   # Stop creating new jobs when a job fails
   stopOnFailure: true
+  # CI upgrades to the image built in the same run as the ISO, so the node
+  # already reports the target version. Without force the operator skips the
+  # node as up to date and nothing is upgraded.
+  force: true

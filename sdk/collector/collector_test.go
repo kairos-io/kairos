@@ -616,6 +616,39 @@ info:
 			})
 		})
 
+		Context("scalars of a different kind", func() {
+			DescribeTable("b wins",
+				func(a, b interface{}) {
+					res, err := DeepMerge(a, b)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(res).To(Equal(b))
+				},
+				Entry("bool then string", true, "true"),
+				Entry("string then bool", "true", true),
+				Entry("string then int", "3", 3),
+				Entry("int then float", 1, 1.5),
+			)
+
+			It("merges across two sources in Configs.Merge", func() {
+				file := &Config{Sources: []string{"file"}, Values: ConfigValues{
+					"install": ConfigValues{"auto": true, "device": "auto"},
+					"other":   "kept",
+				}}
+				cmdline := &Config{Sources: []string{"cmdline"}, Values: ConfigValues{
+					"install": ConfigValues{"auto": "true", "reboot": true},
+				}}
+
+				merged, err := Configs{file, cmdline}.Merge()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(merged.Values).To(HaveKeyWithValue("other", "kept"))
+				Expect(merged.Values["install"]).To(Equal(ConfigValues{
+					"auto":   "true",
+					"device": "auto",
+					"reboot": true,
+				}))
+			})
+		})
+
 		Context("simple slices", func() {
 			a := []interface{}{"one", "three"}
 			b := []interface{}{"two", 4}
@@ -1196,6 +1229,19 @@ stages:
                     - sudo
                 passwd: kairos
 `))
+			})
+
+			It("returns an error when the overwrite is not valid YAML", func() {
+				o := &Options{}
+				err = o.Apply(
+					Directories(tmpDir1),
+					Overwrites("install:\n  device: [unclosed"),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err := Scan(o, FilterKeysTestMerge)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("parsing overwrites"))
 			})
 		})
 
@@ -1990,6 +2036,52 @@ some:
 			v, err = c.Query("local_key_2")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(v).To(Equal("false\n"))
+		})
+
+		Context("with dashed keys", func() {
+			var c *Config
+
+			BeforeEach(func() {
+				err = os.WriteFile(path.Join(tmpDir, "local_config.yaml"), []byte(`#cloud-config
+k3s-agent:
+  enabled: true
+  args:
+  - --node-label=a
+some:
+  other-key:
+    deep-er:
+      last-one: 7
+  plain: 1
+list:
+- name: first
+`), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				o := &Options{}
+				err = o.Apply(Directories(tmpDir))
+				Expect(err).ToNot(HaveOccurred())
+
+				c, err = Scan(o, FilterKeysTest)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			DescribeTable("returns the value",
+				func(query, expected string) {
+					v, err := c.Query(query)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(v).To(Equal(expected))
+				},
+				Entry("dashed top-level key", "k3s-agent.enabled", "true\n"),
+				Entry("dashed key alone", "k3s-agent", "args:\n    - --node-label=a\nenabled: true\n"),
+				Entry("dashed nested key", "some.other-key", "deep-er:\n    last-one: 7\n"),
+				Entry("dashed keys at depth", "some.other-key.deep-er.last-one", "7\n"),
+				Entry("dashed key with an index", "k3s-agent.args[0]", "--node-label=a\n"),
+				Entry("already quoted key", `"k3s-agent".enabled`, "true\n"),
+				Entry("plain key", "some.plain", "1\n"),
+				Entry("index into a list", "list[0].name", "first\n"),
+				Entry("jq expression with a pipe", `"k3s-agent" | .enabled`, "true\n"),
+				Entry("bracket key lookup", `["k3s-agent"].enabled`, "true\n"),
+			)
 		})
 	})
 })

@@ -114,6 +114,10 @@ on:
       base_image:
         type: string
         default: "ghcr.io/kairos-io/hadron:v0.6.3"
+        description: >-
+          Image to build from, as [registry[:port]/]name[:tag][@digest].
+          FLAVOR and FLAVOR_RELEASE for the image tag come from its name and
+          tag; a missing tag counts as latest.
 
       model:
         type: string
@@ -279,8 +283,18 @@ on:
         default: false
 
       auroraboot_version:
+        description: 'Tag of quay.io/kairos/auroraboot to pull. Ignored when auroraboot_artifact is set'
         type: string
         default: "latest"
+
+      auroraboot_artifact:
+        description: |
+          Prefix of the workflow artifacts that hold AuroraBoot as a docker
+          archive (_build-image-auroraboot.yaml's oci_artifact). When set, the
+          archive for `arch` is loaded and used, and `auroraboot_version` is
+          ignored, so the ISO is built by the AuroraBoot of the same commit.
+        type: string
+        default: ""
 
       # Custom tag format
       custom_tag_format:
@@ -577,7 +591,14 @@ jobs:
 
           # Handle version resolution
           if [[ "${INPUTS_VERSION}" == "auto" ]]; then
-            VERSION=$(git describe --tags --dirty --always)
+            if [[ "${GITHUB_REF_TYPE}" == "tag" && -n "${GITHUB_REF_NAME}" ]]; then
+              # Two tags can sit on one commit when a rejected release is
+              # re-cut. git describe then keeps the alphabetically first
+              # one, so a tag build uses the name of the tag being built.
+              VERSION="${GITHUB_REF_NAME}"
+            else
+              VERSION=$(git describe --tags --dirty --always)
+            fi
             # Handle three cases:
             # 1. No tags: 39d55d3 → v0.0.0-39d55d3
             # 2. Dirty tag: v3.5.0-23-g94fe1d98 → keep as is
@@ -605,19 +626,39 @@ jobs:
             KUBERNETES_VERSION="${INPUTS_KUBERNETES_VERSION}"
           fi
 
-          # Split base image for tag generation
-          BASE_IMAGE=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 1)
-          BASE_TAG=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 2 || echo 'latest')
+          # BEGIN base_image parsing
+          # Split base image for tag generation. A digest is dropped first,
+          # and the tag is only looked for in the last path component, so a
+          # registry port (localhost:5000/...) is not taken for a tag. No tag
+          # means latest.
+          BASE_REF="${INPUTS_BASE_IMAGE%%@*}"
+          if [[ "${BASE_REF##*/}" == *:* ]]; then
+            BASE_IMAGE="${BASE_REF%:*}"
+            BASE_TAG="${BASE_REF##*:}"
+          else
+            BASE_IMAGE="$BASE_REF"
+            BASE_TAG="latest"
+          fi
 
           # Handle base images with slashes (registry paths)
           # Examples:
           # - ubuntu:24.04 -> FLAVOR=ubuntu, FLAVOR_RELEASE=24.04
           # - opensuse/leap:15.6 -> FLAVOR=opensuse, FLAVOR_RELEASE=leap-15.6
           # - ghcr.io/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          # - localhost:5000/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          # - localhost:5000/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          # - ubuntu@sha256:<digest> -> FLAVOR=ubuntu, FLAVOR_RELEASE=latest
           if [[ "$BASE_IMAGE" == *"/"* ]]; then
             # Count number of slashes to determine if it's a registry path
             SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
-            if [[ $SLASH_COUNT -eq 1 ]]; then
+            # A first component with a '.' or ':', or localhost, is a registry host
+            FIRST_COMPONENT="${BASE_IMAGE%%/*}"
+            if [[ "$FIRST_COMPONENT" == *[.:]* || "$FIRST_COMPONENT" == localhost ]]; then
+              HAS_REGISTRY=true
+            else
+              HAS_REGISTRY=false
+            fi
+            if [[ $SLASH_COUNT -eq 1 && $HAS_REGISTRY == false ]]; then
               # Simple case: distro/subdistro (preserve existing behavior)
               DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
               SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
@@ -634,6 +675,7 @@ jobs:
             FLAVOR="$BASE_IMAGE"
             FLAVOR_RELEASE="$BASE_TAG"
           fi
+          # END base_image parsing
 
           # Special case for nvidia
           if [[ "${INPUTS_MODEL}" == "nvidia-jetson-agx-orin" ]]; then
@@ -838,7 +880,7 @@ jobs:
 
       - name: Login to registry
         if: inputs.registry_domain != ''
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
         with:
           registry: ${{ inputs.registry_domain }}
           username: ${{ secrets.registry_username }}
@@ -1162,7 +1204,7 @@ jobs:
       - name: Upload Trivy scan results to GitHub Security tab
         if: inputs.trivy_sarif && hashFiles('trivy.sarif') != ''
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4.39.1
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
           sarif_file: 'trivy.sarif'
           category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ steps.setup.outputs.k8s }}${{ inputs.trusted_boot && '-uki' || '' }}
@@ -1170,7 +1212,7 @@ jobs:
       - name: Upload Grype scan results to GitHub Security tab
         if: inputs.grype_sarif && hashFiles('grype.sarif') != ''
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4.39.1
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066  # v4.39.3
         with:
           sarif_file: 'grype.sarif'
           category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ steps.setup.outputs.k8s }}${{ inputs.trusted_boot && '-uki' || '' }}
@@ -1199,6 +1241,28 @@ jobs:
             VERSION=${{ steps.setup.outputs.version }}
             ${{ inputs.build_args }}
 
+      - name: Download the AuroraBoot image
+        if: inputs.auroraboot_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: ${{ inputs.auroraboot_artifact }}-${{ inputs.arch }}
+          path: ${{ runner.temp }}/auroraboot-image
+
+      - name: Select the AuroraBoot image
+        id: aurora
+        env:
+          AURORABOOT_ARTIFACT: ${{ inputs.auroraboot_artifact }}
+          AURORABOOT_VERSION: ${{ inputs.auroraboot_version }}
+          IMAGE_DIR: ${{ runner.temp }}/auroraboot-image
+        run: |
+          set -euo pipefail
+          if [[ -n "$AURORABOOT_ARTIFACT" ]]; then
+            docker load -i "$IMAGE_DIR/auroraboot-image.tar"
+            echo "image=auroraboot:ci" >> "$GITHUB_OUTPUT"
+          else
+            echo "image=quay.io/kairos/auroraboot:$AURORABOOT_VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Go for test artifacts
         if: inputs.generate_test_keys || inputs.generate_test_sysext
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
@@ -1206,11 +1270,16 @@ jobs:
           go-version-file: go.mod
           cache: false
 
-      - name: Install AuroraBoot runtime library
-        # cmd/test-artifacts runs the AuroraBoot release binary for genkey,
-        # which links libpcsclite.
+      - name: Build AuroraBoot for the test keys
+        # cmd/test-artifacts runs `auroraboot genkey`. It uses the binary built
+        # here, from the same commit, and the build links libpcsclite.
         if: inputs.generate_test_keys
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpcsclite1
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libpcsclite-dev
+          (cd auroraboot && go build -o "$RUNNER_TEMP/auroraboot" .)
+          echo "KAIROS_TEST_AURORABOOT_BINARY=$RUNNER_TEMP/auroraboot" >> "$GITHUB_ENV"
 
       - name: Generate test keys and system extensions
         id: test-artifacts
@@ -1220,6 +1289,8 @@ jobs:
           GENERATE_SYSEXT: ${{ inputs.generate_test_sysext }}
           TRUSTED_BOOT: ${{ inputs.trusted_boot }}
           ARCH: ${{ inputs.arch }}
+          # The system extensions are built with the AuroraBoot image of this commit.
+          KAIROS_TEST_AURORABOOT_IMAGE: ${{ steps.aurora.outputs.image }}
         run: |
           set -euo pipefail
           keys="$RUNNER_TEMP/test-keys"
@@ -1252,7 +1323,7 @@ jobs:
           INPUTS_MODEL: ${{ inputs.model }}
           STEPS_SETUP_OUTPUTS_IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
           INPUTS_CLOUD_CONFIG: ${{ inputs.cloud_config }}
-          INPUTS_AURORABOOT_VERSION: ${{ inputs.auroraboot_version }}
+          AURORABOOT_IMAGE: ${{ steps.aurora.outputs.image }}
           INPUTS_SINGLE_EFI_CMDLINE: ${{ inputs.single_efi_cmdline }}
         run: |
           echo "🔍 Debug: Starting ISO generation step"
@@ -1306,7 +1377,7 @@ jobs:
               cloud_config_args=(--cloud-config /cloud-config)
             fi
           fi
-          cmd+=("quay.io/kairos/auroraboot:${INPUTS_AURORABOOT_VERSION}" --debug)
+          cmd+=("$AURORABOOT_IMAGE" --debug)
           if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
             cmd+=(build-uki)
           else
@@ -1386,7 +1457,7 @@ jobs:
             fi
           fi
 
-          cmd+=("quay.io/kairos/auroraboot:${INPUTS_AURORABOOT_VERSION}" --debug)
+          cmd+=("$AURORABOOT_IMAGE" --debug)
           cmd+=("${cloud_config_args[@]}")
           cmd+=(--set "disable_http_server=true")
           cmd+=(--set "disable_netboot=true")
@@ -1412,7 +1483,7 @@ jobs:
           fi
         env:
           INPUTS_CLOUD_CONFIG: ${{ inputs.cloud_config }}
-          INPUTS_AURORABOOT_VERSION: ${{ inputs.auroraboot_version }}
+          AURORABOOT_IMAGE: ${{ steps.aurora.outputs.image }}
           STEPS_SETUP_OUTPUTS_IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
 
       - name: Create OCI artifact from RAW image
@@ -1478,7 +1549,7 @@ jobs:
 
       - name: Install Cosign
         if: inputs.cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6  # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532  # v4.1.3
         with:
           cosign-release: "v3.1.4"
 

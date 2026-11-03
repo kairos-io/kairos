@@ -1,0 +1,10 @@
+artifact_version: "v2.4.2"
+release_version: "v2.4.2"
+container_image: ""  # Optional: container image to use instead of artifacts
+arch: "amd64"  # Optional: architecture to use when pulling container images (amd64 or arm64)
+flavor: "rockylinux"
+flavor_release: "9"
+repository: "kairos-io/kairos"
+
+cloud_config: |
+

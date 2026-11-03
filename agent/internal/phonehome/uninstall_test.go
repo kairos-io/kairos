@@ -3,7 +3,9 @@ package phonehome_test
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	. "github.com/onsi/ginkgo/v2"
@@ -12,7 +14,7 @@ import (
 
 // fakeFS is the in-memory filesystem used by the Uninstall specs. The five
 // package-local indirections in uninstall.go (runCommand, removeFile,
-// readFile, writeFile, globFiles) are swapped to close over this struct so
+// readFile, writeFile, walkFiles) are swapped to close over this struct so
 // each spec sets up its own precondition world without touching real /oem.
 type fakeFS struct {
 	systemctlCalls [][]string
@@ -56,28 +58,18 @@ func (f *fakeFS) writeFile(path string, data []byte, _ os.FileMode) error {
 	return nil
 }
 
-func (f *fakeFS) glob(pattern string) ([]string, error) {
+func (f *fakeFS) walk(root string) ([]string, error) {
 	var out []string
-	// We only need to match the two /oem patterns used in production.
-	switch pattern {
-	case "/oem/*.yaml":
-		for path := range f.files {
-			if strings.HasPrefix(path, "/oem/") && strings.HasSuffix(path, ".yaml") {
-				out = append(out, path)
-			}
-		}
-	case "/oem/*.yml":
-		for path := range f.files {
-			if strings.HasPrefix(path, "/oem/") && strings.HasSuffix(path, ".yml") {
-				out = append(out, path)
-			}
+	for path := range f.files {
+		if strings.HasPrefix(path, root+"/") {
+			out = append(out, path)
 		}
 	}
 	return out, nil
 }
 
 func (f *fakeFS) install(restore *func()) {
-	r := phonehome.SetUninstallRunners(f.runCommand, f.removeFile, f.readFile, f.writeFile, f.glob)
+	r := phonehome.SetUninstallRunners(f.runCommand, f.removeFile, f.readFile, f.writeFile, f.walk)
 	*restore = r
 }
 
@@ -212,7 +204,7 @@ stages:
 			Expect(err).ToNot(HaveOccurred(), summary)
 
 			Expect(string(fs.files["/oem/99_other.yaml"])).To(Equal(original))
-			Expect(summary).To(ContainSubstring("no phonehome stanza found under /oem"))
+			Expect(summary).To(ContainSubstring("no phonehome stanza found under /oem or /usr/local/cloud-config"))
 		})
 
 		It("scans both .yaml and .yml extensions", func() {
@@ -243,6 +235,121 @@ stages:
 			Expect(fs.files).ToNot(HaveKey("/oem/90_custom.yaml"))
 			Expect(summary).To(ContainSubstring("skipped /oem/broken.yaml"))
 		})
+
+		// The boot scan walks /oem recursively, so a phonehome stanza in a
+		// subdirectory is just as live as one at the top level.
+		It("cleans cloud-configs in /oem subdirectories", func() {
+			fs = newFakeFS(map[string]string{
+				"/oem/extra/nested/90_custom.yaml": "#cloud-config\nhostname: foo\nphonehome:\n  url: x\n",
+				"/oem/extra/phonehome.yml":         "#cloud-config\nphonehome:\n  url: x\n",
+			})
+			fs.install(&restore)
+
+			summary, err := phonehome.Uninstall(false)
+			Expect(err).ToNot(HaveOccurred(), summary)
+
+			Expect(string(fs.files["/oem/extra/nested/90_custom.yaml"])).To(Equal("#cloud-config\nhostname: foo\n"))
+			Expect(fs.files).ToNot(HaveKey("/oem/extra/phonehome.yml"))
+			Expect(summary).To(ContainSubstring("stripped phonehome stanza from /oem/extra/nested/90_custom.yaml"))
+			Expect(summary).To(ContainSubstring("removed /oem/extra/phonehome.yml"))
+		})
+
+		// /usr/local/cloud-config is the other writable directory the boot
+		// scan reads; on nodes without an OEM partition it is where the
+		// config lands.
+		It("cleans cloud-configs under /usr/local/cloud-config", func() {
+			fs = newFakeFS(map[string]string{
+				"/usr/local/cloud-config/90_custom.yaml":     "#cloud-config\nhostname: foo\nphonehome:\n  url: x\n",
+				"/usr/local/cloud-config/sub/phonehome.yaml": "#cloud-config\nphonehome:\n  url: x\n",
+			})
+			fs.install(&restore)
+
+			summary, err := phonehome.Uninstall(false)
+			Expect(err).ToNot(HaveOccurred(), summary)
+
+			Expect(string(fs.files["/usr/local/cloud-config/90_custom.yaml"])).To(Equal("#cloud-config\nhostname: foo\n"))
+			Expect(fs.files).ToNot(HaveKey("/usr/local/cloud-config/sub/phonehome.yaml"))
+			Expect(summary).To(ContainSubstring("stripped phonehome stanza from /usr/local/cloud-config/90_custom.yaml"))
+			Expect(summary).To(ContainSubstring("removed /usr/local/cloud-config/sub/phonehome.yaml"))
+		})
+
+		// The boot scan only loads .yaml/.yml, so nothing else is touched.
+		It("ignores files without a .yaml or .yml extension", func() {
+			original := "phonehome:\n  url: x\n"
+			fs = newFakeFS(map[string]string{"/oem/notes.txt": original})
+			fs.install(&restore)
+
+			summary, err := phonehome.Uninstall(false)
+			Expect(err).ToNot(HaveOccurred(), summary)
+
+			Expect(string(fs.files["/oem/notes.txt"])).To(Equal(original))
+		})
+	})
+
+	Describe("sources the cleanup cannot edit", func() {
+		It("warns when the kernel cmdline carries phonehome or config_url", func() {
+			fs = newFakeFS(map[string]string{
+				"/proc/cmdline": "BOOT_IMAGE=/vmlinuz phonehome.url=http://x phonehome.registration_token=secret kairos.config_url=http://y\n",
+			})
+			fs.install(&restore)
+
+			summary, err := phonehome.Uninstall(false)
+			Expect(err).ToNot(HaveOccurred(), summary)
+
+			Expect(summary).To(ContainSubstring("kernel cmdline sets phonehome.url, phonehome.registration_token, kairos.config_url; " + phonehome.ServiceName + " may come back on next boot"))
+			Expect(summary).ToNot(ContainSubstring("secret"))
+		})
+
+		It("does not warn when the kernel cmdline has nothing relevant", func() {
+			fs = newFakeFS(map[string]string{"/proc/cmdline": "BOOT_IMAGE=/vmlinuz console=ttyS0\n"})
+			fs.install(&restore)
+
+			summary, err := phonehome.Uninstall(false)
+			Expect(err).ToNot(HaveOccurred(), summary)
+
+			Expect(summary).ToNot(ContainSubstring("may come back"))
+		})
+
+		It("warns when a cloud-config pulls a remote config through config_url", func() {
+			fs = newFakeFS(map[string]string{
+				"/oem/90_custom.yaml": "#cloud-config\nconfig_url: http://y\nphonehome:\n  url: x\n",
+			})
+			fs.install(&restore)
+
+			summary, err := phonehome.Uninstall(false)
+			Expect(err).ToNot(HaveOccurred(), summary)
+
+			Expect(string(fs.files["/oem/90_custom.yaml"])).To(Equal("#cloud-config\nconfig_url: http://y\n"))
+			Expect(summary).To(ContainSubstring("/oem/90_custom.yaml sets config_url; " + phonehome.ServiceName + " may come back on next boot"))
+		})
+	})
+
+	Describe("listing cloud-config files on disk", func() {
+		It("walks recursively, follows file symlinks and skips non-regular files", func() {
+			root := GinkgoT().TempDir()
+			outside := GinkgoT().TempDir()
+			Expect(os.MkdirAll(filepath.Join(root, "a", "b"), 0o755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(root, "top.yaml"), []byte("a: 1\n"), 0o600)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(root, "a", "b", "deep.yml"), []byte("a: 1\n"), 0o600)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(outside, "target.yaml"), []byte("a: 1\n"), 0o600)).To(Succeed())
+			Expect(os.Symlink(filepath.Join(outside, "target.yaml"), filepath.Join(root, "link.yaml"))).To(Succeed())
+			Expect(os.Symlink(outside, filepath.Join(root, "linkdir"))).To(Succeed())
+			Expect(syscall.Mkfifo(filepath.Join(root, "fifo.yaml"), 0o600)).To(Succeed())
+
+			files, err := phonehome.ListConfigFiles(root)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(files).To(ConsistOf(
+				filepath.Join(root, "top.yaml"),
+				filepath.Join(root, "a", "b", "deep.yml"),
+				filepath.Join(root, "link.yaml"),
+			))
+		})
+
+		It("returns nothing for a missing directory", func() {
+			files, err := phonehome.ListConfigFiles(filepath.Join(GinkgoT().TempDir(), "missing"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(files).To(BeEmpty())
+		})
 	})
 
 	Describe("error surfacing", func() {
@@ -262,7 +369,7 @@ stages:
 					}
 					return os.ErrNotExist
 				},
-				fs.readFile, fs.writeFile, fs.glob,
+				fs.readFile, fs.writeFile, fs.walk,
 			)
 
 			summary, err := phonehome.Uninstall(false)

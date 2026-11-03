@@ -23,15 +23,21 @@ name: PR
 # PR's kairos-init installs and boots (qemu `install` and `acceptance`).
 # kairos-init reaches the ISO build as an OCI layout artifact instead of
 # a registry image, because there is no registry this run can push to.
+#
+# merge_group: the same smoke run on each merge queue branch
+# (gh-readonly-queue/master/...), so the queue gets the checks it waits
+# for. Without this trigger nothing reports on a queue branch and every
+# queued PR is dropped with `checks_timed_out`. A merge_group run is not
+# a fork run: it gets a read-write token and the repository secrets. It
+# runs only code that is already approved and queued, and no job here
+# pushes or logs in to a registry.
 
 on:
+  merge_group:
+  # No paths-ignore: a workflow that never starts never reports its checks, so
+  # a docs-only PR (#5871) could never enter the merge queue. The heavy jobs
+  # skip themselves instead, see `changes` and the `pr-gate` job.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - 'LICENSE'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/CODEOWNERS'
 
 permissions:
   contents: read
@@ -49,9 +55,42 @@ jobs:
   lint:
     uses: ./.github/workflows/_lint.yaml
 
+  # Says which parts the change reaches. A change that only touches Markdown,
+  # the docs, or the AuroraBoot web UI or Helm chart cannot change a Kairos
+  # image, so the image builds and the boot tests skip themselves. A job that
+  # needs a skipped job skips too. The merge queue waits for `pr-gate` below and
+  # not for the checks of these jobs, because a skipped job of a reusable
+  # workflow reports none of the check names it declares.
+  changes:
+    uses: ./.github/workflows/_changes.yaml
+
+  # Every ISO in this pipeline is built by this image, and the AuroraBoot tests
+  # run on it, so it is built when either of them runs.
+  build-image-auroraboot:
+    needs: changes
+    if: needs.changes.outputs.kairos == 'true' || needs.changes.outputs.auroraboot == 'true'
+    uses: ./.github/workflows/_build-image-auroraboot.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      oci_artifact: auroraboot-image
+
+  # The AuroraBoot tests run only when the change can affect AuroraBoot.
+  auroraboot-tests:
+    needs: [changes, build-image-auroraboot]
+    if: needs.changes.outputs.auroraboot == 'true'
+    uses: ./.github/workflows/_auroraboot-tests.yaml
+    permissions:
+      contents: read
+    with:
+      image_artifact: auroraboot-image-amd64
+
   # The slim pipeline only builds and tests a non-FIPS amd64 ISO, so the
   # builds below skip arm64 and FIPS (pr-full.yaml keeps both).
   build-kairos:
+    needs: changes
+    if: needs.changes.outputs.kairos == 'true'
     uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: pr
@@ -63,6 +102,8 @@ jobs:
       matrix_scope: pr
 
   build-kcrypt-challenger:
+    needs: changes
+    if: needs.changes.outputs.kairos == 'true'
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:
       matrix_scope: pr
@@ -87,7 +128,7 @@ jobs:
   # pushes. `kairos-init-local` is the build context name the
   # kairos-init OCI layout is bound to; nothing is pulled by that name.
   build-iso:
-    needs: build-image-kairos-init
+    needs: [build-image-kairos-init, build-image-auroraboot]
     name: build-iso / amd64-core
     uses: ./.github/workflows/_build-iso.yaml
     # _build-iso.yaml declares these, and a caller has to cover what its
@@ -102,6 +143,7 @@ jobs:
     with:
       name: amd64-core
       kairos_init_image: kairos-init-local
+      auroraboot_artifact: auroraboot-image
       kairos_init_artifact: kairos-init-oci
       arch: amd64
       base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
@@ -138,6 +180,30 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+
+  # Tests for the scripts the release workflows run. They need only
+  # bash, git and jq, so they do not wait for any build.
+  release-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the release version script
+        run: scripts/release-version_test.sh
+      - name: Test the green commit script
+        run: scripts/green-commit_test.sh
+      - name: Test the advisory severity script
+        run: scripts/osv-findings_test.sh
+      - name: Test the approval notification script
+        run: scripts/notify-approval_test.sh
+      - name: Test the changed parts script
+        run: scripts/changed-parts_test.sh
+      - name: Test the AuroraBoot chart release values script
+        run: scripts/auroraboot-release-values_test.sh
+      - name: Test the factory base_image parsing
+        run: scripts/factory-base-image_test.sh
 
   # Per-PR ISO size signal against the last green master run. It is an
   # informational report and never gates the PR. This run builds no UKI
@@ -188,3 +254,38 @@ jobs:
             --dir baseline || echo "Baseline artifacts unavailable (expired?)."
       - name: Compare ISO sizes
         run: scripts/iso-size-diff.sh baseline candidate | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # The one check the merge queue waits for. It runs whatever happened to the
+  # jobs above, and passes when each of them succeeded or was skipped, which is
+  # what a change that skips the image builds produces. A failed or cancelled
+  # job fails it. Keep every job of this workflow in `needs`.
+  pr-gate:
+    if: always()
+    needs:
+      - unit-tests
+      - lint
+      - changes
+      - build-image-auroraboot
+      - auroraboot-tests
+      - build-kairos
+      - build-kairos-init
+      - build-kcrypt-challenger
+      - build-image-kairos-init
+      - build-iso
+      - test-core
+      - release-scripts
+      - size-diff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to have succeeded or been skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          if jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<<"$NEEDS" >/dev/null; then
+            echo "All jobs succeeded or were skipped."
+          else
+            echo "::error::A job failed or was cancelled."
+            exit 1
+          fi

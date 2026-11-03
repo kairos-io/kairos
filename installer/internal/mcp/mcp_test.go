@@ -290,8 +290,9 @@ func TestListPrerequisites(t *testing.T) {
 	}
 }
 
-// Gather returns the checks it did collect alongside a parse error from one
-// plugin. Throwing the good ones away would hide the machine's real state.
+// Gather returns the checks it did collect alongside the error from a failing
+// plugin. Throwing the good ones away would hide the machine's real state, but
+// the call is still a tool error so the caller does not read it as a pass.
 func TestListPrerequisitesKeepsChecksDespiteAPluginError(t *testing.T) {
 	session, _ := testServer(t, func(s *Server) {
 		s.gatherChecks = func(string) ([]prereqs.Check, error) {
@@ -300,12 +301,43 @@ func TestListPrerequisitesKeepsChecksDespiteAPluginError(t *testing.T) {
 	})
 
 	res := call(t, session, ToolListPrerequisites, listPrerequisitesInput{})
+	if !res.IsError {
+		t.Fatal("a failing check plugin should be a tool error")
+	}
 	out := decodeOutput[listPrerequisitesOutput](t, res)
 	if len(out.Checks) != 1 {
 		t.Fatalf("checks = %+v, want the one check that parsed", out.Checks)
 	}
+	if !strings.Contains(out.Error, "plugin returned junk") {
+		t.Errorf("error = %q, want the plugin's failure", out.Error)
+	}
 	if text := resultText(t, res); !strings.Contains(text, "plugin returned junk") {
 		t.Errorf("text does not mention the failing plugin: %q", text)
+	}
+}
+
+// A plugin that crashes on the checks event yields no checks at all. That
+// must not look like "nothing to report".
+func TestListPrerequisitesCrashingPluginIsAToolError(t *testing.T) {
+	session, _ := testServer(t, func(s *Server) {
+		s.gatherChecks = func(string) ([]prereqs.Check, error) {
+			return nil, errors.New("check plugin tui-check-crash failed: exit status 1")
+		}
+	})
+
+	res := call(t, session, ToolListPrerequisites, listPrerequisitesInput{})
+	if !res.IsError {
+		t.Fatal("a crashing check plugin should be a tool error")
+	}
+	out := decodeOutput[listPrerequisitesOutput](t, res)
+	if len(out.Checks) != 0 {
+		t.Fatalf("checks = %+v, want none", out.Checks)
+	}
+	if !strings.Contains(out.Error, "tui-check-crash") {
+		t.Errorf("error = %q, want the crashing plugin named", out.Error)
+	}
+	if text := resultText(t, res); !strings.Contains(text, "tui-check-crash") {
+		t.Errorf("text does not mention the crashing plugin: %q", text)
 	}
 }
 
@@ -339,6 +371,31 @@ func TestApplyPrerequisites(t *testing.T) {
 	}
 	if text := resultText(t, res); !strings.Contains(text, "wiped") {
 		t.Errorf("text does not carry the plugin's message: %q", text)
+	}
+}
+
+func TestApplyPrerequisitesReportsAPluginError(t *testing.T) {
+	session, _ := testServer(t, func(s *Server) {
+		s.applyDecisions = func([]prereqs.Decision, string) ([]prereqs.ApplyResult, error) {
+			return []prereqs.ApplyResult{{ID: "arch", Success: true}}, errors.New("check plugin tui-check-crash failed: exit status 1")
+		}
+	})
+
+	res := call(t, session, ToolApplyPrerequisites, applyPrerequisitesInput{
+		Decisions: []prereqs.Decision{{ID: "diskwipe", Prompt: prereqs.PromptConfirm, Confirmed: true}},
+	})
+	if !res.IsError {
+		t.Fatal("a failing check plugin should be a tool error")
+	}
+	out := decodeOutput[applyPrerequisitesOutput](t, res)
+	if len(out.Results) != 1 || out.Results[0].ID != "arch" {
+		t.Fatalf("results = %+v, want the arch result kept", out.Results)
+	}
+	if !strings.Contains(out.Error, "tui-check-crash") {
+		t.Errorf("error = %q, want the crashing plugin named", out.Error)
+	}
+	if text := resultText(t, res); !strings.Contains(text, "tui-check-crash") {
+		t.Errorf("text does not mention the crashing plugin: %q", text)
 	}
 }
 

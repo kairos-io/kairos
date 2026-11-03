@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/avast/retry-go"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
@@ -21,6 +20,7 @@ import (
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/sdk/blockdev"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"golang.org/x/term"
 )
@@ -272,6 +272,21 @@ func SystemdBooted() bool {
 	return err == nil && st.IsDir()
 }
 
+// haltBannerSettle is how long HaltWithBanner waits before it paints, and
+// haltBannerGrace is how long the painted banner then waits for a key press
+// before it reboots the machine. Together they are how long immucore has to
+// keep running after it has decided the boot failed.
+//
+// They are constants rather than literals because the dracut unit has to
+// outlive them. When the halt is triggered by a SIGTERM, systemd has already
+// armed TimeoutStopSec= on immucore.service, and a SIGKILL that lands first
+// turns the promised reboot into a switch-root into a half-mounted system
+// (kairos-io/kairos#5143). ImmucoreServiceDracut is tested against both.
+const (
+	haltBannerSettle = 1 * time.Second
+	haltBannerGrace  = 90 * time.Second
+)
+
 // HaltWithBanner is the operator-facing halt used by boot-blocking
 // configuration errors (render the screen with RenderFailureScreen). Unlike
 // RebootOrWait, which just prints a one-line log message, HaltWithBanner
@@ -337,10 +352,10 @@ func HaltWithBanner(banner, logMsg string, err error) {
 	// to land before we draw over them. No periodic refresh — with the
 	// ticker disabled nothing else writes to the console, and repainting
 	// just flickers.
-	const grace = 90 * time.Second
+	grace := haltBannerGrace
 	footer := fmt.Sprintf("\n>>> Press any key to reboot now."+
 		"\n>>> Without input the system reboots automatically in %d seconds.\n", int(grace.Seconds()))
-	time.Sleep(1 * time.Second)
+	time.Sleep(haltBannerSettle)
 	paintBanner(consoles, banner+footer)
 
 	keyPressed := make(chan struct{}, 1)
@@ -683,13 +698,13 @@ func detectWriteProtected() bool {
 			}
 			return errors.New("no candidate device answered")
 		},
-		retry.Delay(writeProtectedRetryDelay),
-		retry.Attempts(writeProtectedRetryAttempts),
-		retry.DelayType(retry.FixedDelay),
-		retry.LastErrorOnly(true),
-		retry.OnRetry(func(n uint, _ error) {
-			KLog.Logger.Debug().Uint("try", n).Msg("No block device has answered whether it is read-only yet, waiting for udev")
-		}),
+		retry.Config{
+			Attempts: writeProtectedRetryAttempts,
+			Delay:    retry.Fixed(writeProtectedRetryDelay),
+			OnRetry: func(n uint, _ error) {
+				KLog.Logger.Debug().Uint("try", n).Msg("No block device has answered whether it is read-only yet, waiting for udev")
+			},
+		},
 	)
 	if err != nil {
 		// Nothing answered. Report writable, which is what every install before
@@ -724,12 +739,13 @@ func GetState() string {
 			}
 			return nil
 		},
-		retry.Delay(1*time.Second),
-		retry.Attempts(10),
-		retry.DelayType(retry.FixedDelay),
-		retry.OnRetry(func(n uint, _ error) {
-			KLog.Logger.Debug().Uint("try", n).Msg("Cannot get state label, retrying")
-		}),
+		retry.Config{
+			Attempts: 10,
+			Delay:    retry.Fixed(1 * time.Second),
+			OnRetry: func(n uint, _ error) {
+				KLog.Logger.Debug().Uint("try", n).Msg("Cannot get state label, retrying")
+			},
+		},
 	)
 	if err != nil {
 		KLog.Logger.Panic().Err(err).Msg("Could not get state label")
