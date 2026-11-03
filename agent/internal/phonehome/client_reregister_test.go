@@ -23,6 +23,9 @@ import (
 type keyServer struct {
 	server *httptest.Server
 	apiKey string
+	// refuseAll makes /api/v1/ws answer 401 even to the key it issued, the
+	// way a proxy that strips the token query does.
+	refuseAll bool
 
 	mu        sync.Mutex
 	registers int
@@ -40,7 +43,10 @@ func newKeyServer(apiKey string) *keyServer {
 		_ = json.NewEncoder(w).Encode(phonehome.Credentials{NodeID: "node", APIKey: ks.apiKey})
 	})
 	mux.HandleFunc("/api/v1/ws", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("token") != ks.apiKey {
+		ks.mu.Lock()
+		refuse := ks.refuseAll
+		ks.mu.Unlock()
+		if refuse || r.URL.Query().Get("token") != ks.apiKey {
 			http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
 			return
 		}
@@ -168,6 +174,29 @@ var _ = Describe("PhoneHome credentials from another server", func() {
 		Expect(readCreds()).To(Equal(phonehome.Credentials{
 			NodeID: "node", APIKey: "new-key", ServerURL: server.server.URL,
 		}))
+
+		cancel()
+		Eventually(done, 5*time.Second).Should(Receive(BeNil()))
+	})
+
+	It("backs off when the server registers the node but refuses every session", func() {
+		server.mu.Lock()
+		server.refuseAll = true
+		server.mu.Unlock()
+
+		client := newClient()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- client.Run(ctx) }()
+
+		// With a 10ms base delay that doubles, 500ms leaves room for about
+		// six registrations. Without the backoff it is hundreds.
+		time.Sleep(500 * time.Millisecond)
+		registers, accepted := server.counts()
+		Expect(accepted).To(Equal(0))
+		Expect(registers).To(BeNumerically(">=", 2))
+		Expect(registers).To(BeNumerically("<=", 10))
 
 		cancel()
 		Eventually(done, 5*time.Second).Should(Receive(BeNil()))

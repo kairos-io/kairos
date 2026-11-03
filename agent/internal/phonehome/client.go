@@ -378,17 +378,19 @@ func (c *Client) Run(ctx context.Context) error {
 
 		// The server does not know this node's key any more: the node was
 		// deleted there, or the server lost its state. Retrying the same key
-		// is refused for ever, so drop it and register again.
+		// is refused for ever, so drop it and register again. The new key
+		// still waits out the backoff below: a server that registers the node
+		// but refuses every websocket with 401 (a proxy that strips the token,
+		// say) would otherwise get a new registration on every pass of a
+		// tight loop.
 		if errors.As(err, &credentialsRejectedError{}) {
 			c.logger.Warnf("disconnected: %v, registering again", err)
 			c.dropCredentials()
 			if !c.registerUntilDone(ctx) {
 				return nil
 			}
-			continue
-		}
-
-		if err != nil {
+			c.logger.Infof("registered again, reconnecting in %s", backoff)
+		} else if err != nil {
 			c.logger.Warnf("disconnected: %v, reconnecting in %s", err, backoff)
 		}
 
