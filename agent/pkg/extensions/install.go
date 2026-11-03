@@ -105,6 +105,12 @@ type fileSource struct {
 
 // Download streams the file to the destination with bounded memory usage
 // Uses io.Copy instead of buffering the entire file to avoid OOM on pods with limited memory
+//
+// The copy goes to a temporary file next to the destination and is renamed
+// over it only once complete, so a failed copy leaves an extension already
+// installed under that name untouched. A source that already is the
+// destination file is left as it is: opening the destination for writing
+// would empty the source before it is read.
 func (f *fileSource) Download(dst string) error {
 	name := filepath.Base(f.uri)
 	if err := checkExtensionFileName(f.uri, name); err != nil {
@@ -124,18 +130,35 @@ func (f *fileSource) Download(dst string) error {
 		return fmt.Errorf("failed to stat file %s: %w", f.uri, err)
 	}
 
-	// Create destination file with same permissions
 	dstFile := filepath.Join(dst, name)
-	dstFileHandle, err := f.cfg.Fs.OpenFile(dstFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, stat.Mode())
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %w", dstFile, err)
+	if dstStat, err := f.cfg.Fs.Stat(dstFile); err == nil && os.SameFile(stat, dstStat) {
+		f.cfg.Logger.Logger.Info().Str("uri", f.uri).Str("target", dstFile).Msg("System extension is already in place, nothing to copy")
+		return nil
 	}
-	defer dstFileHandle.Close()
+
+	// Create the temporary file with the same permissions as the source
+	partial := filepath.Join(dst, "."+name+".partial")
+	if _, err := f.cfg.Fs.Lstat(partial); err == nil {
+		if err := f.cfg.Fs.Remove(partial); err != nil {
+			return fmt.Errorf("failed to remove leftover file %s: %w", partial, err)
+		}
+	}
+	partialHandle, err := f.cfg.Fs.OpenFile(partial, os.O_CREATE|os.O_EXCL|os.O_WRONLY, stat.Mode())
+	if err != nil {
+		return fmt.Errorf("failed to create file %s: %w", partial, err)
+	}
 
 	// Stream copy (bounded memory usage)
 	f.cfg.Logger.Logger.Debug().Str("uri", f.uri).Str("target", dstFile).Msg("Copying system extension")
-	if _, err := io.Copy(dstFileHandle, srcFile); err != nil {
+	_, copyErr := io.Copy(partialHandle, srcFile)
+	closeErr := partialHandle.Close()
+	if err := errors.Join(copyErr, closeErr); err != nil {
+		_ = f.cfg.Fs.Remove(partial)
 		return fmt.Errorf("failed to copy file %s to %s: %w", f.uri, dstFile, err)
+	}
+	if err := f.cfg.Fs.Rename(partial, dstFile); err != nil {
+		_ = f.cfg.Fs.Remove(partial)
+		return fmt.Errorf("failed to move %s to %s: %w", partial, dstFile, err)
 	}
 
 	return nil
