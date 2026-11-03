@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -62,12 +63,16 @@ func queryMDNS(originalURL string, logger loggerpkg.KairosLogger) (string, map[s
 
 	// Build new URL with discovered IP address
 	// Use the port from mDNS response if available, otherwise use original port
+	// An IPv6 address needs its brackets in a URL host, which JoinHostPort adds.
 	newHost := mdnsIP
+	if strings.Contains(mdnsIP, ":") {
+		newHost = "[" + mdnsIP + "]"
+	}
 	if mdnsPort != "" {
-		newHost = fmt.Sprintf("%s:%s", mdnsIP, mdnsPort)
+		newHost = net.JoinHostPort(mdnsIP, mdnsPort)
 	} else if parsedURL.Port() != "" {
 		// If mDNS didn't provide a port, keep the original port
-		newHost = fmt.Sprintf("%s:%s", mdnsIP, parsedURL.Port())
+		newHost = net.JoinHostPort(mdnsIP, parsedURL.Port())
 	}
 
 	// Reconstruct URL with new host
@@ -80,7 +85,7 @@ func queryMDNS(originalURL string, logger loggerpkg.KairosLogger) (string, map[s
 
 // discoverMDNSServer performs an mDNS query to discover any running kcrypt challenger
 // servers on the same network that matches the given hostname.
-// If a response if received, the IP address and the Port from the response are returned.
+// If a response is received, the IP address (v4 or v6) and the Port from the response are returned.
 func discoverMDNSServer(hostname string, logger loggerpkg.KairosLogger) (string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), mdnsTimeout)
 
@@ -128,7 +133,12 @@ func discoverMDNSServer(hostname string, logger loggerpkg.KairosLogger) (string,
 			logger.Debugf("mdns response received")
 			if entry.Host == expectedHost {
 				logger.Debugf("%s matches %s", entry.Host, expectedHost)
-				return entry.AddrV4.String(), strconv.Itoa(entry.Port) // TODO: v6?
+				addr := entryAddress(entry)
+				if addr == "" {
+					logger.Debugf("%s answered without an address, ignoring it", entry.Host)
+					continue
+				}
+				return addr, strconv.Itoa(entry.Port)
 			}
 			logger.Debugf("%s didn't match %s", entry.Host, expectedHost)
 		case <-ctx.Done():
@@ -136,4 +146,20 @@ func discoverMDNSServer(hostname string, logger loggerpkg.KairosLogger) (string,
 			return "", ""
 		}
 	}
+}
+
+// entryAddress returns the address to reach an mDNS answer on: the IPv4 one
+// when there is one, else the IPv6 one (with its zone for a link-local
+// address). It returns "" when the answer carries no address at all.
+func entryAddress(entry *mdns.ServiceEntry) string {
+	if entry.AddrV4 != nil {
+		return entry.AddrV4.String()
+	}
+	if entry.AddrV6IPAddr != nil && entry.AddrV6IPAddr.IP != nil {
+		return entry.AddrV6IPAddr.String()
+	}
+	if entry.AddrV6 != nil {
+		return entry.AddrV6.String()
+	}
+	return ""
 }
