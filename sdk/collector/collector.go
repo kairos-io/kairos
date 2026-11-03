@@ -390,7 +390,9 @@ func Scan(o *Options, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	}
 
 	if o.Overwrites != "" {
-		yaml.Unmarshal([]byte(o.Overwrites), &mergedConfig.Values) //nolint:errcheck
+		if err := yaml.Unmarshal([]byte(o.Overwrites), &mergedConfig.Values); err != nil {
+			return mergedConfig, fmt.Errorf("parsing overwrites: %w", err)
+		}
 	}
 
 	return mergedConfig, nil

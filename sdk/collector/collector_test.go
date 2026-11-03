@@ -1230,6 +1230,19 @@ stages:
                 passwd: kairos
 `))
 			})
+
+			It("returns an error when the overwrite is not valid YAML", func() {
+				o := &Options{}
+				err = o.Apply(
+					Directories(tmpDir1),
+					Overwrites("install:\n  device: [unclosed"),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err := Scan(o, FilterKeysTestMerge)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("parsing overwrites"))
+			})
 		})
 
 		Context("Deep merge maps within arrays", func() {

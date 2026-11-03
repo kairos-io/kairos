@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -20,8 +18,9 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/twpayne/go-vfs/v5/vfst"
-	"github.com/urfave/cli/v2"
 )
 
 type failingCatalogClient struct {
@@ -29,33 +28,31 @@ type failingCatalogClient struct {
 }
 
 func TestSysextInstallUsesDefaultCatalog(t *testing.T) {
-	command := sysextInstallCommand(t)
-	ctx := commandContext(t, command, "sysext", "git")
+	catalogs := flaggedCatalogs(t, "git")
 	cfg := agentConfig.NewConfig()
 
-	got := extensionCatalogURLs(ctx, cfg, "sysext")
+	got := extensionCatalogURLs(catalogs, cfg, "sysext")
 	if len(got) != 1 || got[0] != extensiontypes.DefaultCatalogURL {
 		t.Fatalf("catalog default = %q, want [%q]", got, extensiontypes.DefaultCatalogURL)
 	}
-	if got := extensionCatalogURLs(ctx, cfg, "confext"); got != nil {
+	if got := extensionCatalogURLs(catalogs, cfg, "confext"); got != nil {
 		t.Fatalf("confext catalogs = %q, want none", got)
 	}
 }
 
 func TestSysextInstallCatalogsComeFromTheConfig(t *testing.T) {
-	command := sysextInstallCommand(t)
 	cfg := agentConfig.NewConfig()
 	cfg.Extensions.Catalogs = []string{"https://example.test/one.json", "https://example.test/two.json"}
 
 	// With no flag, the cloud config decides, replacing the default.
-	got := extensionCatalogURLs(commandContext(t, command, "sysext", "git"), cfg, "sysext")
+	got := extensionCatalogURLs(flaggedCatalogs(t, "git"), cfg, "sysext")
 	if len(got) != 2 || got[0] != "https://example.test/one.json" || got[1] != "https://example.test/two.json" {
 		t.Fatalf("catalogs = %q, want the two configured ones in order", got)
 	}
 
 	// Repeated flags override the config, in the order they were given.
-	ctx := commandContext(t, command, "sysext", "--catalog", "https://example.test/flag-a.json", "--catalog", "https://example.test/flag-b.json", "git")
-	got = extensionCatalogURLs(ctx, cfg, "sysext")
+	catalogs := flaggedCatalogs(t, "--catalog", "https://example.test/flag-a.json", "--catalog", "https://example.test/flag-b.json", "git")
+	got = extensionCatalogURLs(catalogs, cfg, "sysext")
 	if len(got) != 2 || got[0] != "https://example.test/flag-a.json" || got[1] != "https://example.test/flag-b.json" {
 		t.Fatalf("catalogs = %q, want the two flagged ones in order", got)
 	}
@@ -81,44 +78,56 @@ func (c *failingCatalogClient) GetURL(_ sdkLogger.KairosLogger, _ string, destin
 	return errors.New("download failed")
 }
 
-func sysextInstallCommand(t *testing.T) *cli.Command {
+// findCommand returns the command at path in a fresh kairos-agent command
+// tree, so that the tests exercise the commands the binary actually serves
+// rather than copies of them.
+func findCommand(t *testing.T, path ...string) *cobra.Command {
 	t.Helper()
-	for _, command := range cmds {
-		if command.Name == "sysext" {
-			for _, subcommand := range command.Subcommands {
-				if subcommand.Name == "install" {
-					return subcommand
-				}
-			}
-		}
+	command, _, err := NewCommand().Find(path)
+	if err != nil || command.Name() != path[len(path)-1] {
+		t.Fatalf("command %q not found: %v", strings.Join(path, " "), err)
 	}
-	t.Fatal("sysext install command not found")
-	return nil
+	return command
 }
 
-func commandContext(t *testing.T, command *cli.Command, extType string, args ...string) *cli.Context {
+// parseCommand parses args into the command at path, the way the binary does,
+// and returns the command and its positional arguments. Each call builds a new
+// tree, so no flag carries over from one call to the next.
+func parseCommand(t *testing.T, path []string, args ...string) (*cobra.Command, []string) {
 	t.Helper()
-	set := flag.NewFlagSet(command.Name, flag.ContinueOnError)
-	for _, commandFlag := range command.Flags {
-		if err := commandFlag.Apply(set); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := set.Parse(args); err != nil {
+	command := findCommand(t, path...)
+	if err := command.ParseFlags(args); err != nil {
 		t.Fatal(err)
 	}
-	ctx := cli.NewContext(nil, set, nil)
-	ctx.Context = context.WithValue(context.Background(), extTypeCtxKey, extType)
-	return ctx
+	return command, command.Flags().Args()
+}
+
+// runCommand parses args into the command at path and runs its RunE, skipping
+// the root and privilege checks that run before it.
+func runCommand(t *testing.T, path []string, args ...string) error {
+	t.Helper()
+	command, positional := parseCommand(t, path, args...)
+	return command.RunE(command, positional)
+}
+
+// flaggedCatalogs returns the --catalog values `sysext install args` parses to.
+func flaggedCatalogs(t *testing.T, args ...string) []string {
+	t.Helper()
+	command, _ := parseCommand(t, []string{"sysext", "install"}, args...)
+	catalogs, err := command.Flags().GetStringSlice("catalog")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return catalogs
 }
 
 func TestSysextInstallCatalogValidation(t *testing.T) {
-	command := sysextInstallCommand(t)
+	confextInstall := []string{"confext", "install"}
 
-	if err := command.Action(commandContext(t, command, "confext", "--catalog", "https://example.test/catalog.json", "git")); err == nil || err.Error() != "--catalog is only supported for sysext" {
+	if err := runCommand(t, confextInstall, "--catalog", "https://example.test/catalog.json", "git"); err == nil || err.Error() != "--catalog is only supported for sysext" {
 		t.Fatalf("expected confext catalog error, got %v", err)
 	}
-	if err := command.Action(commandContext(t, command, "confext", "--version", "1.0.0", "oci:example.test/git:1.0.0")); err == nil || err.Error() != "--version requires --catalog" {
+	if err := runCommand(t, confextInstall, "--version", "1.0.0", "oci:example.test/git:1.0.0"); err == nil || err.Error() != "--version requires --catalog" {
 		t.Fatalf("expected version validation error, got %v", err)
 	}
 }
@@ -153,30 +162,13 @@ func TestCatalogDownloadFailureDoesNotLeaveTemporaryFile(t *testing.T) {
 // defaulting to the provider's socket, so `get-kubeconfig` and `role list`
 // talk to an address nothing is listening on and print empty output.
 func TestStartAPIFlagHasNoDefault(t *testing.T) {
-	var start *cli.Command
-	for _, c := range cmds {
-		if c.Name == "start" {
-			start = c
-			break
-		}
-	}
-	if start == nil {
-		t.Fatal("no start command registered")
-	}
-
-	var api *cli.StringFlag
-	for _, f := range start.Flags {
-		if sf, ok := f.(*cli.StringFlag); ok && sf.Name == "api" {
-			api = sf
-			break
-		}
-	}
+	api := findCommand(t, "start").Flags().Lookup("api")
 	if api == nil {
 		t.Fatal("start command has no --api flag")
 	}
 
-	if api.Value != "" {
-		t.Fatalf("start --api default = %q, want %q so the provider picks the address", api.Value, "")
+	if api.DefValue != "" {
+		t.Fatalf("start --api default = %q, want %q so the provider picks the address", api.DefValue, "")
 	}
 }
 
@@ -185,24 +177,7 @@ func TestStartAPIFlagHasNoDefault(t *testing.T) {
 // units and scripts that still pass it, so it stays accepted and says in
 // --help that it is a no-op.
 func TestStartForceFlagIsDeprecatedNoOp(t *testing.T) {
-	var start *cli.Command
-	for _, c := range cmds {
-		if c.Name == "start" {
-			start = c
-			break
-		}
-	}
-	if start == nil {
-		t.Fatal("no start command registered")
-	}
-
-	var force *cli.BoolFlag
-	for _, f := range start.Flags {
-		if bf, ok := f.(*cli.BoolFlag); ok && bf.Name == "force" {
-			force = bf
-			break
-		}
-	}
+	force := findCommand(t, "start").Flags().Lookup("force")
 	if force == nil {
 		t.Fatal("start command no longer accepts --force, existing invocations would fail")
 	}
@@ -217,26 +192,29 @@ func TestStartForceFlagIsDeprecatedNoOp(t *testing.T) {
 // it. --skip-auto-install is the documented way out, for an operator who
 // booted the media to look around, so it has to default to off.
 func TestSkipAutoInstallDefaultsOff(t *testing.T) {
-	command := interactiveInstallCommand(t)
+	interactiveInstall := []string{"interactive-install"}
 
-	var skip *cli.BoolFlag
-	for _, f := range command.Flags {
-		if bf, ok := f.(*cli.BoolFlag); ok && bf.Name == skipAutoInstallFlag {
-			skip = bf
-			break
-		}
-	}
+	skip := findCommand(t, interactiveInstall...).Flags().Lookup(skipAutoInstallFlag)
 	if skip == nil {
 		t.Fatalf("interactive-install has no --%s flag", skipAutoInstallFlag)
 	}
-	if skip.Value {
-		t.Fatalf("--%s default = true, want false so an unattended config still owns the boot", skipAutoInstallFlag)
+	if skip.DefValue != "false" {
+		t.Fatalf("--%s default = %s, want false so an unattended config still owns the boot", skipAutoInstallFlag, skip.DefValue)
 	}
 
-	if got := skipAutoInstall(commandContext(t, command, "")); got {
+	skipFlag := func(args ...string) bool {
+		command, _ := parseCommand(t, interactiveInstall, args...)
+		v, err := command.Flags().GetBool(skipAutoInstallFlag)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+
+	if got := skipAutoInstall(skipFlag()); got {
 		t.Fatal("skipAutoInstall with no flag and no cmdline token = true, want false")
 	}
-	if got := skipAutoInstall(commandContext(t, command, "", "--"+skipAutoInstallFlag)); !got {
+	if got := skipAutoInstall(skipFlag("--" + skipAutoInstallFlag)); !got {
 		t.Fatalf("skipAutoInstall with --%s = false, want true", skipAutoInstallFlag)
 	}
 }
@@ -265,23 +243,12 @@ func TestSkipAutoInstallCmdlineMatchesWholeTokens(t *testing.T) {
 	}
 }
 
-func interactiveInstallCommand(t *testing.T) *cli.Command {
-	t.Helper()
-	for _, command := range cmds {
-		if command.Name == "interactive-install" {
-			return command
-		}
-	}
-	t.Fatal("interactive-install command not found")
-	return nil
-}
-
 // The two halves of the flag: with it, install.auto is never read and the
 // installer runs; without it, install.auto is read first. Both paths end in
 // the same "no installer found" error here, so the install.auto call itself is
 // what distinguishes them.
 func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
-	command := interactiveInstallCommand(t)
+	interactiveInstall := []string{"interactive-install"}
 
 	original := autoInstallFn
 	t.Cleanup(func() { autoInstallFn = original })
@@ -292,7 +259,7 @@ func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
 		return false, nil, nil, nil
 	}
 
-	err := command.Action(commandContext(t, command, "", "--"+skipAutoInstallFlag))
+	err := runCommand(t, interactiveInstall, "--"+skipAutoInstallFlag)
 	if err == nil || !strings.Contains(err.Error(), "no installer found") {
 		t.Fatalf("--%s did not reach the installer, got %v", skipAutoInstallFlag, err)
 	}
@@ -300,7 +267,7 @@ func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
 		t.Fatalf("--%s still consulted install.auto", skipAutoInstallFlag)
 	}
 
-	err = command.Action(commandContext(t, command, ""))
+	err = runCommand(t, interactiveInstall)
 	if err == nil || !strings.Contains(err.Error(), "no installer found") {
 		t.Fatalf("interactive-install did not reach the installer, got %v", err)
 	}
@@ -315,13 +282,13 @@ func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
 // so the subcommand has no caller left. The alias matters as much as the
 // name: `kairos-agent w` used to reach it.
 func TestNoWebUISubcommandIsRegistered(t *testing.T) {
-	for _, c := range cmds {
-		if c.Name == "webui" {
+	for _, c := range NewCommand().Commands() {
+		if c.Name() == "webui" {
 			t.Fatal("webui is registered again; the web UI is a frontend of the installer, run it with --no-tui")
 		}
 		for _, a := range c.Aliases {
 			if a == "w" {
-				t.Fatalf("%q took over the freed webui alias w", c.Name)
+				t.Fatalf("%q took over the freed webui alias w", c.Name())
 			}
 		}
 	}
@@ -334,17 +301,14 @@ func TestNoWebUISubcommandIsRegistered(t *testing.T) {
 // machine state and still exits 0. A caller scripting an apply cannot tell
 // that from a successful one, which is the whole bug.
 func TestStateRejectsAnArgumentItCannotApply(t *testing.T) {
-	app := &cli.App{
-		Name:      "kairos-agent",
-		Commands:  cmds,
-		Writer:    io.Discard,
-		ErrWriter: io.Discard,
-	}
-
 	// "a" was the alias apply carried, "gte" stands for any other typo: both
 	// used to reach the state dump instead of being refused.
 	for _, arg := range []string{"apply", "a", "gte"} {
-		err := app.Run([]string{"kairos-agent", "state", arg})
+		root := NewCommand()
+		root.SetOut(io.Discard)
+		root.SetErr(io.Discard)
+		root.SetArgs([]string{"state", arg})
+		err := root.Execute()
 		if err == nil {
 			t.Fatalf("`state %s` exited 0, so it is indistinguishable from a command that did the work", arg)
 		}
@@ -356,20 +320,11 @@ func TestStateRejectsAnArgumentItCannotApply(t *testing.T) {
 
 // Nothing may re-register a placeholder under `state`, and `get` has to stay.
 func TestStateRegistersGetAndNoApply(t *testing.T) {
-	var stateCmd *cli.Command
-	for _, c := range cmds {
-		if c.Name == "state" {
-			stateCmd = c
-			break
-		}
-	}
-	if stateCmd == nil {
-		t.Fatal("no state command registered")
-	}
+	stateCmd := findCommand(t, "state")
 
 	names := map[string]bool{}
-	for _, sub := range stateCmd.Subcommands {
-		names[sub.Name] = true
+	for _, sub := range stateCmd.Commands() {
+		names[sub.Name()] = true
 		for _, alias := range sub.Aliases {
 			names[alias] = true
 		}
@@ -382,15 +337,20 @@ func TestStateRegistersGetAndNoApply(t *testing.T) {
 	}
 }
 
-func runStageCommand(t *testing.T) *cli.Command {
+// runStagePaths parses `run-stage args` and resolves the cloud-init paths it
+// would read, against cfg.
+func runStagePaths(t *testing.T, cfg *sdkConfig.Config, args ...string) []string {
 	t.Helper()
-	for _, command := range cmds {
-		if command.Name == "run-stage" {
-			return command
-		}
+	command, _ := parseCommand(t, []string{"run-stage"}, args...)
+	extra, err := command.Flags().GetStringSlice("cloud-init-paths")
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Fatal("run-stage command not found")
-	return nil
+	override, err := command.Flags().GetStringSlice("override-cloud-init-paths")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return runStageCloudInitPaths(extra, override, cfg)
 }
 
 // #4665: --override-cloud-init-paths advertises "removing defaults", but the
@@ -399,16 +359,13 @@ func runStageCommand(t *testing.T) *cli.Command {
 // was not expressible, and for a stage like initramfs the machine's whole /oem
 // was re-applied alongside it.
 func TestRunStageOverrideDropsTheDefaults(t *testing.T) {
-	command := runStageCommand(t)
 	cfg := agentConfig.NewConfig()
 	cfg.CloudInitPaths = []string{"/from/config"}
 
-	ctx := commandContext(t, command, "",
+	got := runStagePaths(t, cfg,
 		"--cloud-init-paths", "/extra",
 		"--override-cloud-init-paths", "/only/this/path",
 		"initramfs")
-
-	got := runStageCloudInitPaths(ctx, cfg)
 	if len(got) != 1 || got[0] != "/only/this/path" {
 		t.Fatalf("override paths = %v, want [/only/this/path]", got)
 	}
@@ -424,13 +381,10 @@ func TestRunStageOverrideDropsTheDefaults(t *testing.T) {
 // The other half of the contract: --cloud-init-paths still means "the defaults
 // plus these", so nothing changes for anyone already using it.
 func TestRunStageExtraPathsKeepTheDefaults(t *testing.T) {
-	command := runStageCommand(t)
 	cfg := agentConfig.NewConfig()
 	cfg.CloudInitPaths = []string{"/from/config"}
 
-	ctx := commandContext(t, command, "", "--cloud-init-paths", "/extra", "initramfs")
-
-	got := runStageCloudInitPaths(ctx, cfg)
+	got := runStagePaths(t, cfg, "--cloud-init-paths", "/extra", "initramfs")
 	for _, wanted := range append(constants.GetCloudInitPaths(), "/from/config", "/extra") {
 		found := false
 		for _, p := range got {
@@ -448,13 +402,10 @@ func TestRunStageExtraPathsKeepTheDefaults(t *testing.T) {
 // With neither flag the stage reads the defaults plus whatever the scanned
 // config contributed, which is what every other RunStage caller gets.
 func TestRunStageWithoutFlagsUsesDefaults(t *testing.T) {
-	command := runStageCommand(t)
 	cfg := agentConfig.NewConfig()
 	cfg.CloudInitPaths = []string{"/from/config"}
 
-	ctx := commandContext(t, command, "", "initramfs")
-
-	got := runStageCloudInitPaths(ctx, cfg)
+	got := runStagePaths(t, cfg, "initramfs")
 	want := append(constants.GetCloudInitPaths(), "/from/config")
 	if len(got) != len(want) {
 		t.Fatalf("paths = %v, want %v", got, want)
@@ -466,26 +417,7 @@ func TestRunStageWithoutFlagsUsesDefaults(t *testing.T) {
 	}
 }
 
-// listReleasesCommand returns the registered "upgrade list-releases" command,
-// so that the tests exercise the command the binary actually serves rather than
-// a copy of it.
-func listReleasesCommand(t *testing.T) *cli.Command {
-	t.Helper()
-
-	for _, c := range cmds {
-		if c.Name != "upgrade" {
-			continue
-		}
-		for _, sub := range c.Subcommands {
-			if sub.Name == "list-releases" {
-				return sub
-			}
-		}
-	}
-
-	t.Fatal("no upgrade list-releases command registered")
-	return nil
-}
+var listReleases = []string{"upgrade", "list-releases"}
 
 func TestParseReleasesOutputAcceptsTheDocumentedFormats(t *testing.T) {
 	for in, want := range map[string]string{
@@ -519,17 +451,22 @@ func TestParseReleasesOutputRefusesAnUnknownFormat(t *testing.T) {
 }
 
 // The same validation has to run before anything is printed, which is why it
-// sits in the command's Before hook.
+// sits in the command's PreRunE hook, ahead of the upgrade checks that follow
+// it there. Those checks need root and an installed system, so a valid format
+// may still be refused here, but never for its format.
 func TestListReleasesRefusesAnUnknownOutputFormatBeforeRunning(t *testing.T) {
-	command := listReleasesCommand(t)
+	preRun := func(args ...string) error {
+		command, positional := parseCommand(t, listReleases, args...)
+		if command.PreRunE == nil {
+			t.Fatal("list-releases lost its PreRunE hook, so --output is no longer validated")
+		}
+		return command.PreRunE(command, positional)
+	}
 
-	if command.Before == nil {
-		t.Fatal("list-releases lost its Before hook, so --output is no longer validated")
+	if err := preRun("--output", "jsonn"); err == nil || !strings.Contains(err.Error(), "jsonn") {
+		t.Fatalf("list-releases --output jsonn = %v, want the format refused so an unparsable format does not reach the caller as terminal output", err)
 	}
-	if err := command.Before(commandContext(t, command, "", "--output", "jsonn")); err == nil {
-		t.Fatal("list-releases accepted --output jsonn, so an unparsable format reaches the caller as terminal output")
-	}
-	if err := command.Before(commandContext(t, command, "", "--output", "json")); err != nil {
+	if err := preRun("--output", "json"); err != nil && strings.Contains(err.Error(), "output format") {
 		t.Fatalf("list-releases refused --output json: %v", err)
 	}
 }
@@ -537,10 +474,8 @@ func TestListReleasesRefusesAnUnknownOutputFormatBeforeRunning(t *testing.T) {
 // The regression this guards: the flag was declared and documented for three
 // years while nothing read it.
 func TestListReleasesStillDeclaresTheOutputFlag(t *testing.T) {
-	command := listReleasesCommand(t)
-
-	ctx := commandContext(t, command, "", "--output", "yaml")
-	if got := ctx.String("output"); got != "yaml" {
+	command, _ := parseCommand(t, listReleases, "--output", "yaml")
+	if got, _ := command.Flags().GetString("output"); got != "yaml" {
 		t.Fatalf("list-releases --output parsed as %q, want %q", got, "yaml")
 	}
 }
@@ -657,60 +592,42 @@ func TestPrintProviderReleasesWithoutReleasesFallsThrough(t *testing.T) {
 // resolver instead, which is the only place that can see the config.
 // See kairos-io/kairos#5183.
 func TestKcryptNVIndexFlagLeavesRoomForTheConfig(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		args []string
-		want string
-	}{
-		{name: "unset", args: []string{"kairos-agent"}, want: ""},
-		{name: "given", args: []string{"kairos-agent", "--nv-index", "0x1500001"}, want: "0x1500001"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var got string
-			app := &cli.App{
-				Flags:  []cli.Flag{&kcryptNVIndexFlag},
-				Action: func(c *cli.Context) error { got = c.String("nv-index"); return nil },
-			}
-			if err := app.Run(tc.args); err != nil {
-				t.Fatalf("running the app: %v", err)
-			}
-			if got != tc.want {
-				t.Fatalf("c.String(%q) = %q, want %q", "nv-index", got, tc.want)
-			}
-		})
+	for _, subcommand := range []string{"checknv", "readnv", "cleanupnv"} {
+		for _, tc := range []struct {
+			name string
+			args []string
+			want string
+		}{
+			{name: "unset", args: nil, want: ""},
+			{name: "given", args: []string{"--nv-index", "0x1500001"}, want: "0x1500001"},
+		} {
+			t.Run(subcommand+" "+tc.name, func(t *testing.T) {
+				command, _ := parseCommand(t, []string{"kcrypt", subcommand}, tc.args...)
+				got, err := command.Flags().GetString("nv-index")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got != tc.want {
+					t.Fatalf("--nv-index parsed as %q, want %q", got, tc.want)
+				}
+			})
+		}
 	}
 }
 
 // `upgrade --dry-run` must be registered as a bool flag that defaults to off,
 // so a plain `upgrade` keeps running the real upgrade.
 func TestUpgradeRegistersDryRunFlag(t *testing.T) {
-	var upgradeCmd *cli.Command
-	for _, c := range cmds {
-		if c.Name == "upgrade" {
-			upgradeCmd = c
-			break
-		}
+	dryRun := findCommand(t, "upgrade").Flags().Lookup("dry-run")
+	if dryRun == nil {
+		t.Fatal("upgrade does not register a --dry-run flag")
 	}
-	if upgradeCmd == nil {
-		t.Fatal("no upgrade command registered")
+	if dryRun.Value.Type() != "bool" {
+		t.Fatalf("dry-run is a %s flag, want bool", dryRun.Value.Type())
 	}
-
-	for _, f := range upgradeCmd.Flags {
-		for _, name := range f.Names() {
-			if name != "dry-run" {
-				continue
-			}
-			bf, ok := f.(*cli.BoolFlag)
-			if !ok {
-				t.Fatalf("dry-run is a %T, want *cli.BoolFlag", f)
-			}
-			if bf.Value {
-				t.Fatal("dry-run defaults to true, a plain upgrade would not upgrade")
-			}
-			return
-		}
+	if dryRun.DefValue != "false" {
+		t.Fatal("dry-run defaults to true, a plain upgrade would not upgrade")
 	}
-	t.Fatal("upgrade does not register a --dry-run flag")
 }
 
 func TestReleaseCollectorKeepsEveryProvidersReleases(t *testing.T) {
@@ -762,30 +679,10 @@ func TestReleaseCollectorIsSafeForConcurrentProviders(t *testing.T) {
 	}
 }
 
-func phoneHomeCommand(t *testing.T) *cli.Command {
+func phoneHomeFlags(t *testing.T, args ...string) *pflag.FlagSet {
 	t.Helper()
-	for _, command := range cmds {
-		if command.Name == "phone-home" {
-			return command
-		}
-	}
-	t.Fatal("phone-home command not found")
-	return nil
-}
-
-func phoneHomeContext(t *testing.T, args ...string) *cli.Context {
-	t.Helper()
-	command := phoneHomeCommand(t)
-	set := flag.NewFlagSet(command.Name, flag.ContinueOnError)
-	for _, commandFlag := range command.Flags {
-		if err := commandFlag.Apply(set); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := set.Parse(args); err != nil {
-		t.Fatal(err)
-	}
-	return cli.NewContext(nil, set, nil)
+	command, _ := parseCommand(t, []string{"phone-home"}, args...)
+	return command.Flags()
 }
 
 // The unit the agent installs runs "kairos-agent phone-home" with no flags, so
@@ -801,7 +698,7 @@ func TestPhoneHomeKeepsTheConfiguredHeartbeatWhenTheFlagIsAbsent(t *testing.T) {
 		ReconnectBackoff:  time.Minute,
 	}
 
-	MergePhoneHomeFlags(phoneHomeContext(t), &cfg)
+	MergePhoneHomeFlags(phoneHomeFlags(t), &cfg)
 
 	if cfg.HeartbeatInterval != 5*time.Minute {
 		t.Fatalf("heartbeat interval = %s, want the configured 5m", cfg.HeartbeatInterval)
@@ -822,7 +719,7 @@ func TestPhoneHomeFlagsOverrideTheConfiguredValues(t *testing.T) {
 		HeartbeatInterval: 5 * time.Minute,
 	}
 
-	MergePhoneHomeFlags(phoneHomeContext(t,
+	MergePhoneHomeFlags(phoneHomeFlags(t,
 		"--url", "ws://flag.test",
 		"--token", "flag-token",
 		"--group", "flag-group",
@@ -842,7 +739,7 @@ func TestPhoneHomeFlagsOverrideTheConfiguredValues(t *testing.T) {
 func TestPhoneHomeLeavesTheHeartbeatZeroWhenNobodySetsIt(t *testing.T) {
 	cfg := phonehome.Config{URL: "ws://configured.test"}
 
-	MergePhoneHomeFlags(phoneHomeContext(t), &cfg)
+	MergePhoneHomeFlags(phoneHomeFlags(t), &cfg)
 
 	if cfg.HeartbeatInterval != 0 {
 		t.Fatalf("heartbeat interval = %s, want zero so the client applies its default", cfg.HeartbeatInterval)
@@ -892,36 +789,26 @@ func TestLoadPhoneHomeConfigWithoutASectionIsEmpty(t *testing.T) {
 	}
 }
 
-func installBundleCommand(t *testing.T) *cli.Command {
-	t.Helper()
-	for _, command := range cmds {
-		if command.Name == "install-bundle" {
-			return command
-		}
-	}
-	t.Fatal("install-bundle command not found")
-	return nil
-}
+var installBundle = []string{"install-bundle"}
 
 func TestInstallBundleExamplesAreValidTargets(t *testing.T) {
-	command := installBundleCommand(t)
 	knownSchemes := map[string]bool{"container": true, "docker": true, "run": true, "package": true}
 
 	examples := 0
 	localFileExample := false
-	for _, line := range strings.Split(command.Description, "\n") {
+	for _, line := range strings.Split(findCommand(t, installBundle...).Long, "\n") {
 		_, example, found := strings.Cut(line, "kairos-agent install-bundle ")
 		if !found {
 			continue
 		}
 		examples++
 
-		ctx := commandContext(t, command, "", strings.Fields(example)...)
-		if ctx.Args().Len() != 1 {
-			t.Errorf("example %q leaves %d positional arguments, want 1", line, ctx.Args().Len())
+		command, args := parseCommand(t, installBundle, strings.Fields(example)...)
+		if len(args) != 1 {
+			t.Errorf("example %q leaves %d positional arguments, want 1", line, len(args))
 			continue
 		}
-		config := bundles.BundleConfig{Target: ctx.Args().First()}
+		config := bundles.BundleConfig{Target: args[0]}
 		scheme, err := config.TargetScheme()
 		if err != nil {
 			t.Errorf("example %q has an invalid target: %v", line, err)
@@ -930,7 +817,7 @@ func TestInstallBundleExamplesAreValidTargets(t *testing.T) {
 		if !knownSchemes[scheme] {
 			t.Errorf("example %q uses scheme %q, want one of %v", line, scheme, knownSchemes)
 		}
-		if ctx.Bool("local-file") {
+		if localFile, _ := command.Flags().GetBool("local-file"); localFile {
 			localFileExample = true
 		}
 	}
@@ -944,14 +831,12 @@ func TestInstallBundleExamplesAreValidTargets(t *testing.T) {
 }
 
 func TestInstallBundleFlagsAfterTargetAreNotParsed(t *testing.T) {
-	command := installBundleCommand(t)
-
-	ctx := commandContext(t, command, "", "container:///absolute/path/mybundle.tar", "--local-file")
-	if ctx.Bool("local-file") {
+	command, args := parseCommand(t, installBundle, "container:///absolute/path/mybundle.tar", "--local-file")
+	if localFile, _ := command.Flags().GetBool("local-file"); localFile {
 		t.Fatal("--local-file after the target was parsed as a flag, the help text says it is not")
 	}
-	if ctx.Args().Len() != 2 {
-		t.Fatalf("got %d positional arguments, want 2", ctx.Args().Len())
+	if len(args) != 2 {
+		t.Fatalf("got %d positional arguments, want 2", len(args))
 	}
 }
 
@@ -961,8 +846,6 @@ func TestInstallBundleFlagsAfterTargetAreNotParsed(t *testing.T) {
 // --repository at their own mirror and asked for a container:// bundle still
 // pulled from the registry the target named, with nothing said about it.
 func TestInstallBundleRefusesAFlagTheSchemeCannotRead(t *testing.T) {
-	command := installBundleCommand(t)
-
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -985,8 +868,8 @@ func TestInstallBundleRefusesAFlagTheSchemeCannotRead(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := commandContext(t, command, "", tc.args...)
-			err := checkInstallBundleFlags(ctx, ctx.Args().First())
+			command, args := parseCommand(t, installBundle, tc.args...)
+			err := checkInstallBundleFlags(command.Flags(), args[0])
 			if err == nil {
 				t.Fatalf("args %q were accepted, the flag would have been dropped without a word", tc.args)
 			}
@@ -1001,10 +884,7 @@ func TestInstallBundleRefusesAFlagTheSchemeCannotRead(t *testing.T) {
 // returns before RunBundles, and --root-path keeps a regression that lets the
 // call through from writing into the test host's /.
 func TestInstallBundleActionRunsTheFlagCheck(t *testing.T) {
-	command := installBundleCommand(t)
-
-	ctx := commandContext(t, command, "", "--root-path", t.TempDir(), "--repository", "docker://quay.io/myorg/packages", "container://quay.io/myorg/mybundle:latest")
-	err := command.Action(ctx)
+	err := runCommand(t, installBundle, "--root-path", t.TempDir(), "--repository", "docker://quay.io/myorg/packages", "container://quay.io/myorg/mybundle:latest")
 	if err == nil || !strings.Contains(err.Error(), "--repository is only read by a package:// target") {
 		t.Fatalf("install-bundle action = %v, want it to refuse --repository on a container target", err)
 	}
@@ -1014,8 +894,6 @@ func TestInstallBundleActionRunsTheFlagCheck(t *testing.T) {
 // to keep working. A default value is not a request, so only a --repository
 // the operator actually passed may refuse a container:// bundle.
 func TestInstallBundleAcceptsTheFlagsTheSchemeReads(t *testing.T) {
-	command := installBundleCommand(t)
-
 	for _, tc := range []struct {
 		name string
 		args []string
@@ -1028,8 +906,8 @@ func TestInstallBundleAcceptsTheFlagsTheSchemeReads(t *testing.T) {
 		{name: "a target with no scheme is left to RunBundles", args: []string{"--repository", "docker://quay.io/myorg/packages", "quay.io/myorg/mybundle:latest"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := commandContext(t, command, "", tc.args...)
-			if err := checkInstallBundleFlags(ctx, ctx.Args().First()); err != nil {
+			command, args := parseCommand(t, installBundle, tc.args...)
+			if err := checkInstallBundleFlags(command.Flags(), args[0]); err != nil {
 				t.Fatalf("args %q were refused: %v", tc.args, err)
 			}
 		})
@@ -1039,30 +917,22 @@ func TestInstallBundleAcceptsTheFlagsTheSchemeReads(t *testing.T) {
 // Every example the help prints has to survive the check the command now runs,
 // or the help tells people to type a command that is refused.
 func TestInstallBundleExamplesPassTheFlagCheck(t *testing.T) {
-	command := installBundleCommand(t)
-
-	for _, line := range strings.Split(command.Description, "\n") {
+	for _, line := range strings.Split(findCommand(t, installBundle...).Long, "\n") {
 		_, example, found := strings.Cut(line, "kairos-agent install-bundle ")
 		if !found {
 			continue
 		}
-		ctx := commandContext(t, command, "", strings.Fields(example)...)
-		if err := checkInstallBundleFlags(ctx, ctx.Args().First()); err != nil {
+		command, args := parseCommand(t, installBundle, strings.Fields(example)...)
+		if err := checkInstallBundleFlags(command.Flags(), args[0]); err != nil {
 			t.Errorf("example %q is refused by the command: %v", line, err)
 		}
 	}
 }
 
 func TestInstallBundleFlagsHaveUsage(t *testing.T) {
-	command := installBundleCommand(t)
-
-	for _, commandFlag := range command.Flags {
-		docFlag, ok := commandFlag.(cli.DocGenerationFlag)
-		if !ok {
-			t.Fatalf("flag %v does not expose its usage text", commandFlag.Names())
+	findCommand(t, installBundle...).LocalFlags().VisitAll(func(f *pflag.Flag) {
+		if strings.TrimSpace(f.Usage) == "" {
+			t.Errorf("flag %s has no usage text", f.Name)
 		}
-		if strings.TrimSpace(docFlag.GetUsage()) == "" {
-			t.Errorf("flag %v has no usage text", commandFlag.Names())
-		}
-	}
+	})
 }

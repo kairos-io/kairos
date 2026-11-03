@@ -10,5 +10,5 @@ func init() {
 	// is orthogonal to whatever provider is (or isn't) installed and to the
 	// agent's install / upgrade lifecycle, so hiding it behind either would
 	// misrepresent when a user is expected to reach for it.
-	register("edit-config", editconfig.Run)
+	register(passthrough("edit-config", "Edit and validate the persistent cloud-init configuration", editconfig.Run), nil)
 }
