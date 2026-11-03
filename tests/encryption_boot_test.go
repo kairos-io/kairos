@@ -251,7 +251,7 @@ kcrypt:
 				// Clean up the TOFU-created SealedVolume, same shape as the
 				// encryption-remote-auto suite.
 				cmd := exec.Command("kubectl", "delete", "sealedvolume",
-					fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8]), "--ignore-not-found")
+					getSealedVolumeName(tpmHash)+"-cos-persistent-luks", "--ignore-not-found")
 				out, err := cmd.CombinedOutput()
 				Expect(err).ToNot(HaveOccurred(), string(out))
 			}
@@ -282,7 +282,7 @@ kcrypt:
 			By("Expecting the TOFU secret to exist on the cluster")
 			tpmHash = getTPMHash(bootVM)
 			cmd := exec.Command("kubectl", "get", "secrets",
-				fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8]))
+				getSealedVolumeName(tpmHash)+"-cos-persistent-luks")
 			secretOut, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), string(secretOut))
 

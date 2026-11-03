@@ -206,3 +206,23 @@ var _ = Describe("PhoneHome reconnect backoff", func() {
 			"the delay did not grow across sessions that died at once: %v", waits)
 	})
 })
+
+var _ = Describe("NewClient interval defaults", func() {
+	DescribeTable("replaces a zero or negative interval with the default",
+		func(heartbeat, backoff time.Duration) {
+			cfg := &phonehome.Config{URL: "http://127.0.0.1:1", HeartbeatInterval: heartbeat, ReconnectBackoff: backoff}
+			phonehome.NewClient(cfg)
+			Expect(cfg.HeartbeatInterval).To(Equal(phonehome.DefaultHeartbeatInterval))
+			Expect(cfg.ReconnectBackoff).To(Equal(phonehome.DefaultReconnectBackoff))
+		},
+		Entry("zero", time.Duration(0), time.Duration(0)),
+		Entry("negative", -30*time.Second, -5*time.Second),
+	)
+
+	It("keeps a positive interval", func() {
+		cfg := &phonehome.Config{URL: "http://127.0.0.1:1", HeartbeatInterval: 7 * time.Second, ReconnectBackoff: 2 * time.Second}
+		phonehome.NewClient(cfg)
+		Expect(cfg.HeartbeatInterval).To(Equal(7 * time.Second))
+		Expect(cfg.ReconnectBackoff).To(Equal(2 * time.Second))
+	})
+})

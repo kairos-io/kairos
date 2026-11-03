@@ -17,8 +17,12 @@ limitations under the License.
 package http
 
 import (
+	"context"
+	"io"
+	"net"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/cavaliergopher/grab/v3"
@@ -33,8 +37,78 @@ type Client struct {
 func NewClient() *Client {
 	client := grab.NewClient()
 	client.UserAgent = "Mozilla/5.0 (X11; Linux i686; rv:109.0) Gecko/20100101 Firefox/117.0"
-	client.HTTPClient = &http.Client{Timeout: time.Second * constants.HTTPTimeout}
+	// No overall Client.Timeout: it also covers reading the body, so a large
+	// download that is still making progress would be cut off. Connect, TLS
+	// and response headers are bounded by the transport, and the body by the
+	// stall timeout below.
+	idle := time.Second * constants.HTTPTimeout
+	client.HTTPClient = &http.Client{Transport: &stallTransport{
+		base:    newBaseTransport(idle),
+		timeout: idle,
+	}}
 	return &Client{client: client}
+}
+
+func newBaseTransport(timeout time.Duration) *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	t.DialContext = (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).DialContext
+	t.TLSHandshakeTimeout = timeout
+	t.ResponseHeaderTimeout = timeout
+	return t
+}
+
+// stallTransport cancels a request when no body bytes arrive for `timeout`.
+// The timer restarts on every read, so a slow but steady transfer completes.
+type stallTransport struct {
+	base    http.RoundTripper
+	timeout time.Duration
+}
+
+func (s *stallTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, cancel := context.WithCancel(req.Context())
+	timer := time.AfterFunc(s.timeout, cancel)
+	resp, err := s.base.RoundTrip(req.Clone(ctx))
+	if err != nil {
+		timer.Stop()
+		cancel()
+		return nil, err
+	}
+	// Headers are in: the body stall window starts now, not at dial time.
+	timer.Reset(s.timeout)
+	resp.Body = &stallBody{body: resp.Body, timer: timer, timeout: s.timeout, cancel: cancel}
+	return resp, nil
+}
+
+type stallBody struct {
+	body    io.ReadCloser
+	timer   *time.Timer
+	timeout time.Duration
+	cancel  context.CancelFunc
+	once    sync.Once
+}
+
+func (b *stallBody) Read(p []byte) (int, error) {
+	n, err := b.body.Read(p)
+	if n > 0 {
+		b.timer.Reset(b.timeout)
+	}
+	if err != nil {
+		b.stop()
+	}
+	return n, err
+}
+
+func (b *stallBody) Close() error {
+	err := b.body.Close()
+	b.stop()
+	return err
+}
+
+func (b *stallBody) stop() {
+	b.once.Do(func() {
+		b.timer.Stop()
+		b.cancel()
+	})
 }
 
 // GetURL attempts to download the contents of the given URL to the given destination.

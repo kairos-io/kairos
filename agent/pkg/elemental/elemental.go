@@ -48,6 +48,10 @@ import (
 // Elemental is the struct meant to self-contain most utils and actions related to Elemental, like installing or applying selinux
 type Elemental struct {
 	config *sdkConfig.Config
+	// squashStaging maps the unpacked tree of a squashfs image deployed with
+	// leaveMounted to the MountPoint the image had before. UnmountImage
+	// builds the squashfs from that tree and removes it.
+	squashStaging map[string]string
 }
 
 func NewElemental(config *sdkConfig.Config) *Elemental {
@@ -308,6 +312,9 @@ func (e Elemental) MountImage(img *sdkImages.Image, opts ...string) error {
 
 // UnmountImage unmounts the given image or does nothing if not mounted
 func (e Elemental) UnmountImage(img *sdkImages.Image) error {
+	if prevMountPoint, ok := e.squashStaging[img.MountPoint]; ok {
+		return e.packSquashStaging(img, prevMountPoint)
+	}
 	// Using IsLikelyNotMountPoint seams to be safe as we are not checking
 	// for bind mounts here
 	if notMnt, _ := e.config.Mounter.IsLikelyNotMountPoint(img.MountPoint); notMnt {
@@ -326,6 +333,37 @@ func (e Elemental) UnmountImage(img *sdkImages.Image) error {
 	}
 	img.LoopDevice = ""
 	return err
+}
+
+// DiscardImage is UnmountImage for an image whose contents are being thrown
+// away: a squashfs tree kept by DeployImage is removed without building the
+// squashfs, and img.MountPoint is put back. Any other image is unmounted
+// through UnmountImage.
+func (e Elemental) DiscardImage(img *sdkImages.Image) error {
+	prevMountPoint, ok := e.squashStaging[img.MountPoint]
+	if !ok {
+		return e.UnmountImage(img)
+	}
+	tree := img.MountPoint
+	delete(e.squashStaging, tree)
+	img.MountPoint = prevMountPoint
+	e.config.Logger.Debugf("Discarding unpacked squashfs tree %s", tree)
+	return e.config.Fs.RemoveAll(tree)
+}
+
+// packSquashStaging builds img.File from the unpacked tree at img.MountPoint,
+// removes the tree and puts back the MountPoint the image had before deploy.
+func (e Elemental) packSquashStaging(img *sdkImages.Image, prevMountPoint string) error {
+	tree := img.MountPoint
+	delete(e.squashStaging, tree)
+	img.MountPoint = prevMountPoint
+	defer e.config.Fs.RemoveAll(tree) // nolint:errcheck
+	return e.createSquashFS(tree, img.File)
+}
+
+func (e Elemental) createSquashFS(source, file string) error {
+	squashOptions := append(cnst.GetDefaultSquashfsOptions(), e.config.SquashFsCompressionConfig...)
+	return utils.CreateSquashFS(e.config.Runner, e.config.Logger, source, file, squashOptions)
 }
 
 // CreateFileSystemImage creates the image file for config.target
@@ -376,7 +414,10 @@ func (e *Elemental) DeployImageNodirs(img *sdkImages.Image, leaveMounted bool, e
 }
 
 // deployImage is the real function that does the actual work
-// Set leaveMounted to leave the image mounted, otherwise it unmounts before returning
+// Set leaveMounted to leave the image mounted, otherwise it unmounts before returning.
+// For a squashfs image built from a non-file source, leaveMounted keeps the
+// unpacked tree and points img.MountPoint at it; UnmountImage then builds the
+// squashfs from that tree, so changes made to it in between end up in the image.
 // Set createDirStructure to create the directory structure in the target, which creates the expected dirs
 // for a running system. This is so we can reuse this method for creating random images, not only system ones
 func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStructure bool, excludes ...string) (info interface{}, err error) {
@@ -394,11 +435,15 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 			}
 		} else {
 			target = utils.GetTempDir(e.config, "")
-			err := fsutils.MkdirAll(e.config.Fs, target, cnst.DirPerm)
+			err = fsutils.MkdirAll(e.config.Fs, target, cnst.DirPerm)
 			if err != nil {
 				return nil, err
 			}
-			defer e.config.Fs.RemoveAll(target) // nolint:errcheck
+			defer func() {
+				if !leaveMounted || err != nil {
+					_ = e.config.Fs.RemoveAll(target)
+				}
+			}()
 		}
 	} else {
 		target = img.File
@@ -416,8 +461,15 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 			}
 		}
 		if img.FS == cnst.SquashFs {
-			squashOptions := append(cnst.GetDefaultSquashfsOptions(), e.config.SquashFsCompressionConfig...)
-			err = utils.CreateSquashFS(e.config.Runner, e.config.Logger, target, img.File, squashOptions)
+			if leaveMounted {
+				if e.squashStaging == nil {
+					e.squashStaging = map[string]string{}
+				}
+				e.squashStaging[target] = img.MountPoint
+				img.MountPoint = target
+				return info, nil
+			}
+			err = e.createSquashFS(target, img.File)
 			if err != nil {
 				return nil, err
 			}
@@ -517,7 +569,7 @@ func (e *Elemental) imageFromArchive(archivePath string) (ggcrv1.Image, func(), 
 
 	img, dockerErr := tarball.ImageFromPath(archivePath, nil)
 	if dockerErr == nil {
-		return img, noop, nil
+		return img, noop, e.checkArchivePlatform(archivePath, img)
 	}
 
 	// Some tools save an image without a repository tag. Ask for the
@@ -527,7 +579,7 @@ func (e *Elemental) imageFromArchive(archivePath string) (ggcrv1.Image, func(), 
 		return nil, noop, fmt.Errorf("failed to create tag reference: %w", err)
 	}
 	if img, err = tarball.ImageFromPath(archivePath, &tag); err == nil {
-		return img, noop, nil
+		return img, noop, e.checkArchivePlatform(archivePath, img)
 	}
 
 	e.config.Logger.Infof("%s is not a docker image archive (%v), reading it as an OCI layout", archivePath, dockerErr)
@@ -540,6 +592,32 @@ func (e *Elemental) imageFromArchive(archivePath string) (ggcrv1.Image, func(), 
 		"reading %s as an image archive: not a docker archive (%w), not an OCI layout (%v)",
 		archivePath, dockerErr, ociErr,
 	)
+}
+
+// checkArchivePlatform refuses a docker save archive whose image config names
+// an OS or architecture other than the one this run targets. The OCI layout
+// path does the same through imageFromIndex. An archive whose config names
+// neither is accepted, since a save of an image built without that metadata is
+// legitimate and there is nothing to compare.
+func (e *Elemental) checkArchivePlatform(archivePath string, img ggcrv1.Image) error {
+	if e.config.Platform == nil {
+		return nil
+	}
+
+	cfg, err := img.ConfigFile()
+	if err != nil {
+		return fmt.Errorf("reading the image config of %s: %w", archivePath, err)
+	}
+
+	if (cfg.OS != "" && cfg.OS != e.config.Platform.OS) ||
+		(cfg.Architecture != "" && cfg.Architecture != e.config.Platform.GolangArch) {
+		return fmt.Errorf(
+			"%s holds an image for %s/%s, not for %s",
+			archivePath, cfg.OS, cfg.Architecture, e.platformName(),
+		)
+	}
+
+	return nil
 }
 
 // imageFromOCILayoutArchive unpacks an archive into a temporary directory and

@@ -174,7 +174,7 @@ func (u *UpgradeAction) Run() (err error) {
 			newID = measureRootfsID(u.config, &upgradeImg)
 		}
 	}
-	cleanup.Push(func() error { return e.UnmountImage(&upgradeImg) })
+	cleanup.Push(func() error { return e.DiscardImage(&upgradeImg) })
 
 	// Everything from labeling the state images to refreshing the ESP is
 	// finalize work whose on-disk formats the target image owns (GRUB

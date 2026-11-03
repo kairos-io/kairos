@@ -4,13 +4,17 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -25,6 +29,7 @@ import (
 	"github.com/moby/moby/client"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/sys/unix"
 )
 
 func TestSuite(t *testing.T) {
@@ -94,21 +99,10 @@ var _ = Describe("sysext", Label("sysext"), Ordered, func() {
 	})
 
 	When("Using an empty image", func() {
-		BeforeEach(func() {
-			imageTag = createEmptyDockerImage()
-			By(fmt.Sprintf("Created image %s", imageTag))
-			image, err = imageUtils.GetImage(imageTag, utils.GetCurrentPlatform(), nil, nil)
-			Expect(err).ToNot(HaveOccurred())
-		})
-		AfterEach(func() {
-			cli, _ := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-			_, _ = cli.ImageRemove(context.Background(), imageTag, client.ImageRemoveOptions{Force: true})
-			By(fmt.Sprintf("Removed image %s", imageTag))
-		})
 		It("Fails with no layers image", func() {
-			// Cleanup existing image before creating a new one
-
-			err = ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)
+			// An in-memory image: the Docker daemon refuses to export an
+			// image with no layers, so a daemon image never gets this far.
+			err = ExtractFilesFromLastLayer(empty.Image, dest, log, DefaultAllowListRegex)
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(ErrorImageNoLayers))
 		})
@@ -132,6 +126,22 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 
 	AfterEach(func() {
 		Expect(os.RemoveAll(parent)).To(Succeed())
+	})
+
+	It("returns the error when the image cannot list its layers", func() {
+		image := layersErrImage{Image: imageWithLayer(), err: errors.New("manifest unavailable")}
+		err := ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)
+		Expect(err).To(MatchError(ContainSubstring("manifest unavailable")))
+		Expect(err).ToNot(MatchError(ErrorImageNoLayers))
+	})
+
+	It("returns the error instead of panicking when a layer cannot be fetched", func() {
+		image := layersErrImage{Image: imageWithLayer(), layerErr: errors.New("403 Forbidden")}
+		var err error
+		Expect(func() {
+			err = ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)
+		}).ToNot(Panic())
+		Expect(err).To(MatchError(ContainSubstring("403 Forbidden")))
 	})
 
 	It("refuses to write through a symlink that points outside the destination", func() {
@@ -246,7 +256,53 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 		Expect(logs.String()).To(ContainSubstring("usr/bin/ls"))
 		Expect(logs.String()).To(ContainSubstring("bin/busybox"))
 	})
+
+	It("skips whiteout markers instead of writing them as files, and warns about the dropped deletion", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/.wh.env", Mode: 0o000},
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/share/foo/.wh..wh..opq", Mode: 0o000},
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/newtool", Mode: 0o755},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		Expect(filepath.Join(dest, "usr/bin/newtool")).To(BeAnExistingFile())
+		Expect(filepath.Join(dest, "usr/bin/.wh.env")).ToNot(BeAnExistingFile())
+		Expect(filepath.Join(dest, "usr/share/foo/.wh..wh..opq")).ToNot(BeAnExistingFile())
+		Expect(logs.String()).To(ContainSubstring("usr/bin/env"))
+		Expect(logs.String()).To(ContainSubstring("usr/share/foo"))
+	})
 })
+
+// layersErrImage wraps an image so that Layers fails with err, or, when only
+// layerErr is set, returns layers whose Uncompressed fails with layerErr, the
+// way a remote image does when a blob download is refused.
+type layersErrImage struct {
+	v1.Image
+	err      error
+	layerErr error
+}
+
+func (i layersErrImage) Layers() ([]v1.Layer, error) {
+	if i.err != nil {
+		return nil, i.err
+	}
+	layers, err := i.Image.Layers()
+	if err != nil {
+		return nil, err
+	}
+	for n := range layers {
+		layers[n] = uncompressedErrLayer{Layer: layers[n], err: i.layerErr}
+	}
+	return layers, nil
+}
+
+type uncompressedErrLayer struct {
+	v1.Layer
+	err error
+}
+
+func (l uncompressedErrLayer) Uncompressed() (io.ReadCloser, error) {
+	return nil, l.err
+}
 
 // imageWithLayer returns an in-memory image whose only layer holds the given
 // entries, each regular file empty.
@@ -264,33 +320,6 @@ func imageWithLayer(entries ...tar.Header) v1.Image {
 	image, err := mutate.AppendLayers(empty.Image, layer)
 	Expect(err).ToNot(HaveOccurred())
 	return image
-}
-
-func createEmptyDockerImage() string {
-	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
-
-	b := make([]rune, 8)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-
-	img, err := mutate.AppendLayers(empty.Image)
-	Expect(err).ToNot(HaveOccurred())
-
-	// Set the platform to AMD64
-	cfg, err := img.ConfigFile()
-	Expect(err).ToNot(HaveOccurred())
-	cfg.Architecture = "amd64"
-	cfg.OS = "linux"
-	img, err = mutate.ConfigFile(img, cfg)
-	Expect(err).ToNot(HaveOccurred())
-
-	tag, err := name.NewTag(fmt.Sprintf("kairos-empty-%s:latest", string(b)))
-	Expect(err).ToNot(HaveOccurred())
-	_, err = daemon.Write(tag, img)
-	Expect(err).ToNot(HaveOccurred())
-
-	return tag.String()
 }
 
 func createTestDockerImage() string {
@@ -350,4 +379,217 @@ func sysextLayer() (v1.Layer, error) {
 	return tarball.LayerFromOpener(func() (io.ReadCloser, error) {
 		return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
 	})
+}
+
+var _ = Describe("ExtractFilesFromLastLayer metadata", Label("sysext"), func() {
+	var parent, dest string
+	var logs *bytes.Buffer
+	var log sdkLogger.KairosLogger
+	mtime := time.Date(2001, 2, 3, 4, 5, 6, 0, time.UTC)
+
+	BeforeEach(func() {
+		var err error
+		// The default temporary directory can be a filesystem without user
+		// xattrs, such as tmpfs on older kernels.
+		parent, err = os.MkdirTemp(os.Getenv("KAIROS_TEST_TMPDIR"), "")
+		Expect(err).ToNot(HaveOccurred())
+		dest = filepath.Join(parent, "dest")
+		Expect(os.Mkdir(dest, 0o755)).To(Succeed())
+		logs = &bytes.Buffer{}
+		log = sdkLogger.NewBufferLogger(logs)
+	})
+
+	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			_, _ = GinkgoWriter.Write(logs.Bytes())
+		}
+		Expect(os.RemoveAll(parent)).To(Succeed())
+	})
+
+	extract := func(entries ...tar.Header) {
+		Expect(ExtractFilesFromLastLayer(imageWithLayer(entries...), dest, log, DefaultAllowListRegex)).To(Succeed())
+	}
+
+	lstat := func(name string) *syscall.Stat_t {
+		info, err := os.Lstat(filepath.Join(dest, name))
+		Expect(err).ToNot(HaveOccurred())
+		return info.Sys().(*syscall.Stat_t)
+	}
+
+	getxattr := func(name, attr string) string {
+		buf := make([]byte, 64)
+		n, err := unix.Lgetxattr(filepath.Join(dest, name), attr, buf)
+		if errors.Is(err, unix.ENOTSUP) {
+			Skip("filesystem has no user xattr support")
+		}
+		Expect(err).ToNot(HaveOccurred())
+		return string(buf[:n])
+	}
+
+	It("restores group, xattrs and mtime of a PAX entry", func() {
+		gid := layerGid()
+		extract(
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/", Mode: 0o755},
+			tar.Header{
+				Typeflag:   tar.TypeReg,
+				Name:       "usr/file",
+				Mode:       0o644,
+				Gid:        gid,
+				ModTime:    mtime,
+				Format:     tar.FormatPAX,
+				PAXRecords: map[string]string{"SCHILY.xattr.user.kairos": "5886"},
+			},
+		)
+		info, err := os.Stat(filepath.Join(dest, "usr/file"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.ModTime().Equal(mtime)).To(BeTrue(), "mtime is %s", info.ModTime())
+		Expect(int(lstat("usr/file").Gid)).To(Equal(gid))
+		Expect(getxattr("usr/file", "user.kairos")).To(Equal("5886"))
+	})
+
+	It("keeps the setuid bit of a file whose owner is changed", func() {
+		uid, gid := layerUid(), layerGid()
+		extract(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/tool", Mode: 0o4755, Uid: uid, Gid: gid},
+		)
+		info, err := os.Stat(filepath.Join(dest, "usr/bin/tool"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode() & os.ModeSetuid).ToNot(BeZero())
+		st := info.Sys().(*syscall.Stat_t)
+		Expect(int(st.Uid)).To(Equal(uid))
+		Expect(int(st.Gid)).To(Equal(gid))
+	})
+
+	It("keeps the mtime of a directory after entries are written into it", func() {
+		usrTime := mtime.Add(time.Hour)
+		extract(
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/", Mode: 0o755, ModTime: usrTime},
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/share/", Mode: 0o755, ModTime: mtime},
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/share/file", Mode: 0o644},
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/share/sub/", Mode: 0o755},
+		)
+		for name, want := range map[string]time.Time{"usr": usrTime, "usr/share": mtime} {
+			info, err := os.Stat(filepath.Join(dest, name))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.ModTime().Equal(want)).To(BeTrue(), "%s mtime is %s", name, info.ModTime())
+		}
+	})
+
+	It("restores the xattrs of a directory", func() {
+		extract(
+			tar.Header{
+				Typeflag:   tar.TypeDir,
+				Name:       "usr/share/",
+				Mode:       0o755,
+				Format:     tar.FormatPAX,
+				PAXRecords: map[string]string{"SCHILY.xattr.user.kairos": "dir"},
+			},
+		)
+		Expect(getxattr("usr/share", "user.kairos")).To(Equal("dir"))
+	})
+
+	It("sets the owner of a symlink, not of its target", func() {
+		uid, gid := layerUid(), layerGid()
+		if os.Geteuid() != 0 && gid == os.Getgid() {
+			Skip("not root and in no group besides the primary one, so a symlink owner cannot be told apart from the default")
+		}
+		extract(
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/lib/real", Mode: 0o644},
+			tar.Header{Typeflag: tar.TypeSymlink, Name: "usr/lib/link", Linkname: "real", Uid: uid, Gid: gid},
+		)
+		link := lstat("usr/lib/link")
+		Expect(int(link.Uid)).To(Equal(uid))
+		Expect(int(link.Gid)).To(Equal(gid))
+		target := lstat("usr/lib/real")
+		Expect(int(target.Uid)).To(Equal(os.Geteuid()))
+		Expect(int(target.Gid)).To(Equal(os.Getgid()))
+	})
+
+	It("extracts an entry whose owner and xattr namespaces a regular user cannot set", func() {
+		if os.Geteuid() == 0 {
+			Skip("root can set any owner and the trusted and security namespaces")
+		}
+		extract(
+			tar.Header{
+				Typeflag: tar.TypeReg,
+				Name:     "usr/bin/tool",
+				Mode:     0o755,
+				Uid:      0,
+				Gid:      unownedGid(),
+				ModTime:  mtime,
+				Format:   tar.FormatPAX,
+				PAXRecords: map[string]string{
+					"SCHILY.xattr.trusted.kairos":  "5886",
+					"SCHILY.xattr.security.kairos": "5886",
+				},
+			},
+		)
+		info, err := os.Stat(filepath.Join(dest, "usr/bin/tool"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.ModTime().Equal(mtime)).To(BeTrue(), "mtime is %s", info.ModTime())
+		Expect(logs.String()).To(ContainSubstring("Could not restore the owner or extended attributes"))
+	})
+
+	It("extracts an entry carrying an xattr namespace the kernel does not know, as root too", func() {
+		extract(
+			tar.Header{
+				Typeflag:   tar.TypeReg,
+				Name:       "usr/bin/tool",
+				Mode:       0o755,
+				ModTime:    mtime,
+				Format:     tar.FormatPAX,
+				PAXRecords: map[string]string{"SCHILY.xattr.kairos.unknown": "5886"},
+			},
+		)
+		info, err := os.Stat(filepath.Join(dest, "usr/bin/tool"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.ModTime().Equal(mtime)).To(BeTrue(), "mtime is %s", info.ModTime())
+		Expect(logs.String()).To(ContainSubstring("Could not restore the owner or extended attributes"))
+	})
+})
+
+// layerUid returns a uid the process can give a file: one that is not its
+// own as root, so that a chown is observable, and its own otherwise.
+func layerUid() int {
+	if os.Geteuid() == 0 {
+		return otherID(os.Geteuid())
+	}
+	return os.Geteuid()
+}
+
+// layerGid returns a gid the process can give a file, other than its primary
+// one where it can: any gid as root, otherwise a supplementary group. It
+// falls back to the primary gid for a user in a single group.
+func layerGid() int {
+	if os.Geteuid() == 0 {
+		return otherID(os.Getgid())
+	}
+	groups, _ := os.Getgroups()
+	for _, g := range groups {
+		if g != os.Getgid() {
+			return g
+		}
+	}
+	return os.Getgid()
+}
+
+// unownedGid returns a gid the process is not a member of.
+func unownedGid() int {
+	groups, _ := os.Getgroups()
+	gid := 0
+	for gid == os.Getgid() || slices.Contains(groups, gid) {
+		if gid == 0 {
+			gid = 4242
+		} else {
+			gid++
+		}
+	}
+	return gid
+}
+
+func otherID(id int) int {
+	if id == 4242 {
+		return 4243
+	}
+	return 4242
 }

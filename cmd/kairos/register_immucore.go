@@ -2,6 +2,7 @@ package main
 
 import (
 	immucore "github.com/kairos-io/kairos/v4/immucore/pkg/cmd"
+	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -11,5 +12,9 @@ func init() {
 	// is a symlink to the multi-call kairos, argv[0]'s basename is "init"
 	// rather than "immucore". Without this alias PID 1 exits with "unknown
 	// sub-tool" and the kernel panics with "Attempted to kill init".
-	register("immucore", immucore.Run, "init")
+	register(func() *cobra.Command {
+		cmd := immucore.NewCommand()
+		cmd.Aliases = []string{"init"}
+		return cmd
+	}, nil)
 }

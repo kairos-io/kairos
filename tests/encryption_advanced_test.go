@@ -24,13 +24,14 @@ import (
 // .github/encryption-tests.sh.
 
 // getSealedVolumeName is the naming convention the kcrypt-challenger uses
-// for TOFU-created SealedVolumes. The input tpmHash is the sha256 hash
-// (64 hex chars) the discovery binary prints; the produced name is always
-// `tofu-<first 8 lowercase hex chars>` and never exceeds 13 characters, so
-// the full SafeKubeName truncation logic upstream would return the input
-// unchanged for these inputs.
+// for TOFU-created SealedVolumes (tofuVolumeName with tofuNameHashLen in
+// kcrypt/pkg/challenger). The input tpmHash is the sha256 hash (64 hex
+// chars) the discovery binary prints; the produced name is always
+// `tofu-<first 32 lowercase hex chars>`, and with a partition label suffix
+// such as `-cos-persistent-luks` it stays under 63 characters, so the full
+// SafeKubeName truncation logic upstream returns it unchanged.
 func getSealedVolumeName(tpmHash string) string {
-	return fmt.Sprintf("tofu-%s", strings.ToLower(tpmHash[:8]))
+	return fmt.Sprintf("tofu-%s", strings.ToLower(tpmHash[:32]))
 }
 
 // installKairosWithConfigAdvanced runs manual-install with a captured

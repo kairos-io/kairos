@@ -21,5 +21,5 @@ func init() {
 	// rebuilding the OCI image replaces the file there to replace the
 	// animation entirely, without editing a unit or forking the module; the
 	// alias is what makes the default symlink dispatch here on argv[0].
-	register("splash", splash.Main, "kairos-splash")
+	register(passthrough("splash", "Show the boot splash animation", splash.Main, "kairos-splash"), nil)
 }

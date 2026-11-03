@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -25,6 +26,12 @@ import (
 )
 
 const defaultCloudInitPath = "/oem/90_custom.yaml"
+
+// saveTempPattern names the file a save is staged in next to the target before
+// it is renamed over it. It must not end in .yaml or .yml: yip loads every file
+// with those extensions under the cloud-config directories, so a leftover one
+// would run as configuration on the next boot.
+const saveTempPattern = ".kairos-edit-config-save-*.tmp"
 
 const validationMessageStart = "# kairos edit-config: validation failed"
 const validationMessageEnd = "# kairos edit-config: end validation errors"
@@ -69,6 +76,16 @@ before the configuration is replaced, so invalid edits are never saved.
 }
 
 func editCloudInit(path, editor string, output io.Writer) error {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	return editCloudInitWithSignals(path, editor, output, signals)
+}
+
+// editCloudInitWithSignals catches termination signals on signals instead of
+// letting them kill the process, so the working copy is always removed. A
+// signal stops the edit without saving.
+func editCloudInitWithSignals(path, editor string, output io.Writer, signals <-chan os.Signal) error {
 	original, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read cloud-init file: %w", err)
@@ -79,24 +96,27 @@ func editCloudInit(path, editor string, output io.Writer) error {
 		return fmt.Errorf("stat cloud-init file: %w", err)
 	}
 
-	temp, err := os.CreateTemp(filepath.Dir(path), ".kairos-edit-config-*.yaml")
+	// The working copy lives in a private directory outside the cloud-config
+	// directories, so yip never picks it up even if this process dies before
+	// removing it. It keeps the original name so the editor still sees a
+	// YAML file.
+	tempDir, err := os.MkdirTemp("", "kairos-edit-config-*")
 	if err != nil {
-		return fmt.Errorf("create temporary cloud-init file: %w", err)
+		return fmt.Errorf("create temporary cloud-init directory: %w", err)
 	}
-	tempPath := temp.Name()
-	defer os.Remove(tempPath)
+	defer os.RemoveAll(tempDir)
+	tempPath := filepath.Join(tempDir, filepath.Base(path))
 
-	if _, err := temp.Write(original); err != nil {
-		temp.Close()
+	if err := os.WriteFile(tempPath, original, 0600); err != nil {
 		return fmt.Errorf("write temporary cloud-init file: %w", err)
-	}
-	if err := temp.Close(); err != nil {
-		return fmt.Errorf("close temporary cloud-init file: %w", err)
 	}
 
 	var invalidDraft []byte
 	for {
-		if err := runEditor(editor, tempPath); err != nil {
+		if err := pendingSignal(signals); err != nil {
+			return err
+		}
+		if err := runEditor(editor, tempPath, signals); err != nil {
 			return err
 		}
 
@@ -124,6 +144,9 @@ func editCloudInit(path, editor string, output io.Writer) error {
 			continue
 		}
 
+		if err := pendingSignal(signals); err != nil {
+			return err
+		}
 		if err := replaceFile(path, edited, info); err != nil {
 			return fmt.Errorf("save cloud-init file: %w", err)
 		}
@@ -165,7 +188,20 @@ func removeValidationMessage(content []byte) []byte {
 	return content
 }
 
-func runEditor(editor, path string) error {
+func pendingSignal(signals <-chan os.Signal) error {
+	select {
+	case sig := <-signals:
+		return fmt.Errorf("interrupted by %s; the original configuration is unchanged", sig)
+	default:
+		return nil
+	}
+}
+
+// runEditor waits for the editor to exit. SIGINT is left to the editor: the
+// terminal already delivers it to the editor's process group, and editors use
+// it themselves. Any other signal is forwarded to the editor and stops the
+// edit once the editor exits.
+func runEditor(editor, path string, signals <-chan os.Signal) error {
 	if editor == "" {
 		return errors.New("EDITOR is not set")
 	}
@@ -182,14 +218,36 @@ func runEditor(editor, path string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("run editor: %w", err)
 	}
-	return nil
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	var stoppedBy os.Signal
+	for {
+		select {
+		case err := <-done:
+			if stoppedBy != nil {
+				return fmt.Errorf("interrupted by %s; the original configuration is unchanged", stoppedBy)
+			}
+			if err != nil {
+				return fmt.Errorf("run editor: %w", err)
+			}
+			return nil
+		case sig := <-signals:
+			if sig == os.Interrupt {
+				continue
+			}
+			stoppedBy = sig
+			_ = cmd.Process.Signal(sig)
+		}
+	}
 }
 
 func replaceFile(path string, content []byte, info os.FileInfo) error {
-	temp, err := os.CreateTemp(filepath.Dir(path), ".kairos-edit-config-save-*.yaml")
+	temp, err := os.CreateTemp(filepath.Dir(path), saveTempPattern)
 	if err != nil {
 		return err
 	}

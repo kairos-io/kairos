@@ -1,7 +1,11 @@
 package client
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"log"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -16,9 +20,19 @@ const (
 	MDNSTimeout     = 15 * time.Second
 )
 
+// Variables so tests can swap them.
+var (
+	mdnsTimeout = MDNSTimeout
+	// mdnsQueryWindow is how long one mdns query listens before the query is
+	// sent again.
+	mdnsQueryWindow = time.Second
+	mdnsQuery       = mdns.QueryContext
+)
+
 // queryMDNS will make an mdns query on local network to find a kcrypt challenger server
 // instance. If none is found, the original URL is returned and no additional headers.
-// If a response is received, the IP address and port from the response will be returned// and an additional "Host" header pointing to the original host.
+// If a response is received, the IP address and port from the response will be returned
+// and an additional "Host" header pointing to the original host.
 func queryMDNS(originalURL string, logger loggerpkg.KairosLogger) (string, map[string]string, error) {
 	additionalHeaders := map[string]string{}
 
@@ -49,12 +63,16 @@ func queryMDNS(originalURL string, logger loggerpkg.KairosLogger) (string, map[s
 
 	// Build new URL with discovered IP address
 	// Use the port from mDNS response if available, otherwise use original port
+	// An IPv6 address needs its brackets in a URL host, which JoinHostPort adds.
 	newHost := mdnsIP
+	if strings.Contains(mdnsIP, ":") {
+		newHost = "[" + mdnsIP + "]"
+	}
 	if mdnsPort != "" {
-		newHost = fmt.Sprintf("%s:%s", mdnsIP, mdnsPort)
+		newHost = net.JoinHostPort(mdnsIP, mdnsPort)
 	} else if parsedURL.Port() != "" {
 		// If mDNS didn't provide a port, keep the original port
-		newHost = fmt.Sprintf("%s:%s", mdnsIP, parsedURL.Port())
+		newHost = net.JoinHostPort(mdnsIP, parsedURL.Port())
 	}
 
 	// Reconstruct URL with new host
@@ -67,20 +85,45 @@ func queryMDNS(originalURL string, logger loggerpkg.KairosLogger) (string, map[s
 
 // discoverMDNSServer performs an mDNS query to discover any running kcrypt challenger
 // servers on the same network that matches the given hostname.
-// If a response if received, the IP address and the Port from the response are returned.
+// If a response is received, the IP address (v4 or v6) and the Port from the response are returned.
 func discoverMDNSServer(hostname string, logger loggerpkg.KairosLogger) (string, string) {
-	// Make a channel for results and start listening
+	ctx, cancel := context.WithTimeout(context.Background(), mdnsTimeout)
+
+	// Entries are only ever sent by the query goroutine below, which has
+	// exited before this function returns, so the channel is never closed.
 	entriesCh := make(chan *mdns.ServiceEntry, 4)
-	defer close(entriesCh)
 
 	logger.Debugf("Will now wait for some mdns server to respond")
-	// Start the lookup. It will block until we read from the chan.
-	// A Lookup error means no query could be sent, so no entry will
-	// ever arrive on entriesCh and the loop below will drop out on
-	// timeout. Log the reason so the timeout is not the only signal.
-	if err := mdns.Lookup(MDNSServiceType, entriesCh); err != nil {
-		logger.Warnf("mdns.Lookup failed, discovery will time out: %v", err)
-	}
+	// A single mdns query only listens for mdnsQueryWindow and sends one
+	// packet, so a challenger (or network link) that comes up later would
+	// never be seen. Keep re-querying until the whole timeout is used.
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		warned := false
+		for ctx.Err() == nil {
+			params := mdns.DefaultParams(MDNSServiceType)
+			params.Entries = entriesCh
+			params.Timeout = mdnsQueryWindow
+			params.Logger = log.New(io.Discard, "", 0)
+			if err := mdnsQuery(ctx, params); err != nil && ctx.Err() == nil {
+				// No query could be sent (no usable interface yet, say).
+				// Retry after a pause, the link may still be coming up.
+				if !warned {
+					logger.Warnf("mdns query failed, will keep retrying until timeout: %v", err)
+					warned = true
+				}
+				select {
+				case <-ctx.Done():
+				case <-time.After(mdnsQueryWindow):
+				}
+			}
+		}
+	}()
+	defer func() {
+		cancel()
+		<-done
+	}()
 
 	expectedHost := hostname + "." // FQDN
 	// Wait until a matching server is found or we reach a timeout
@@ -90,13 +133,33 @@ func discoverMDNSServer(hostname string, logger loggerpkg.KairosLogger) (string,
 			logger.Debugf("mdns response received")
 			if entry.Host == expectedHost {
 				logger.Debugf("%s matches %s", entry.Host, expectedHost)
-				return entry.AddrV4.String(), strconv.Itoa(entry.Port) // TODO: v6?
-			} else {
-				logger.Debugf("%s didn't match %s", entry.Host, expectedHost)
+				addr := entryAddress(entry)
+				if addr == "" {
+					logger.Debugf("%s answered without an address, ignoring it", entry.Host)
+					continue
+				}
+				return addr, strconv.Itoa(entry.Port)
 			}
-		case <-time.After(MDNSTimeout):
+			logger.Debugf("%s didn't match %s", entry.Host, expectedHost)
+		case <-ctx.Done():
 			logger.Debugf("timed out waiting for mdns")
 			return "", ""
 		}
 	}
+}
+
+// entryAddress returns the address to reach an mDNS answer on: the IPv4 one
+// when there is one, else the IPv6 one (with its zone for a link-local
+// address). It returns "" when the answer carries no address at all.
+func entryAddress(entry *mdns.ServiceEntry) string {
+	if entry.AddrV4 != nil {
+		return entry.AddrV4.String()
+	}
+	if entry.AddrV6IPAddr != nil && entry.AddrV6IPAddr.IP != nil {
+		return entry.AddrV6IPAddr.String()
+	}
+	if entry.AddrV6 != nil {
+		return entry.AddrV6.String()
+	}
+	return ""
 }

@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/shlex"
 	"github.com/kairos-io/kairos/v4/sdk/unstructured"
 	"gopkg.in/yaml.v3"
 )
@@ -62,7 +61,7 @@ func KairosCmdlineYAML(file string) ([]byte, error) {
 // KairosCmdlineYAML. Useful for tests and for callers that have already
 // read the cmdline from a mock filesystem.
 func KairosCmdlineYAMLFromString(s string) ([]byte, error) {
-	tokens, _ := shlex.Split(s)
+	tokens := splitCmdline(s)
 	root := map[string]interface{}{}
 	present := false
 	for _, t := range tokens {
@@ -208,7 +207,7 @@ func setDotIndexPath(node interface{}, segs []string, value interface{}) interfa
 func stringToMap(s string) map[string]interface{} {
 	v := map[string]interface{}{}
 
-	splitted, _ := shlex.Split(s)
+	splitted := splitCmdline(s)
 	for _, item := range splitted {
 		if isKairosOwned(item) {
 			continue
@@ -223,6 +222,68 @@ func stringToMap(s string) map[string]interface{} {
 	}
 
 	return v
+}
+
+// splitCmdline splits a kernel cmdline into tokens without ever failing or
+// dropping text. Whitespace separates tokens. Double quotes group, and an
+// unclosed double quote runs to the end of the line. Single quotes group too
+// (so key='a b' is one token), but only when another single quote follows
+// somewhere later in the line; an unmatched single quote, such as the
+// apostrophe in it's, is kept literally. Quotes that group are removed and
+// empty tokens are dropped.
+// A backslash escapes only a following \, ' or ", which is what GRUB emits
+// when it writes the cmdline, and an escaped quote never opens or closes a
+// group; any other backslash is kept literally, since raw cmdlines
+// (systemd-boot, UKI, PXE) carry them verbatim.
+//
+// Known limit: two apostrophes on one line, as in it's ... don't, still pair
+// up and group the text between them.
+func splitCmdline(s string) []string {
+	isEscapable := func(c byte) bool { return c == '\\' || c == '\'' || c == '"' }
+
+	lastSingle := -1
+	for i := 0; i < len(s); i++ {
+		switch {
+		case s[i] == '\\' && i+1 < len(s) && isEscapable(s[i+1]):
+			i++
+		case s[i] == '\'':
+			lastSingle = i
+		}
+	}
+
+	var tokens []string
+	var cur strings.Builder
+	var quote byte
+	flush := func() {
+		if cur.Len() > 0 {
+			tokens = append(tokens, cur.String())
+			cur.Reset()
+		}
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '\\' && i+1 < len(s) && isEscapable(s[i+1]):
+			i++
+			cur.WriteByte(s[i])
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			} else {
+				cur.WriteByte(c)
+			}
+		case c == '"':
+			quote = c
+		case c == '\'' && i < lastSingle:
+			quote = c
+		case c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f':
+			flush()
+		default:
+			cur.WriteByte(c)
+		}
+	}
+	flush()
+	return tokens
 }
 
 func isKairosOwned(token string) bool {
