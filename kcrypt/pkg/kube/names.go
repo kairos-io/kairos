@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // SafeKubeName ensures a string conforms to Kubernetes naming constraints
@@ -102,4 +104,40 @@ func IsValidKubeName(name string) bool {
 // is what an RFC 1123 subdomain allows.
 func IsLowerAlphanumeric(r rune) bool {
 	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+}
+
+// SafeLabelValue returns value unchanged when Kubernetes accepts it as a label
+// value. Otherwise it replaces every character other than alphanumerics, '-',
+// '_' and '.' with '-', trims non-alphanumerics from both ends and truncates to
+// 63 characters. A value with nothing left falls back to a hash of the input.
+func SafeLabelValue(value string) string {
+	if len(validation.IsValidLabelValue(value)) == 0 {
+		return value
+	}
+
+	isAlnum := func(r rune) bool {
+		return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+	}
+
+	var b strings.Builder
+	for _, r := range value {
+		if isAlnum(r) || r == '-' || r == '_' || r == '.' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+
+	notAlnum := func(r rune) bool { return !isAlnum(r) }
+	cleaned := strings.TrimFunc(b.String(), notAlnum)
+	if len(cleaned) > validation.LabelValueMaxLength {
+		cleaned = strings.TrimRightFunc(cleaned[:validation.LabelValueMaxLength], notAlnum)
+	}
+
+	if cleaned == "" {
+		hash := sha256.Sum256([]byte(value))
+		return "label-" + hex.EncodeToString(hash[:])[:8]
+	}
+
+	return cleaned
 }

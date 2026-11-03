@@ -163,7 +163,7 @@ func (u *UpgradeAction) Run() (err error) {
 		u.Error("Failed deploying image to file '%s': %s", upgradeImg.File, err)
 		return err
 	}
-	cleanup.Push(func() error { return e.UnmountImage(&upgradeImg) })
+	cleanup.Push(func() error { return e.DiscardImage(&upgradeImg) })
 
 	// Everything from labeling the state images to refreshing the ESP is
 	// finalize work whose on-disk formats the target image owns (GRUB
@@ -294,7 +294,7 @@ func (u *UpgradeAction) remove(path string) error {
 // unmounting and renaming remain the host's responsibility (see
 // UpgradeAction.Run below).
 func (u *UpgradeAction) runFinalizeStep(upgradeImg *sdkImages.Image) error {
-	current, err := ReadKairosInitVersionFromFs(u.config.Fs, constants.KairosReleaseFile)
+	current, err := ReadKairosInitVersionFromFs(u.config.Fs, CurrentKairosReleaseFile(u.config.Fs))
 	if err != nil {
 		return fmt.Errorf("reading current KAIROS_INIT_VERSION: %w", err)
 	}
@@ -354,20 +354,21 @@ func (u *UpgradeAction) handoffFinalizeToTarget(upgradeImg *sdkImages.Image) err
 		}
 		return err
 	}
-	return utils.ChrootedCallback(u.config, upgradeImg.MountPoint, binds, callback)
+	return utils.ChrootedCallbackWithBinds(u.config, upgradeImg.MountPoint, binds, callback)
 }
 
 // finalizeHandoffBinds returns the bind mounts the target chroot needs so
 // the target agent can reach the host filesystem the same way it does under
 // Kubernetes (host at /host), and so the after-upgrade-chroot hook still
-// finds OEM at /oem and persistent at /usr/local inside the chroot.
-func (u *UpgradeAction) finalizeHandoffBinds() map[string]string {
-	binds := map[string]string{}
+// finds OEM at /oem and persistent at /usr/local inside the chroot. A
+// source can appear more than once, bound to several targets.
+func (u *UpgradeAction) finalizeHandoffBinds() []utils.BindMount {
+	var binds []utils.BindMount
 	addBind := func(src, dst string) {
 		if src == "" || dst == "" {
 			return
 		}
-		binds[src] = dst
+		binds = append(binds, utils.BindMount{Source: src, Target: dst})
 	}
 	if u.spec.Partitions.State != nil {
 		addBind(u.spec.Partitions.State.MountPoint, filepath.Join(constants.HandoffHostPrefix, u.spec.Partitions.State.MountPoint))

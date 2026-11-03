@@ -509,3 +509,129 @@ func TestInstallDeclaredLeavesTheTargetEmptyWhenTwoEntriesClash(t *testing.T) {
 		t.Fatalf("%s holds %q, want nothing: the error says nothing was installed", target, present)
 	}
 }
+
+// Installing a file that already sits in the target used to open the target
+// with O_TRUNC before reading the source, which emptied the extension and then
+// copied zero bytes from it, with success reported. Both spellings of a file
+// URI reach that path.
+func TestInstallLeavesAnExtensionAlreadyInTheTargetAlone(t *testing.T) {
+	for _, uri := range []string{
+		"file:///var/lib/kairos/extensions/tools.sysext.raw",
+		"file:/var/lib/kairos/extensions/tools.sysext.raw",
+	} {
+		t.Run(uri, func(t *testing.T) {
+			cfg, _, _ := testConfig(t, nil)
+			if err := vfs.MkdirAll(cfg.Fs, "/var/lib/kairos/extensions", 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := cfg.Fs.WriteFile("/var/lib/kairos/extensions/tools.sysext.raw", []byte("extension"), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := installer.Install(cfg, uri, "/var/lib/kairos/extensions"); err != nil {
+				t.Fatalf("installing an extension already in place: %v", err)
+			}
+
+			assertFileContent(t, cfg, "/var/lib/kairos/extensions/tools.sysext.raw", "extension")
+			assertOnlyEntries(t, cfg, "/var/lib/kairos/extensions", "tools.sysext.raw")
+		})
+	}
+}
+
+// The same file can be reached under another path, here through a target
+// that is a symlink to the directory the source lives in.
+func TestInstallLeavesAnExtensionReachedThroughASymlinkAlone(t *testing.T) {
+	cfg, _, _ := testConfig(t, nil)
+	if err := vfs.MkdirAll(cfg.Fs, "/src", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.WriteFile("/src/tools.sysext.raw", []byte("extension"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.Symlink("/src", "/extensions"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := installer.Install(cfg, "file:/src/tools.sysext.raw", "/extensions"); err != nil {
+		t.Fatalf("installing an extension already in place: %v", err)
+	}
+
+	assertFileContent(t, cfg, "/src/tools.sysext.raw", "extension")
+}
+
+// A copy that fails part-way must not leave the extension already installed
+// under that name emptied, nor a half-written file in the target.
+func TestInstallKeepsTheInstalledExtensionWhenTheCopyFails(t *testing.T) {
+	cfg, _, _ := testConfig(t, nil)
+	// A directory opens fine but cannot be read, so the copy itself fails.
+	if err := vfs.MkdirAll(cfg.Fs, "/src/tools.sysext.raw", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := vfs.MkdirAll(cfg.Fs, "/var/lib/kairos/extensions", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.WriteFile("/var/lib/kairos/extensions/tools.sysext.raw", []byte("installed"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := installer.Install(cfg, "file:/src/tools.sysext.raw", "/var/lib/kairos/extensions"); err == nil {
+		t.Fatal("Install reported success for a source that cannot be read")
+	}
+
+	assertFileContent(t, cfg, "/var/lib/kairos/extensions/tools.sysext.raw", "installed")
+	assertOnlyEntries(t, cfg, "/var/lib/kairos/extensions", "tools.sysext.raw")
+}
+
+// A successful copy replaces the file and leaves nothing else behind, not
+// even a temporary file an earlier interrupted copy left in the target.
+func TestInstallReplacesAnInstalledExtension(t *testing.T) {
+	cfg, _, _ := testConfig(t, nil)
+	if err := vfs.MkdirAll(cfg.Fs, "/src", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.WriteFile("/src/tools.sysext.raw", []byte("new"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := vfs.MkdirAll(cfg.Fs, "/var/lib/kairos/extensions", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.WriteFile("/var/lib/kairos/extensions/tools.sysext.raw", []byte("old and longer"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.WriteFile("/var/lib/kairos/extensions/.tools.sysext.raw.partial", []byte("stale"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := installer.Install(cfg, "file:/src/tools.sysext.raw", "/var/lib/kairos/extensions"); err != nil {
+		t.Fatal(err)
+	}
+
+	assertFileContent(t, cfg, "/var/lib/kairos/extensions/tools.sysext.raw", "new")
+	assertOnlyEntries(t, cfg, "/var/lib/kairos/extensions", "tools.sysext.raw")
+}
+
+func assertFileContent(t *testing.T, cfg *sdkConfig.Config, path, want string) {
+	t.Helper()
+	got, err := cfg.Fs.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != want {
+		t.Fatalf("%s holds %q, want %q", path, got, want)
+	}
+}
+
+func assertOnlyEntries(t *testing.T, cfg *sdkConfig.Config, dir string, want ...string) {
+	t.Helper()
+	entries, err := cfg.Fs.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var present []string
+	for _, entry := range entries {
+		present = append(present, entry.Name())
+	}
+	if strings.Join(present, ",") != strings.Join(want, ",") {
+		t.Fatalf("%s holds %q, want %q", dir, present, want)
+	}
+}

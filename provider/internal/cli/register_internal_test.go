@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"time"
 
 	nodepair "github.com/kairos-io/go-nodepair"
@@ -45,6 +47,12 @@ var _ = Describe("pairingContext", func() {
 })
 
 var _ = Describe("register", func() {
+	writeConfig := func() string {
+		path := filepath.Join(GinkgoT().TempDir(), "config.yaml")
+		Expect(os.WriteFile(path, []byte("#cloud-config\n"), 0o600)).To(Succeed())
+		return path
+	}
+
 	// nodepair.Send returns nil when the context ends, so without the ctx.Err()
 	// check register reports a delivered payload for a node that never paired.
 	// Drive that path through the sendPayload seam: the fake blocks until the
@@ -57,8 +65,23 @@ var _ = Describe("register", func() {
 		}
 		DeferCleanup(func() { sendPayload = orig })
 
-		err := register("fatal", "", "", "", false, false, time.Millisecond)
+		err := register("fatal", "", writeConfig(), "", false, false, time.Millisecond)
 		Expect(err).To(MatchError(ContainSubstring("did not pair within 1ms")))
+	})
+
+	It("fails before sending anything when the --config file cannot be read", func() {
+		sent := false
+		orig := sendPayload
+		sendPayload = func(context.Context, interface{}, ...nodepair.PairOption) error {
+			sent = true
+			return nil
+		}
+		DeferCleanup(func() { sendPayload = orig })
+
+		missing := filepath.Join(GinkgoT().TempDir(), "missing.yaml")
+		err := register("fatal", "", missing, "/dev/sda", false, false, time.Minute)
+		Expect(err).To(MatchError(ContainSubstring(missing)))
+		Expect(sent).To(BeFalse())
 	})
 
 	It("reports success when the payload is delivered in time", func() {
@@ -68,7 +91,7 @@ var _ = Describe("register", func() {
 		}
 		DeferCleanup(func() { sendPayload = orig })
 
-		Expect(register("fatal", "", "", "", false, false, time.Minute)).To(Succeed())
+		Expect(register("fatal", "", writeConfig(), "", false, false, time.Minute)).To(Succeed())
 	})
 })
 

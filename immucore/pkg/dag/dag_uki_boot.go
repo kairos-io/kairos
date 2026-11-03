@@ -72,14 +72,14 @@ func RegisterUKI(s *state.State, g *herd.Graph) error {
 	s.LogIfError(s.MountBaseOverlayDagStep(g), "base overlay")
 
 	// Mount custom overlays loaded from the /run/cos/cos-layout.env file
-	s.LogIfError(s.MountCustomOverlayDagStep(g, herd.WeakDeps), "custom overlays mount")
+	s.LogIfError(s.MountCustomOverlayDagStep(g), "custom overlays mount")
 
 	// Mount custom mounts loaded from the /run/cos/cos-layout.env file
-	s.LogIfError(s.MountCustomMountsDagStep(g, herd.WeakDeps), "custom mounts mount")
+	s.LogIfError(s.MountCustomMountsDagStep(g), "custom mounts mount")
 
 	// Mount custom binds loaded from the /run/cos/cos-layout.env file
 	// Depends on mount binds as that usually mounts COS_PERSISTENT
-	s.LogIfError(s.MountCustomBindsDagStep(g, herd.WeakDeps), "custom binds mount")
+	s.LogIfError(s.MountCustomBindsDagStep(g), "custom binds mount")
 
 	s.LogIfError(s.MigrateSysExt(g, herd.WithWeakDeps(cnst.OpMountBind)), "uki transition sysextensions")
 	// Copy any sysextensions found under cnst.SourceSysExtDir into cnst.DestSysExtDir so its loaded by systemd automatically on start

@@ -2,6 +2,7 @@ package kcrypt
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/sdk/collector"
@@ -220,6 +221,27 @@ func enabledFlag(v interface{}) bool {
 	return false
 }
 
+// intValue reads a whole number the way the collector can deliver it: a YAML
+// number or the string a kernel cmdline carries. Anything else is 0.
+func intValue(v interface{}) int {
+	switch val := v.(type) {
+	case int:
+		return val
+	case int64:
+		return int(val)
+	case uint64:
+		return int(val)
+	case float64:
+		return int(val)
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(val))
+		if err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
 // asConfigValues unwraps a nested collector value to its map form. The
 // collector hands nested blocks back as collector.ConfigValues, but a value
 // that went through a plain YAML unmarshal is a map[string]interface{}, so
@@ -299,6 +321,17 @@ func extractKcryptConfigFromCollector(collectorConfig collector.Config, log sdkL
 	if tpmDevice, ok := kcryptMap["tpm_device"].(string); ok {
 		config.TPMDevice = tpmDevice
 	}
+
+	// Passphrase fields (kcrypt.method: passphrase, and the prompt that
+	// kcrypt.passphrase_fallback shows when the automatic unlock fails)
+	if method, ok := kcryptMap["method"].(string); ok {
+		config.Method = strings.ToLower(strings.TrimSpace(method))
+	}
+	if file, ok := kcryptMap["passphrase_file"].(string); ok {
+		config.PassphraseFile = file
+	}
+	config.PassphraseFallback = enabledFlag(kcryptMap["passphrase_fallback"])
+	config.PassphraseTimeout = intValue(kcryptMap["passphrase_timeout"])
 
 	return config
 }

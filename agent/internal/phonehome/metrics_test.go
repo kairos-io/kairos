@@ -133,4 +133,27 @@ var _ = Describe("gatherMetrics", func() {
 		Expect(m.CPU).To(BeNil())
 		Expect(m.Disks).To(HaveLen(2))
 	})
+
+	It("skips a Kairos path that is a plain directory rather than a mount point", func() {
+		setMountedFunc(func(path string) (bool, error) {
+			return path == "/run/initramfs/cos-state", nil
+		})
+		m := (&cpuTracker{}).gather()
+		Expect(m.Disks).To(Equal([]DiskMetrics{
+			{Label: "COS_STATE", Mount: "/run/initramfs/cos-state", TotalBytes: 24 << 30, UsedBytes: 10 << 30},
+		}))
+	})
+
+	It("skips a Kairos path whose mount state cannot be read", func() {
+		setMountedFunc(func(path string) (bool, error) {
+			if path == "/usr/local" {
+				return false, errors.New("no mountinfo")
+			}
+			return true, nil
+		})
+		m := (&cpuTracker{}).gather()
+		Expect(m.Disks).To(Equal([]DiskMetrics{
+			{Label: "COS_STATE", Mount: "/run/initramfs/cos-state", TotalBytes: 24 << 30, UsedBytes: 10 << 30},
+		}))
+	})
 })

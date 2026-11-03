@@ -339,6 +339,7 @@ func (e *enumSlice) Set(val string) error {
 		}
 		newVals = append(newVals, v)
 	}
-	e.Value = newVals
+	// Append so a repeated --skip-step adds to the earlier values, like the comma form.
+	e.Value = append(e.Value, newVals...)
 	return nil
 }

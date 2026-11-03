@@ -12,14 +12,15 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 	"unicode"
 
 	"github.com/kairos-io/kairos/v4/sdk/machine"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 
-	"github.com/avast/retry-go"
 	"github.com/itchyny/gojq"
 	"gopkg.in/yaml.v3"
 )
@@ -297,6 +298,9 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 
 	// We don't support merging different data structures
 	if typeA.Kind() != typeB.Kind() {
+		if isScalar(typeA.Kind()) && isScalar(typeB.Kind()) {
+			return b, nil
+		}
 		return ConfigValues{}, fmt.Errorf("cannot merge %s with %s", typeA.String(), typeB.String())
 	}
 
@@ -318,6 +322,17 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 
 	// for any other type, b should take precedence
 	return b, nil
+}
+
+func isScalar(k reflect.Kind) bool {
+	switch k {
+	case reflect.Bool, reflect.String,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return true
+	}
+	return false
 }
 
 // String returns a string which is a Yaml representation of the Config.
@@ -376,7 +391,9 @@ func Scan(o *Options, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	}
 
 	if o.Overwrites != "" {
-		yaml.Unmarshal([]byte(o.Overwrites), &mergedConfig.Values) //nolint:errcheck
+		if err := yaml.Unmarshal([]byte(o.Overwrites), &mergedConfig.Values); err != nil {
+			return mergedConfig, fmt.Errorf("parsing overwrites: %w", err)
+		}
 	}
 
 	return mergedConfig, nil
@@ -715,7 +732,8 @@ func fetchRemoteConfig(url string) (*Config, error) {
 			}
 
 			return nil
-		}, retry.Delay(time.Second), retry.Attempts(configURLAttempts),
+		},
+		retry.Config{Attempts: configURLAttempts, Delay: retry.Fixed(time.Second)},
 	)
 
 	if err != nil {
@@ -764,8 +782,43 @@ func HasValidHeader(data string) bool {
 	return false
 }
 
+// quoteDashedKeys turns a dotted path such as k3s-agent.enabled into
+// ."k3s-agent".enabled so gojq reads the dash as part of the key and not as
+// subtraction. Only bare segments made of [A-Za-z0-9_-] are quoted; a query
+// that holds any other jq syntax (pipes, parens, quotes, spaces, operators)
+// is returned unchanged.
+func quoteDashedKeys(s string) string {
+	if !strings.Contains(s, "-") {
+		return s
+	}
+	for _, r := range s {
+		if !isPlainKeyRune(r) && r != '.' && r != '[' && r != ']' && r != ':' {
+			return s
+		}
+	}
+
+	segments := strings.Split(s, ".")
+	for i, seg := range segments {
+		name, rest := seg, ""
+		if idx := strings.IndexByte(seg, '['); idx >= 0 {
+			name, rest = seg[:idx], seg[idx:]
+		}
+		if name == "" || !strings.Contains(name, "-") || strings.ContainsAny(name, "[]:") {
+			continue
+		}
+		segments[i] = strconv.Quote(name) + rest
+	}
+
+	return strings.Join(segments, ".")
+}
+
+func isPlainKeyRune(r rune) bool {
+	return r == '_' || r == '-' ||
+		(r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+}
+
 func (c Config) Query(s string) (res string, err error) {
-	s = fmt.Sprintf(".%s", s)
+	s = fmt.Sprintf(".%s", quoteDashedKeys(s))
 
 	var dat map[string]interface{}
 	var dat1 map[string]interface{}

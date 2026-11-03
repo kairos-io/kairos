@@ -18,6 +18,7 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
+	"github.com/twpayne/go-vfs/v5"
 )
 
 func CurrentImage(registry string) (string, error) {
@@ -67,7 +68,7 @@ func Upgrade(
 	// Check and fix dirs if we are under k8s, so we read the actual running system configs instead of only
 	// the container configs
 	// we can run it blindly as it will return an empty string if not under k8s
-	hostdir := k8sutils.GetHostDirForK8s()
+	hostdir := k8sutils.GetHostDirForK8s(vfs.OSFS)
 	for _, dir := range dirs {
 		fixedDirs = append(fixedDirs, filepath.Join(hostdir, dir))
 	}

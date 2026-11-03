@@ -16,12 +16,15 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
-// Default systemd search paths in order of precedence
+// Default systemd search paths, highest precedence first. A unit in /etc or
+// /run overrides the same unit in /usr/lib, which is how `systemctl mask`
+// works (a /dev/null link in /etc/systemd/system), so the lookup, which stops
+// at the first hit, has to see those directories first.
 var defaultSystemdSearchPaths = []string{
-	"/usr/lib/systemd/system",
-	"/lib/systemd/system",
 	"/etc/systemd/system",
 	"/run/systemd/system",
+	"/usr/lib/systemd/system",
+	"/lib/systemd/system",
 }
 
 type Validator struct {
