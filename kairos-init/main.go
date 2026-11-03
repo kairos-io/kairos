@@ -38,7 +38,12 @@ func preRun(cmd *cobra.Command, _ []string) {
 	}
 
 	if len(providers) > 0 {
+		seen := map[string]bool{}
 		for _, provider := range providers {
+			if seen[provider] {
+				continue
+			}
+			seen[provider] = true
 			p := config.Provider{Name: provider}
 			flagName := fmt.Sprintf("provider-%s-version", provider)
 			if f := cmd.Flags().Lookup(flagName); f != nil {
@@ -199,38 +204,59 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-func getProvidersFromArgs() []string {
+// getProvidersFromArgs returns the provider names passed with --provider/-p,
+// in every form that flag accepts: a separate token, --provider=, -p=, the
+// attached shorthand -pNAME and comma lists. The per-provider flags must be
+// registered before cobra parses the command line, so this reads the raw args.
+func getProvidersFromArgs(args []string) []string {
 	var providers []string
-	for i, arg := range os.Args {
-		if arg == "--provider" || arg == "-p" {
-			if i+1 < len(os.Args) {
-				providers = append(providers, os.Args[i+1])
+	seen := map[string]bool{}
+	add := func(value string) {
+		for _, name := range strings.Split(value, ",") {
+			name = strings.TrimSpace(name)
+			if name == "" || seen[name] {
+				continue
 			}
+			seen[name] = true
+			providers = append(providers, name)
 		}
-		if strings.HasPrefix(arg, "--provider=") {
-			providers = append(providers, strings.SplitN(arg, "=", 2)[1])
-		}
-		if strings.HasPrefix(arg, "-p=") {
-			providers = append(providers, strings.SplitN(arg, "=", 2)[1])
+	}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--":
+			return providers
+		case arg == "--provider" || arg == "-p":
+			if i+1 < len(args) {
+				add(args[i+1])
+				i++
+			}
+		case strings.HasPrefix(arg, "--provider="):
+			add(strings.TrimPrefix(arg, "--provider="))
+		case strings.HasPrefix(arg, "-p") && !strings.HasPrefix(arg, "--"):
+			add(strings.TrimPrefix(strings.TrimPrefix(arg, "-p"), "="))
 		}
 	}
 	return providers
 }
 
-func init() {
-	// Dynamic provider flag setup
-	provs := getProvidersFromArgs()
-	if len(provs) > 0 {
-		for _, provider := range provs {
-			flagName := fmt.Sprintf("provider-%s-version", provider)
-			rootCmd.Flags().String(flagName, "", fmt.Sprintf("Version for provider %s", provider))
-			flagConfig := fmt.Sprintf("provider-%s-config", provider)
-			rootCmd.Flags().String(flagConfig, "", fmt.Sprintf("Config file for provider %s", provider))
-		}
-	} else {
-		rootCmd.Flags().String("provider-$NAME-version", "", "Version for provider $NAME set by --provider/-p flag")
-		rootCmd.Flags().String("provider-$NAME-config", "", "Config for provider $NAME set by --provider/-p flag")
+// registerProviderFlags adds --provider-NAME-version and --provider-NAME-config
+// for every provider named in args, or a placeholder pair for --help.
+func registerProviderFlags(cmd *cobra.Command, args []string) {
+	provs := getProvidersFromArgs(args)
+	if len(provs) == 0 {
+		cmd.Flags().String("provider-$NAME-version", "", "Version for provider $NAME set by --provider/-p flag")
+		cmd.Flags().String("provider-$NAME-config", "", "Config for provider $NAME set by --provider/-p flag")
+		return
 	}
+	for _, provider := range provs {
+		cmd.Flags().String(fmt.Sprintf("provider-%s-version", provider), "", fmt.Sprintf("Version for provider %s", provider))
+		cmd.Flags().String(fmt.Sprintf("provider-%s-config", provider), "", fmt.Sprintf("Config file for provider %s", provider))
+	}
+}
+
+func init() {
+	registerProviderFlags(rootCmd, os.Args[1:])
 	// enum flags
 	rootCmd.Flags().VarP(stageFlag, "stage", "s", fmt.Sprintf("set the stage to run (%s)", strings.Join(stageFlag.Allowed, ", ")))
 	rootCmd.Flags().VarP(loglevelFlag, "level", "l", fmt.Sprintf("set the log level (%s)", strings.Join(loglevelFlag.Allowed, ", ")))
