@@ -1,96 +1,106 @@
 package main
 
 import (
-	"bytes"
+	"io"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/kairos-io/kairos/v4/internal/version"
 )
 
-// stubSub replaces the run func of a registered sub for the length of the
-// test and records the os.Args it was started with.
-func stubSub(t *testing.T, name string) *[]string {
+// stdoutOf runs fn and returns what it wrote to stdout.
+func stdoutOf(t *testing.T, fn func()) string {
 	t.Helper()
-	orig, ok := subs[name]
-	if !ok {
-		t.Fatalf("%s is not a sub-tool; registered: %v", name, keys(subs))
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
 	}
-	var got []string
-	subs[name] = func() int {
-		got = append([]string{}, os.Args...)
-		return 0
-	}
-	origArgs := os.Args
-	t.Cleanup(func() {
-		subs[name] = orig
-		os.Args = origArgs
-	})
-	return &got
+	orig := os.Stdout
+	os.Stdout = w
+	done := make(chan string)
+	go func() {
+		b, _ := io.ReadAll(r)
+		done <- string(b)
+	}()
+	fn()
+	os.Stdout = orig
+	_ = w.Close()
+	return <-done
 }
 
-func TestSubToolVersionCommandReachesTheSub(t *testing.T) {
-	for _, tc := range []struct {
-		sub  string
-		args []string
-		want []string
-	}{
-		// AuroraBoot's install script runs `kairos-agent version` and
-		// parses the bare version the agent prints.
-		{"agent", []string{"/usr/bin/kairos-agent", "version"}, []string{"/usr/bin/kairos-agent", "version"}},
-		{"agent", []string{"kairos-agent", "version", "--long"}, []string{"kairos-agent", "version", "--long"}},
-		{"agent", []string{"kairos", "agent", "version", "--long"}, []string{"agent", "version", "--long"}},
-		{"provider", []string{"kairos", "provider", "version"}, []string{"provider", "version"}},
-		{"provider", []string{"kairos", "provider", "--version"}, []string{"provider", "--version"}},
+// AuroraBoot's install script runs `kairos-agent version` and parses the bare
+// version the agent prints, so that query has to reach the agent.
+func TestAgentVersionCommandReachesTheAgent(t *testing.T) {
+	for _, args := range [][]string{
+		{"/usr/bin/kairos-agent", "version"},
+		{"kairos-agent", "version"},
+		{"kairos", "agent", "version"},
+		{"kairos", "kairos-agent", "version"},
 	} {
-		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
-			got := stubSub(t, tc.sub)
-			var out bytes.Buffer
-
-			if code := dispatch(tc.args, &out); code != 0 {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			var code int
+			out := stdoutOf(t, func() { code = run(args) })
+			if code != 0 {
 				t.Fatalf("exit code %d", code)
 			}
-			if out.Len() != 0 {
-				t.Errorf("dispatcher answered %q itself", out.String())
-			}
-			if !reflect.DeepEqual(*got, tc.want) {
-				t.Errorf("%s ran with %q, want %q", tc.sub, *got, tc.want)
+			if want := version.Version + "\n"; out != want {
+				t.Errorf("printed %q, want the agent's bare %q", out, want)
 			}
 		})
 	}
+
+	t.Run("version --long", func(t *testing.T) {
+		out := stdoutOf(t, func() { run([]string{"kairos-agent", "version", "--long"}) })
+		if !strings.Contains(out, "\ngo ") {
+			t.Errorf("printed %q, want the agent's long form with the Go version", out)
+		}
+	})
 }
 
-// A sub without its own version command must not be started by a version
+func TestVersionQueriesKairosHandsToTheSubTool(t *testing.T) {
+	root, _ := newRoot()
+	for _, args := range [][]string{
+		{"kairos", "agent", "version"},
+		{"kairos", "kairos-agent", "version", "--long"},
+		{"kairos", "provider", "version"},
+		{"kairos", "provider", "--version"},
+		{"kairos", "provider", "-v"},
+	} {
+		if answersVersion(root, args) {
+			t.Errorf("%q is answered by kairos, want it handed to the sub-tool", args)
+		}
+	}
+}
+
+// A sub-tool without its own version command must not be started by a version
 // query: immucore's default action is the boot flow.
-func TestDispatcherAnswersVersionForSubsThatDoNotOwnIt(t *testing.T) {
+func TestVersionQueriesKairosAnswers(t *testing.T) {
+	root, _ := newRoot()
 	for _, args := range [][]string{
 		{"kairos", "--version"},
 		{"kairos", "version"},
 		{"kairos", "-v"},
-		{"immucore", "version"},
-		{"immucore", "--version"},
-		{"kairos", "immucore", "-v"},
+		{"kairos", "immucore", "version"},
+		{"kairos", "immucore", "--version"},
 		{"kairos", "kcrypt", "version"},
-		// The agent has no --version flag, so the dispatcher keeps it.
-		{"kairos-agent", "--version"},
+		// The agent has no --version flag, so kairos keeps it.
+		{"kairos", "agent", "--version"},
+		{"kairos", "kairos-agent", "-v"},
 	} {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			ranImmucore := stubSub(t, "immucore")
-			ranKcrypt := stubSub(t, "kcrypt")
-			ranAgent := stubSub(t, "agent")
-			var out bytes.Buffer
+		if !answersVersion(root, args) {
+			t.Errorf("%q is handed to the sub-tool, want kairos to answer it", args)
+		}
+	}
 
-			if code := dispatch(args, &out); code != 0 {
-				t.Fatalf("exit code %d", code)
-			}
-			if want := "kairos " + version.Version + "\n"; out.String() != want {
-				t.Errorf("printed %q, want %q", out.String(), want)
-			}
-			if *ranImmucore != nil || *ranKcrypt != nil || *ranAgent != nil {
-				t.Errorf("a sub was started: immucore=%q kcrypt=%q agent=%q", *ranImmucore, *ranKcrypt, *ranAgent)
-			}
-		})
+	for _, args := range [][]string{
+		{"kairos", "--version"},
+		{"/usr/bin/immucore", "version"},
+		{"/init", "--version"},
+	} {
+		out := stdoutOf(t, func() { run(args) })
+		if want := "kairos " + version.Version + "\n"; out != want {
+			t.Errorf("%q printed %q, want %q", args, out, want)
+		}
 	}
 }

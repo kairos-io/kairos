@@ -23,7 +23,7 @@ func (s *State) MountTmpfsDagStep(g *herd.Graph) error {
 		func(_ context.Context) error {
 			fstab, err := op.MountOPWithFstab("tmpfs", "/tmp", "tmpfs", cnst.TmpMountOptions, 10*time.Second)
 			for _, f := range fstab {
-				s.fstabs = append(s.fstabs, f)
+				s.appendFstab(f)
 			}
 			if err != nil {
 				return err
@@ -56,7 +56,7 @@ func (s *State) MountRootDagStep(g *herd.Graph) error {
 					internalUtils.DiskFSType(stateDevice),
 					s.readOnlyOrMode, 60*time.Second)
 				for _, f := range fstab {
-					s.fstabs = append(s.fstabs, f)
+					s.appendFstab(f)
 				}
 				return err
 			},
@@ -112,7 +112,7 @@ func (s *State) MountRootDagStep(g *herd.Graph) error {
 						return append(s.readOnlyOrMode(fstype), "suid", "dev", "exec", "async")
 					}, 10*time.Second)
 				for _, f := range fstab {
-					s.fstabs = append(s.fstabs, f)
+					s.appendFstab(f)
 				}
 				return err
 			},

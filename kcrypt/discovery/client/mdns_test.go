@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -68,5 +69,79 @@ func TestDiscoverMDNSServerTimesOutAndStopsQuerying(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if calls.Load() != after {
 		t.Fatal("query goroutine still running after return")
+	}
+}
+
+// answerWith stands in for mdns.QueryContext and sends one fixed entry.
+func answerWith(entry *mdns.ServiceEntry) func(context.Context, *mdns.QueryParam) error {
+	return func(ctx context.Context, p *mdns.QueryParam) error {
+		p.Entries <- entry
+		select {
+		case <-ctx.Done():
+		case <-time.After(p.Timeout):
+		}
+		return nil
+	}
+}
+
+func TestQueryMDNSUsesIPv6WhenThereIsNoIPv4(t *testing.T) {
+	v6 := net.ParseIP("fd00::10")
+	withMDNS(t, time.Second, 20*time.Millisecond, answerWith(&mdns.ServiceEntry{
+		Host: "challenger.local.", AddrV6: v6, AddrV6IPAddr: &net.IPAddr{IP: v6}, Port: 8082,
+	}))
+
+	u, headers, err := queryMDNS("http://challenger.local:8082", loggerpkg.NewNullLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u != "http://[fd00::10]:8082" {
+		t.Fatalf("got %q, want http://[fd00::10]:8082", u)
+	}
+	if headers["Host"] != "challenger.local:8082" {
+		t.Fatalf("got Host header %q", headers["Host"])
+	}
+}
+
+func TestQueryMDNSKeepsTheZoneOfALinkLocalAddress(t *testing.T) {
+	v6 := net.ParseIP("fe80::1")
+	withMDNS(t, time.Second, 20*time.Millisecond, answerWith(&mdns.ServiceEntry{
+		Host: "challenger.local.", AddrV6: v6, AddrV6IPAddr: &net.IPAddr{IP: v6, Zone: "eth0"}, Port: 8082,
+	}))
+
+	u, _, err := queryMDNS("http://challenger.local:8082", loggerpkg.NewNullLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u != "http://[fe80::1%25eth0]:8082" {
+		t.Fatalf("got %q", u)
+	}
+}
+
+func TestQueryMDNSPrefersIPv4(t *testing.T) {
+	v6 := net.ParseIP("fd00::10")
+	withMDNS(t, time.Second, 20*time.Millisecond, answerWith(&mdns.ServiceEntry{
+		Host: "challenger.local.", AddrV4: net.ParseIP("192.0.2.10"), AddrV6: v6, Port: 8082,
+	}))
+
+	u, _, err := queryMDNS("http://challenger.local:8082", loggerpkg.NewNullLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u != "http://192.0.2.10:8082" {
+		t.Fatalf("got %q", u)
+	}
+}
+
+func TestQueryMDNSIgnoresAnAnswerWithoutAnAddress(t *testing.T) {
+	withMDNS(t, 200*time.Millisecond, 20*time.Millisecond, answerWith(&mdns.ServiceEntry{
+		Host: "challenger.local.", Port: 8082,
+	}))
+
+	u, _, err := queryMDNS("http://challenger.local:8082", loggerpkg.NewNullLogger())
+	if err == nil {
+		t.Fatalf("got %q, want an error", u)
+	}
+	if strings.Contains(u, "<nil>") {
+		t.Fatalf("url %q carries <nil>", u)
 	}
 }
