@@ -538,45 +538,69 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 	return g.Add(cnst.OpMountBind,
 		append(opts, herd.FatalOp,
 			herd.WithDeps(cnst.OpOverlayMount, cnst.OpCustomMounts, cnst.OpLoadConfig),
-			TimedCallback(cnst.OpMountBind,
-				func(_ context.Context) error {
-					var err *multierror.Error
-					internalUtils.KLog.Logger.Debug().Strs("mounts", s.BindMounts).Msg("Mounting binds")
-
-					for _, p := range s.SortedBindMounts() {
-						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount start")
-						operation := op.MountBind(p, s.Rootdir, s.StateDir)
-						err2 := operation.Run()
-						if err2 == nil {
-							// Only append to fstabs if there was no error, otherwise we will try to mount it after switch_root
-							s.appendFstab(&operation.FstabEntry)
-						}
-						// Append to errors only if it's not an already mounted error
-						if err2 != nil && !errors.Is(err2, cnst.ErrAlreadyMounted) {
-							internalUtils.KLog.Logger.Err(err2).Send()
-							err = multierror.Append(err, err2)
-						}
-						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount end")
-					}
-
-					// Say what failed and what it costs. The step used to end in
-					// a bare warning with no message, emitted on every boot
-					// including the ones where every bind worked, which is a
-					// large part of why this class of failure went unnoticed.
-					// multierror.Error.Len has a value receiver, so it panics on
-					// the nil accumulator a clean boot leaves behind. Ask
-					// ErrorOrNil first.
-					if bindErr := err.ErrorOrNil(); bindErr != nil {
-						internalUtils.KLog.Logger.Error().Err(bindErr).Int("failed", err.Len()).
-							Msg("Some persistent state binds did not mount. Those paths would be ephemeral and their contents lost on reboot, so the boot stops here instead.")
-
-						return onMountFailure(cnst.OpMountBind, bindErr)
-					}
-
-					return nil
-				},
-			),
+			TimedCallback(cnst.OpMountBind, s.mountCustomBinds),
 		)...)
+}
+
+// bindMountFn runs one persistent state bind mount. Package variable so that
+// a test can exercise how the step handles a refused mountpoint without the
+// real mount(2), which needs root.
+var bindMountFn = func(mountpoint, root, stateTarget string) (op.MountOperation, error) {
+	operation := op.MountBind(mountpoint, root, stateTarget)
+	return operation, operation.Run()
+}
+
+// mountCustomBinds binds every path in s.BindMounts over its directory in the
+// persistent state.
+func (s *State) mountCustomBinds(_ context.Context) error {
+	var err *multierror.Error
+	internalUtils.KLog.Logger.Debug().Strs("mounts", s.BindMounts).Msg("Mounting binds")
+
+	for _, p := range s.SortedBindMounts() {
+		internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount start")
+		operation, err2 := bindMountFn(p, s.Rootdir, s.StateDir)
+		// A mountpoint that is a symlink is refused rather than followed, but
+		// the refusal must not take the whole step down with it. Under UKI the
+		// root is /, so an entry like the default /etc/ssl/certs resolves and
+		// binds today on the Red Hat and SUSE families, and OpWriteFstab
+		// hard-depends on this step there (pkg/dag/dag_uki_boot.go), not
+		// weakly as in the other two workflows. Returning an error would mean
+		// those machines stop getting /etc/fstab written at all. Losing the
+		// persistence of one path is far less damaging, so warn loudly and
+		// carry on with the rest of the list.
+		if errors.Is(err2, cnst.ErrMountTargetIsSymlink) {
+			internalUtils.KLog.Logger.Warn().Err(err2).Str("what", p).
+				Msg("Skipping persistent state bind: the mountpoint is a symlink, so the bind would land on whatever it resolves to instead. To persist that path, name it directly, or drop this entry from persistent_state_paths/CUSTOM_BIND_MOUNTS.")
+			continue
+		}
+		if err2 == nil {
+			// Only append to fstabs if there was no error, otherwise we will try to mount it after switch_root
+			s.appendFstab(&operation.FstabEntry)
+		}
+		// Append to errors only if it's not an already mounted error
+		if err2 != nil && !errors.Is(err2, cnst.ErrAlreadyMounted) {
+			internalUtils.KLog.Logger.Err(err2).Send()
+			err = multierror.Append(err, err2)
+		}
+		internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount end")
+	}
+
+	// Say what failed and what it costs. The step used to end in a bare
+	// warning with no message, emitted on every boot including the ones where
+	// every bind worked, which is a large part of why this class of failure
+	// went unnoticed. multierror.Error.Len has a value receiver, so it panics
+	// on the nil accumulator a clean boot leaves behind. Ask ErrorOrNil first.
+	//
+	// A bind skipped because its mountpoint is a symlink never reaches this
+	// accumulator, so it warns above and does not stop the boot.
+	if bindErr := err.ErrorOrNil(); bindErr != nil {
+		internalUtils.KLog.Logger.Error().Err(bindErr).Int("failed", err.Len()).
+			Msg("Some persistent state binds did not mount. Those paths would be ephemeral and their contents lost on reboot, so the boot stops here instead.")
+
+		return onMountFailure(cnst.OpMountBind, bindErr)
+	}
+
+	return nil
 }
 
 // QuarantineStaleUnitsDagStep moves unit symlinks that an earlier OS image

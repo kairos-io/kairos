@@ -97,6 +97,24 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 		FstabEntry:  *tmpFstab,
 		Target:      rootMount,
 		PrepareCallback: func() error {
+			// A symlink is not a mountpoint. mount(2) follows it, so the bind
+			// would land on whatever the link resolves to instead of on the
+			// path that was asked for. A relative target resolves to image
+			// content that the state directory would then shadow for good,
+			// since SyncState runs rsync with no --delete. An absolute target
+			// resolves the same way under UKI, where the root is /, and off
+			// UKI it resolves against the initramfs root rather than the
+			// sysroot, where it usually does not exist at all. None of that is
+			// what naming the path in PERSISTENT_STATE_PATHS or in
+			// CUSTOM_BIND_MOUNTS asks for, so refuse instead of guessing.
+			// /etc/ssl/certs is a symlink on the Red Hat and SUSE families.
+			// MountCustomBindsDagStep turns this refusal into a warning so
+			// that one such entry does not fail the whole bind step.
+			if info, err := os.Lstat(rootMount); err == nil && info.Mode()&os.ModeSymlink != 0 {
+				target, _ := os.Readlink(rootMount)
+				return fmt.Errorf("%w: %s -> %s", constants.ErrMountTargetIsSymlink, rootMount, target)
+			}
+
 			// The state directory takes the mode of the mountpoint, and a
 			// mountpoint the image does not ship is created by the call below
 			// with a default of its own. That default would then be the mode
