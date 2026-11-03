@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,21 +39,10 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
 	"github.com/mudler/go-pluggable"
 	"github.com/sanity-io/litter"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
-)
-
-// ctxKey is the private type used for context.WithValue keys inside this
-// package; using a package-private type prevents a collision with any other
-// package that might store the same string on the same Context.
-type ctxKey string
-
-const (
-	// extTypeCtxKey stores whether the current sysext/confext CLI action
-	// is being invoked for "sysext" or "confext", so the shared handlers
-	// can dispatch without duplicating the command definitions.
-	extTypeCtxKey ctxKey = "extType"
 )
 
 // Output formats accepted by "upgrade list-releases --output".
@@ -137,48 +125,128 @@ func printProviderReleases(w, notes io.Writer, tags []string, format string) boo
 	return true
 }
 
-var sourceFlag = cli.StringFlag{
-	Name:  "source",
-	Usage: "Source for upgrade. Composed of `type:address`. Accepts `file:`,`dir:` `oci:`,or `ocifile:` for the type of source.\nFor example `ocifile:/var/share/myimage.tar`, `dir:/tmp/extracted` or `oci:repo/image:tag`",
+// globalFlags are the flags every kairos-agent command inherits from the root.
+type globalFlags struct {
+	strictValidation bool
+	debug            bool
 }
 
-var allowInsecureRegistriesFlag = cli.BoolFlag{
-	Name:  "allow-insecure-registries",
-	Usage: "Pull the image from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate. Can also be set in the cloud config via `install.allow-insecure-registries` or `upgrade.allow-insecure-registries`.",
+// envAnnotation marks a flag that also takes its value from an environment
+// variable. applyEnvFlags reads it.
+const envAnnotation = "kairos-agent/env"
+
+// bindEnv makes the flag name also settable from the environment variable env.
+// The command line wins over the environment.
+func bindEnv(flags *pflag.FlagSet, name, env string) {
+	f := flags.Lookup(name)
+	f.Usage = fmt.Sprintf("%s [$%s]", f.Usage, env)
+	_ = flags.SetAnnotation(name, envAnnotation, []string{env})
 }
 
-var kcryptNVIndexFlag = cli.StringFlag{
-	Name:  "nv-index",
-	Usage: "NV index to operate on (defaults to configured index or 0x1500000)",
+// applyEnvFlags sets every flag that was not given on the command line from
+// its environment variable, when that variable is set. A flag set this way
+// counts as given, so a check that asks whether the operator passed a flag,
+// such as checkInstallBundleFlags, sees the environment too. A variable that
+// is set but empty turns a boolean flag off.
+func applyEnvFlags(flags *pflag.FlagSet) error {
+	var err error
+	flags.VisitAll(func(f *pflag.Flag) {
+		if err != nil || f.Changed {
+			return
+		}
+		for _, env := range f.Annotations[envAnnotation] {
+			v, ok := os.LookupEnv(env)
+			if !ok {
+				continue
+			}
+			if v == "" && f.Value.Type() == "bool" {
+				v = "false"
+			}
+			if setErr := flags.Set(f.Name, v); setErr != nil {
+				err = fmt.Errorf("could not parse %q as %s value from environment variable %q for flag %s: %w", v, f.Value.Type(), env, f.Name, setErr)
+			}
+			return
+		}
+	})
+	return err
 }
 
-var kcryptTPMDeviceFlag = cli.StringFlag{
-	Name:  "tpm-device",
-	Usage: "TPM device path (defaults to configured device or system default)",
+// stopFlagsAtFirstArgument makes every command in the tree read flags only up
+// to its first positional argument, and pass anything after it on as an
+// argument. That is how the agent has always read its command line, and
+// callers depend on it: install-bundle documents it, and the phone-home
+// extension handlers build their argv around it.
+func stopFlagsAtFirstArgument(cmd *cobra.Command) {
+	cmd.Flags().SetInterspersed(false)
+	for _, c := range cmd.Commands() {
+		stopFlagsAtFirstArgument(c)
+	}
 }
 
-var kcryptCIndexFlag = cli.StringFlag{
-	Name:  "c-index",
-	Usage: "C index (certificate index) for decryption (defaults to configured index)",
+// groupCommand fills in a command that only groups subcommands. Cobra treats a
+// command without a RunE as a request for help and exits 0 whatever it was
+// given, so a mistyped subcommand would pass for a successful one. NoArgs
+// refuses it instead.
+func groupCommand(cmd *cobra.Command) *cobra.Command {
+	cmd.Args = cobra.NoArgs
+	cmd.RunE = func(c *cobra.Command, _ []string) error {
+		return c.Help()
+	}
+	return cmd
 }
 
-var cmds = []*cli.Command{
-	{
+// usageError prints the usage of cmd to stderr and returns msg as the error,
+// for a command given the wrong number of arguments.
+func usageError(cmd *cobra.Command, msg string) error {
+	_ = cmd.Usage()
+	return errors.New(msg)
+}
+
+func addSourceFlag(flags *pflag.FlagSet, source *string) {
+	flags.StringVar(source, "source", "", "Source for upgrade. Composed of `type:address`. Accepts `file:`,`dir:` `oci:`,or `ocifile:` for the type of source.\nFor example `ocifile:/var/share/myimage.tar`, `dir:/tmp/extracted` or `oci:repo/image:tag`")
+}
+
+func addAllowInsecureRegistriesFlag(flags *pflag.FlagSet, insecure *bool) {
+	flags.BoolVar(insecure, "allow-insecure-registries", false, "Pull the image from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate. Can also be set in the cloud config via \"install.allow-insecure-registries\" or \"upgrade.allow-insecure-registries\".")
+}
+
+func addKcryptNVIndexFlag(flags *pflag.FlagSet, nvIndex *string) {
+	flags.StringVar(nvIndex, "nv-index", "", "NV index to operate on (defaults to configured index or 0x1500000)")
+}
+
+func addKcryptTPMDeviceFlag(flags *pflag.FlagSet, tpmDevice *string) {
+	flags.StringVar(tpmDevice, "tpm-device", "", "TPM device path (defaults to configured device or system default)")
+}
+
+func addKcryptCIndexFlag(flags *pflag.FlagSet, cIndex *string) {
+	flags.StringVar(cIndex, "c-index", "", "C index (certificate index) for decryption (defaults to configured index)")
+}
+
+// checkUpgrade is the check every upgrade command runs before it does
+// anything: list-releases runs it too, as a subcommand of upgrade.
+func checkUpgrade(source string) error {
+	if err := validateSource(source); err != nil {
+		return err
+	}
+	if bootFromLiveMedia() {
+		return fmt.Errorf("cannot upgrade from live media/unknown boot state")
+	}
+
+	return checkRoot()
+}
+
+func newUpgradeCmd(global *globalFlags) *cobra.Command {
+	var (
+		image, source, bootEntry string
+		recovery, insecure       bool
+		dryRun                   bool
+		excludePaths             []string
+	)
+
+	cmd := &cobra.Command{
 		// TODO: Fix the implicit upgrade
-		Name: "upgrade",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "image",
-				Usage: "[DEPRECATED] Specify a full image reference, e.g.: quay.io/some/image:tag",
-			},
-			&sourceFlag,
-			&cli.StringFlag{Name: "boot-entry", Usage: "Specify a systemd-boot entry to upgrade (other than active/passive/recovery). The value should match the name of the '.efi' file."},
-			&cli.BoolFlag{Name: constants.BootRecovery, Usage: "Upgrade recovery"},
-			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
-			&allowInsecureRegistriesFlag,
-			&cli.BoolFlag{Name: "dry-run", Usage: "Resolve the upgrade and print a summary of what would be done, without changing the system"},
-		},
-		Description: `
+		Use: "upgrade",
+		Long: `
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
 
 To specify a version, pass it as argument using the --source flag. Passing just the Kairos version as the first argument is no longer supported. If you speficy a positional argument, it will be treated
@@ -197,152 +265,171 @@ $ kairos upgrade list-releases
 See https://kairos.io/docs/upgrade/manual/ for documentation.
 
 `,
-		Subcommands: []*cli.Command{
-			{
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "output",
-						Usage: "Output format (json|yaml|terminal)",
-					},
-					&cli.BoolFlag{Name: "pre", Usage: "Include pre-releases (rc, beta, alpha)"},
-					&cli.BoolFlag{Name: "all", Usage: "Include older releases, and releases that would downgrade Kubernetes"},
-					&cli.StringFlag{Name: "registry", Usage: "Registry to retrieve the releases from. Defaults to quay.io/kairos.", Value: "quay.io/kairos"},
-				},
-				Name:        "list-releases",
-				Description: `List all available releases versions`,
-				Before: func(c *cli.Context) error {
-					// Refuse an unusable format before anything is printed.
-					format, err := parseReleasesOutput(c.String("output"))
-					if err != nil {
-						return err
-					}
-					notes := releasesNotes(format)
-
-					// Check if the registry is set in the OS release and warn that its deprecated
-					registryAndOrg, err := sdkUtils.OSRelease("REGISTRY_AND_ORG")
-					if err == nil {
-						fmt.Fprintln(notes, "Warning: The 'REGISTRY_AND_ORG' OS release variable is deprecated. Use the '--registry' flag instead.")
-						fmt.Fprintln(notes, "Warning: Using the values from 'REGISTRY_AND_ORG' instead of the flag.")
-						_ = c.Set("registry", registryAndOrg)
-
-					}
-					fmt.Fprintf(notes, "Using registry: %s\n", c.String("registry"))
-					return nil
-				},
-				Action: func(c *cli.Context) error {
-					format, err := parseReleasesOutput(c.String("output"))
-					if err != nil {
-						return err
-					}
-					notes := releasesNotes(format)
-
-					if utils.IsUki() {
-						fmt.Fprintln(notes, "You are running in \"trusted boot\" mode")
-						fmt.Fprintln(notes, "Upgrading your OS requires a new image to be built an signed")
-						fmt.Fprintln(notes, "Read the docs on how to do so: https://kairos.io/docs/upgrade/trustedboot/")
-						// Still emit the document, so that a caller asking for
-						// a machine readable format always gets one.
-						if format != outputFormatTerminal {
-							printReleases(os.Stdout, nil, format)
-						}
-						return nil
-					}
-
-					currentImage, err := agent.CurrentImage(c.String("registry"))
-					if err != nil {
-						return err
-					}
-					fmt.Fprintf(notes, "Current image:\n%s\n\n", currentImage)
-
-					var tags []string
-					tags, err = getReleasesFromProvider(c.Bool("pre"))
-					if err != nil {
-						return err
-					}
-
-					// Provider returns tags. Print and return.
-					if printProviderReleases(os.Stdout, notes, tags, format) {
-						return nil
-					}
-
-					if c.Bool("all") {
-						fmt.Fprintln(notes, "Available releases (all):")
-						tags, err = agent.ListAllReleases(c.Bool("pre"), c.String("registry"))
-						if err != nil {
-							return err
-						}
-					} else {
-						fmt.Fprintln(notes, "Available releases with higher version:")
-						tags, err = agent.ListNewerReleases(c.Bool("pre"), c.String("registry"))
-						if err != nil {
-							return err
-						}
-					}
-
-					if len(tags) == 0 {
-						fmt.Fprintln(notes, "No newer releases found")
-						// An empty list is still a valid answer, so emit the
-						// document rather than leaving stdout empty.
-						if format != outputFormatTerminal {
-							printReleases(os.Stdout, nil, format)
-						}
-						return nil
-					}
-
-					printReleases(os.Stdout, tags, format)
-
-					return nil
-				},
-			},
+		PreRunE: func(*cobra.Command, []string) error {
+			return checkUpgrade(source)
 		},
-		Before: func(c *cli.Context) error {
-			if err := validateSource(c.String("source")); err != nil {
-				return err
-			}
-			if bootFromLiveMedia() {
-				return fmt.Errorf("cannot upgrade from live media/unknown boot state")
-			}
-
-			return checkRoot()
-		},
-		Action: func(c *cli.Context) error {
-			var source string
-			if c.Args().Len() == 1 {
+		RunE: func(_ *cobra.Command, args []string) error {
+			var upgradeSource string
+			if len(args) == 1 {
 				fmt.Println("Warning: Passing a version as a positional argument is deprecated. Use --source flag instead.")
 				fmt.Println("The value will be used as a value for the --source flag")
-				source = c.Args().First()
+				upgradeSource = args[0]
 			}
 
-			if v := c.String("source"); v != "" {
-				source = v
+			if source != "" {
+				upgradeSource = source
 			}
 
-			if v := c.String("image"); v != "" {
+			if image != "" {
 				fmt.Println("--image flag is deprecated, please use --source")
 				// override source with image for now until we drop it
-				source = fmt.Sprintf("oci:%s", v)
+				upgradeSource = fmt.Sprintf("oci:%s", image)
 			}
 
-			if c.Bool(constants.BootRecovery) && c.String("boot-entry") != "" {
+			if recovery && bootEntry != "" {
 				return fmt.Errorf("only one of '--recovery' and '--boot-entry' can be set")
 			}
 
 			upgradeEntry := ""
-			if c.Bool(constants.BootRecovery) {
+			if recovery {
 				upgradeEntry = constants.BootEntryRecovery
-			} else if c.String("boot-entry") != "" {
-				upgradeEntry = c.String("boot-entry")
+			} else if bootEntry != "" {
+				upgradeEntry = bootEntry
 			}
 
-			return agent.Upgrade(source, c.Bool("strict-validation"), constants.GetUserConfigDirs(),
-				upgradeEntry, c.Bool("allow-insecure-registries"), c.Bool("dry-run"), c.StringSlice("exclude-path")...,
+			return agent.Upgrade(upgradeSource, global.strictValidation, constants.GetUserConfigDirs(),
+				upgradeEntry, insecure, dryRun, excludePaths...,
 			)
 		},
-	},
-	{
-		Name:  "upgrade-finalize",
-		Usage: "internal: run the post-deploy finalize step of an upgrade",
-		Description: `
+	}
+
+	flags := cmd.Flags()
+	flags.StringVar(&image, "image", "", "[DEPRECATED] Specify a full image reference, e.g.: quay.io/some/image:tag")
+	addSourceFlag(flags, &source)
+	flags.StringVar(&bootEntry, "boot-entry", "", "Specify a systemd-boot entry to upgrade (other than active/passive/recovery). The value should match the name of the '.efi' file.")
+	flags.BoolVar(&recovery, constants.BootRecovery, false, "Upgrade recovery")
+	flags.StringSliceVar(&excludePaths, "exclude-path", nil, "Paths to exclude from the upgrade process. Can be specified multiple times.")
+	addAllowInsecureRegistriesFlag(flags, &insecure)
+	flags.BoolVar(&dryRun, "dry-run", false, "Resolve the upgrade and print a summary of what would be done, without changing the system")
+
+	cmd.AddCommand(newListReleasesCmd())
+	return cmd
+}
+
+func newListReleasesCmd() *cobra.Command {
+	var (
+		output, registry string
+		pre, all         bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "list-releases",
+		Short: "List all available releases versions",
+		Long:  `List all available releases versions`,
+		PreRunE: func(*cobra.Command, []string) error {
+			// Refuse an unusable format before anything is printed.
+			format, err := parseReleasesOutput(output)
+			if err != nil {
+				return err
+			}
+
+			if err := checkUpgrade(""); err != nil {
+				return err
+			}
+
+			notes := releasesNotes(format)
+
+			// Check if the registry is set in the OS release and warn that its deprecated
+			registryAndOrg, err := sdkUtils.OSRelease("REGISTRY_AND_ORG")
+			if err == nil {
+				fmt.Fprintln(notes, "Warning: The 'REGISTRY_AND_ORG' OS release variable is deprecated. Use the '--registry' flag instead.")
+				fmt.Fprintln(notes, "Warning: Using the values from 'REGISTRY_AND_ORG' instead of the flag.")
+				registry = registryAndOrg
+			}
+			fmt.Fprintf(notes, "Using registry: %s\n", registry)
+			return nil
+		},
+		RunE: func(*cobra.Command, []string) error {
+			format, err := parseReleasesOutput(output)
+			if err != nil {
+				return err
+			}
+			notes := releasesNotes(format)
+
+			if utils.IsUki() {
+				fmt.Fprintln(notes, "You are running in \"trusted boot\" mode")
+				fmt.Fprintln(notes, "Upgrading your OS requires a new image to be built an signed")
+				fmt.Fprintln(notes, "Read the docs on how to do so: https://kairos.io/docs/upgrade/trustedboot/")
+				// Still emit the document, so that a caller asking for
+				// a machine readable format always gets one.
+				if format != outputFormatTerminal {
+					printReleases(os.Stdout, nil, format)
+				}
+				return nil
+			}
+
+			currentImage, err := agent.CurrentImage(registry)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(notes, "Current image:\n%s\n\n", currentImage)
+
+			var tags []string
+			tags, err = getReleasesFromProvider(pre)
+			if err != nil {
+				return err
+			}
+
+			// Provider returns tags. Print and return.
+			if printProviderReleases(os.Stdout, notes, tags, format) {
+				return nil
+			}
+
+			if all {
+				fmt.Fprintln(notes, "Available releases (all):")
+				tags, err = agent.ListAllReleases(pre, registry)
+				if err != nil {
+					return err
+				}
+			} else {
+				fmt.Fprintln(notes, "Available releases with higher version:")
+				tags, err = agent.ListNewerReleases(pre, registry)
+				if err != nil {
+					return err
+				}
+			}
+
+			if len(tags) == 0 {
+				fmt.Fprintln(notes, "No newer releases found")
+				// An empty list is still a valid answer, so emit the
+				// document rather than leaving stdout empty.
+				if format != outputFormatTerminal {
+					printReleases(os.Stdout, nil, format)
+				}
+				return nil
+			}
+
+			printReleases(os.Stdout, tags, format)
+
+			return nil
+		},
+	}
+
+	flags := cmd.Flags()
+	flags.StringVar(&output, "output", "", "Output format (json|yaml|terminal)")
+	flags.BoolVar(&pre, "pre", false, "Include pre-releases (rc, beta, alpha)")
+	flags.BoolVar(&all, "all", false, "Include older releases, and releases that would downgrade Kubernetes")
+	flags.StringVar(&registry, "registry", "quay.io/kairos", "Registry to retrieve the releases from. Defaults to quay.io/kairos.")
+	return cmd
+}
+
+func newUpgradeFinalizeCmd() *cobra.Command {
+	var contextFile string
+
+	cmd := &cobra.Command{
+		Use:   "upgrade-finalize",
+		Short: "internal: run the post-deploy finalize step of an upgrade",
+		Long: `
 This is a hidden subcommand invoked by the host kairos-agent during a
 non-UKI upgrade after DeployImage. The host chroots into the deployed
 target rootfs, bind-mounts its own state / recovery / OEM / persistent
@@ -359,105 +446,114 @@ Not part of the public CLI; call sites and the wire contract may
 change between releases.
 `,
 		Hidden: true,
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "context-file",
-				Usage:    "Path (inside the target chroot) to the JSON-serialized FinalizeContext the host wrote",
-				Required: true,
-			},
-		},
-		Before: func(c *cli.Context) error {
+		PreRunE: func(*cobra.Command, []string) error {
 			return checkRoot()
 		},
-		Action: func(c *cli.Context) error {
-			return agent.UpgradeFinalize(c.String("context-file"))
+		RunE: func(*cobra.Command, []string) error {
+			return agent.UpgradeFinalize(contextFile)
 		},
-	},
-	{
-		Name:      "notify",
-		Usage:     "notify <event> <config dir>...",
-		UsageText: "emits the given event with a generic event payload",
-		Description: `
+	}
+
+	cmd.Flags().StringVar(&contextFile, "context-file", "", "Path (inside the target chroot) to the JSON-serialized FinalizeContext the host wrote")
+	_ = cmd.MarkFlagRequired("context-file")
+	return cmd
+}
+
+func newNotifyCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "notify <event> <config dir>...",
+		Short: "emits the given event with a generic event payload",
+		Long: `
 Sends a generic event payload with the configuration found in the scanned directories.
 `,
-		Aliases: []string{},
-		Flags:   []cli.Flag{},
-		Action: func(c *cli.Context) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			dirs := []string{"/oem", "/usr/local/cloud-config"}
-			if c.Args().Len() > 1 {
-				dirs = c.Args().Slice()[1:]
+			if len(args) > 1 {
+				dirs = args[1:]
 			}
 
-			return agent.Notify(c.Args().First(), dirs)
+			var event string
+			if len(args) > 0 {
+				event = args[0]
+			}
+			return agent.Notify(event, dirs)
 		},
-	},
-	{
-		Name:      "start",
-		Usage:     "Starts the kairos agent",
-		UsageText: "starts the agent",
-		Description: `
+	}
+}
+
+func newStartCmd() *cobra.Command {
+	var (
+		restart, force bool
+		api            string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Starts the kairos agent",
+		Long: `
 Starts the kairos agent which automatically bootstrap and advertize to the kairos network.
 `,
 		Aliases: []string{"s"},
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name: "restart",
-			},
-			&cli.BoolFlag{
-				Name:  "force",
-				Usage: "Deprecated: has no effect. Kept so existing invocations keep working.",
-			},
-			&cli.StringFlag{
-				Name: "api",
-				Usage: "Address of the edgevpn API the p2p provider co-ordinates over. " +
-					"Leave unset to let the provider choose, which is what keeps the edgevpn " +
-					"daemon's listen address and the provider CLI's client address in agreement. " +
-					"Setting it moves the daemon only, so the provider CLI needs the same " +
-					"address in EDGEVPN_API to keep working.",
-				// Deliberately no default. The address is the p2p provider's to
-				// decide: it both writes APILISTEN for the edgevpn daemon and
-				// defaults its own CLI client to the same place. A default here
-				// would win over the provider's and desynchronise the two ends.
-				//
-				// Note that an explicitly set value desynchronises them just the
-				// same. Whatever arrives here reaches the daemon's APILISTEN and
-				// the provider's in-process coordination client, but not the
-				// provider's command line client, which has no way to learn it
-				// and keeps its own default. Operators who set this must also
-				// export EDGEVPN_API for `get-kubeconfig` and `role list`. The
-				// real fix is for the provider CLI to derive its default from
-				// the APILISTEN the provider already writes to
-				// /etc/systemd/system.conf.d/edgevpn-kairos.env, which belongs
-				// in provider/ (formerly kairos-io/provider-kairos).
-				Value: "",
-			},
-		},
-		Action: func(c *cli.Context) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			dirs := []string{"/oem", "/usr/local/cloud-config"}
-			if c.Args().Present() {
-				dirs = c.Args().Slice()
+			if len(args) > 0 {
+				dirs = args
 			}
 
 			opts := []agent.Option{
-				agent.WithAPI(c.String("api")),
+				agent.WithAPI(api),
 				agent.WithDirectory(dirs...),
 			}
 
-			if c.Bool("force") {
+			if force {
 				fmt.Fprintln(os.Stderr, "Warning: --force has no effect on 'start' and will be removed in a future release")
 			}
 
-			if c.Bool("restart") {
+			if restart {
 				opts = append(opts, agent.RestartAgent)
 			}
 
 			return agent.Run(opts...)
 		},
-	},
-	{
-		Name:  "install-bundle",
-		Usage: "Installs a kairos bundle",
-		Description: `Manually installs a kairos bundle.
+	}
+
+	flags := cmd.Flags()
+	flags.BoolVar(&restart, "restart", false, "")
+	flags.BoolVar(&force, "force", false, "Deprecated: has no effect. Kept so existing invocations keep working.")
+	// Deliberately no default. The address is the p2p provider's to
+	// decide: it both writes APILISTEN for the edgevpn daemon and
+	// defaults its own CLI client to the same place. A default here
+	// would win over the provider's and desynchronise the two ends.
+	//
+	// Note that an explicitly set value desynchronises them just the
+	// same. Whatever arrives here reaches the daemon's APILISTEN and
+	// the provider's in-process coordination client, but not the
+	// provider's command line client, which has no way to learn it
+	// and keeps its own default. Operators who set this must also
+	// export EDGEVPN_API for `get-kubeconfig` and `role list`. The
+	// real fix is for the provider CLI to derive its default from
+	// the APILISTEN the provider already writes to
+	// /etc/systemd/system.conf.d/edgevpn-kairos.env, which belongs
+	// in provider/ (formerly kairos-io/provider-kairos).
+	flags.StringVar(&api, "api", "", "Address of the edgevpn API the p2p provider co-ordinates over. "+
+		"Leave unset to let the provider choose, which is what keeps the edgevpn "+
+		"daemon's listen address and the provider CLI's client address in agreement. "+
+		"Setting it moves the daemon only, so the provider CLI needs the same "+
+		"address in EDGEVPN_API to keep working.")
+	return cmd
+}
+
+func newInstallBundleCmd() *cobra.Command {
+	var (
+		repository, rootPath string
+		localFile            bool
+	)
+
+	cmd := &cobra.Command{
+		Use:                   "install-bundle [--local-file] [--repository TYPE://URL] [--root-path PATH] SCHEME://REFERENCE",
+		DisableFlagsInUseLine: true,
+		Short:                 "Installs a kairos bundle",
+		Long: `Manually installs a kairos bundle.
 
 The target has the form SCHEME://REFERENCE. Supported schemes:
 
@@ -473,57 +569,51 @@ Examples:
   kairos-agent install-bundle container://quay.io/myorg/mybundle:latest
   kairos-agent install-bundle --local-file container:///absolute/path/mybundle.tar
 `,
-		Aliases: []string{},
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "repository",
-				EnvVars: []string{"REPOSITORY"},
-				Value:   "docker://quay.io/kairos/packages",
-				Usage:   "Luet repository as TYPE://URL, accepted only by package:// targets",
-			},
-			&cli.StringFlag{
-				Name:  "root-path",
-				Value: "/",
-				Usage: "Directory the bundle is installed into, not used by run:// targets",
-			},
-			&cli.BoolFlag{
-				Name:    "local-file",
-				EnvVars: []string{"LOCAL_FILE"},
-				Usage:   "Read the container, docker or run target from an image tarball on disk instead of pulling it from a registry, not accepted by package:// targets",
-			},
-		},
-		UsageText: "install-bundle [--local-file] [--repository TYPE://URL] [--root-path PATH] SCHEME://REFERENCE",
-		Before: func(c *cli.Context) error {
+		PreRunE: func(*cobra.Command, []string) error {
 			return checkRoot()
 		},
-		Action: func(c *cli.Context) error {
-			if c.Args().Len() != 1 {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
 				return fmt.Errorf("bundle name required")
 			}
 
-			if err := checkInstallBundleFlags(c, c.Args().First()); err != nil {
+			if err := checkInstallBundleFlags(cmd.Flags(), args[0]); err != nil {
 				return err
 			}
 
-			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRootFS(c.String("root-path")), bundles.WithRepository(c.String("repository")), bundles.WithTarget(c.Args().First()), bundles.WithLocalFile(c.Bool("local-file"))})
+			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRootFS(rootPath), bundles.WithRepository(repository), bundles.WithTarget(args[0]), bundles.WithLocalFile(localFile)})
 		},
-	},
-	{
-		Name:        "uuid",
-		Usage:       "Prints the local UUID",
-		Description: "Print node uuid",
-		Aliases:     []string{"u"},
-		Action: func(c *cli.Context) error {
+	}
+
+	flags := cmd.Flags()
+	flags.StringVar(&repository, "repository", "docker://quay.io/kairos/packages", "Luet repository as TYPE://URL, accepted only by package:// targets")
+	bindEnv(flags, "repository", "REPOSITORY")
+	flags.StringVar(&rootPath, "root-path", "/", "Directory the bundle is installed into, not used by run:// targets")
+	flags.BoolVar(&localFile, "local-file", false, "Read the container, docker or run target from an image tarball on disk instead of pulling it from a registry, not accepted by package:// targets")
+	bindEnv(flags, "local-file", "LOCAL_FILE")
+	return cmd
+}
+
+func newUUIDCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     "uuid",
+		Short:   "Prints the local UUID",
+		Long:    "Print node uuid",
+		Aliases: []string{"u"},
+		RunE: func(*cobra.Command, []string) error {
 			fmt.Print(machine.UUID())
 			return nil
 		},
-	},
-	{
-		Name:        "config",
-		Usage:       "Shows the machine configuration",
-		Description: "Show the runtime configuration of the machine. It will scan the machine for all the configuration and will return the config file processed and found.",
-		Aliases:     []string{"c"},
-		Action: func(c *cli.Context) error {
+	}
+}
+
+func newConfigCmd(global *globalFlags) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "config",
+		Short:   "Shows the machine configuration",
+		Long:    "Show the runtime configuration of the machine. It will scan the machine for all the configuration and will return the config file processed and found.",
+		Aliases: []string{"c"},
+		RunE: func(*cobra.Command, []string) error {
 			config, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
 			if err != nil {
 				return err
@@ -536,11 +626,13 @@ Examples:
 			fmt.Printf("%s", configStr)
 			return nil
 		},
-		Subcommands: []*cli.Command{
-			{
-				Name:  "get",
-				Usage: "Get specific data from the configuration",
-				UsageText: `
+	}
+
+	cmd.AddCommand(&cobra.Command{
+		Use:   "get",
+		Short: "Get specific data from the configuration",
+		Long:  "It allows to navigate the YAML config file by searching with 'yq' style keywords as `config get k3s` to retrieve the k3s config block",
+		Example: `
 Use it to retrieve configuration programmatically from the CLI:
 
 $ kairos-agent config get k3s.enabled
@@ -550,35 +642,35 @@ or
 
 $ kairos-agent config get k3s
 enabled: true`,
-				Description: "It allows to navigate the YAML config file by searching with 'yq' style keywords as `config get k3s` to retrieve the k3s config block",
-				Aliases:     []string{"g"},
-				Action: func(c *cli.Context) error {
-					config, err := agentConfig.ScanNoLogs(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs, collector.StrictValidation(c.Bool("strict-validation")))
-					if err != nil {
-						return err
-					}
+		Aliases: []string{"g"},
+		RunE: func(_ *cobra.Command, args []string) error {
+			config, err := agentConfig.ScanNoLogs(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs, collector.StrictValidation(global.strictValidation))
+			if err != nil {
+				return err
+			}
 
-					res, err := config.Collector.Query(c.Args().First())
-					if err != nil {
-						return err
-					}
-					fmt.Printf("%s", res)
-					return nil
-				},
-			},
+			res, err := config.Collector.Query(firstArg(args))
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%s", res)
+			return nil
 		},
-	},
-	{
-		Name:        "state",
-		Usage:       "get machine state",
-		Description: "Print machine state information, e.g. `state get uuid` returns the machine uuid",
-		Aliases:     []string{},
-		Action: func(c *cli.Context) error {
+	})
+	return cmd
+}
+
+func newStateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "state",
+		Short: "get machine state",
+		Long:  "Print machine state information, e.g. `state get uuid` returns the machine uuid",
+		RunE: func(_ *cobra.Command, args []string) error {
 			// `state` takes no arguments of its own. Without this an unknown
 			// subcommand falls through to here, prints the state and exits 0,
 			// so a caller cannot tell a typo from the command it meant to run.
-			if c.Args().Present() {
-				return fmt.Errorf("unknown subcommand %q for \"state\"", c.Args().First())
+			if len(args) > 0 {
+				return fmt.Errorf("unknown subcommand %q for \"state\"", args[0])
 			}
 
 			runtime, err := state.NewRuntime()
@@ -589,39 +681,36 @@ enabled: true`,
 			fmt.Print(runtime)
 			return err
 		},
-		Subcommands: []*cli.Command{
-			{
-				Name:        "get",
-				Usage:       "get specific ",
-				Description: "query state data",
-				Aliases:     []string{"g"},
-				Action: func(c *cli.Context) error {
-					runtime, err := state.NewRuntime()
-					if err != nil {
-						return err
-					}
+	}
 
-					res, err := runtime.Query(c.Args().First())
-					fmt.Print(res)
-					return err
-				},
-			},
-		},
-	},
-	{
-		Name:        "render-template",
-		Usage:       "Render a Go template",
-		Description: "Render a Go template with machine state and config as data context",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "file",
-				Aliases:  []string{"f"},
-				Required: true,
-			},
-		},
-		Action: func(c *cli.Context) error {
+	cmd.AddCommand(&cobra.Command{
+		Use:     "get",
+		Short:   "get specific ",
+		Long:    "query state data",
+		Aliases: []string{"g"},
+		RunE: func(_ *cobra.Command, args []string) error {
+			runtime, err := state.NewRuntime()
+			if err != nil {
+				return err
+			}
 
-			config, err := agentConfig.ScanNoLogs(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs, collector.StrictValidation(c.Bool("strict-validation")))
+			res, err := runtime.Query(firstArg(args))
+			fmt.Print(res)
+			return err
+		},
+	})
+	return cmd
+}
+
+func newRenderTemplateCmd(global *globalFlags) *cobra.Command {
+	var file string
+
+	cmd := &cobra.Command{
+		Use:   "render-template",
+		Short: "Render a Go template",
+		Long:  "Render a Go template with machine state and config as data context",
+		RunE: func(*cobra.Command, []string) error {
+			config, err := agentConfig.ScanNoLogs(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs, collector.StrictValidation(global.strictValidation))
 			if err != nil {
 				return err
 			}
@@ -631,7 +720,7 @@ enabled: true`,
 				return err
 			}
 
-			result, err := action.RenderTemplate(c.String("file"), config, runtime)
+			result, err := action.RenderTemplate(file, config, runtime)
 			if err != nil {
 				return err
 			}
@@ -639,10 +728,23 @@ enabled: true`,
 			_, err = os.Stdout.Write(result)
 			return err
 		},
-	},
-	{
-		Name: "interactive-install",
-		Description: `
+	}
+
+	cmd.Flags().StringVarP(&file, "file", "f", "", "")
+	_ = cmd.MarkFlagRequired("file")
+	return cmd
+}
+
+func newInteractiveInstallCmd() *cobra.Command {
+	var (
+		shell, skipAuto bool
+		source          string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "interactive-install",
+		Short: "Starts interactive installation",
+		Long: `
 Starts kairos in interactive mode install.
 
 It will ask prompt for several questions and perform an install depending on the providers available in the system.
@@ -650,100 +752,100 @@ It will ask prompt for several questions and perform an install depending on the
 See also https://kairos.io/installation/interactive_install/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can be also started manually`,
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name: "shell",
-			},
-			&cli.BoolFlag{
-				Name:    skipAutoInstallFlag,
-				Usage:   "Open the installer even when the config sets install.auto, instead of installing unattended. Also settable on the boot cmdline as " + skipAutoInstallCmdline + ", which is how to reach it from a booted ISO.",
-				EnvVars: []string{"KAIROS_SKIP_AUTO_INSTALL"},
-			},
-			&sourceFlag,
-		},
-		Usage: "Starts interactive installation",
-		Before: func(c *cli.Context) error {
-			if err := validateSource(c.String("source")); err != nil {
+		PreRunE: func(*cobra.Command, []string) error {
+			if err := validateSource(source); err != nil {
 				return err
 			}
 
 			return checkRoot()
 		},
-		Action: func(c *cli.Context) error {
+		RunE: func(*cobra.Command, []string) error {
 			log := sdkLogger.NewKairosLogger("agent", "info", true)
 			// Get the viper config in case something in command line or env var has set it and set the level asap
 			if viper.GetBool("debug") {
 				log.SetLevel("debug")
 			}
 
-			source := c.String("source")
-
 			// install.auto wins over the UX: an unattended config leaves
 			// nothing to ask, so no installer is launched. Same call, same
 			// answer, as the install-mode entry. Unless the operator asked to
 			// skip it, which is the one way to get the installer on a node
 			// whose datasource says "install me".
-			if skipAutoInstall(c) {
+			if skipAutoInstall(skipAuto) {
 				log.Infof("--%s was given, so install.auto is ignored and the installer runs", skipAutoInstallFlag)
 			} else if installed, _, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
 				// --shell asks for a shell instead of the installer TUI. No
 				// installer was launched here, so say so rather than dropping
 				// the flag without a word.
-				if err == nil && c.Bool("shell") {
+				if err == nil && shell {
 					log.Warnf("--shell was ignored: install.auto installed this node unattended, so no installer was launched")
 				}
 
 				return err
 			}
 
-			return agent.InteractiveInstall(c.Bool("shell"), source, log)
+			return agent.InteractiveInstall(shell, source, log)
 		},
-	},
-	{
-		Name:  "manual-install",
-		Usage: "Starts the manual installation",
-		Description: `
+	}
+
+	flags := cmd.Flags()
+	flags.BoolVar(&shell, "shell", false, "")
+	flags.BoolVar(&skipAuto, skipAutoInstallFlag, false, "Open the installer even when the config sets install.auto, instead of installing unattended. Also settable on the boot cmdline as "+skipAutoInstallCmdline+", which is how to reach it from a booted ISO.")
+	bindEnv(flags, skipAutoInstallFlag, "KAIROS_SKIP_AUTO_INSTALL")
+	addSourceFlag(flags, &source)
+	return cmd
+}
+
+func newManualInstallCmd(global *globalFlags) *cobra.Command {
+	var (
+		device, source                  string
+		poweroff, reboot, useDefaultDir bool
+		insecure                        bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "manual-install",
+		Short: "Starts the manual installation",
+		Long: `
 `,
 		Aliases: []string{"m"},
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name: "device",
-			},
-			&cli.BoolFlag{
-				Name: "poweroff",
-			},
-			&cli.BoolFlag{
-				Name: "reboot",
-			},
-			&cli.BoolFlag{
-				Name:  "use-default-dirs",
-				Usage: fmt.Sprintf("Force the config collector to use the default locations (%s) in addition to the provided config file", strings.Join(constants.GetUserConfigDirs(), ", ")),
-			},
-			&sourceFlag,
-			&allowInsecureRegistriesFlag,
-		},
-		Before: func(c *cli.Context) error {
-			if err := validateSource(c.String("source")); err != nil {
+		PreRunE: func(*cobra.Command, []string) error {
+			if err := validateSource(source); err != nil {
 				return err
 			}
 
 			return checkRoot()
 		},
-		Action: func(c *cli.Context) error {
-			if c.NArg() == 0 {
+		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
 				return fmt.Errorf("expect one argument. the config file - if you don't have it, use the interactive-install")
 			}
-			config := c.Args().First()
+			config := args[0]
 
-			source := c.String("source")
-
-			return agent.ManualInstall(config, source, c.String("device"), c.Bool("reboot"), c.Bool("poweroff"), c.Bool("strict-validation"), c.Bool("use-default-dirs"), c.Bool("allow-insecure-registries"))
+			return agent.ManualInstall(config, source, device, reboot, poweroff, global.strictValidation, useDefaultDir, insecure)
 		},
-	},
-	{
-		Name:  "install",
-		Usage: "Starts the kairos pairing installation",
-		Description: `
+	}
+
+	flags := cmd.Flags()
+	flags.StringVar(&device, "device", "", "")
+	flags.BoolVar(&poweroff, "poweroff", false, "")
+	flags.BoolVar(&reboot, "reboot", false, "")
+	flags.BoolVar(&useDefaultDir, "use-default-dirs", false, fmt.Sprintf("Force the config collector to use the default locations (%s) in addition to the provided config file", strings.Join(constants.GetUserConfigDirs(), ", ")))
+	addSourceFlag(flags, &source)
+	addAllowInsecureRegistriesFlag(flags, &insecure)
+	return cmd
+}
+
+func newInstallCmd() *cobra.Command {
+	var (
+		source   string
+		insecure bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "install",
+		Short: "Starts the kairos pairing installation",
+		Long: `
 Starts kairos in pairing mode.
 
 It will print out a QR code which can be used with "kairos register" to send over a configuration and bootstraping a kairos node.
@@ -754,21 +856,14 @@ To pull the install image from a registry served over plain HTTP or presenting a
 
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 		Aliases: []string{"i"},
-		Before: func(c *cli.Context) error {
-			if err := validateSource(c.String("source")); err != nil {
+		PreRunE: func(*cobra.Command, []string) error {
+			if err := validateSource(source); err != nil {
 				return err
 			}
 
 			return checkRoot()
 		},
-		Flags: []cli.Flag{
-			&sourceFlag,
-			&allowInsecureRegistriesFlag,
-		},
-		Action: func(c *cli.Context) error {
-			source := c.String("source")
-			insecure := c.Bool("allow-insecure-registries")
-
+		RunE: func(*cobra.Command, []string) error {
 			// An unattended config installs and returns; only when there is a
 			// decision left for a human does the provider flow run.
 			installed, cc, scanErr, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
@@ -781,15 +876,19 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 			// scanErr goes along so Install can show it on the screen it draws.
 			return agent.Install(cc, scanErr, source, insecure, constants.GetUserConfigDirs()...)
 		},
-	},
-	{
-		Name:    constants.BootRecovery,
+	}
+
+	addSourceFlag(cmd.Flags(), &source)
+	addAllowInsecureRegistriesFlag(cmd.Flags(), &insecure)
+	return cmd
+}
+
+func newRecoveryCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:     constants.BootRecovery,
 		Aliases: []string{"r"},
-		Action: func(c *cli.Context) error {
-			return agent.Recovery()
-		},
-		Usage: "Starts kairos recovery mode",
-		Description: `
+		Short:   "Starts kairos recovery mode",
+		Long: `
 Starts kairos recovery mode.
 
 In recovery mode a QR code will be printed out on the screen which should be used in conjunction with "kairos bridge". Pass by the QR code as snapshot
@@ -798,38 +897,19 @@ to the bridge to connect over the machine which runs the "kairos recovery" comma
 See also https://kairos.io/after_install/recovery_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
-	},
-	{
-		Name: "reset",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:  "reboot",
-				Usage: "Enable automated reboot after reset. Has precedence over any config in the system.",
-			},
-			&cli.BoolFlag{
-				Name:  "unattended",
-				Usage: "Do not wait for user input and provide ttys after reset. Also sets the fast mode (do not wait 60 seconds before reset)",
-			},
-			&cli.BoolFlag{
-				Name:  "reset-oem",
-				Usage: "Reset the OEM partition. Warning: this will delete any persistent data on the OEM partition.",
-			},
+		RunE: func(*cobra.Command, []string) error {
+			return agent.Recovery()
 		},
-		Before: func(c *cli.Context) error {
-			return checkRoot()
-		},
-		Action: func(c *cli.Context) error {
-			reboot := c.Bool("reboot")
-			unattended := c.Bool("unattended")
-			resetOem := c.Bool("reset-oem")
+	}
+}
 
-			// The persistent partition is formatted by default during reset
-			// (pkg/config/spec.go NewResetSpec sets FormatPersistent: true),
-			// so there's no useful CLI knob to surface here.
-			return agent.Reset(reboot, unattended, resetOem, constants.GetUserConfigDirs()...)
-		},
-		Usage: "Starts kairos reset mode",
-		Description: `
+func newResetCmd() *cobra.Command {
+	var reboot, unattended, resetOem bool
+
+	cmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Starts kairos reset mode",
+		Long: `
 Starts kairos reset mode, it will nuke completely the node data and restart fresh.
 Attention ! this will delete any persistent data on the node. It is equivalent to re-init the node right after the installation.
 
@@ -840,28 +920,45 @@ In reset mode a the node will automatically reset
 See also https://kairos.io/after_install/reset_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
-	},
-	{
-		Name: "validate",
-		Action: func(c *cli.Context) error {
-			config := c.Args().First()
-			return schema.Validate(config)
+		PreRunE: func(*cobra.Command, []string) error {
+			return checkRoot()
 		},
-		Usage: "Validates a cloud config file",
-		Description: `
+		RunE: func(*cobra.Command, []string) error {
+			// The persistent partition is formatted by default during reset
+			// (pkg/config/spec.go NewResetSpec sets FormatPersistent: true),
+			// so there's no useful CLI knob to surface here.
+			return agent.Reset(reboot, unattended, resetOem, constants.GetUserConfigDirs()...)
+		},
+	}
+
+	flags := cmd.Flags()
+	flags.BoolVar(&reboot, "reboot", false, "Enable automated reboot after reset. Has precedence over any config in the system.")
+	flags.BoolVar(&unattended, "unattended", false, "Do not wait for user input and provide ttys after reset. Also sets the fast mode (do not wait 60 seconds before reset)")
+	flags.BoolVar(&resetOem, "reset-oem", false, "Reset the OEM partition. Warning: this will delete any persistent data on the OEM partition.")
+	return cmd
+}
+
+func newValidateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "validate",
+		Short: "Validates a cloud config file",
+		Long: `
 The validate command expects a configuration file as its only argument. Local files and URLs are accepted.
 		`,
-	},
-	{
-		Name: "print-schema",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "version",
-				Usage: "Print the current schema but with another version number, instead of using the agent version number.",
-			},
+		RunE: func(_ *cobra.Command, args []string) error {
+			return schema.Validate(firstArg(args))
 		},
-		Action: func(c *cli.Context) error {
-			ver := c.String("version")
+	}
+}
+
+func newPrintSchemaCmd() *cobra.Command {
+	var ver string
+
+	cmd := &cobra.Command{
+		Use:   "print-schema",
+		Short: "Print out Kairos' Cloud Configuration JSON Schema",
+		Long:  `Prints out Kairos' Cloud Configuration JSON Schema`,
+		RunE: func(*cobra.Command, []string) error {
 			if ver == "" {
 				ver = version.Version
 			}
@@ -876,83 +973,72 @@ The validate command expects a configuration file as its only argument. Local fi
 
 			return nil
 		},
-		Usage:       "Print out Kairos' Cloud Configuration JSON Schema",
-		Description: `Prints out Kairos' Cloud Configuration JSON Schema`,
-	},
-	{
-		Name:        "run-stage",
-		Description: "Run stage from cloud-init",
-		Usage:       "Run stage from cloud-init",
-		UsageText:   "run-stage STAGE",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:  "strict",
-				Usage: "Enable strict mode. Fails and exits on stage errors",
-			},
-			&cli.StringSliceFlag{
-				Name:  "cloud-init-paths",
-				Usage: "Extra paths to add to the run stage",
-			},
-			&cli.StringSliceFlag{
-				Name:  "override-cloud-init-paths",
-				Usage: "Override paths to use when running the stage, removing defaults. Supercedes --cloud-init-paths",
-			},
-			&cli.BoolFlag{
-				Name:    "analyze",
-				Usage:   "Only print the modules that would run in the order they would run",
-				Aliases: []string{"a"},
-			},
-		},
-		Before: func(c *cli.Context) error {
-			if c.Args().Len() != 1 {
-				cli.HelpPrinter(c.App.Writer, "Stage to run missing\n\n", c.Command)
-				_ = cli.ShowSubcommandHelp(c)
-				return fmt.Errorf("")
+	}
+
+	cmd.Flags().StringVar(&ver, "version", "", "Print the current schema but with another version number, instead of using the agent version number.")
+	return cmd
+}
+
+func newRunStageCmd(global *globalFlags) *cobra.Command {
+	var (
+		strict, analyze            bool
+		cloudInitPaths, overridden []string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "run-stage STAGE",
+		Short: "Run stage from cloud-init",
+		Long:  "Run stage from cloud-init",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return usageError(cmd, "Stage to run missing")
 			}
 
 			return checkRoot()
 		},
-		Action: func(c *cli.Context) error {
-			stage := c.Args().First()
+		RunE: func(_ *cobra.Command, args []string) error {
+			stage := args[0]
 			config, err := agentConfig.Scan(collector.Directories(constants.GetYipConfigDirs()...), collector.NoLogs)
-			config.Strict = c.Bool("strict")
+			config.Strict = strict
 
-			cloudInitPaths := runStageCloudInitPaths(c, config)
+			paths := runStageCloudInitPaths(cloudInitPaths, overridden, config)
 
-			if c.Bool("debug") {
+			if global.debug {
 				config.Logger.SetLevel("debug")
 			}
 
 			if err != nil {
 				config.Logger.Errorf("Error reading config: %s\n", err)
 			}
-			return utils.RunStageWithPaths(config, stage, c.Bool("analyze"), cloudInitPaths)
+			return utils.RunStageWithPaths(config, stage, analyze, paths)
 		},
-	},
-	{
-		Name:        "pull-image",
-		Description: "Pull remote image to local file",
-		Usage:       "Pull remote image to local file",
-		UsageText:   "pull-image [-l] IMAGE TARGET",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "platform",
-				Usage: "Platform/arch to pull image from",
-				Value: fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
-			},
-		},
-		Before: func(c *cli.Context) error {
-			if c.Args().Len() != 2 {
-				cli.HelpPrinter(c.App.Writer, "Either Image or target argument missing\n\n", c.Command)
-				_ = cli.ShowSubcommandHelp(c)
-				return fmt.Errorf("")
+	}
+
+	flags := cmd.Flags()
+	flags.BoolVar(&strict, "strict", false, "Enable strict mode. Fails and exits on stage errors")
+	flags.StringSliceVar(&cloudInitPaths, "cloud-init-paths", nil, "Extra paths to add to the run stage")
+	flags.StringSliceVar(&overridden, "override-cloud-init-paths", nil, "Override paths to use when running the stage, removing defaults. Supercedes --cloud-init-paths")
+	flags.BoolVarP(&analyze, "analyze", "a", false, "Only print the modules that would run in the order they would run")
+	return cmd
+}
+
+func newPullImageCmd() *cobra.Command {
+	var platform string
+
+	cmd := &cobra.Command{
+		Use:   "pull-image [-l] IMAGE TARGET",
+		Short: "Pull remote image to local file",
+		Long:  "Pull remote image to local file",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 2 {
+				return usageError(cmd, "Either Image or target argument missing")
 			}
 
 			return checkRoot()
 		},
-		Action: func(c *cli.Context) error {
-			image := c.Args().Get(0)
-			destination, err := filepath.Abs(c.Args().Get(1))
+		RunE: func(_ *cobra.Command, args []string) error {
+			image := args[0]
+			destination, err := filepath.Abs(args[1])
 			if err != nil {
 				return fmt.Errorf("invalid path %s", destination)
 			}
@@ -962,78 +1048,90 @@ The validate command expects a configuration file as its only argument. Local fi
 			}
 			config.Logger.Infof("Starting download and extraction for image %s to %s\n", image, destination)
 			e := v1.OCIImageExtractor{}
-			if err = e.ExtractImage(image, destination, c.String("platform")); err != nil {
+			if err = e.ExtractImage(image, destination, platform); err != nil {
 				return err
 			}
 			config.Logger.Infof("Image %s downloaded and extracted to %s correctly\n", image, destination)
 			return nil
 		},
-	},
-	{
-		Name:        "version",
-		Description: "Print kairos-agent version",
-		Usage:       "Print kairos-agent version",
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "long",
-				Usage:   "Print long version info",
-				Aliases: []string{"l"},
-			},
-		},
-		Action: func(c *cli.Context) error {
-			if c.Bool("long") {
+	}
+
+	cmd.Flags().StringVar(&platform, "platform", fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH), "Platform/arch to pull image from")
+	return cmd
+}
+
+func newVersionCmd() *cobra.Command {
+	var long bool
+
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print kairos-agent version",
+		Long:  "Print kairos-agent version",
+		RunE: func(*cobra.Command, []string) error {
+			if long {
 				fmt.Printf("kairos %s\ngo     %s\n", version.Version, runtime.Version())
 			} else {
 				fmt.Println(version.Version)
 			}
 			return nil
 		},
-	},
-	{
-		Name:        "versioneer",
-		Usage:       "versioneer subcommands",
-		Description: "versioneer subcommands",
-		Subcommands: versioneer.CliCommands(),
-	},
-	{
-		Name:        "bootentry",
-		Usage:       "bootentry [--select]",
-		Description: "bootentry subcommands",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "select",
-				Usage:   "Select the boot entry",
-				Aliases: []string{"s"},
-			},
-		},
-		Before: func(c *cli.Context) error {
+	}
+
+	cmd.Flags().BoolVarP(&long, "long", "l", false, "Print long version info")
+	return cmd
+}
+
+func newVersioneerCmd() *cobra.Command {
+	cmd := groupCommand(&cobra.Command{
+		Use:   "versioneer",
+		Short: "versioneer subcommands",
+		Long:  "versioneer subcommands",
+	})
+	cmd.AddCommand(versioneer.CliCommands()...)
+	return cmd
+}
+
+func newBootentryCmd() *cobra.Command {
+	var selected string
+
+	cmd := &cobra.Command{
+		Use:   "bootentry [--select]",
+		Short: "bootentry subcommands",
+		Long:  "bootentry subcommands",
+		PreRunE: func(*cobra.Command, []string) error {
 			return checkRoot()
 		},
-		Action: func(c *cli.Context) error {
+		RunE: func(*cobra.Command, []string) error {
 			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
 			if err != nil {
 				return err
 			}
-			s := c.String("select")
 			// If we got a selection just go for it, otherwise enter an interactive mode to show entries and let user choose one
-			if s != "" {
-				return action.SelectBootEntry(cfg, s)
+			if selected != "" {
+				return action.SelectBootEntry(cfg, selected)
 			}
 			return action.ListBootEntries(cfg)
 		},
-	},
-	{
-		Name:  "grubedit",
-		Usage: "grubedit [set] KEY=VALUE",
-		Description: "Show or edit grub variables.\n\n" +
+	}
+
+	cmd.Flags().StringVarP(&selected, "select", "s", "", "Select the boot entry")
+	return cmd
+}
+
+func newGrubeditCmd(global *globalFlags) *cobra.Command {
+	var grubEnv string
+
+	cmd := &cobra.Command{
+		Use:   "grubedit [set] KEY=VALUE",
+		Short: "Show or edit grub variables.",
+		Long: "Show or edit grub variables.\n\n" +
 			"Use `grubedit set KEY=VALUE` to set a grub variable. If the value is empty, it will remove the variable.\n\n" +
 			"Use `grubedit` to list all the grub variables found in the grub environment file.",
-		Action: func(c *cli.Context) error {
-			config, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs, collector.StrictValidation(c.Bool("strict-validation")))
+		RunE: func(*cobra.Command, []string) error {
+			config, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs, collector.StrictValidation(global.strictValidation))
 			if err != nil {
 				return err
 			}
-			grubEnv := c.String("grub-file")
 			if _, err := config.Fs.Stat(grubEnv); err != nil && os.IsNotExist(err) {
 				// If file doesn't exist, we just log it and return
 				// Is not really an error, its just that there is no file so no vars are set
@@ -1063,81 +1161,76 @@ The validate command expects a configuration file as its only argument. Local fi
 			}
 			return nil
 		},
-		Subcommands: []*cli.Command{
-			{
-				Name:      "set",
-				Usage:     "Add or Edit a grub variable. Setting an existing variable to an empty value will remove it",
-				UsageText: "grubedit set KEY=VALUE",
-				Before: func(c *cli.Context) error {
-					if c.Args().Len() != 1 {
-						cli.HelpPrinter(c.App.Writer, "File and key=value arguments missing\n\n", c.Command)
-						_ = cli.ShowSubcommandHelp(c)
-						return fmt.Errorf("")
-					}
-					return nil
-				},
-				Action: func(c *cli.Context) error {
-					config, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs, collector.StrictValidation(c.Bool("strict-validation")))
-					if err != nil {
-						return err
-					}
+	}
 
-					// Transform the key=value argument into a map
-					parts := strings.SplitN(c.Args().First(), "=", 2)
-					vars := make(map[string]string)
-					if len(parts) != 2 {
-						return fmt.Errorf("key=value argument must be in the format KEY=VALUE")
-					}
-					if parts[1] == "" {
-						// If the value is empty, we remove the variable
-						vars[parts[0]] = ""
-					} else {
-						// Otherwise we set the variable to the value
-						vars[parts[0]] = parts[1]
-					}
+	// Persistent, so that `grubedit set` reads the same file.
+	cmd.PersistentFlags().StringVar(&grubEnv, "grub-file", filepath.Join(constants.OEMPath, constants.GrubEnv), "Path to the grub environment file to list or set variables to/from.")
 
-					grubEnv := c.String("grub-file")
-					err = utils.SetPersistentVariables(grubEnv, vars, config)
-					if err != nil {
-						config.Logger.Logger.Error().Err(err).Msgf("Error setting grub variables in %s", c.Args().First())
-						return err
-					}
-					if parts[1] == "" {
-						config.Logger.Logger.Info().Msgf("Removed grub variable %s from %s", parts[0], grubEnv)
-					} else {
-						config.Logger.Logger.Info().Msgf("Set grub variable %s=%s in %s", parts[0], parts[1], grubEnv)
-					}
-
-					return nil
-				},
-			},
+	cmd.AddCommand(&cobra.Command{
+		Use:   "set KEY=VALUE",
+		Short: "Add or Edit a grub variable. Setting an existing variable to an empty value will remove it",
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return usageError(cmd, "File and key=value arguments missing")
+			}
+			return nil
 		},
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "grub-file",
-				Usage: "Path to the grub environment file to list or set variables to/from.",
-				Value: filepath.Join(constants.OEMPath, constants.GrubEnv),
-			},
+		RunE: func(_ *cobra.Command, args []string) error {
+			config, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs, collector.StrictValidation(global.strictValidation))
+			if err != nil {
+				return err
+			}
+
+			// Transform the key=value argument into a map
+			parts := strings.SplitN(args[0], "=", 2)
+			vars := make(map[string]string)
+			if len(parts) != 2 {
+				return fmt.Errorf("key=value argument must be in the format KEY=VALUE")
+			}
+			if parts[1] == "" {
+				// If the value is empty, we remove the variable
+				vars[parts[0]] = ""
+			} else {
+				// Otherwise we set the variable to the value
+				vars[parts[0]] = parts[1]
+			}
+
+			err = utils.SetPersistentVariables(grubEnv, vars, config)
+			if err != nil {
+				config.Logger.Logger.Error().Err(err).Msgf("Error setting grub variables in %s", args[0])
+				return err
+			}
+			if parts[1] == "" {
+				config.Logger.Logger.Info().Msgf("Removed grub variable %s from %s", parts[0], grubEnv)
+			} else {
+				config.Logger.Logger.Info().Msgf("Set grub variable %s=%s in %s", parts[0], parts[1], grubEnv)
+			}
+
+			return nil
 		},
-	},
-	{
-		Name:        "sysext",
-		Usage:       "sysext subcommands",
-		Description: "sysext subcommands",
-		Before:      beforeSysextConfext,
-		Subcommands: sysextConfextCommands(),
-	},
-	{
-		Name:        "confext",
-		Usage:       "confext subcommands",
-		Description: "confext subcommands",
-		Before:      beforeSysextConfext,
-		Subcommands: sysextConfextCommands(),
-	},
-	{
-		Name:  "logs",
-		Usage: "Collect logs from the system",
-		Description: `Collect logs from various sources on the Kairos system and create a compressed tarball.
+	})
+	return cmd
+}
+
+// newExtensionCmd builds the sysext or the confext command. extType is both
+// the command's name and the kind of extension its subcommands act on.
+func newExtensionCmd(extType string) *cobra.Command {
+	cmd := groupCommand(&cobra.Command{
+		Use:   extType,
+		Short: extType + " subcommands",
+		Long:  extType + " subcommands",
+	})
+	cmd.AddCommand(sysextConfextCommands(extType)...)
+	return cmd
+}
+
+func newLogsCmd() *cobra.Command {
+	var outputPath string
+
+	cmd := &cobra.Command{
+		Use:   "logs",
+		Short: "Collect logs from the system",
+		Long: `Collect logs from various sources on the Kairos system and create a compressed tarball.
 
 The command will collect logs from:
 - Journal logs from specified services (default: kairos-agent, systemd, k3s)
@@ -1154,17 +1247,7 @@ logs:
   - /var/log/something.log
 
 The output will be a tarball with logs organized by type (journal/, files/).`,
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "output",
-				Usage:   "Output path for the logs tarball",
-				Value:   "./kairos-logs.tar.gz",
-				Aliases: []string{"o"},
-			},
-		},
-		Action: func(c *cli.Context) error {
-			outputPath := c.String("output")
-
+		RunE: func(*cobra.Command, []string) error {
 			// Get the filesystem and runner from the config
 			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
 			if err != nil {
@@ -1173,16 +1256,28 @@ The output will be a tarball with logs organized by type (journal/, files/).`,
 
 			return agent.ExecuteLogsCommand(cfg.Fs, cfg.Logger, cfg.Runner, outputPath)
 		},
-	},
-	{
-		Name:        "kcrypt",
-		Usage:       "kcrypt subcommands",
-		Description: "kcrypt subcommands for managing encryption-related operations",
-		Subcommands: []*cli.Command{
-			{
-				Name:  "checknv",
-				Usage: "Check if data exists in TPM NV memory",
-				Description: `Check if data exists in a TPM NV index.
+	}
+
+	cmd.Flags().StringVarP(&outputPath, "output", "o", "./kairos-logs.tar.gz", "Output path for the logs tarball")
+	return cmd
+}
+
+func newKcryptCmd() *cobra.Command {
+	cmd := groupCommand(&cobra.Command{
+		Use:   "kcrypt",
+		Short: "kcrypt subcommands",
+		Long:  "kcrypt subcommands for managing encryption-related operations",
+	})
+
+	preRunCheckRoot := func(*cobra.Command, []string) error {
+		return checkRoot()
+	}
+
+	var checkNVIndex, checkTPMDevice string
+	checknv := &cobra.Command{
+		Use:   "checknv",
+		Short: "Check if data exists in TPM NV memory",
+		Long: `Check if data exists in a TPM NV index.
 
 This command checks whether the specified NV index contains data.
 It will return an error if the index doesn't exist or is empty.
@@ -1190,25 +1285,23 @@ It will return an error if the index doesn't exist or is empty.
 Default behavior:
 - Uses NV index from config or defaults to 0x1500000 (legacy local passphrase index)
 - Uses the same TPM device as configured (or system default if none specified)`,
-				Flags: []cli.Flag{
-					&kcryptNVIndexFlag,
-					&kcryptTPMDeviceFlag,
-				},
-				Before: func(c *cli.Context) error {
-					return checkRoot()
-				},
-				Action: func(c *cli.Context) error {
-					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-					if err != nil {
-						return fmt.Errorf("failed to scan config: %w", err)
-					}
-					return action.KcryptCheckNV(cfg, c.String("nv-index"), c.String("tpm-device"))
-				},
-			},
-			{
-				Name:  "readnv",
-				Usage: "Read and decrypt value from TPM NV memory",
-				Description: `Read and decrypt the value stored in a TPM NV index.
+		PreRunE: preRunCheckRoot,
+		RunE: func(*cobra.Command, []string) error {
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return fmt.Errorf("failed to scan config: %w", err)
+			}
+			return action.KcryptCheckNV(cfg, checkNVIndex, checkTPMDevice)
+		},
+	}
+	addKcryptNVIndexFlag(checknv.Flags(), &checkNVIndex)
+	addKcryptTPMDeviceFlag(checknv.Flags(), &checkTPMDevice)
+
+	var readNVIndex, readTPMDevice, readCIndex string
+	readnv := &cobra.Command{
+		Use:   "readnv",
+		Short: "Read and decrypt value from TPM NV memory",
+		Long: `Read and decrypt the value stored in a TPM NV index.
 
 This command reads the value from the specified TPM NV index. If the value
 is encrypted (as is the case for local passphrases), it will be automatically
@@ -1222,26 +1315,25 @@ Default behavior:
 - Uses the same TPM device as configured (or system default if none specified)
 - Uses C index from config if available (or can be specified via --c-index flag)
 - Automatically decrypts if C index is available`,
-				Flags: []cli.Flag{
-					&kcryptNVIndexFlag,
-					&kcryptTPMDeviceFlag,
-					&kcryptCIndexFlag,
-				},
-				Before: func(c *cli.Context) error {
-					return checkRoot()
-				},
-				Action: func(c *cli.Context) error {
-					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-					if err != nil {
-						return fmt.Errorf("failed to scan config: %w", err)
-					}
-					return action.KcryptReadNV(cfg, c.String("nv-index"), c.String("tpm-device"), c.String("c-index"))
-				},
-			},
-			{
-				Name:  "cleanupnv",
-				Usage: "Clean up TPM NV memory",
-				Description: `Clean up TPM NV memory by undefining specific NV indices.
+		PreRunE: preRunCheckRoot,
+		RunE: func(*cobra.Command, []string) error {
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return fmt.Errorf("failed to scan config: %w", err)
+			}
+			return action.KcryptReadNV(cfg, readNVIndex, readTPMDevice, readCIndex)
+		},
+	}
+	addKcryptNVIndexFlag(readnv.Flags(), &readNVIndex)
+	addKcryptTPMDeviceFlag(readnv.Flags(), &readTPMDevice)
+	addKcryptCIndexFlag(readnv.Flags(), &readCIndex)
+
+	var cleanupNVIndex, cleanupTPMDevice string
+	var cleanupConfirmed bool
+	cleanupnv := &cobra.Command{
+		Use:   "cleanupnv",
+		Short: "Clean up TPM NV memory",
+		Long: `Clean up TPM NV memory by undefining specific NV indices.
 
 ⚠️  DANGER: This command removes data from TPM memory!
 ⚠️  If you delete the wrong index, your encrypted disk may become UNBOOTABLE!
@@ -1257,29 +1349,23 @@ Default behavior:
 - Uses NV index from config or defaults to 0x1500000 (legacy local passphrase index)
 - Uses the same TPM device as configured (or system default if none specified)
 - Prompts for confirmation with safety warnings`,
-				Flags: []cli.Flag{
-					&kcryptNVIndexFlag,
-					&kcryptTPMDeviceFlag,
-					&cli.BoolFlag{
-						Name:  "i-know-what-i-am-doing",
-						Usage: "Skip confirmation prompt (DANGEROUS: may make encrypted disks unbootable)",
-					},
-				},
-				Before: func(c *cli.Context) error {
-					return checkRoot()
-				},
-				Action: func(c *cli.Context) error {
-					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-					if err != nil {
-						return fmt.Errorf("failed to scan config: %w", err)
-					}
-					return action.KcryptCleanup(cfg, c.String("nv-index"), c.String("tpm-device"), c.Bool("i-know-what-i-am-doing"))
-				},
-			},
-			{
-				Name:  "unlock-all",
-				Usage: "Unlocks all encrypted partitions",
-				Description: `Unlocks all encrypted partitions found on the system.
+		PreRunE: preRunCheckRoot,
+		RunE: func(*cobra.Command, []string) error {
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return fmt.Errorf("failed to scan config: %w", err)
+			}
+			return action.KcryptCleanup(cfg, cleanupNVIndex, cleanupTPMDevice, cleanupConfirmed)
+		},
+	}
+	addKcryptNVIndexFlag(cleanupnv.Flags(), &cleanupNVIndex)
+	addKcryptTPMDeviceFlag(cleanupnv.Flags(), &cleanupTPMDevice)
+	cleanupnv.Flags().BoolVar(&cleanupConfirmed, "i-know-what-i-am-doing", false, "Skip confirmation prompt (DANGEROUS: may make encrypted disks unbootable)")
+
+	unlockAll := &cobra.Command{
+		Use:   "unlock-all",
+		Short: "Unlocks all encrypted partitions",
+		Long: `Unlocks all encrypted partitions found on the system.
 
 This command scans the system for LUKS encrypted partitions and unlocks them
 using the appropriate encryption method (TPM+PCR, Remote KMS, or Local TPM)
@@ -1290,22 +1376,21 @@ The command automatically:
 - Scans for kcrypt configuration (challenger server, mdns, etc.)
 - Finds all encrypted partitions that are not already unlocked
 - Unlocks them using the appropriate method`,
-				Before: func(c *cli.Context) error {
-					return checkRoot()
-				},
-				Action: func(c *cli.Context) error {
-					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-					if err != nil {
-						return fmt.Errorf("failed to scan config: %w", err)
-					}
-					return kcrypt.UnlockAllEncryptedPartitions(cfg.Logger)
-				},
-			},
-			{
-				Name:      "encrypt",
-				Usage:     "Encrypt plaintext partitions in place, by filesystem label",
-				ArgsUsage: "LABEL [LABEL...]",
-				Description: `Encrypt the given partitions in place, using the configured method
+		PreRunE: preRunCheckRoot,
+		RunE: func(*cobra.Command, []string) error {
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return fmt.Errorf("failed to scan config: %w", err)
+			}
+			return kcrypt.UnlockAllEncryptedPartitions(cfg.Logger)
+		},
+	}
+
+	var encryptConfirmed bool
+	encrypt := &cobra.Command{
+		Use:   "encrypt LABEL [LABEL...]",
+		Short: "Encrypt plaintext partitions in place, by filesystem label",
+		Long: `Encrypt the given partitions in place, using the configured method
 (local TPM, or the kcrypt challenger server when one is configured).
 
 WARNING: Encrypting a partition DESTROYS ALL DATA on it!
@@ -1326,78 +1411,29 @@ typically from recovery. It is defensive by default:
 The command prompts for confirmation unless --i-know-what-i-am-doing is
 given. The partitions are left locked; they unlock on the next boot, or
 with 'kairos-agent kcrypt unlock-all'.`,
-				Flags: []cli.Flag{
-					&cli.BoolFlag{
-						Name:  "i-know-what-i-am-doing",
-						Usage: "Skip confirmation prompt (DANGEROUS: encrypting destroys all data on the partitions)",
-					},
-				},
-				Before: func(c *cli.Context) error {
-					return checkRoot()
-				},
-				Action: func(c *cli.Context) error {
-					if c.NArg() == 0 {
-						return fmt.Errorf("no partition labels given; usage: kairos-agent kcrypt encrypt LABEL [LABEL...]")
-					}
-					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-					if err != nil {
-						return fmt.Errorf("failed to scan config: %w", err)
-					}
-					return action.KcryptEncrypt(cfg, c.Args().Slice(), c.Bool("i-know-what-i-am-doing"))
-				},
-			},
+		PreRunE: preRunCheckRoot,
+		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("no partition labels given; usage: kairos-agent kcrypt encrypt LABEL [LABEL...]")
+			}
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return fmt.Errorf("failed to scan config: %w", err)
+			}
+			return action.KcryptEncrypt(cfg, args, encryptConfirmed)
 		},
-	},
-	{
-		Name:  "phone-home",
-		Usage: "Start phone-home connection to a management server",
-		Subcommands: []*cli.Command{
-			{
-				Name:  "uninstall",
-				Usage: "Stop the phone-home service and remove all phone-home configs and credentials from this node",
-				Description: "Tears down the phone-home installation on the local node: stops and disables the systemd service, " +
-					"removes the unit file, drops the saved credentials, and removes the phone-home cloud-config files. " +
-					"Run this after a node has been decommissioned on the server (especially when the server could not " +
-					"reach the node to run the teardown remotely).",
-				Action: func(c *cli.Context) error {
-					// CLI invocation runs in its own process, so stopping the
-					// service unit SIGTERMs the service process (not us) —
-					// safe, and ensures we converge even on a node where the
-					// service is still up.
-					summary, err := phonehome.Uninstall(true)
-					if summary != "" {
-						fmt.Println(summary)
-					}
-					if err != nil {
-						return fmt.Errorf("uninstall completed with errors: %w", err)
-					}
-					return nil
-				},
-			},
-		},
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "url",
-				Usage:   "Phone-home server URL",
-				EnvVars: []string{"PHONEHOME_URL"},
-			},
-			&cli.StringFlag{
-				Name:    "token",
-				Usage:   "Registration token",
-				EnvVars: []string{"PHONEHOME_REGISTRATION_TOKEN"},
-			},
-			&cli.StringFlag{
-				Name:    "group",
-				Usage:   "Node group to join",
-				EnvVars: []string{"PHONEHOME_GROUP"},
-			},
-			&cli.DurationFlag{
-				Name:  "heartbeat-interval",
-				Usage: "Heartbeat interval",
-				Value: 30 * time.Second,
-			},
-		},
-		Action: func(c *cli.Context) error {
+	}
+	encrypt.Flags().BoolVar(&encryptConfirmed, "i-know-what-i-am-doing", false, "Skip confirmation prompt (DANGEROUS: encrypting destroys all data on the partitions)")
+
+	cmd.AddCommand(checknv, readnv, cleanupnv, unlockAll, encrypt)
+	return cmd
+}
+
+func newPhoneHomeCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "phone-home",
+		Short: "Start phone-home connection to a management server",
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Pull phonehome defaults from cloud-config via the shared Collector.
 			// CLI flags still win: they override anything from the merged config.
 			var cfg phonehome.Config
@@ -1417,13 +1453,13 @@ with 'kairos-agent kcrypt unlock-all'.`,
 				}
 			}
 
-			MergePhoneHomeFlags(c, &cfg)
+			MergePhoneHomeFlags(cmd.Flags(), &cfg)
 
 			if cfg.URL == "" {
 				return fmt.Errorf("phonehome URL required (use --url, PHONEHOME_URL env, or a phonehome: section in cloud-config)")
 			}
 
-			ctx := c.Context
+			ctx := cmd.Context()
 			var client *phonehome.Client
 			apiKeyFn := func() string {
 				if client != nil {
@@ -1446,7 +1482,48 @@ with 'kairos-agent kcrypt unlock-all'.`,
 			client = phonehome.NewClient(&cfg, clientOpts...)
 			return client.Run(ctx)
 		},
-	},
+	}
+
+	flags := cmd.Flags()
+	flags.String("url", "", "Phone-home server URL")
+	bindEnv(flags, "url", "PHONEHOME_URL")
+	flags.String("token", "", "Registration token")
+	bindEnv(flags, "token", "PHONEHOME_REGISTRATION_TOKEN")
+	flags.String("group", "", "Node group to join")
+	bindEnv(flags, "group", "PHONEHOME_GROUP")
+	flags.Duration("heartbeat-interval", 30*time.Second, "Heartbeat interval")
+
+	cmd.AddCommand(&cobra.Command{
+		Use:   "uninstall",
+		Short: "Stop the phone-home service and remove all phone-home configs and credentials from this node",
+		Long: "Tears down the phone-home installation on the local node: stops and disables the systemd service, " +
+			"removes the unit file, drops the saved credentials, and removes the phone-home cloud-config files. " +
+			"Run this after a node has been decommissioned on the server (especially when the server could not " +
+			"reach the node to run the teardown remotely).",
+		RunE: func(*cobra.Command, []string) error {
+			// CLI invocation runs in its own process, so stopping the
+			// service unit SIGTERMs the service process (not us) —
+			// safe, and ensures we converge even on a node where the
+			// service is still up.
+			summary, err := phonehome.Uninstall(true)
+			if summary != "" {
+				fmt.Println(summary)
+			}
+			if err != nil {
+				return fmt.Errorf("uninstall completed with errors: %w", err)
+			}
+			return nil
+		},
+	})
+	return cmd
+}
+
+// firstArg returns the first positional argument, or "" when there is none.
+func firstArg(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	return args[0]
 }
 
 // LoadPhoneHomeConfig returns the phonehome: section of the scanned
@@ -1480,305 +1557,284 @@ func LoadPhoneHomeConfig(scanned *sdkConfig.Config) (phonehome.Config, error) {
 // When neither side sets the interval, cfg.HeartbeatInterval stays zero and
 // the client falls back to phonehome.DefaultHeartbeatInterval, which is the
 // same 30 seconds the flag advertises.
-func MergePhoneHomeFlags(c *cli.Context, cfg *phonehome.Config) {
-	if v := c.String("url"); v != "" {
+func MergePhoneHomeFlags(flags *pflag.FlagSet, cfg *phonehome.Config) {
+	if v, _ := flags.GetString("url"); v != "" {
 		cfg.URL = v
 	}
-	if v := c.String("token"); v != "" {
+	if v, _ := flags.GetString("token"); v != "" {
 		cfg.RegistrationToken = v
 	}
-	if v := c.String("group"); v != "" {
+	if v, _ := flags.GetString("group"); v != "" {
 		cfg.Group = v
 	}
-	if c.IsSet("heartbeat-interval") {
-		cfg.HeartbeatInterval = c.Duration("heartbeat-interval")
+	if flags.Changed("heartbeat-interval") {
+		cfg.HeartbeatInterval, _ = flags.GetDuration("heartbeat-interval")
 	}
 }
 
-// nolint:gocyclo // urfave/cli command builder: the subcommand definitions (list, list-installed, enable, disable, install, remove) live in-line so the whole sysext/confext CLI shape is grep-friendly; splitting them into per-subcommand functions would only move the complexity, not reduce it.
-func sysextConfextCommands() []*cli.Command {
-	return []*cli.Command{
-		{
-			Name:        "list",
-			Usage:       "List all the installed extensions",
-			UsageText:   "list [--active|--passive|--recovery|--common]",
-			Description: "List all the installed extensions",
-			Flags: []cli.Flag{
-				&cli.BoolFlag{
-					Name:  constants.BootActive,
-					Usage: "List the extensions for the active boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootPassive,
-					Usage: "List the extensions for the passive boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootRecovery,
-					Usage: "List the extensions for the recovery boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootCommon,
-					Usage: "List the extensions for the common boot entry (applies to all boot states)",
-				},
-			},
-			Before: func(c *cli.Context) error {
-				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
-					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
-				}
+// bootStateFlags are the flags that pick the boot entry an extension command
+// acts on. At most one of them may be set.
+type bootStateFlags struct {
+	active, passive, recovery, common bool
+}
 
-				if err := checkRoot(); err != nil {
-					return err
-				}
-				return nil
-			},
-			Action: func(c *cli.Context) error {
-				cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-				if err != nil {
-					return err
-				}
-				var bootState string
+// add registers the four flags, with usage text that names what the command
+// does for each entry.
+func (b *bootStateFlags) add(flags *pflag.FlagSet, active, passive, recovery, common string) {
+	flags.BoolVar(&b.active, constants.BootActive, false, active)
+	flags.BoolVar(&b.passive, constants.BootPassive, false, passive)
+	flags.BoolVar(&b.recovery, constants.BootRecovery, false, recovery)
+	flags.BoolVar(&b.common, constants.BootCommon, false, common)
+}
 
-				for k, v := range map[string]bool{
-					constants.BootActive:   c.Bool(constants.BootActive),
-					constants.BootPassive:  c.Bool(constants.BootPassive),
-					constants.BootRecovery: c.Bool(constants.BootRecovery),
-					constants.BootCommon:   c.Bool(constants.BootCommon),
-				} {
-					if v {
-						bootState = k
-						break
-					}
-				}
-				extType := c.Context.Value(extTypeCtxKey).(string)
-				out, err := action.ListExtensions(cfg, bootState, extType)
-				if err != nil {
-					return err
-				}
-				if len(out) == 0 {
-					cfg.Logger.Logger.Info().Msg("No system extensions found")
-					return nil
-				}
-				for _, ext := range out {
-					cfg.Logger.Info(litter.Sdump(ext))
-				}
-				return nil
-			},
+func (b *bootStateFlags) moreThanOne() bool {
+	return moreThanOneEnabled(b.active, b.passive, b.recovery, b.common)
+}
+
+func (b *bootStateFlags) none() bool {
+	return noneOfEnabled(b.active, b.passive, b.recovery, b.common)
+}
+
+// bootState returns the boot entry the flags select, or "" when none is set.
+func (b *bootStateFlags) bootState() string {
+	for k, v := range map[string]bool{
+		constants.BootActive:   b.active,
+		constants.BootPassive:  b.passive,
+		constants.BootRecovery: b.recovery,
+		constants.BootCommon:   b.common,
+	} {
+		if v {
+			return k
+		}
+	}
+	return ""
+}
+
+// checkSysext refuses to run an extension command on a system without
+// systemd-sysext, which every one of them ends up calling.
+func checkSysext() error {
+	_, err := exec.LookPath("systemd-sysext")
+	if err != nil {
+		return fmt.Errorf("systemd-sysext not found in PATH")
+	}
+	return nil
+}
+
+// nolint:gocyclo // cobra command builder: the subcommand definitions (list, enable, disable, install, remove) live in-line so the whole sysext/confext CLI shape is grep-friendly; splitting them into per-subcommand functions would only move the complexity, not reduce it.
+func sysextConfextCommands(extType string) []*cobra.Command {
+	var listFlags bootStateFlags
+	list := &cobra.Command{
+		Use:   "list [--active|--passive|--recovery|--common]",
+		Short: "List all the installed extensions",
+		Long:  "List all the installed extensions",
+		PreRunE: func(*cobra.Command, []string) error {
+			if err := checkSysext(); err != nil {
+				return err
+			}
+
+			if listFlags.moreThanOne() {
+				return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
+			}
+
+			if err := checkRoot(); err != nil {
+				return err
+			}
+			return nil
 		},
-		//nolint:dupl // enable and disable are intentionally parallel cli.Commands so they can be read side-by-side; refactoring them behind a shared builder makes the CLI definition harder to grep and see all flags at a glance.
-		{
-			Name:        "enable",
-			Usage:       "Enable a installed system extension for a give entry",
-			UsageText:   "enable [--active|--passive|--recovery|--common] EXTENSION",
-			Description: "Enable a system extension for a given boot entry (active or passive)",
-			Flags: []cli.Flag{
-				&cli.BoolFlag{
-					Name:  constants.BootActive,
-					Usage: "Enable the system extension for the active boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootPassive,
-					Usage: "Enable the system extension for the passive boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootRecovery,
-					Usage: "List the system extensions for the recovery boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootCommon,
-					Usage: "List the system extensions for the common boot entry (applies to all boot states)",
-				},
-				&cli.BoolFlag{
-					Name:  "now",
-					Usage: "Enable the system extension now and reload systemd-sysext",
-				},
-			},
-			Before: func(c *cli.Context) error {
-				if c.Args().Len() != 1 {
-					return fmt.Errorf("extension name required")
-				}
-
-				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
-					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
-				}
-
-				if noneOfEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
-					return fmt.Errorf("either --active, --passive, --recovery or --common must be set")
-				}
-
-				if err := checkRoot(); err != nil {
-					return err
-				}
+		RunE: func(*cobra.Command, []string) error {
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return err
+			}
+			out, err := action.ListExtensions(cfg, listFlags.bootState(), extType)
+			if err != nil {
+				return err
+			}
+			if len(out) == 0 {
+				cfg.Logger.Logger.Info().Msg("No system extensions found")
 				return nil
-			},
-			Action: func(c *cli.Context) error {
-				cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-				if err != nil {
-					return err
-				}
-				var bootState string
-				for k, v := range map[string]bool{
-					constants.BootActive:   c.Bool(constants.BootActive),
-					constants.BootPassive:  c.Bool(constants.BootPassive),
-					constants.BootRecovery: c.Bool(constants.BootRecovery),
-					constants.BootCommon:   c.Bool(constants.BootCommon),
-				} {
-					if v {
-						bootState = k
-						break
-					}
-				}
-
-				ext := c.Args().First()
-				extType := c.Context.Value(extTypeCtxKey).(string)
-				if err := action.EnableExtension(cfg, ext, bootState, extType, c.Bool("now")); err != nil {
-					cfg.Logger.Logger.Error().Err(err).Msg("failed enabling system extension")
-					return err
-				}
-				return nil
-			},
-		},
-		//nolint:dupl // parallel to the enable command above; see the note there.
-		{
-			Name:        "disable",
-			Usage:       "Disable a installed system extension for a give entry",
-			UsageText:   "disable [--active|--passive|--recovery|--common] EXTENSION",
-			Description: "Disable a system extension for a given boot entry (active or passive)",
-			Flags: []cli.Flag{
-				&cli.BoolFlag{
-					Name:  constants.BootActive,
-					Usage: "Disable the system extension for the active boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootPassive,
-					Usage: "Disable the system extension for the passive boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootRecovery,
-					Usage: "List the system extensions for the recovery boot entry",
-				},
-				&cli.BoolFlag{
-					Name:  constants.BootCommon,
-					Usage: "List the system extensions for the common boot entry (applies to all boot states)",
-				},
-				&cli.BoolFlag{
-					Name:  "now",
-					Usage: "Disable the system extension now and reload systemd-sysext",
-				},
-			},
-			Before: func(c *cli.Context) error {
-				if c.Args().Len() != 1 {
-					return fmt.Errorf("extension name required")
-				}
-
-				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
-					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
-				}
-
-				if noneOfEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
-					return fmt.Errorf("either --active, --passive, --recovery or --common must be set")
-				}
-				if err := checkRoot(); err != nil {
-					return err
-				}
-				return nil
-			},
-			Action: func(c *cli.Context) error {
-				cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-				if err != nil {
-					return err
-				}
-				var bootState string
-				for k, v := range map[string]bool{
-					constants.BootActive:   c.Bool(constants.BootActive),
-					constants.BootPassive:  c.Bool(constants.BootPassive),
-					constants.BootRecovery: c.Bool(constants.BootRecovery),
-					constants.BootCommon:   c.Bool(constants.BootCommon),
-				} {
-					if v {
-						bootState = k
-						break
-					}
-				}
-				ext := c.Args().First()
-				extType := c.Context.Value(extTypeCtxKey).(string)
-				if err := action.DisableExtension(cfg, ext, bootState, extType, c.Bool("now")); err != nil {
-					cfg.Logger.Logger.Error().Err(err).Msg("failed disabling system extension")
-					return err
-				}
-				return nil
-			},
-		},
-		{
-			Name:        "install",
-			Usage:       "Install a system extension",
-			UsageText:   "install [--catalog URL]... [--version VERSION] URI|NAME",
-			Description: "Install a system extension from a URI or catalog",
-			Flags: []cli.Flag{
-				&cli.StringSliceFlag{Name: "catalog", Usage: "Extension catalog URL, repeatable. Searched in order, the first catalog publishing the name wins. Defaults to `extensions.catalogs` from the cloud config."},
-				&cli.StringFlag{Name: "version", Usage: "Extension version from the catalog. An exact version, or a semver constraint such as \">= 2.1, < 3\""},
-			},
-			Action: func(c *cli.Context) error {
-				if c.Args().Len() != 1 {
-					return fmt.Errorf("extension URI or name required")
-				}
-				extType := c.Context.Value(extTypeCtxKey).(string)
-				if len(c.StringSlice("catalog")) > 0 && extType == "confext" {
-					return fmt.Errorf("--catalog is only supported for sysext")
-				}
-				if c.String("version") != "" && extType != "sysext" {
-					return fmt.Errorf("--version requires --catalog")
-				}
-				requested := c.Args().First()
-				cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-				if err != nil {
-					return err
-				}
-				if err := installCatalogOrURIExtension(cfg, extensionCatalogURLs(c, cfg, extType), requested, c.String("version"), extType); err != nil {
-					cfg.Logger.Logger.Error().Err(err).Msg("failed installing system extension")
-					return err
-				}
-				cfg.Logger.Logger.Info().Msgf("System extension %s installed", requested)
-				return nil
-			},
-		},
-		{
-			Name:        "remove",
-			Usage:       "Remove a system extension",
-			UsageText:   "remove EXTENSION",
-			Description: "Remove a installed system extension",
-			Flags: []cli.Flag{
-				&cli.BoolFlag{
-					Name:  "now",
-					Usage: "Remove the system extension now and reload systemd-sysext",
-				},
-			},
-			Action: func(c *cli.Context) error {
-				if c.Args().Len() != 1 {
-					return fmt.Errorf("extension required")
-				}
-				extension := c.Args().First()
-				cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
-				if err != nil {
-					return err
-				}
-				extType := c.Context.Value(extTypeCtxKey).(string)
-				if err := action.RemoveExtension(cfg, extension, extType, c.Bool("now")); err != nil {
-					cfg.Logger.Logger.Error().Err(err).Msg("failed removing system extension")
-					return err
-				}
-				cfg.Logger.Logger.Info().Msgf("System extension %s removed", extension)
-				return nil
-			},
+			}
+			for _, ext := range out {
+				cfg.Logger.Info(litter.Sdump(ext))
+			}
+			return nil
 		},
 	}
+	listFlags.add(list.Flags(),
+		"List the extensions for the active boot entry",
+		"List the extensions for the passive boot entry",
+		"List the extensions for the recovery boot entry",
+		"List the extensions for the common boot entry (applies to all boot states)")
+
+	var enableFlags bootStateFlags
+	var enableNow bool
+	//nolint:dupl // enable and disable are intentionally parallel commands so they can be read side-by-side; refactoring them behind a shared builder makes the CLI definition harder to grep and see all flags at a glance.
+	enable := &cobra.Command{
+		Use:   "enable [--active|--passive|--recovery|--common] EXTENSION",
+		Short: "Enable a installed system extension for a give entry",
+		Long:  "Enable a system extension for a given boot entry (active or passive)",
+		PreRunE: func(_ *cobra.Command, args []string) error {
+			if err := checkSysext(); err != nil {
+				return err
+			}
+
+			if len(args) != 1 {
+				return fmt.Errorf("extension name required")
+			}
+
+			if enableFlags.moreThanOne() {
+				return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
+			}
+
+			if enableFlags.none() {
+				return fmt.Errorf("either --active, --passive, --recovery or --common must be set")
+			}
+
+			if err := checkRoot(); err != nil {
+				return err
+			}
+			return nil
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return err
+			}
+
+			if err := action.EnableExtension(cfg, args[0], enableFlags.bootState(), extType, enableNow); err != nil {
+				cfg.Logger.Logger.Error().Err(err).Msg("failed enabling system extension")
+				return err
+			}
+			return nil
+		},
+	}
+	enableFlags.add(enable.Flags(),
+		"Enable the system extension for the active boot entry",
+		"Enable the system extension for the passive boot entry",
+		"List the system extensions for the recovery boot entry",
+		"List the system extensions for the common boot entry (applies to all boot states)")
+	enable.Flags().BoolVar(&enableNow, "now", false, "Enable the system extension now and reload systemd-sysext")
+
+	var disableFlags bootStateFlags
+	var disableNow bool
+	//nolint:dupl // parallel to the enable command above; see the note there.
+	disable := &cobra.Command{
+		Use:   "disable [--active|--passive|--recovery|--common] EXTENSION",
+		Short: "Disable a installed system extension for a give entry",
+		Long:  "Disable a system extension for a given boot entry (active or passive)",
+		PreRunE: func(_ *cobra.Command, args []string) error {
+			if err := checkSysext(); err != nil {
+				return err
+			}
+
+			if len(args) != 1 {
+				return fmt.Errorf("extension name required")
+			}
+
+			if disableFlags.moreThanOne() {
+				return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
+			}
+
+			if disableFlags.none() {
+				return fmt.Errorf("either --active, --passive, --recovery or --common must be set")
+			}
+			if err := checkRoot(); err != nil {
+				return err
+			}
+			return nil
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return err
+			}
+			if err := action.DisableExtension(cfg, args[0], disableFlags.bootState(), extType, disableNow); err != nil {
+				cfg.Logger.Logger.Error().Err(err).Msg("failed disabling system extension")
+				return err
+			}
+			return nil
+		},
+	}
+	disableFlags.add(disable.Flags(),
+		"Disable the system extension for the active boot entry",
+		"Disable the system extension for the passive boot entry",
+		"List the system extensions for the recovery boot entry",
+		"List the system extensions for the common boot entry (applies to all boot states)")
+	disable.Flags().BoolVar(&disableNow, "now", false, "Disable the system extension now and reload systemd-sysext")
+
+	var (
+		catalogs       []string
+		catalogVersion string
+	)
+	install := &cobra.Command{
+		Use:   "install [--catalog URL]... [--version VERSION] URI|NAME",
+		Short: "Install a system extension",
+		Long:  "Install a system extension from a URI or catalog",
+		PreRunE: func(*cobra.Command, []string) error {
+			return checkSysext()
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return fmt.Errorf("extension URI or name required")
+			}
+			if len(catalogs) > 0 && extType == "confext" {
+				return fmt.Errorf("--catalog is only supported for sysext")
+			}
+			if catalogVersion != "" && extType != "sysext" {
+				return fmt.Errorf("--version requires --catalog")
+			}
+			requested := args[0]
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return err
+			}
+			if err := installCatalogOrURIExtension(cfg, extensionCatalogURLs(catalogs, cfg, extType), requested, catalogVersion, extType); err != nil {
+				cfg.Logger.Logger.Error().Err(err).Msg("failed installing system extension")
+				return err
+			}
+			cfg.Logger.Logger.Info().Msgf("System extension %s installed", requested)
+			return nil
+		},
+	}
+	install.Flags().StringSliceVar(&catalogs, "catalog", nil, "Extension catalog URL, repeatable. Searched in order, the first catalog publishing the name wins. Defaults to `extensions.catalogs` from the cloud config.")
+	install.Flags().StringVar(&catalogVersion, "version", "", "Extension version from the catalog. An exact version, or a semver constraint such as \">= 2.1, < 3\"")
+
+	var removeNow bool
+	remove := &cobra.Command{
+		Use:   "remove EXTENSION",
+		Short: "Remove a system extension",
+		Long:  "Remove a installed system extension",
+		PreRunE: func(*cobra.Command, []string) error {
+			return checkSysext()
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return fmt.Errorf("extension required")
+			}
+			extension := args[0]
+			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+			if err != nil {
+				return err
+			}
+			if err := action.RemoveExtension(cfg, extension, extType, removeNow); err != nil {
+				cfg.Logger.Logger.Error().Err(err).Msg("failed removing system extension")
+				return err
+			}
+			cfg.Logger.Logger.Info().Msgf("System extension %s removed", extension)
+			return nil
+		},
+	}
+	remove.Flags().BoolVar(&removeNow, "now", false, "Remove the system extension now and reload systemd-sysext")
+
+	return []*cobra.Command{list, enable, disable, install, remove}
 }
 
 // extensionCatalogURLs picks the catalogs to search: the repeated --catalog
 // flags when given, otherwise `extensions.catalogs` from the cloud config,
 // which itself falls back to the built-in default. Confexts have no catalog.
-func extensionCatalogURLs(c *cli.Context, cfg *sdkConfig.Config, extType string) []string {
-	if catalogs := c.StringSlice("catalog"); len(catalogs) > 0 {
-		return catalogs
+func extensionCatalogURLs(flagged []string, cfg *sdkConfig.Config, extType string) []string {
+	if len(flagged) > 0 {
+		return flagged
 	}
 	if extType != "sysext" {
 		return nil
@@ -1821,20 +1877,8 @@ func installCatalogExtension(cfg *sdkConfig.Config, catalogURLs []string, name, 
 	return action.InstallExtension(cfg, uri, "sysext")
 }
 
-func beforeSysextConfext(c *cli.Context) error {
-	_, err := exec.LookPath("systemd-sysext")
-	if err != nil {
-		return fmt.Errorf("systemd-sysext not found in PATH")
-	}
-	// Set the extType in the context to differentiate between sysext and confext in the common code
-	// so its easier for the shared code to know which one is being called without needing to duplicate the code for both commands
-	c.Context = context.WithValue(c.Context, extTypeCtxKey, c.Command.Name)
-	return nil
-}
-
 // Run runs the kairos-agent CLI with os.Args and returns a process exit code.
-// It is called from the standalone kairos-agent binary and from the multi-call
-// kairos binary.
+// It is called from the standalone kairos-agent binary.
 func Run() int {
 	// The bus is not initialized here. Initializing it before the command line
 	// is parsed loads the providers from the default directories, and the
@@ -1842,12 +1886,24 @@ func Run() int {
 	// as notify, then have nowhere to put it. Each command that uses the bus
 	// initializes it, with the directories that command resolved.
 
-	return runApp(newApp(), os.Args)
+	return runApp(NewCommand(), os.Args)
 }
 
-// runApp runs app with args and returns a process exit code. A fatal error is
-// written to stderr, so stdout carries only what the command was asked to
-// produce and a machine-readable output format stays parseable on failure.
+// runApp runs cmd with args, args[0] being the program name as in os.Args, and
+// returns a process exit code. A fatal error goes to ReportError.
+func runApp(cmd *cobra.Command, args []string) int {
+	cmd.SetArgs(args[1:])
+	if err := cmd.Execute(); err != nil {
+		ReportError(err)
+		return 1
+	}
+	return 0
+}
+
+// ReportError reports a fatal kairos-agent error. It is written to stderr, so
+// stdout carries only what the command was asked to produce and a
+// machine-readable output format stays parseable on failure. The multi-call
+// kairos binary calls this for a failed agent command too.
 //
 // The same error also goes out as a progress error event, which is the only
 // thing an installer frontend reads. sdk/agentrun runs this binary as
@@ -1860,70 +1916,101 @@ func Run() int {
 // cannot emit the same failure twice, because every install path returns its
 // error to this one place. The event is a no-op unless KAIROS_AGENT_PROGRESS
 // is set.
-func runApp(app *cli.App, args []string) int {
-	if err := app.Run(args); err != nil {
-		progress.EmitError(err.Error())
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	return 0
+func ReportError(err error) {
+	progress.EmitError(err.Error())
+	fmt.Fprintln(os.Stderr, err)
 }
 
-// newApp builds the kairos-agent CLI.
-func newApp() *cli.App {
-	return &cli.App{
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "strict-validation",
-				Usage:   "Fail instead of warn on validation errors.",
-				EnvVars: []string{"STRICT_VALIDATIONS"},
-			},
-			&cli.BoolFlag{
-				Name:    "debug",
-				Usage:   "enable debug output",
-				EnvVars: []string{"KAIROS_AGENT_DEBUG"},
-			},
-		},
-		Name:    "kairos-agent",
-		Version: version.Version,
-		Authors: []*cli.Author{
-			{
-				Name: "Ettore Di Giacinto",
-			},
-		},
-		Usage: "kairos agent start",
-		Description: `
+// NewCommand builds the kairos-agent CLI.
+func NewCommand() *cobra.Command {
+	var global globalFlags
+
+	root := groupCommand(&cobra.Command{
+		Use:   "kairos-agent",
+		Short: "kairos agent start",
+		Long: `
 The kairos agent is a component to abstract away node ops, providing a common feature-set across kairos variants.
 `,
-		UsageText: ``,
-		Copyright: "kairos authors",
-		Before: func(c *cli.Context) error {
-			var debug bool
-			// Get debug from env or cmdline
-			cmdline, _ := os.ReadFile("/proc/cmdline")
-			if strings.Contains(string(cmdline), "rd.kairos.debug") {
-				debug = true
+		Version: version.Version,
+		// ReportError writes the error itself, and most failures are not
+		// usage mistakes, so the usage text would only bury the reason.
+		SilenceErrors:     true,
+		SilenceUsage:      true,
+		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := applyEnvFlags(cmd.Flags()); err != nil {
+				return err
 			}
-
-			if os.Getenv("KAIROS_AGENT_DEBUG") == "true" {
-				debug = true
-			}
-
-			if c.Bool("debug") {
-				debug = true
-			}
-
-			// Set debug from here already, so it's loaded by the Config unmarshall
-			viper.Set("debug", debug)
-			if debug {
-				// Dont hide private fields, we want the full object biew
-				litter.Config.HidePrivateFields = false
-				// Hide logger and client fields from litter as otherwise the config dumps are huge and a bit useless
-				litter.Config.FieldExclusions = regexp.MustCompile(`Logger|logger|Client`)
-			}
+			setDebug(global.debug)
 			return nil
 		},
-		Commands: cmds,
+	})
+
+	flags := root.PersistentFlags()
+	flags.BoolVar(&global.strictValidation, "strict-validation", false, "Fail instead of warn on validation errors.")
+	bindEnv(flags, "strict-validation", "STRICT_VALIDATIONS")
+	flags.BoolVar(&global.debug, "debug", false, "enable debug output")
+	bindEnv(flags, "debug", "KAIROS_AGENT_DEBUG")
+
+	root.AddCommand(
+		newUpgradeCmd(&global),
+		newUpgradeFinalizeCmd(),
+		newNotifyCmd(),
+		newStartCmd(),
+		newInstallBundleCmd(),
+		newUUIDCmd(),
+		newConfigCmd(&global),
+		newStateCmd(),
+		newRenderTemplateCmd(&global),
+		newInteractiveInstallCmd(),
+		newManualInstallCmd(&global),
+		newInstallCmd(),
+		newRecoveryCmd(),
+		newResetCmd(),
+		newValidateCmd(),
+		newPrintSchemaCmd(),
+		newRunStageCmd(&global),
+		newPullImageCmd(),
+		newVersionCmd(),
+		newVersioneerCmd(),
+		newBootentryCmd(),
+		newGrubeditCmd(&global),
+		newExtensionCmd("sysext"),
+		newExtensionCmd("confext"),
+		newLogsCmd(),
+		newKcryptCmd(),
+		newPhoneHomeCmd(),
+	)
+
+	stopFlagsAtFirstArgument(root)
+	return root
+}
+
+// setDebug turns debug output on when the --debug flag, KAIROS_AGENT_DEBUG or
+// rd.kairos.debug on the kernel command line asks for it.
+func setDebug(flag bool) {
+	var debug bool
+	// Get debug from env or cmdline
+	cmdline, _ := os.ReadFile("/proc/cmdline")
+	if strings.Contains(string(cmdline), "rd.kairos.debug") {
+		debug = true
+	}
+
+	if os.Getenv("KAIROS_AGENT_DEBUG") == "true" {
+		debug = true
+	}
+
+	if flag {
+		debug = true
+	}
+
+	// Set debug from here already, so it's loaded by the Config unmarshall
+	viper.Set("debug", debug)
+	if debug {
+		// Dont hide private fields, we want the full object biew
+		litter.Config.HidePrivateFields = false
+		// Hide logger and client fields from litter as otherwise the config dumps are huge and a bit useless
+		litter.Config.FieldExclusions = regexp.MustCompile(`Logger|logger|Client`)
 	}
 }
 
@@ -1969,9 +2056,9 @@ func cmdlineEnables(cmdline, flag string) bool {
 // skipAutoInstall reports whether the operator asked interactive-install to
 // ignore install.auto. Three ways in, none of them the default: the flag, the
 // KAIROS_SKIP_AUTO_INSTALL env var (both handled by the flag itself), and the
-// boot cmdline.
-func skipAutoInstall(c *cli.Context) bool {
-	if c.Bool(skipAutoInstallFlag) {
+// boot cmdline. flag is the value of the flag, which the env var also sets.
+func skipAutoInstall(flag bool) bool {
+	if flag {
 		return true
 	}
 
@@ -1991,12 +2078,12 @@ func skipAutoInstall(c *cli.Context) bool {
 // promised. The composition lives here rather than in RunStage so that every
 // other caller of RunStage (install, upgrade, reset, the boot hooks) keeps
 // reading the defaults.
-func runStageCloudInitPaths(c *cli.Context, config *sdkConfig.Config) []string {
-	if extra := c.StringSlice("cloud-init-paths"); len(extra) > 0 {
+func runStageCloudInitPaths(extra, override []string, config *sdkConfig.Config) []string {
+	if len(extra) > 0 {
 		config.CloudInitPaths = append(config.CloudInitPaths, extra...)
 	}
 
-	if override := c.StringSlice("override-cloud-init-paths"); len(override) > 0 {
+	if len(override) > 0 {
 		config.CloudInitPaths = override
 		return override
 	}
@@ -2013,20 +2100,20 @@ func runStageCloudInitPaths(c *cli.Context, config *sdkConfig.Config) []string {
 //
 // An unreadable target is left alone here so that RunBundles keeps reporting
 // it, with the bundle name it already puts in that message.
-func checkInstallBundleFlags(c *cli.Context, target string) error {
+func checkInstallBundleFlags(flags *pflag.FlagSet, target string) error {
 	scheme, err := (&bundles.BundleConfig{Target: target}).TargetScheme()
 	if err != nil {
 		return nil //nolint:nilerr // RunBundles reports the invalid target
 	}
 
 	if scheme == "package" {
-		if c.IsSet("local-file") {
+		if flags.Changed("local-file") {
 			return fmt.Errorf("--local-file is not read by a package:// target, it applies to container://, docker:// and run:// targets (unset the flag or the LOCAL_FILE environment variable)")
 		}
 		return nil
 	}
 
-	if c.IsSet("repository") {
+	if flags.Changed("repository") {
 		return fmt.Errorf("--repository is only read by a package:// target, and %s is a %s:// target (unset the flag or the REPOSITORY environment variable)", target, scheme)
 	}
 
