@@ -233,6 +233,16 @@ stages:
 		})
 	})
 
+	DescribeTable("an install key with no value reads as an empty install block",
+		func(cc string) {
+			c, err := pkgConfig.ScanNoLogs(collector.Readers(strings.NewReader(cc)))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c.Install).To(Equal(&sdkInstall.Install{}))
+		},
+		Entry("bare key", "#cloud-config\ninstall:\n"),
+		Entry("explicit null", "#cloud-config\ninstall: ~\n"),
+	)
+
 	Describe("Platform handling", func() {
 		It("creates a config for riscv64 platform values", func() {
 			c := pkgConfig.NewConfig(pkgConfig.WithPlatform("linux/riscv64"))

@@ -115,6 +115,45 @@ var _ = Describe("Releases with a mocked API", func() {
 	})
 })
 
+var _ = Describe("Releases with names that are not semver", func() {
+	findWith := func(body string) (semver.Collection, error) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/repos/test/odd/releases", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(body))
+		})
+		server := httptest.NewServer(mux)
+		defer server.Close()
+
+		serverURL, err := url.Parse(server.URL)
+		Expect(err).ToNot(HaveOccurred())
+		hc := &http.Client{Transport: rewriteTransport{target: serverURL}}
+		ctx := context.WithValue(context.Background(), oauth2.HTTPClient, hc)
+
+		return github.FindReleases(ctx, "fake-token", "test/odd", false)
+	}
+
+	It("skips a release with a null name", func() {
+		releases, err := findWith(`[{"name":null},{"name":"v1.0.0"}]`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(releases).To(HaveLen(1))
+		Expect(releases[0].Original()).To(Equal("v1.0.0"))
+	})
+
+	It("skips a release with no name", func() {
+		releases, err := findWith(`[{"tag_name":"v1.0.0"},{"name":"v1.0.0"}]`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(releases).To(HaveLen(1))
+	})
+
+	It("skips a v-prefixed name that is not semver", func() {
+		releases, err := findWith(`[{"name":"v2.0.0 - Hotfix"},{"name":"v1.0.0"}]`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(releases).To(HaveLen(1))
+		Expect(releases[0].Original()).To(Equal("v1.0.0"))
+	})
+})
+
 // budgetRefusal reports whether err is api.github.com declining the request
 // because the shared request budget is spent, rather than anything about this
 // code. The primary cap answers 403 with x-ratelimit-remaining 0, the

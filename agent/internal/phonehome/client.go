@@ -95,10 +95,10 @@ func (c *Client) APIKey() string {
 
 // NewClient creates a new phone-home client.
 func NewClient(cfg *Config, opts ...ClientOption) *Client {
-	if cfg.HeartbeatInterval == 0 {
+	if cfg.HeartbeatInterval <= 0 {
 		cfg.HeartbeatInterval = DefaultHeartbeatInterval
 	}
-	if cfg.ReconnectBackoff == 0 {
+	if cfg.ReconnectBackoff <= 0 {
 		cfg.ReconnectBackoff = DefaultReconnectBackoff
 	}
 
