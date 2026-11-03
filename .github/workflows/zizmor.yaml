@@ -18,11 +18,13 @@ on:
       - '.github/workflows/**'
       - '.github/actions/**'
       - '.github/zizmor.yml'
+      - 'linting-composite-action/**'
   pull_request:
     paths:
       - '.github/workflows/**'
       - '.github/actions/**'
       - '.github/zizmor.yml'
+      - 'linting-composite-action/**'
 
 permissions:
   contents: read
