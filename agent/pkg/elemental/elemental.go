@@ -908,16 +908,18 @@ func (e *Elemental) GetIso(iso string) (tmpDir string, err error) {
 }
 
 // UnmountIso unmounts the rootfs and the ISO that GetIso mounted in tmpDir, in that order.
+// A failed unmount does not stop the next one, and every error is returned.
 func (e *Elemental) UnmountIso(tmpDir string) error {
+	var errs []error
 	for _, mnt := range []string{filepath.Join(tmpDir, "rootfs"), filepath.Join(tmpDir, "iso")} {
 		if notMnt, _ := e.config.Mounter.IsLikelyNotMountPoint(mnt); notMnt {
 			continue
 		}
 		if err := e.config.Mounter.Unmount(mnt); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // UpdateSourcesFormDownloadedISO checks a downaloaded and mounted ISO in workDir and updates the active and recovery image
