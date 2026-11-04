@@ -114,6 +114,10 @@ on:
       base_image:
         type: string
         default: "ghcr.io/kairos-io/hadron:v0.6.3"
+        description: >-
+          Image to build from, as [registry[:port]/]name[:tag][@digest].
+          FLAVOR and FLAVOR_RELEASE for the image tag come from its name and
+          tag; a missing tag counts as latest.
 
       model:
         type: string
@@ -605,15 +609,27 @@ jobs:
             KUBERNETES_VERSION="${INPUTS_KUBERNETES_VERSION}"
           fi
 
-          # Split base image for tag generation
-          BASE_IMAGE=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 1)
-          BASE_TAG=$(echo "${INPUTS_BASE_IMAGE}" | cut -d ':' -f 2 || echo 'latest')
+          # BEGIN base_image parsing
+          # Split base image for tag generation. A digest is dropped first,
+          # and the tag is only looked for in the last path component, so a
+          # registry port (localhost:5000/...) is not taken for a tag. No tag
+          # means latest.
+          BASE_REF="${INPUTS_BASE_IMAGE%%@*}"
+          if [[ "${BASE_REF##*/}" == *:* ]]; then
+            BASE_IMAGE="${BASE_REF%:*}"
+            BASE_TAG="${BASE_REF##*:}"
+          else
+            BASE_IMAGE="$BASE_REF"
+            BASE_TAG="latest"
+          fi
 
           # Handle base images with slashes (registry paths)
           # Examples:
           # - ubuntu:24.04 -> FLAVOR=ubuntu, FLAVOR_RELEASE=24.04
           # - opensuse/leap:15.6 -> FLAVOR=opensuse, FLAVOR_RELEASE=leap-15.6
           # - ghcr.io/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          # - localhost:5000/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          # - ubuntu@sha256:<digest> -> FLAVOR=ubuntu, FLAVOR_RELEASE=latest
           if [[ "$BASE_IMAGE" == *"/"* ]]; then
             # Count number of slashes to determine if it's a registry path
             SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
@@ -634,6 +650,7 @@ jobs:
             FLAVOR="$BASE_IMAGE"
             FLAVOR_RELEASE="$BASE_TAG"
           fi
+          # END base_image parsing
 
           # Special case for nvidia
           if [[ "${INPUTS_MODEL}" == "nvidia-jetson-agx-orin" ]]; then
