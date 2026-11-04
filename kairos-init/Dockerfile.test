@@ -11,7 +11,7 @@
 # unpacks into the build context, matching the consumer shape used
 # by the production kairos-init/Dockerfile.
 
-ARG BASE_IMAGE=ubuntu:24.04
+ARG BASE_IMAGE=ubuntu:26.04
 
 FROM scratch AS kairos-init-bin
 ARG TARGETARCH
