@@ -21,6 +21,8 @@ import (
 	"syscall"
 
 	"github.com/google/shlex"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/urfave/cli/v2"
 )
@@ -35,6 +37,10 @@ const saveTempPattern = ".kairos-edit-config-save-*.tmp"
 
 const validationMessageStart = "# kairos edit-config: validation failed"
 const validationMessageEnd = "# kairos edit-config: end validation errors"
+
+// configDirs returns the directories the agent scans for configuration. The
+// edited file is checked together with them, as the agent loads it.
+var configDirs = constants.GetUserConfigDirs
 
 // Run executes the edit-config CLI and returns a process exit code. The
 // multi-call kairos binary invokes this when argv[1] is "edit-config".
@@ -136,7 +142,11 @@ func editCloudInitWithSignals(path, editor string, output io.Writer, signals <-c
 			return fmt.Errorf("prepare edited cloud-init file: %w", err)
 		}
 
-		if err := schema.Validate(tempPath); err != nil {
+		err = schema.Validate(tempPath)
+		if err == nil {
+			err = validateMergedSemantics(info, tempPath)
+		}
+		if err != nil {
 			if err := os.WriteFile(tempPath, addValidationMessage(path, edited, err), 0600); err != nil {
 				return fmt.Errorf("write validation message: %w", err)
 			}
@@ -152,6 +162,53 @@ func editCloudInitWithSignals(path, editor string, output io.Writer, signals <-c
 		}
 		return nil
 	}
+}
+
+// validateMergedSemantics runs the semantic checks the agent runs when it
+// loads its configuration. They span files (ssh_hardening in one file, the
+// user's ssh_authorized_keys in another), so they run on the merge of every
+// scanned config, with the draft at tempPath standing in for the file
+// described by original.
+func validateMergedSemantics(original os.FileInfo, tempPath string) error {
+	// Keep the scan order of the collector, which merges files in the order
+	// it walks them, so the draft overrides and is overridden by the same
+	// files as the saved file would be.
+	var files []string
+	replaced := false
+	for _, dir := range configDirs() {
+		_ = filepath.Walk(dir, func(file string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() {
+				return nil
+			}
+			if os.SameFile(info, original) {
+				file = tempPath
+				replaced = true
+			}
+			files = append(files, file)
+			return nil
+		})
+	}
+	if !replaced {
+		files = append(files, tempPath)
+	}
+
+	merged, err := collector.Scan(&collector.Options{ScanDir: files, NoLogs: true}, nil)
+	if err != nil {
+		// The merge fails when a config_url cannot be fetched. That is not
+		// what this check is for, the agent reports it itself, and refusing
+		// the save would keep the user from fixing the URL here.
+		return nil
+	}
+	content, err := merged.String()
+	if err != nil {
+		return nil
+	}
+	kc, err := schema.NewConfigFromYAML(content, schema.RootSchema{})
+	if err != nil {
+		return nil
+	}
+	_, err = kc.ValidateSemantics()
+	return err
 }
 
 func addValidationMessage(path string, content []byte, validationErr error) []byte {

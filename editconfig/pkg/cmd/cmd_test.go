@@ -104,6 +104,41 @@ fi`)
 		Expect(output.String()).To(ContainSubstring("Invalid draft discarded"))
 	})
 
+	Context("with ssh_hardening", func() {
+		const hardenedCloudConfig = "#cloud-config\ninstall:\n  ssh_hardening: true\nusers:\n  - name: kairos\n    passwd: kairos\n"
+		var dir string
+
+		BeforeEach(func() {
+			dir = GinkgoT().TempDir()
+			original := configDirs
+			configDirs = func() []string { return []string{dir} }
+			DeferCleanup(func() { configDirs = original })
+		})
+
+		It("rejects configuration the agent would refuse to load", func() {
+			path := writeCloudConfig(dir, validCloudConfig, 0644)
+			editor := writeEditor(dir, "hardening-editor", "printf '%s' '"+hardenedCloudConfig+"' > \"$1\"")
+			var output bytes.Buffer
+
+			Expect(editCloudInit(path, editor, &output)).To(Succeed())
+			content, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(content)).To(Equal(validCloudConfig))
+			Expect(output.String()).To(ContainSubstring("Invalid draft discarded"))
+		})
+
+		It("accepts it when another config gives a user ssh_authorized_keys", func() {
+			Expect(os.WriteFile(filepath.Join(dir, "10_keys.yaml"), []byte("#cloud-config\nusers:\n  - name: kairos\n    ssh_authorized_keys:\n      - github:kairos\n"), 0644)).To(Succeed())
+			path := writeCloudConfig(dir, validCloudConfig, 0644)
+			editor := writeEditor(dir, "hardening-editor", "printf '%s' '"+hardenedCloudConfig+"' > \"$1\"")
+
+			Expect(editCloudInit(path, editor, &bytes.Buffer{})).To(Succeed())
+			content, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(content)).To(Equal(hardenedCloudConfig))
+		})
+	})
+
 	It("edits a copy outside the configuration directory", func() {
 		dir := GinkgoT().TempDir()
 		path := writeCloudConfig(dir, validCloudConfig, 0644)
