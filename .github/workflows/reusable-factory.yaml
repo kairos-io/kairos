@@ -629,11 +629,19 @@ jobs:
           # - opensuse/leap:15.6 -> FLAVOR=opensuse, FLAVOR_RELEASE=leap-15.6
           # - ghcr.io/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
           # - localhost:5000/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          # - localhost:5000/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
           # - ubuntu@sha256:<digest> -> FLAVOR=ubuntu, FLAVOR_RELEASE=latest
           if [[ "$BASE_IMAGE" == *"/"* ]]; then
             # Count number of slashes to determine if it's a registry path
             SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
-            if [[ $SLASH_COUNT -eq 1 ]]; then
+            # A first component with a '.' or ':', or localhost, is a registry host
+            FIRST_COMPONENT="${BASE_IMAGE%%/*}"
+            if [[ "$FIRST_COMPONENT" == *[.:]* || "$FIRST_COMPONENT" == localhost ]]; then
+              HAS_REGISTRY=true
+            else
+              HAS_REGISTRY=false
+            fi
+            if [[ $SLASH_COUNT -eq 1 && $HAS_REGISTRY == false ]]; then
               # Simple case: distro/subdistro (preserve existing behavior)
               DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
               SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)

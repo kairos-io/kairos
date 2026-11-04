@@ -42,6 +42,10 @@ check "opensuse/leap" opensuse leap-latest
 check "ghcr.io/kairos-io/hadron" hadron latest
 check "localhost:5000/kairos-io/hadron:main" hadron main
 check "localhost:5000/kairos-io/hadron" hadron latest
+check "localhost:5000/hadron:main" hadron main
+check "localhost:5000/hadron" hadron latest
+check "localhost/hadron:main" hadron main
+check "ghcr.io/hadron:main" hadron main
 check "ubuntu@sha256:0000000000000000000000000000000000000000000000000000000000000000" ubuntu latest
 check "ubuntu:24.04@sha256:0000000000000000000000000000000000000000000000000000000000000000" ubuntu 24.04
 check "ghcr.io/kairos-io/hadron:main@sha256:0000000000000000000000000000000000000000000000000000000000000000" hadron main
