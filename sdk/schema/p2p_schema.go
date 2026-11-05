@@ -7,7 +7,7 @@ import (
 // P2PSchema represents the P2P block in the Kairos configuration. It is used to enables and configure the p2p full-mesh functionalities.
 type P2PSchema struct {
 	_            struct{} `title:"Kairos Schema: P2P block" description:"The p2p block enables the p2p full-mesh functionalities."`
-	Role         string   `json:"role,omitempty" default:"none" enum:"[\"master\",\"worker\",\"none\"]"`
+	Role         string   `json:"role,omitempty" default:"" enum:"[\"\",\"master\",\"worker\",\"none\"]" description:"Pin this node to a role. Leave unset (or \"none\") to take the role from the p2p ledger."`
 	NetworkID    string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
 	DNS          bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
 	DisableDHT   bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
@@ -20,15 +20,16 @@ type P2PSchema struct {
 
 // KubeVIPSchema represents the kubevip block in the Kairos configuration. It sets the Elastic IP used in KubeVIP. Only valid with p2p.
 type KubeVIPSchema struct {
-	_           struct{} `title:"Kairos Schema: KubeVIP block" description:"Sets the Elastic IP used in KubeVIP. Only valid with p2p"`
-	EIP         string   `json:"eip,omitempty" example:"192.168.1.110"`
-	ManifestURL string   `json:"manifest_url,omitempty" description:"Specify a manifest URL for KubeVIP." default:""`
-	Enabled     bool     `json:"enabled,omitempty" description:"Enables KubeVIP"`
-	Enable      bool     `json:"enable,omitempty" description:"Deprecated spelling of kubevip.enabled. Still read, and refused only when kubevip.enabled is set to a different value"`
-	Interface   string   `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
-	StaticPod   bool     `json:"static_pod,omitempty" description:"Deploy KubeVIP as a static pod instead of a daemonset"`
-	Version     string   `json:"version,omitempty" description:"Tag of the KubeVIP image to deploy" example:"v0.8.0"`
-	Image       string   `json:"image,omitempty" description:"Repository of the KubeVIP image to deploy" example:"ghcr.io/kube-vip/kube-vip"`
+	_              struct{} `title:"Kairos Schema: KubeVIP block" description:"Sets the Elastic IP used in KubeVIP. Only valid with p2p"`
+	EIP            string   `json:"eip,omitempty" example:"192.168.1.110"`
+	ManifestURL    string   `json:"manifest_url,omitempty" description:"Specify a manifest URL for KubeVIP." default:""`
+	ManifestSHA256 string   `json:"manifest_sha256,omitempty" description:"Expected sha256 digest (lowercase hex) of the manifest fetched from manifest_url. When set, the download fails if the digest does not match"`
+	Enabled        bool     `json:"enabled,omitempty" description:"Enables KubeVIP"`
+	Enable         bool     `json:"enable,omitempty" description:"Deprecated spelling of kubevip.enabled. Still read, and refused only when kubevip.enabled is set to a different value"`
+	Interface      string   `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
+	StaticPod      bool     `json:"static_pod,omitempty" description:"Deploy KubeVIP as a static pod instead of a daemonset"`
+	Version        string   `json:"version,omitempty" description:"Tag of the KubeVIP image to deploy" example:"v0.8.0"`
+	Image          string   `json:"image,omitempty" description:"Repository of the KubeVIP image to deploy" example:"ghcr.io/kube-vip/kube-vip"`
 }
 
 // P2PNetworkExtended is a meta structure to hold the different rules for managing the P2P network, which are not compatible between each other.

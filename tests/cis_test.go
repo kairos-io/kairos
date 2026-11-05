@@ -155,6 +155,29 @@ var cisGuestChecks = map[string]string{
 	"cis-dil-benchmark-2.3.5":  notInstalled("ldapsearch", "ldapadd"),
 	// 3.5.3: a firewall tool is there for whoever sets a policy.
 	"cis-dil-benchmark-3.5.3": "command -v iptables >/dev/null || command -v nft >/dev/null",
+	"cis-dil-benchmark-5.3.1": pwqualityConfigured(),
+}
+
+// pwqualityConfigured is the pam_pwquality branch of CIS 5.3.1, with the
+// profile's regexes: one of common-password or system-auth loads
+// pam_pwquality with retry and try_first_pass, and pwquality.conf sets
+// minlen 14 or more and a negative credit for each character class.
+func pwqualityConfigured() string {
+	pam := `^password[[:space:]]+requisite[[:space:]]+pam_pwquality\.so ([^[:space:]]+[[:space:]]+)*`
+	conf := []string{
+		`^minlen = (1[4-9]|[2-9][0-9]|[1-9][0-9][0-9]+)[[:space:]]*(#.*)?$`,
+		`^dcredit = -[1-9][0-9]*[[:space:]]*(#.*)?$`,
+		`^lcredit = -[1-9][0-9]*[[:space:]]*(#.*)?$`,
+		`^ucredit = -[1-9][0-9]*[[:space:]]*(#.*)?$`,
+		`^ocredit = -[1-9][0-9]*[[:space:]]*(#.*)?$`,
+	}
+	check := fmt.Sprintf("ok=; for f in /etc/pam.d/common-password /etc/pam.d/system-auth; do "+
+		"grep -qE '%[1]sretry=[3210]' \"$f\" 2>/dev/null && grep -qE '%[1]stry_first_pass' \"$f\" && ok=1; "+
+		"done; [ -n \"$ok\" ] || { echo 'pam_pwquality is not in the password stack with retry and try_first_pass'; exit 1; }", pam)
+	for _, re := range conf {
+		check += fmt.Sprintf("; grep -qE '%[1]s' /etc/security/pwquality.conf || { echo 'pwquality.conf does not match %[1]s'; exit 1; }", re)
+	}
+	return check
 }
 
 func notEnabled(units ...string) string {
@@ -167,8 +190,7 @@ func notInstalled(bins ...string) string {
 
 // unsupportedControls returns the ids of controls with at least one result
 // skipped because an InSpec resource does not support the target OS, plus
-// 5.3.1, whose only_if gate makes it vanish with no results at all. It is
-// waived today; once it is not, it needs a guest check here.
+// 5.3.1, whose package gate makes it vanish with no results at all.
 func unsupportedControls(reportPath string) []string {
 	raw, err := os.ReadFile(reportPath)
 	ExpectWithOffset(1, err).ToNot(HaveOccurred())

@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // SafeKubeName ensures a string conforms to Kubernetes naming constraints
@@ -71,20 +73,26 @@ func SanitizeKubeName(name string) string {
 	return cleaned
 }
 
-// IsValidKubeName checks if a name is already a valid Kubernetes name
+// IsValidKubeName checks if a name is already a valid Kubernetes name.
+//
+// Kubernetes object names are RFC 1123 subdomains, which are lower case. An
+// uppercase letter has to be reported as invalid so SafeKubeName sends the name
+// through SanitizeKubeName, which lower cases it. Accepting it here returns a
+// name the API server rejects with "a lowercase RFC 1123 subdomain must consist
+// of lower case alphanumeric characters".
 func IsValidKubeName(name string) bool {
 	if len(name) == 0 || len(name) > 63 {
 		return false
 	}
 
-	// Must start and end with alphanumeric
-	if !IsAlphanumeric(rune(name[0])) || !IsAlphanumeric(rune(name[len(name)-1])) {
+	// Must start and end with a lower case alphanumeric
+	if !IsLowerAlphanumeric(rune(name[0])) || !IsLowerAlphanumeric(rune(name[len(name)-1])) {
 		return false
 	}
 
-	// All characters must be alphanumeric or hyphens
+	// All characters must be lower case alphanumeric or hyphens
 	for _, r := range name {
-		if !IsAlphanumeric(r) && r != '-' {
+		if !IsLowerAlphanumeric(r) && r != '-' {
 			return false
 		}
 	}
@@ -92,7 +100,44 @@ func IsValidKubeName(name string) bool {
 	return true
 }
 
-// IsAlphanumeric checks if a rune is alphanumeric
-func IsAlphanumeric(r rune) bool {
-	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+// IsLowerAlphanumeric checks if a rune is a lower case letter or a digit, which
+// is what an RFC 1123 subdomain allows.
+func IsLowerAlphanumeric(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+}
+
+// SafeLabelValue returns value unchanged when Kubernetes accepts it as a label
+// value. Otherwise it replaces every character other than alphanumerics, '-',
+// '_' and '.' with '-', trims non-alphanumerics from both ends and truncates to
+// 63 characters. A value with nothing left falls back to a hash of the input.
+func SafeLabelValue(value string) string {
+	if len(validation.IsValidLabelValue(value)) == 0 {
+		return value
+	}
+
+	isAlnum := func(r rune) bool {
+		return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+	}
+
+	var b strings.Builder
+	for _, r := range value {
+		if isAlnum(r) || r == '-' || r == '_' || r == '.' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+
+	notAlnum := func(r rune) bool { return !isAlnum(r) }
+	cleaned := strings.TrimFunc(b.String(), notAlnum)
+	if len(cleaned) > validation.LabelValueMaxLength {
+		cleaned = strings.TrimRightFunc(cleaned[:validation.LabelValueMaxLength], notAlnum)
+	}
+
+	if cleaned == "" {
+		hash := sha256.Sum256([]byte(value))
+		return "label-" + hex.EncodeToString(hash[:])[:8]
+	}
+
+	return cleaned
 }
