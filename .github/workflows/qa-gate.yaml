@@ -9,25 +9,44 @@ name: QA gate
 #   after the job passed on it, and the queue needs every required check
 #   reported on the merge group commit too
 #
-# It reruns when the label is added or removed and on every push. It
-# reads only the event payload, checks nothing out and needs no token
-# permissions, so it runs on the plain pull_request trigger.
+# It reruns when the label is added or removed and on every push. The
+# labels are read from the API when the job runs, not from the event
+# payload: a run queued before the label was added would otherwise fail
+# after the newer run passed, and a manual re-run would reuse the old
+# payload too. Older queued runs for the same PR are cancelled.
+#
+# It checks nothing out and only needs to read pull requests, so it runs
+# on the plain pull_request trigger.
 
 on:
   pull_request:
     types: [opened, reopened, synchronize, labeled, unlabeled]
   merge_group:
 
-permissions: {}
+permissions:
+  pull-requests: read
+
+concurrency:
+  group: qa-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   qa-gate:
     runs-on: ubuntu-latest
     steps:
       - name: Require the QA pass label
-        if: "${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'QA: pass') }}"
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
-          echo "::error::This pull request does not have the 'QA: pass' label."
-          exit 1
-      - name: QA pass label present
-        run: echo "QA gate passed"
+          labels=$(gh api "repos/${REPO}/issues/${PR}/labels" --jq '.[].name')
+          if ! printf '%s\n' "$labels" | grep -qxF 'QA: pass'; then
+            echo "::error::This pull request does not have the 'QA: pass' label."
+            exit 1
+          fi
+          echo "QA: pass label present"
+      - name: Merge queue
+        if: github.event_name == 'merge_group'
+        run: echo "QA gate checked before the pull request entered the queue"
