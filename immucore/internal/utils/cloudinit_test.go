@@ -241,10 +241,8 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 		})
 	})
 
-	// kairos-io/kairos#5961: cmdline-derived yip stages run through
-	// console.NewStandardConsole(), which does exec.LookPath("sh"). With an empty
-	// PATH (UKI live boot, immucore as PID 1) every command fails. These specs
-	// pin the CURRENT (buggy) behaviour; the fix flips them.
+	// With an empty PATH (UKI live boot, immucore as PID 1) cmdline-derived
+	// yip commands must still run.
 	Context("RunStage cmdline stage with an empty PATH (#5961)", func() {
 		var oldPath string
 		var hadPath bool
@@ -261,9 +259,9 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 			}
 		})
 
-		It("does not run the command and logs 'sh' not found (bug)", func() {
+		It("runs the command", func() {
 			marker := filepath.Join(GinkgoT().TempDir(), "marker")
-			writeCmdline(fmt.Sprintf(`root=LABEL=X stages.initramfs[0].commands[0]="/bin/sh\ -c\ 'touch\ %s'"`, marker))
+			writeCmdline(fmt.Sprintf(`root=LABEL=X stages.initramfs[0].commands[0]="touch %s"`, marker))
 
 			var logBuf bytes.Buffer
 			oldLogger := utils.KLog
@@ -272,9 +270,8 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 
 			Expect(utils.RunStage("initramfs")).To(BeNil())
 
-			// Bug: the command never ran.
-			Expect(marker).ToNot(BeAnExistingFile())
-			Expect(logBuf.String()).To(ContainSubstring(`exec: \"sh\": executable file not found`))
+			Expect(marker).To(BeAnExistingFile())
+			Expect(logBuf.String()).ToNot(ContainSubstring(`executable file not found`))
 		})
 	})
 
