@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,6 +131,37 @@ fi`)
 
 		It("accepts it when another config gives a user ssh_authorized_keys", func() {
 			Expect(os.WriteFile(filepath.Join(dir, "10_keys.yaml"), []byte("#cloud-config\nusers:\n  - name: kairos\n    ssh_authorized_keys:\n      - github:kairos\n"), 0644)).To(Succeed())
+			path := writeCloudConfig(dir, validCloudConfig, 0644)
+			editor := writeEditor(dir, "hardening-editor", "printf '%s' '"+hardenedCloudConfig+"' > \"$1\"")
+
+			Expect(editCloudInit(path, editor, &bytes.Buffer{})).To(Succeed())
+			content, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(content)).To(Equal(hardenedCloudConfig))
+		})
+
+		It("rejects it when the edited file is a symlink whose old content had the keys", func() {
+			target := filepath.Join(GinkgoT().TempDir(), "real.yaml")
+			keyed := "#cloud-config\nusers:\n  - name: kairos\n    ssh_authorized_keys:\n      - github:kairos\n"
+			Expect(os.WriteFile(target, []byte(keyed), 0644)).To(Succeed())
+			path := filepath.Join(dir, "90_custom.yaml")
+			Expect(os.Symlink(target, path)).To(Succeed())
+			editor := writeEditor(dir, "hardening-editor", "printf '%s' '"+hardenedCloudConfig+"' > \"$1\"")
+			var output bytes.Buffer
+
+			Expect(editCloudInit(path, editor, &output)).To(Succeed())
+			content, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(content)).To(Equal(keyed))
+			Expect(output.String()).To(ContainSubstring("Invalid draft discarded"))
+		})
+
+		It("accepts it when a config_url cannot be merged", func() {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte("not_a_cloud_config: true\n"))
+			}))
+			DeferCleanup(server.Close)
+			Expect(os.WriteFile(filepath.Join(dir, "10_remote.yaml"), []byte("#cloud-config\nconfig_url: "+server.URL+"/keys.yaml\n"), 0644)).To(Succeed())
 			path := writeCloudConfig(dir, validCloudConfig, 0644)
 			editor := writeEditor(dir, "hardening-editor", "printf '%s' '"+hardenedCloudConfig+"' > \"$1\"")
 

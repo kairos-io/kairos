@@ -144,7 +144,7 @@ func editCloudInitWithSignals(path, editor string, output io.Writer, signals <-c
 
 		err = schema.Validate(tempPath)
 		if err == nil {
-			err = validateMergedSemantics(info, tempPath)
+			err = validateMergedSemantics(path, tempPath)
 		}
 		if err != nil {
 			if err := os.WriteFile(tempPath, addValidationMessage(path, edited, err), 0600); err != nil {
@@ -167,9 +167,17 @@ func editCloudInitWithSignals(path, editor string, output io.Writer, signals <-c
 // validateMergedSemantics runs the semantic checks the agent runs when it
 // loads its configuration. They span files (ssh_hardening in one file, the
 // user's ssh_authorized_keys in another), so they run on the merge of every
-// scanned config, with the draft at tempPath standing in for the file
-// described by original.
-func validateMergedSemantics(original os.FileInfo, tempPath string) error {
+// scanned config, with the draft at tempPath standing in for the file at
+// path.
+func validateMergedSemantics(path, tempPath string) error {
+	// Match the scan entry by path rather than by file identity: when path
+	// is a symlink, the walk reports the link itself, and saving replaces
+	// that link with the draft.
+	target, err := filepath.Abs(path)
+	if err != nil {
+		return nil
+	}
+
 	// Keep the scan order of the collector, which merges files in the order
 	// it walks them, so the draft overrides and is overridden by the same
 	// files as the saved file would be.
@@ -180,7 +188,7 @@ func validateMergedSemantics(original os.FileInfo, tempPath string) error {
 			if err != nil || info.IsDir() {
 				return nil
 			}
-			if os.SameFile(info, original) {
+			if abs, err := filepath.Abs(file); err == nil && abs == target {
 				file = tempPath
 				replaced = true
 			}
@@ -193,10 +201,12 @@ func validateMergedSemantics(original os.FileInfo, tempPath string) error {
 	}
 
 	merged, err := collector.Scan(&collector.Options{ScanDir: files, NoLogs: true}, nil)
-	if err != nil {
-		// The merge fails when a config_url cannot be fetched. That is not
-		// what this check is for, the agent reports it itself, and refusing
-		// the save would keep the user from fixing the URL here.
+	if err != nil || len(merged.UnmergedConfigURLs) > 0 {
+		// A config_url that cannot be fetched leaves out whatever it
+		// provides, such as the only ssh_authorized_keys, so the merge is
+		// not what the agent will see. The agent reports the fetch itself,
+		// and refusing the save would keep the user from fixing the URL or
+		// editing offline.
 		return nil
 	}
 	content, err := merged.String()
