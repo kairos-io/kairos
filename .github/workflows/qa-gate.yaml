@@ -6,18 +6,27 @@ name: QA gate
 #
 # - No `QA: pass` label: status is pending ("waiting for QA"), not a
 #   failure, so the PR does not look broken while CI and review go on.
-# - `QA: pass` label: status is success.
+# - `QA: pass` label added by someone with write, maintain or admin
+#   access: status is success. The triage role can add labels too, and
+#   it must not be enough, same as the `authorize` gate in pr-full.yaml.
 # - New commits: the label is removed, because the QA was for the old
 #   head. The PR goes back to pending until someone QAs it again.
 # - merge_group: always success. A PR only gets into the queue once the
 #   gate passed on its head, and the queue needs every required check
 #   reported on the merge group commit too.
 #
-# Runs under pull_request_target so it can write statuses and labels on
-# fork PRs. It never checks out or runs PR code, only reads the event.
+# Why pull_request_target: a `pull_request` run from a fork gets a
+# read-only token and cannot post a status or remove a label. zizmor
+# flags the trigger because it runs with a write token on fork PRs.
+# That is safe here because this workflow never checks out, builds or
+# runs anything from the PR. It only reads the event payload and calls
+# the GitHub API, and the only PR-controlled values it touches (label
+# names) are compared as strings, never interpolated into a shell.
+# Keep it that way: do not add a checkout or a `run:` step that uses
+# PR data, or the ignore below stops being true.
 
 on:
-  pull_request_target:
+  pull_request_target:  # zizmor: ignore[dangerous-triggers]
     types: [opened, reopened, synchronize, labeled, unlabeled]
   merge_group:
 
@@ -62,8 +71,30 @@ jobs:
               core.info(`New commits on #${pr.number}, removed "${label}"`);
             }
 
-            if (labels.includes(label)) {
-              await status(pr.head.sha, 'success', 'QA passed');
-            } else {
+            if (!labels.includes(label)) {
               await status(pr.head.sha, 'pending', 'Waiting for QA: pass');
+              return;
+            }
+
+            // Find who added the label most recently and check their access.
+            const events = await github.paginate(github.rest.issues.listEvents, {
+              owner, repo, issue_number: pr.number, per_page: 100,
+            });
+            const added = events
+              .filter((e) => e.event === 'labeled' && e.label && e.label.name === label)
+              .pop();
+            const who = added && added.actor && added.actor.login;
+            let allowed = false;
+            if (who) {
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner, repo, username: who,
+              });
+              allowed = ['admin', 'maintain', 'write'].includes(data.role_name || data.permission);
+            }
+
+            if (allowed) {
+              await status(pr.head.sha, 'success', `QA passed (labelled by ${who})`);
+            } else {
+              await status(pr.head.sha, 'pending',
+                `QA: pass was added by ${who || 'unknown'}, who lacks write access`);
             }
