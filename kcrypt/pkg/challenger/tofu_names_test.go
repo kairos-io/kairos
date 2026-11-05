@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -181,5 +182,29 @@ var _ = Describe("TOFU object names", func() {
 			Expect(ctx.VolumeData.SecretName).To(Equal("tofu-deadbeef-cos-oem"))
 			Expect(passphraseOf(ctx)).To(Equal("old-oem-passphrase"))
 		})
+	})
+
+	DescribeTable("stores a partition label Kubernetes accepts on the Secret",
+		func(partitionLabel string) {
+			_, err := createOrReuseTOFUSecret(kclient, ns, "tofu-secret", "passphrase", "pass", hashA, partitionLabel, logr.Discard())
+			Expect(err).ToNot(HaveOccurred())
+
+			s, err := kclient.CoreV1().Secrets(ns).Get(context.TODO(), "tofu-secret", metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(validation.IsValidLabelValue(s.Labels["kcrypt.kairos.io/partition"])).To(BeEmpty())
+		},
+		Entry("plus sign", "data+1_LUKS"),
+		Entry("leading underscore", "_data_LUKS"),
+		Entry("colon", "db:1_LUKS"),
+		Entry("leading dot", ".data_LUKS"),
+	)
+
+	It("keeps the default partition label as is on the Secret", func() {
+		_, err := createOrReuseTOFUSecret(kclient, ns, "tofu-secret", "passphrase", "pass", hashA, "COS_PERSISTENT_LUKS", logr.Discard())
+		Expect(err).ToNot(HaveOccurred())
+
+		s, err := kclient.CoreV1().Secrets(ns).Get(context.TODO(), "tofu-secret", metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(s.Labels["kcrypt.kairos.io/partition"]).To(Equal("COS_PERSISTENT_LUKS"))
 	})
 })
