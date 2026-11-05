@@ -20,10 +20,16 @@ import (
 	"time"
 )
 
-// AuroraBootVersion is the AuroraBoot release the helpers use, both as a
-// release binary and as a container image. Renovate updates it together with
-// the workflow pins.
+// AuroraBootVersion is the AuroraBoot container image the helpers use.
+// Renovate updates it together with the workflow pins.
 const AuroraBootVersion = "v0.29.0"
+
+// AuroraBootBinaryVersion is the AuroraBoot release whose binary the helpers
+// download. It is pinned apart from AuroraBootVersion because the v0.29.0
+// release was published without binaries or checksums.txt (its release
+// binaries job failed), so downloading it fails with a 404. Set it back to
+// AuroraBootVersion once an AuroraBoot release ships its binaries again.
+const AuroraBootBinaryVersion = "v0.28.0"
 
 // AuroraBootImage is the AuroraBoot container image the Docker helpers run.
 const AuroraBootImage = "quay.io/kairos/auroraboot:" + AuroraBootVersion
@@ -103,7 +109,7 @@ func extractBinary(tarball []byte) ([]byte, error) {
 }
 
 // AuroraBootBinary returns the path of the AuroraBoot release binary for
-// AuroraBootVersion on this machine, downloading it into a per-user cache on
+// AuroraBootBinaryVersion on this machine, downloading it into a per-user cache on
 // first use. KAIROS_TEST_AURORABOOT_BINARY, when set, names a binary that is
 // used as is.
 //
@@ -125,14 +131,14 @@ func AuroraBootBinary(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Join(cache, fmt.Sprintf("auroraboot-%s-linux-%s", AuroraBootVersion, arch))
+	dir := filepath.Join(cache, fmt.Sprintf("auroraboot-%s-linux-%s", AuroraBootBinaryVersion, arch))
 	final := filepath.Join(dir, "auroraboot")
 	if info, err := os.Stat(final); err == nil && info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0 {
 		return final, nil
 	}
 
-	asset := fmt.Sprintf("auroraboot_%s_linux_%s.tar.gz", strings.TrimPrefix(AuroraBootVersion, "v"), arch)
-	base := auroraBootReleaseURL + "/" + AuroraBootVersion + "/"
+	asset := fmt.Sprintf("auroraboot_%s_linux_%s.tar.gz", strings.TrimPrefix(AuroraBootBinaryVersion, "v"), arch)
+	base := auroraBootReleaseURL + "/" + AuroraBootBinaryVersion + "/"
 	sums, err := httpGet(ctx, base+"checksums.txt")
 	if err != nil {
 		return "", err
