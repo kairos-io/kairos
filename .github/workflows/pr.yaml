@@ -31,6 +31,11 @@ name: PR
 # a fork run: it gets a read-write token and the repository secrets. It
 # runs only code that is already approved and queued, and no job here
 # pushes or logs in to a registry.
+#
+# No path filter on pull_request: the jobs here are required checks of
+# the merge queue, and a PR can enter the queue only when its required
+# checks pass. A path filter would skip this workflow on a docs-only PR,
+# its required checks would never report, and the PR could not merge.
 
 on:
   merge_group:
