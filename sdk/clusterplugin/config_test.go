@@ -27,7 +27,7 @@ var _ = Describe("Role JSON serialization", func() {
 		var d clusterplugin.Cluster
 		err = json.Unmarshal([]byte(`{"role":"worker"}`), &d)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(d.Role).To(Equal(clusterplugin.RoleWorker))
+		Expect(d.Role).To(Equal(clusterplugin.Role(clusterplugin.RoleWorker)))
 
 		// Round-trip all defined roles
 		for _, role := range []clusterplugin.Role{
