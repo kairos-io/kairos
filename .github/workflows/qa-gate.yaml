@@ -1,101 +1,33 @@
 name: QA gate
 
-# Posts a `qa-gate` commit status so merging can wait on QA without
-# blocking anything else. Make `qa-gate` a required status check in the
-# master ruleset and auto-merge holds a PR until it carries `QA: pass`.
+# The `QA: pass` label marks that QA is done, and merging requires it.
+# Make the `qa-gate` job a required status check in the master ruleset:
 #
-# - No `QA: pass` label: status is pending ("waiting for QA"), not a
-#   failure, so the PR does not look broken while CI and review go on.
-# - `QA: pass` label added by one of the QA bots in QA_BOTS: status is
-#   success. QA here is automated, so only those accounts count. A label
-#   added by anyone else, maintainers included, leaves the gate pending;
-#   the triage role can add labels too and must not be enough, same as
-#   the `authorize` gate in pr-full.yaml.
-# - New commits: the label is removed, because the QA was for the old
-#   head. The PR goes back to pending until someone QAs it again.
-# - merge_group: always success. A PR only gets into the queue once the
-#   gate passed on its head, and the queue needs every required check
-#   reported on the merge group commit too.
+# - the PR has the `QA: pass` label: the job passes
+# - it does not: the job fails
+# - merge_group: the job passes, because a PR only gets into the queue
+#   after the job passed on it, and the queue needs every required check
+#   reported on the merge group commit too
 #
-# Why pull_request_target: a `pull_request` run from a fork gets a
-# read-only token and cannot post a status or remove a label. zizmor
-# flags the trigger because it runs with a write token on fork PRs.
-# That is safe here because this workflow never checks out, builds or
-# runs anything from the PR. It only reads the event payload and calls
-# the GitHub API, and the only PR-controlled values it touches (label
-# names) are compared as strings, never interpolated into a shell.
-# Keep it that way: do not add a checkout or a `run:` step that uses
-# PR data, or the ignore below stops being true.
+# It reruns when the label is added or removed and on every push. It
+# reads only the event payload, checks nothing out and needs no token
+# permissions, so it runs on the plain pull_request trigger.
 
 on:
-  pull_request_target:  # zizmor: ignore[dangerous-triggers]
+  pull_request:
     types: [opened, reopened, synchronize, labeled, unlabeled]
   merge_group:
 
-permissions:
-  statuses: write
-  pull-requests: write
-  issues: write
-
-env:
-  # Accounts whose `QA: pass` label opens the gate. Change only with a
-  # maintainer's review.
-  QA_BOTS: itxaka-agent ci-robbot
-
-concurrency:
-  group: qa-gate-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
   qa-gate:
     runs-on: ubuntu-latest
     steps:
-      - name: Set the qa-gate status
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        with:
-          script: |
-            const label = 'QA: pass';
-            const { owner, repo } = context.repo;
-            const status = (sha, state, description) =>
-              github.rest.repos.createCommitStatus({
-                owner, repo, sha, state, description, context: 'qa-gate',
-              });
-
-            if (context.eventName === 'merge_group') {
-              await status(context.payload.merge_group.head_sha, 'success',
-                'QA checked before the PR entered the queue');
-              return;
-            }
-
-            const pr = context.payload.pull_request;
-            let labels = pr.labels.map((l) => l.name);
-
-            if (context.payload.action === 'synchronize' && labels.includes(label)) {
-              await github.rest.issues.removeLabel({
-                owner, repo, issue_number: pr.number, name: label,
-              });
-              labels = labels.filter((l) => l !== label);
-              core.info(`New commits on #${pr.number}, removed "${label}"`);
-            }
-
-            if (!labels.includes(label)) {
-              await status(pr.head.sha, 'pending', 'Waiting for QA: pass');
-              return;
-            }
-
-            // Only a label added by one of the QA bots counts.
-            const bots = process.env.QA_BOTS.split(/\s+/).filter(Boolean);
-            const events = await github.paginate(github.rest.issues.listEvents, {
-              owner, repo, issue_number: pr.number, per_page: 100,
-            });
-            const added = events
-              .filter((e) => e.event === 'labeled' && e.label && e.label.name === label)
-              .pop();
-            const who = added && added.actor && added.actor.login;
-
-            if (who && bots.includes(who)) {
-              await status(pr.head.sha, 'success', `QA passed (labelled by ${who})`);
-            } else {
-              await status(pr.head.sha, 'pending',
-                `QA: pass was added by ${who || 'unknown'}, not a QA bot`);
-            }
+      - name: Require the QA pass label
+        if: "${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'QA: pass') }}"
+        run: |
+          echo "::error::This pull request does not have the 'QA: pass' label."
+          exit 1
+      - name: QA pass label present
+        run: echo "QA gate passed"
