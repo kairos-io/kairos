@@ -1,0 +1,69 @@
+name: QA gate
+
+# Posts a `qa-gate` commit status so merging can wait on QA without
+# blocking anything else. Make `qa-gate` a required status check in the
+# master ruleset and auto-merge holds a PR until it carries `QA: pass`.
+#
+# - No `QA: pass` label: status is pending ("waiting for QA"), not a
+#   failure, so the PR does not look broken while CI and review go on.
+# - `QA: pass` label: status is success.
+# - New commits: the label is removed, because the QA was for the old
+#   head. The PR goes back to pending until someone QAs it again.
+# - merge_group: always success. A PR only gets into the queue once the
+#   gate passed on its head, and the queue needs every required check
+#   reported on the merge group commit too.
+#
+# Runs under pull_request_target so it can write statuses and labels on
+# fork PRs. It never checks out or runs PR code, only reads the event.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+  merge_group:
+
+permissions:
+  statuses: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: qa-gate-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  qa-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set the qa-gate status
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const label = 'QA: pass';
+            const { owner, repo } = context.repo;
+            const status = (sha, state, description) =>
+              github.rest.repos.createCommitStatus({
+                owner, repo, sha, state, description, context: 'qa-gate',
+              });
+
+            if (context.eventName === 'merge_group') {
+              await status(context.payload.merge_group.head_sha, 'success',
+                'QA checked before the PR entered the queue');
+              return;
+            }
+
+            const pr = context.payload.pull_request;
+            let labels = pr.labels.map((l) => l.name);
+
+            if (context.payload.action === 'synchronize' && labels.includes(label)) {
+              await github.rest.issues.removeLabel({
+                owner, repo, issue_number: pr.number, name: label,
+              });
+              labels = labels.filter((l) => l !== label);
+              core.info(`New commits on #${pr.number}, removed "${label}"`);
+            }
+
+            if (labels.includes(label)) {
+              await status(pr.head.sha, 'success', 'QA passed');
+            } else {
+              await status(pr.head.sha, 'pending', 'Waiting for QA: pass');
+            }
