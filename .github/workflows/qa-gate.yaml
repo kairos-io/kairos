@@ -6,9 +6,11 @@ name: QA gate
 #
 # - No `QA: pass` label: status is pending ("waiting for QA"), not a
 #   failure, so the PR does not look broken while CI and review go on.
-# - `QA: pass` label added by someone with write, maintain or admin
-#   access: status is success. The triage role can add labels too, and
-#   it must not be enough, same as the `authorize` gate in pr-full.yaml.
+# - `QA: pass` label added by one of the QA bots in QA_BOTS: status is
+#   success. QA here is automated, so only those accounts count. A label
+#   added by anyone else, maintainers included, leaves the gate pending;
+#   the triage role can add labels too and must not be enough, same as
+#   the `authorize` gate in pr-full.yaml.
 # - New commits: the label is removed, because the QA was for the old
 #   head. The PR goes back to pending until someone QAs it again.
 # - merge_group: always success. A PR only gets into the queue once the
@@ -34,6 +36,11 @@ permissions:
   statuses: write
   pull-requests: write
   issues: write
+
+env:
+  # Accounts whose `QA: pass` label opens the gate. Change only with a
+  # maintainer's review.
+  QA_BOTS: itxaka-agent ci-robbot
 
 concurrency:
   group: qa-gate-${{ github.event.pull_request.number || github.sha }}
@@ -76,7 +83,8 @@ jobs:
               return;
             }
 
-            // Find who added the label most recently and check their access.
+            // Only a label added by one of the QA bots counts.
+            const bots = process.env.QA_BOTS.split(/\s+/).filter(Boolean);
             const events = await github.paginate(github.rest.issues.listEvents, {
               owner, repo, issue_number: pr.number, per_page: 100,
             });
@@ -84,17 +92,10 @@ jobs:
               .filter((e) => e.event === 'labeled' && e.label && e.label.name === label)
               .pop();
             const who = added && added.actor && added.actor.login;
-            let allowed = false;
-            if (who) {
-              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
-                owner, repo, username: who,
-              });
-              allowed = ['admin', 'maintain', 'write'].includes(data.role_name || data.permission);
-            }
 
-            if (allowed) {
+            if (who && bots.includes(who)) {
               await status(pr.head.sha, 'success', `QA passed (labelled by ${who})`);
             } else {
               await status(pr.head.sha, 'pending',
-                `QA: pass was added by ${who || 'unknown'}, who lacks write access`);
+                `QA: pass was added by ${who || 'unknown'}, not a QA bot`);
             }
