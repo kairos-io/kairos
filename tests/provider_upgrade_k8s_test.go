@@ -103,6 +103,11 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Expect(currentVersion).To(ContainSubstring("v"))
 		fmt.Printf("Current version before upgrade: %s\n", currentVersion)
 
+		bootIDBefore, err := vm.Sudo("cat /proc/sys/kernel/random/boot_id")
+		Expect(err).ToNot(HaveOccurred())
+		bootIDBefore = strings.TrimSpace(bootIDBefore)
+		Expect(bootIDBefore).ToNot(BeEmpty())
+
 		deployKairosOperator(vm)
 
 		// Opportunistic feature test: verify we can find a matching release image
@@ -170,6 +175,18 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			out, _ = kubectl(vm, "get nodeopupgrade -n operator-system kairos-upgrade -o jsonpath='{.status.phase}'")
 			return out
 		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("Completed"))
+
+		By("checking that the upgrade ran instead of being skipped")
+		out, _ = kubectl(vm, "get nodeopupgrade -n operator-system kairos-upgrade -o jsonpath='{.status.nodeStatuses.*.message}'")
+		Expect(out).ToNot(ContainSubstring("Skipped by preflight"))
+		out, _ = kubectl(vm, "get nodeopupgrade -n operator-system kairos-upgrade -o jsonpath='{.status.nodeStatuses.*.jobName}'")
+		Expect(strings.TrimSpace(out)).ToNot(BeEmpty(), "no upgrade Job was recorded for the node")
+
+		By("checking that the node rebooted")
+		Eventually(func() string {
+			bootID, _ := vm.Sudo("cat /proc/sys/kernel/random/boot_id")
+			return strings.TrimSpace(bootID)
+		}, 30*time.Minute, 10*time.Second).Should(And(Not(BeEmpty()), Not(Equal(bootIDBefore))))
 
 		By("validate node is running after upgrade")
 		// After a successful upgrade and reboot, verify the node is healthy
