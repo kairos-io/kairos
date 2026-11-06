@@ -106,6 +106,37 @@ stages:
       if: '[ -e "/etc/kairos/branding/grubmenu.cfg" ] && grep -vq "rd.immucore.uki" /proc/cmdline'
       commands:
       - cp -rfv /etc/kairos/branding/grubmenu.cfg /tmp/mnt/STATE/grubmenu
+    # grub.cfg searches for /grubenv and /boot_assessment on every boot, and
+    # GRUB's search prints an error when it finds nothing. After an install or
+    # a reset neither file exists: /boot_assessment is first written by the
+    # "Remove GRUB sentinels" step, after GRUB has already run, and /grubenv
+    # only when something sets a variable. Create both, empty.
+    # grubenv goes where kairos-agent writes it: on COS_OEM, or on COS_STATE
+    # when COS_OEM is encrypted, because GRUB cannot read an encrypted
+    # partition. A locked COS_OEM has another label, so the lookup finds none.
+    - &grubenvfiles
+      name: "Create empty GRUB environment files"
+      if: grep -vq "rd.immucore.uki" /proc/cmdline
+      commands:
+      - |
+          if [ ! -e /tmp/mnt/STATE/boot_assessment ]; then
+            grub2-editenv /tmp/mnt/STATE/boot_assessment create
+          fi
+          OEM=$(blkid -L COS_OEM || true)
+          case "$OEM" in
+            /dev/mapper/*|/dev/dm-*) OEM="" ;;
+          esac
+          if [ -n "$OEM" ] && [ "$(blkid -o value -s TYPE "$OEM")" != "crypto_LUKS" ]; then
+            mkdir -p /tmp/mnt/OEM
+            if mount "$OEM" /tmp/mnt/OEM; then
+              if [ ! -e /tmp/mnt/OEM/grubenv ]; then
+                grub2-editenv /tmp/mnt/OEM/grubenv create
+              fi
+              umount /tmp/mnt/OEM
+            fi
+          elif [ ! -e /tmp/mnt/STATE/grubenv ]; then
+            grub2-editenv /tmp/mnt/STATE/grubenv create
+          fi
     - &stateumount
       name: "umount state"
       if: grep -vq "rd.immucore.uki" /proc/cmdline
@@ -131,6 +162,7 @@ stages:
     - <<: *customhook
     - <<: *grubinstall
     - <<: *bootgrub
+    - <<: *grubenvfiles
     - <<: *stateumount
 
     after-reset:
@@ -139,4 +171,5 @@ stages:
     - <<: *customhook
     - <<: *grubinstall
     - <<: *bootgrub
+    - <<: *grubenvfiles
     - <<: *stateumount
