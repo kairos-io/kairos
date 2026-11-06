@@ -34,13 +34,10 @@ name: PR
 
 on:
   merge_group:
+  # No paths-ignore: these jobs are required checks on master, and a
+  # workflow that never starts never reports them, so a docs-only PR
+  # (#5871) could never enter the merge queue.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - 'LICENSE'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/CODEOWNERS'
 
 permissions:
   contents: read
