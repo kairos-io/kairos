@@ -478,6 +478,67 @@ auto:
 	})
 })
 
+// rootProps generates the P2PSchema and returns the properties of the block
+// itself, which sit at the root rather than under a definition the way the
+// nested blocks schemaProps reaches do.
+func rootProps() map[string]interface{} {
+	raw, err := GenerateSchema(P2PSchema{}, "")
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+
+	var doc map[string]interface{}
+	ExpectWithOffset(1, json.Unmarshal([]byte(raw), &doc)).To(Succeed())
+
+	props, ok := doc["properties"].(map[string]interface{})
+	ExpectWithOffset(1, ok).To(BeTrue(), "generated schema has no root properties object")
+
+	return props
+}
+
+// Tier 2 of kairos-io/kairos#1016. `disable_dht` was the one key in the p2p
+// block an author had to read backwards, next to `dns` and `dynamic_roles`.
+// `dht_enabled` replaces it, and `disable_dht` stays published so that an
+// older cloud-config keeps validating.
+var _ = Describe("P2P Schema: dht_enabled", func() {
+	const token = "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+
+	validate := func(yml string) *KConfig {
+		config, err := NewConfigFromYAML(yml, P2PSchema{})
+		ExpectWithOffset(1, err).ToNot(HaveOccurred())
+
+		return config
+	}
+
+	It("publishes dht_enabled", func() {
+		Expect(rootProps()).To(HaveKey("dht_enabled"))
+	})
+
+	It("still publishes the deprecated disable_dht", func() {
+		Expect(rootProps()).To(HaveKey("disable_dht"))
+	})
+
+	// The provider leaves the DHT on unless it is told otherwise, which
+	// `disable_dht` published as `default: true` while meaning the opposite.
+	It("publishes the default the provider actually applies", func() {
+		props := rootProps()
+
+		dht, ok := props["dht_enabled"].(map[string]interface{})
+		Expect(ok).To(BeTrue(), "dht_enabled is not an object")
+		Expect(dht["default"]).To(BeTrue())
+
+		disable, ok := props["disable_dht"].(map[string]interface{})
+		Expect(ok).To(BeTrue(), "disable_dht is not an object")
+		Expect(disable).NotTo(HaveKey("default"))
+	})
+
+	It("validates a config written with dht_enabled", func() {
+		Expect(validate("#cloud-config\nrole: worker\nnetwork_token: \"" + token + "\"\ndht_enabled: false\n").IsValid()).To(BeTrue())
+	})
+
+	It("validates a config still written with disable_dht", func() {
+		Expect(validate("#cloud-config\nrole: worker\nnetwork_token: \"" + token + "\"\ndisable_dht: true\n").IsValid()).To(BeTrue())
+	})
+})
+
 var _ = Describe("P2P Schema role", func() {
 	var config *KConfig
 	var err error
