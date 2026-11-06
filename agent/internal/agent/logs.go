@@ -13,6 +13,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/diagnostics"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -24,6 +25,9 @@ import (
 type LogsResult struct {
 	Journal map[string][]byte `yaml:"-"`
 	Files   map[string][]byte `yaml:"-"`
+	// Diagnostics is the machine state sdk/diagnostics collects, in the
+	// order it returns the groups.
+	Diagnostics []diagnostics.Group `yaml:"-"`
 }
 
 // LogsCollector handles the collection of logs from various sources
@@ -89,6 +93,17 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			// merged.
 			"systemd-sysext",
 			"systemd-confext",
+			// The p2p provider writes and enables one of these two at
+			// bootstrap: edgevpn@kairos when the node joins the VPN,
+			// edgevpn when it only needs the API to co-ordinate. They are
+			// the network itself, so a bundle taken because a node never
+			// joined had nothing in it about the network. The instance name
+			// is the provider's EdgeVPNDefaultInstance, which no other value
+			// is ever passed. Spelled out rather than imported: the constant
+			// lives in provider/internal/services, which this package cannot
+			// reach.
+			"edgevpn",
+			"edgevpn@kairos",
 		},
 		Files: []string{
 			"/var/log/kairos/*.log",
@@ -167,6 +182,12 @@ func (lc *LogsCollector) Collect() (*LogsResult, error) {
 		}
 	}
 
+	// The state of the machine itself: who it is, what is running, what is
+	// mounted, what hardware it has. A journal says what the agent did; these
+	// say what it did it on, and without them a bundle cannot answer why a
+	// disk, a network or a boot mode behaved the way it did.
+	result.Diagnostics = diagnostics.Collect(lc.config.Runner, lc.config.Fs)
+
 	return result, nil
 }
 
@@ -222,6 +243,21 @@ func (lc *LogsCollector) CreateTarball(result *LogsResult, outputPath string) er
 		}
 		if _, err := tw.Write(content); err != nil {
 			return fmt.Errorf("failed to write file content: %w", err)
+		}
+	}
+
+	// Add the machine diagnostics to the tarball
+	for _, group := range result.Diagnostics {
+		header := &tar.Header{
+			Name: fmt.Sprintf("diagnostics/%s.log", group.Name),
+			Mode: constants.FilePerm,
+			Size: int64(len(group.Body)),
+		}
+		if err := tw.WriteHeader(header); err != nil {
+			return fmt.Errorf("failed to write diagnostics header: %w", err)
+		}
+		if _, err := tw.Write([]byte(group.Body)); err != nil {
+			return fmt.Errorf("failed to write diagnostics content: %w", err)
 		}
 	}
 

@@ -127,8 +127,8 @@ func extToggle(ctx context.Context, a ExtensionArgs, action string) (string, err
 }
 
 // enableArgs builds the argv for the enable and disable subcommands. The scope
-// flag must come before the positional name: urfave/cli v2 stops parsing flags
-// at the first positional argument, so a trailing --common makes the Before
+// flag must come before the positional name: kairos-agent stops parsing flags
+// at the first positional argument, so a trailing --common makes the PreRunE
 // hook reject the call with "extension name required".
 func enableArgs(a ExtensionArgs, action string) []string {
 	args := []string{a.Type, action, "--" + a.BootState}

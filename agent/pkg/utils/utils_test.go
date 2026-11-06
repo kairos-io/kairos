@@ -30,7 +30,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/runner"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
-	"github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils/partitions"
 	"github.com/kairos-io/kairos/v4/agent/tests/matchers"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
@@ -259,13 +259,13 @@ var _ = Describe("Utils", Label("utils"), func() {
 		It("runs a keyless verification", func() {
 			_, err := utils.CosignVerify(fs, runner, "some/image:latest", "")
 			Expect(err).To(BeNil())
-			Expect(runner.CmdsMatch([][]string{{"cosign", "some/image:latest"}})).To(BeNil())
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "some/image:latest"}})).To(BeNil())
 		})
 		It("runs a verification using a public key", func() {
 			_, err := utils.CosignVerify(fs, runner, "some/image:latest", "https://mykey.pub")
 			Expect(err).To(BeNil())
 			Expect(runner.CmdsMatch(
-				[][]string{{"cosign", "-key", "https://mykey.pub", "some/image:latest"}},
+				[][]string{{"cosign", "verify", "--key", "https://mykey.pub", "some/image:latest"}},
 			)).To(BeNil())
 		})
 		It("Fails to to create temporary directories", func() {

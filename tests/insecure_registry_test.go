@@ -28,7 +28,7 @@ func insecureRegistryBaseImage() string {
 	if v := os.Getenv("BASE_IMAGE"); v != "" {
 		return v
 	}
-	return "ghcr.io/kairos-io/hadron:v0.5.3"
+	return "ghcr.io/kairos-io/hadron:v0.6.3"
 }
 
 var (

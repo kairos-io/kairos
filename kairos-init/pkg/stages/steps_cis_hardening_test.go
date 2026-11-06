@@ -1118,6 +1118,20 @@ var _ = Describe("GetCISHardeningStage gaps found by the CIS DIL benchmark run",
 		Expect(opasswd).To(BeARegularFile())
 	})
 
+	It("single-spaces the pam_pwquality arguments on Hadron (CIS 5.3.1)", func() {
+		st := stageNamed("Single-space the pam_pwquality arguments in the Hadron PAM stack")
+		Expect(st.OnlyIfOs).To(Equal("Hadron.*"))
+		f := writeTemp("password   requisite                   pam_pwquality.so     try_first_pass retry=3\npassword   optional                    pam_permit.so\n")
+		swaps := map[string]string{"/etc/pam.d/system-auth": f}
+		runScoped(st.Commands, swaps)
+		runScoped(st.Commands, swaps)
+		got := read(f)
+		// The benchmark's regexes, verbatim.
+		Expect(got).To(MatchRegexp(`(?m)^password\s+requisite\s+pam_pwquality\.so (\S+\s+)*retry=[3210]`))
+		Expect(got).To(MatchRegexp(`(?m)^password\s+requisite\s+pam_pwquality\.so (\S+\s+)*try_first_pass`))
+		Expect(got).To(ContainSubstring("\npassword   optional                    pam_permit.so\n"))
+	})
+
 	DescribeTable("sets the shell umask (CIS 5.4.4)",
 		func(loginDefsUmask, want string) {
 			defs := writeTemp("UMASK\t" + loginDefsUmask + "\n")

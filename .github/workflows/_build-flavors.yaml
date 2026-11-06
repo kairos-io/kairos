@@ -108,19 +108,22 @@ jobs:
             {"platform":"arm64","base_image":"ubuntu:22.04","model":"nvidia-jetson-agx-orin","fips":false},
             {"platform":"arm64","base_image":"ubuntu:22.04","model":"nvidia-jetson-orin-nx","fips":false},
             {"platform":"arm64","base_image":"ubuntu:22.04","model":"rpi4","fips":false},
-            {"platform":"amd64","base_image":"ghcr.io/kairos-io/hadron:v0.5.3"},
+            {"platform":"amd64","base_image":"ghcr.io/kairos-io/hadron:v0.6.3"},
             {"platform":"amd64","base_image":"ghcr.io/kairos-io/hadron:main"},
-            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.5.3"},
+            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.6.3"},
             {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main"},
-            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.5.3","model":"rpi4","fips":false},
+            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.6.3","model":"rpi4","fips":false},
             {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main","model":"rpi4","fips":false}
           ]'
           cells=$(jq -c --argjson e "$extras" '. + $e' <<<"$cells")
           if [[ "$SCOPE" == "full" ]]; then
+            # fedorariscv/base:42 is left out for now: under QEMU it runs
+            # 2h+ and holds master (and with it the release) pending. Add
+            #   {"platform":"riscv64","base_image":"fedorariscv/base:42","model":"generic","fips":false}
+            # back here to bring it back.
             riscv_extras='[
               {"platform":"riscv64","base_image":"ubuntu:24.04","model":"generic","fips":false},
-              {"platform":"riscv64","base_image":"debian:13","model":"generic","fips":false},
-              {"platform":"riscv64","base_image":"fedorariscv/base:42","model":"generic","fips":false}
+              {"platform":"riscv64","base_image":"debian:13","model":"generic","fips":false}
             ]'
             cells=$(jq -c --argjson e "$riscv_extras" '. + $e' <<<"$cells")
           fi
@@ -189,13 +192,13 @@ jobs:
         # Needed on riscv64 (no native runner). Also cheap enough to
         # unconditionally register so arm64 cross-build sanity is one
         # less runner-arch assumption.
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a  # v4.3.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
 
       - name: Build flavor image (${{ matrix.platform }} / ${{ matrix.base_image }})
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: .
           file: kairos-init/Dockerfile.test

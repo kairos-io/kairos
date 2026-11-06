@@ -177,7 +177,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			It("list empty boot entries if there is none", func() {
 				entries, err := listSystemdEntries(config, &sdkPartitions.Partition{MountPoint: "/efi"})
 				Expect(err).ToNot(HaveOccurred())
-				Expect(entries).To(HaveLen(0))
+				Expect(entries).To(BeEmpty())
 			})
 		})
 		Context("SelectBootEntry", func() {
@@ -625,7 +625,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 		It("returns no entries when the entries dir does not exist", func() {
 			entries, err := listSystemdEntries(config, &sdkPartitions.Partition{MountPoint: "/nonexistent"})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(entries).To(HaveLen(0))
+			Expect(entries).To(BeEmpty())
 		})
 		It("skips dirs and non conf files", func() {
 			err := fsutils.MkdirAll(fs, "/efi/loader/entries/somedir", os.ModeDir|os.ModePerm)
@@ -750,7 +750,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			It("list empty boot entries if there is none", func() {
 				entries, err := listGrubEntries(config)
 				Expect(err).To(HaveOccurred())
-				Expect(entries).To(HaveLen(0))
+				Expect(entries).To(BeEmpty())
 
 			})
 		})

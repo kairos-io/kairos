@@ -28,7 +28,7 @@ cd "$REPO_ROOT"
 # --- Build inputs -----------------------------------------------------------
 # These mirror the amd64-standard matrix cell in .github/workflows/master.yaml.
 : "${ARCH:=amd64}"
-: "${BASE_IMAGE:=ghcr.io/kairos-io/hadron:v0.5.3}"
+: "${BASE_IMAGE:=ghcr.io/kairos-io/hadron:v0.6.3}"
 : "${MODEL:=generic}"
 # Unset means k3s, like the amd64-standard cell. Set it to an empty string
 # (KUBERNETES_DISTRO= make iso) for a core image without Kubernetes.

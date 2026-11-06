@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -75,6 +76,12 @@ Configuration:
 
   # Run plugin event
   kcrypt-discovery-challenger discovery.password`,
+	// The agent bus runs this binary with the event name as its only
+	// argument. An event with no subcommand here has to fail rather than
+	// print the TPM hash, which the bus would read as the answer. Cobra only
+	// refuses an unknown subcommand on its own for the root of the tree, and
+	// under the multi-call kairos binary this command is not the root.
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runTPMHash()
 	},
@@ -210,9 +217,14 @@ func init() {
 	rootCmd.AddCommand(pluginCmd)
 }
 
+// Command returns the kcrypt discovery root command, for the multi-call kairos
+// binary to add under its own root.
+func Command() *cobra.Command {
+	return rootCmd
+}
+
 // Run runs the kcrypt discovery CLI and returns a process exit code. It is
-// called from the standalone kcrypt-discovery-challenger binary and from the
-// monorepo multi-call kairos binary.
+// called from the standalone kcrypt-discovery-challenger binary.
 func Run() int {
 	if err := rootCmd.Execute(); err != nil {
 		return 1
@@ -467,9 +479,14 @@ func runInfo(pcrsFlag string, tpmDevice string) error {
 		return fmt.Errorf("encoding EK to PEM: %w", err)
 	}
 
-	// Read PCR values
+	// Read PCR values. Nothing verifies this quote, we only read the PCRs
+	// out of it, but tpm-helpers refuses to quote without a nonce.
 	logger.Debugf("Reading PCR values")
-	pcrQuote, err := akManager.GeneratePCRQuote(pcrIndices)
+	nonce := make([]byte, 32)
+	if _, err := rand.Read(nonce); err != nil {
+		return fmt.Errorf("generating quote nonce: %w", err)
+	}
+	pcrQuote, err := akManager.GeneratePCRQuote(pcrIndices, nonce)
 	if err != nil {
 		return fmt.Errorf("reading PCR values: %w", err)
 	}

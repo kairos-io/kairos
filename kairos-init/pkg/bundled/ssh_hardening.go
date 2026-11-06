@@ -1,5 +1,10 @@
 package bundled
 
+import (
+	"os/exec"
+	"strings"
+)
+
 // SshdHardeningPath is the drop-in file we install so hardened defaults
 // take effect on any distro whose sshd loads /etc/ssh/sshd_config.d/*.conf
 // (all Kairos targets: OpenSSH >= 8.2).
@@ -113,3 +118,57 @@ PrintMotd no
 # hardening stage.
 Banner /etc/issue.net
 `
+
+// sshdAlgorithmQueries maps each crypto directive in SshdHardeningConfig to
+// the `ssh -Q` query that lists the names the installed OpenSSH knows.
+// HostKeyAlgorithms uses key-sig because `ssh -Q key` omits the rsa-sha2-*
+// signature names.
+var sshdAlgorithmQueries = map[string]string{
+	"KexAlgorithms":     "kex",
+	"Ciphers":           "cipher",
+	"MACs":              "mac",
+	"HostKeyAlgorithms": "key-sig",
+}
+
+// SshQuery returns the algorithm names `ssh -Q <query>` prints.
+func SshQuery(query string) ([]string, error) {
+	out, err := exec.Command("ssh", "-Q", query).Output()
+	if err != nil {
+		return nil, err
+	}
+	return strings.Fields(string(out)), nil
+}
+
+// FilterSshdAlgorithms drops the KexAlgorithms, Ciphers, MACs and
+// HostKeyAlgorithms entries in config that supported does not list, so an
+// older sshd does not reject the file over names it does not know. A
+// directive is left as is when supported fails or none of its entries
+// would remain.
+func FilterSshdAlgorithms(config string, supported func(query string) ([]string, error)) string {
+	lines := strings.Split(config, "\n")
+	for i, line := range lines {
+		name, value, ok := strings.Cut(line, " ")
+		query, known := sshdAlgorithmQueries[name]
+		if !ok || !known {
+			continue
+		}
+		names, err := supported(query)
+		if err != nil {
+			continue
+		}
+		set := make(map[string]bool, len(names))
+		for _, n := range names {
+			set[n] = true
+		}
+		var kept []string
+		for _, alg := range strings.Split(value, ",") {
+			if set[alg] {
+				kept = append(kept, alg)
+			}
+		}
+		if len(kept) > 0 {
+			lines[i] = name + " " + strings.Join(kept, ",")
+		}
+	}
+	return strings.Join(lines, "\n")
+}

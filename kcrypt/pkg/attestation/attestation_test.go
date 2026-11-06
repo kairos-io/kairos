@@ -56,6 +56,33 @@ var _ = Describe("Remote attestation end-to-end", func() {
 		Expect(pass).To(Equal([]byte("passphrase")))
 	})
 
+	It("rejects a quote recorded during an earlier exchange", func() {
+		client, err := NewRemoteAttestationClient(tpmhelpers.Emulated, tpmhelpers.EmulatedHostSeed())
+		Expect(err).ToNot(HaveOccurred())
+		defer client.Close() //nolint:errcheck
+
+		init, err := client.CreateInit()
+		Expect(err).ToNot(HaveOccurred())
+		server := NewRemoteAttestationServer(&dummyAttestator{})
+
+		// First exchange: record the quote.
+		oldChallenge, _, err := server.GenerateChallenge(init)
+		Expect(err).ToNot(HaveOccurred())
+		oldProof, err := client.HandleChallenge(oldChallenge, []int{0, 7, 11})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Second exchange: answer the fresh challenge correctly, but send
+		// the recorded quote instead of a new one.
+		challenge, expectedSecret, err := server.GenerateChallenge(init)
+		Expect(err).ToNot(HaveOccurred())
+		proof, err := client.HandleChallenge(challenge, []int{0, 7, 11})
+		Expect(err).ToNot(HaveOccurred())
+		proof.PCRQuote = oldProof.PCRQuote
+
+		_, err = server.VerifyProof(init, proof, expectedSecret)
+		Expect(err).To(MatchError(ContainSubstring("qualifying data does not match the nonce")))
+	})
+
 	It("methods validate input formats", func() {
 		// malformed init (invalid EK public key)
 		server := NewRemoteAttestationServer(&dummyAttestator{})
