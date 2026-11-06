@@ -97,10 +97,8 @@ func bootHostsWith(root string, steps []hostsStep, serviceManager string) int {
 		if step.OnlyServiceManager != "" && step.OnlyServiceManager != serviceManager {
 			continue
 		}
-		if step.If != "" {
-			if err := exec.Command("sh", "-c", rewriteHostsPaths(step.If, root)).Run(); err != nil {
-				continue
-			}
+		if step.If != "" && !guardPassesExpr(rewriteHostsPaths(step.If, root)) {
+			continue
 		}
 		applied++
 
