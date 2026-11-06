@@ -65,7 +65,7 @@ stages:
                  mkdir -p /run/mount/persistent && \
                  mount /dev/disk/by-label/COS_PERSISTENT /run/mount/persistent && \
                  mkdir -p /run/mount/persistent/work /run/mount/persistent/local && \
-                 mount -t overlay \
+                 mount -t overlay overlay \
                             -o lowerdir=/usr/local,upperdir=/run/mount/persistent/local,workdir=/run/mount/persistent/work \
                             /usr/local
         permissions: 0644
