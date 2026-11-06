@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// runCommand / removeFile / readFile / writeFile / globFiles are the
+// runCommand / removeFile / readFile / writeFile / walkFiles are the
 // package-local indirections used so tests can swap in fake runners without
 // having to build a full fake filesystem. Production code goes through
 // exec.Command and the os package.
@@ -24,17 +24,49 @@ var (
 	writeFile  = func(path string, data []byte, perm os.FileMode) error {
 		return os.WriteFile(path, data, perm)
 	}
-	globFiles = func(pattern string) ([]string, error) { return filepath.Glob(pattern) }
+	walkFiles = listConfigFiles
 )
 
-// oemGlobs are the cloud-config file patterns Kairos ships under /oem. We
-// scan both because both extensions appear in the wild.
-var oemGlobs = []string{"/oem/*.yaml", "/oem/*.yml"}
+// cloudConfigDirs are the writable directories the boot-time config scan
+// reads cloud-config from. The scan walks them recursively and loads every
+// .yaml/.yml file, so the cleanup has to cover the same ground.
+var cloudConfigDirs = []string{"/oem", "/usr/local/cloud-config"}
+
+// cmdlinePath is where the kernel command line is read from. Config passed
+// there is merged into the boot scan but cannot be edited from the node.
+const cmdlinePath = "/proc/cmdline"
+
+// listConfigFiles returns every regular file under root, recursively, the
+// way the collector walks a scan directory: symlinked files are followed,
+// symlinked directories are not descended into, and unreadable entries are
+// skipped. Anything that is not a regular file (FIFOs, sockets, devices) is
+// left out so reading it can't block.
+func listConfigFiles(root string) ([]string, error) {
+	var files []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Stat(path)
+			if err != nil {
+				return nil
+			}
+			info = target
+		}
+		if info.Mode().IsRegular() {
+			files = append(files, path)
+		}
+		return nil
+	})
+	return files, err
+}
 
 // Uninstall runs the on-host phone-home teardown: disable the systemd unit,
 // remove the unit file, reload systemd, drop the credentials file, and
-// strip the `phonehome:` stanza from every cloud-config under /oem
-// (deleting the file if phonehome was its only content).
+// strip the `phonehome:` stanza from every cloud-config under /oem and
+// /usr/local/cloud-config (deleting the file if phonehome was its only
+// content).
 //
 // When stopService is true, the running unit is stopped first. This is the
 // right thing for the local `kairos-agent phone-home uninstall` CLI — it
@@ -112,31 +144,40 @@ func Uninstall(stopService bool) (string, error) {
 		note("removed " + DefaultCredentialsPath)
 	}
 
-	// OEM cleanup. Kairos installs end up merging every datasource + overlay
-	// cloud-config into a single /oem/90_custom.yaml, so we can't just
-	// os.Remove a fixed path — we walk every file under /oem, find the ones
-	// that carry a top-level `phonehome:` key, and either delete the file
-	// (if phonehome was its only content) or rewrite it with that key
-	// stripped. Key order and the `#cloud-config` header are preserved.
-	oemLines, oemErr := cleanPhonehomeFromOEM()
-	lines = append(lines, oemLines...)
-	if oemErr != nil && fatal == nil {
-		fatal = oemErr
+	// Cloud-config cleanup. Kairos installs end up merging every datasource
+	// + overlay cloud-config into a single /oem/90_custom.yaml, and users can
+	// drop their own files anywhere under /oem or /usr/local/cloud-config, so
+	// we can't just os.Remove a fixed path — we walk every .yaml/.yml file
+	// the boot scan would read, find the ones that carry a top-level
+	// `phonehome:` key, and either delete the file (if phonehome was its only
+	// content) or rewrite it with that key stripped. Key order and the
+	// `#cloud-config` header are preserved.
+	ccLines, ccErr := cleanPhonehomeFromCloudConfig()
+	lines = append(lines, ccLines...)
+	if ccErr != nil && fatal == nil {
+		fatal = ccErr
+	}
+
+	if keys := cmdlinePhonehomeKeys(); len(keys) > 0 {
+		note(fmt.Sprintf("kernel cmdline sets %s; %s may come back on next boot", strings.Join(keys, ", "), ServiceName))
 	}
 
 	return strings.Join(lines, "\n"), fatal
 }
 
-func cleanPhonehomeFromOEM() ([]string, error) {
+func cleanPhonehomeFromCloudConfig() ([]string, error) {
 	var (
 		lines []string
 		fatal error
 	)
 	seen := map[string]bool{}
 	touched := 0
-	for _, pattern := range oemGlobs {
-		matches, _ := globFiles(pattern)
+	for _, dir := range cloudConfigDirs {
+		matches, _ := walkFiles(dir)
 		for _, path := range matches {
+			if ext := filepath.Ext(path); ext != ".yaml" && ext != ".yml" {
+				continue
+			}
 			if seen[path] {
 				continue
 			}
@@ -156,10 +197,13 @@ func cleanPhonehomeFromOEM() ([]string, error) {
 
 			out, empty, changed, err := stripPhonehomeKey(data)
 			if err != nil {
-				// An unrelated malformed YAML in /oem isn't our problem —
-				// note it and move on, don't surface as a fatal error.
+				// An unrelated malformed YAML isn't our problem — note it
+				// and move on, don't surface as a fatal error.
 				lines = append(lines, fmt.Sprintf("skipped %s: %v", path, err))
 				continue
+			}
+			if hasTopLevelKey(data, "config_url") {
+				lines = append(lines, fmt.Sprintf("%s sets config_url; %s may come back on next boot if the remote config has a phonehome stanza", path, ServiceName))
 			}
 			if !changed {
 				continue
@@ -188,9 +232,47 @@ func cleanPhonehomeFromOEM() ([]string, error) {
 		}
 	}
 	if touched == 0 {
-		lines = append(lines, "no phonehome stanza found under /oem")
+		lines = append(lines, "no phonehome stanza found under "+strings.Join(cloudConfigDirs, " or "))
 	}
 	return lines, fatal
+}
+
+// cmdlinePhonehomeKeys returns the kernel cmdline keys that can bring
+// phonehome back through the boot scan: anything mentioning phonehome, and
+// config_url, which pulls in a remote config. Only keys are returned so a
+// registration token passed on the cmdline never ends up in the summary.
+func cmdlinePhonehomeKeys() []string {
+	data, err := readFile(cmdlinePath)
+	if err != nil {
+		return nil
+	}
+	var keys []string
+	for _, token := range strings.Fields(string(data)) {
+		key, _, _ := strings.Cut(token, "=")
+		if strings.Contains(token, "phonehome") || strings.HasSuffix(key, "config_url") {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
+
+// hasTopLevelKey reports whether a cloud-config document has key at its top
+// level. Unparsable documents report false.
+func hasTopLevelKey(data []byte, key string) bool {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil || len(doc.Content) == 0 {
+		return false
+	}
+	root := doc.Content[0]
+	if root.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Kind == yaml.ScalarNode && root.Content[i].Value == key {
+			return true
+		}
+	}
+	return false
 }
 
 // stripPhonehomeKey removes the top-level `phonehome:` mapping entry from a
