@@ -59,6 +59,26 @@ var _ = Describe("upgrade dry run summary", func() {
 		Expect(out.String()).ToNot(ContainSubstring("v4.0.1"))
 	})
 
+	It("reports the diff a diff upgrade would try", func() {
+		s := newSpec()
+		s.Diff = true
+		writeUpgradeSummary(out, s)
+		Expect(out.String()).To(MatchRegexp(`Diff source:\s+oci://quay.io/kairos/hadron:v4.0.0.diff \(experimental, falls back to the full image\)`))
+	})
+
+	It("says when a diff upgrade has no diff to try", func() {
+		s := newSpec()
+		s.Diff = true
+		s.Active.Source = sdkImages.NewDirSrc("/some/dir")
+		writeUpgradeSummary(out, s)
+		Expect(out.String()).To(MatchRegexp(`Diff source:\s+none, .*diff-source.* The full image is used`))
+	})
+
+	It("does not mention a diff unless one was asked for", func() {
+		writeUpgradeSummary(out, newSpec())
+		Expect(out.String()).ToNot(ContainSubstring("Diff source"))
+	})
+
 	It("reports the recovery image when the recovery entry is the target", func() {
 		s := newSpec()
 		s.Entry = constants.BootEntryRecovery

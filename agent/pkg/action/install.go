@@ -160,6 +160,7 @@ func (i InstallAction) Run() (err error) {
 		return err
 	}
 	cleanup.Push(func() error { return e.UnmountImage(&i.spec.Active) })
+	activeID := measureRootfsID(i.cfg, &i.spec.Active)
 
 	// Label the image as boot_t: it was just created and does not carry a
 	// label yet, so boot-time components can access it.
@@ -224,6 +225,7 @@ func (i InstallAction) Run() (err error) {
 	if err != nil {
 		return err
 	}
+	recordRootfsID(i.cfg, i.spec.Active.File, activeID)
 	// Install Recovery
 	progress.EmitStep(agentrun.StepRecovery)
 	_, err = e.DeployImage(&i.spec.Recovery, false)
@@ -238,6 +240,8 @@ func (i InstallAction) Run() (err error) {
 	}
 	// passive.img is created after SelinuxRelabel runs, so label it here
 	e.LabelStateImage(i.spec.Passive.File)
+	// passive.img is a copy of active.img, so it holds the same release.
+	recordRootfsID(i.cfg, i.spec.Passive.File, activeID)
 
 	err = hook.Run(*i.cfg, i.spec, hook.PostInstall...)
 	if err != nil {

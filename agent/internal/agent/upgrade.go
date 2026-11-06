@@ -59,8 +59,10 @@ func ListNewerReleases(includePrereleases bool, registry string) ([]string, erro
 	return tagList.FullImages()
 }
 
+// Upgrade upgrades the node to source. diff and diffSource ask for a diff
+// upgrade, see UpgradeSpec.Diff; they are ignored on Trusted Boot.
 func Upgrade(
-	source string, strictValidations bool, dirs []string, upgradeEntry string, allowInsecureRegistries bool, dryRun bool, excludes ...string) error {
+	source string, strictValidations bool, dirs []string, upgradeEntry string, allowInsecureRegistries bool, dryRun bool, diff bool, diffSource string, excludes ...string) error {
 	bus.Manager.Initialize()
 
 	fixedDirs := make([]string, len(dirs))
@@ -73,14 +75,17 @@ func Upgrade(
 	}
 
 	if internalutils.UkiBootMode() == internalutils.UkiHDD {
+		if diff || diffSource != "" {
+			fmt.Fprintln(os.Stderr, "Warning: diff upgrades are not supported on Trusted Boot yet, upgrading from the full image")
+		}
 		return upgradeUki(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries, dryRun)
 	} else {
-		return upgrade(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries, dryRun, excludes...)
+		return upgrade(source, fixedDirs, upgradeEntry, strictValidations, allowInsecureRegistries, dryRun, diff, diffSource, excludes...)
 	}
 }
 
-func upgrade(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, dryRun bool, excludes ...string) error {
-	c, err := getConfig(sourceImageURL, dirs, upgradeEntry, strictValidations, allowInsecureRegistries, excludes...)
+func upgrade(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, dryRun bool, diff bool, diffSource string, excludes ...string) error {
+	c, err := getConfig(sourceImageURL, dirs, upgradeEntry, strictValidations, allowInsecureRegistries, diff, diffSource, excludes...)
 	if err != nil {
 		return err
 	}
@@ -117,7 +122,7 @@ func upgrade(sourceImageURL string, dirs []string, upgradeEntry string, strictVa
 }
 
 func upgradeUki(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, dryRun bool) error {
-	c, err := getConfig(sourceImageURL, dirs, upgradeEntry, strictValidations, allowInsecureRegistries)
+	c, err := getConfig(sourceImageURL, dirs, upgradeEntry, strictValidations, allowInsecureRegistries, false, "")
 	if err != nil {
 		return err
 	}
@@ -154,8 +159,8 @@ func upgradeUki(sourceImageURL string, dirs []string, upgradeEntry string, stric
 	return hook.Run(*c, upgradeSpec, hook.FinishUpgrade...)
 }
 
-func getConfig(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, excludes ...string) (*sdkConfig.Config, error) {
-	cliConf, err := generateUpgradeConfForCLIArgs(sourceImageURL, upgradeEntry, allowInsecureRegistries, excludes...)
+func getConfig(sourceImageURL string, dirs []string, upgradeEntry string, strictValidations bool, allowInsecureRegistries bool, diff bool, diffSource string, excludes ...string) (*sdkConfig.Config, error) {
+	cliConf, err := generateUpgradeConfForCLIArgs(sourceImageURL, upgradeEntry, allowInsecureRegistries, diff, diffSource, excludes...)
 	if err != nil {
 		return nil, err
 	}
@@ -204,11 +209,13 @@ func newerReleases(registry string) (versioneer.TagList, error) {
 
 // generateUpgradeConfForCLIArgs creates a kairos configuration for `--source` and `--recovery` and `--excluded-paths`
 // command line arguments. It will be added to the rest of the configurations.
-func generateUpgradeConfForCLIArgs(source, upgradeEntry string, allowInsecureRegistries bool, excludes ...string) (string, error) {
+func generateUpgradeConfForCLIArgs(source, upgradeEntry string, allowInsecureRegistries bool, diff bool, diffSource string, excludes ...string) (string, error) {
 	upgradeConfig := ExtraConfigUpgrade{}
 
 	upgradeConfig.Upgrade.Entry = upgradeEntry
 	upgradeConfig.Upgrade.AllowInsecureRegistries = allowInsecureRegistries
+	upgradeConfig.Upgrade.Diff = diff
+	upgradeConfig.Upgrade.DiffSource = diffSource
 
 	// Set uri both for active and recovery because we don't know what we are
 	// actually upgrading. The "upgradeRecovery" is just the command line argument.
@@ -239,5 +246,7 @@ type ExtraConfigUpgrade struct {
 		} `json:"system,omitempty"`
 		ExcludedPaths           []string `json:"excluded-paths,omitempty"`
 		AllowInsecureRegistries bool     `json:"allow-insecure-registries,omitempty"`
+		Diff                    bool     `json:"diff,omitempty"`
+		DiffSource              string   `json:"diff-source,omitempty"`
 	} `json:"upgrade,omitempty"`
 }

@@ -24,6 +24,8 @@ type UpgradeSchema struct {
 	AllowInsecureRegistries SpecBool            `json:"allow-insecure-registries,omitempty" description:"Pull the upgrade image from a registry served over plain HTTP or presenting an untrusted certificate"`
 	ExcludedPaths           []string            `json:"excluded-paths,omitempty" description:"Paths of the source image to leave out of the deployed system"`
 	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
+	Diff                    SpecBool            `json:"diff,omitempty" description:"Experimental. Apply only the changes from the running release to the target onto a copy of the booted image, instead of pulling the full image. Falls back to the full image when no matching diff can be applied. Not supported on Trusted Boot or for recovery upgrades"`
+	DiffSource              string              `json:"diff-source,omitempty" description:"Experimental. The diff to apply, as an image source such as oci:quay.io/kairos/hadron:v1.2.0.diff. Implies diff. Defaults to the tag of the full image with .diff appended" examples:"[\"oci:quay.io/kairos/hadron:v1.2.0.diff\"]"`
 }
 
 var _ jsonschemago.Preparer = UpgradeSchema{}
