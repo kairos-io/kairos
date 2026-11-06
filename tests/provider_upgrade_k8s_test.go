@@ -198,6 +198,6 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Eventually(func() string {
 			out, _ := kubectl(vm, "get nodes")
 			return out
-		}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("Ready"))
+		}, 5*time.Minute, 10*time.Second).Should(MatchRegexp(`\sReady\s`))
 	})
 })
