@@ -30,10 +30,3 @@ metadata:
   namespace: system
 spec:
   type: ClusterIP
-  selector:
-    control-plane: controller-manager
-  ports:
-    - name: wss
-      port: 8082
-      protocol: TCP
-      targetPort: 8082
