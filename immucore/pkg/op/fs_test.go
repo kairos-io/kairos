@@ -297,6 +297,18 @@ var _ = Describe("MountWithBaseOverlay", func() {
 	})
 })
 
+var _ = Describe("BaseOverlay", func() {
+	It("writes the mount option defaults for a device-backed overlay", func() {
+		base := filepath.Join(GinkgoT().TempDir(), "run", "overlay")
+
+		operation, err := op.BaseOverlay(schema.Overlay{Base: base, BackingBase: "LABEL=COS_OVERLAY"})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(operation.FstabEntry.MntOps).To(Equal(map[string]string{"defaults": ""}))
+		Expect(operation.FstabEntry.String()).To(ContainSubstring(" defaults 0 0"))
+	})
+})
+
 var _ = Describe("MountBind onto a symlink", func() {
 	var root string
 
