@@ -74,13 +74,25 @@ const (
 // layers are applied in the same order, so every write and every whiteout the
 // abandoned attempt performed is performed again, and the tree the last
 // attempt leaves behind is the tree a clean run would have produced.
+//
+// A pull that took more than one attempt says so in the error it returns. The
+// per-attempt notice below goes to logs.Warn, which go-containerregistry
+// creates over io.Discard and nothing in this repository assigns, so it is the
+// returned error or nothing: without the count, an exhausted retry budget and a
+// single hard failure are the same two lines of output.
 func (e OCIImageExtractor) ExtractImage(imageRef, destination, platformRef string, excludes ...string) error {
 	var err error
 
 	delay := pullRetryDelay
 	for attempt := 1; ; attempt++ {
 		err = e.extract(imageRef, destination, platformRef, excludes...)
-		if err == nil || attempt == pullAttempts || !isTransientNetworkError(err) {
+		if err == nil {
+			return nil
+		}
+		if attempt == pullAttempts || !isTransientNetworkError(err) {
+			if attempt > 1 {
+				return fmt.Errorf("pulling %s failed after %d attempts: %w", imageRef, attempt, err)
+			}
 			return err
 		}
 
