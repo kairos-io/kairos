@@ -9,5 +9,6 @@ resources:
   - cluster-issuer.yaml
 
 patchesStrategicMerge:
-  # Fix labels and selectors to make challenger server accessible
+  # Use the image under test, drop kube-rbac-proxy and expose the escrow
+  # Service as ClusterIP behind the ingress
   - challenger-patch.yaml

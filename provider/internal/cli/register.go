@@ -113,7 +113,10 @@ func isReadable(fileName string) bool {
 }
 
 func register(loglevel, arg, configFile, device string, reboot, poweroff bool, timeout time.Duration) error {
-	b, _ := os.ReadFile(configFile)
+	b, err := os.ReadFile(configFile)
+	if err != nil {
+		return fmt.Errorf("cannot read the config file: %w", err)
+	}
 	ctx, cancel := pairingContext(timeout)
 	defer cancel()
 
@@ -144,7 +147,7 @@ func register(loglevel, arg, configFile, device string, reboot, poweroff bool, t
 		config["poweroff"] = ""
 	}
 
-	err := sendPayload(
+	err = sendPayload(
 		ctx,
 		config,
 		nodepair.WithReader(qr.Reader),
