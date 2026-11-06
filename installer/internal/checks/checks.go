@@ -26,9 +26,9 @@ var CheckPluginPaths = []string{"/system/tui-checks", "/usr/local/system/tui-che
 
 // NewManager builds a go-pluggable manager dedicated to the
 // interactive-install check events and autoloads the tui-check-* plugins. It
-// deliberately does NOT install the global error->os.Exit handler that
-// internal/bus uses, so a misbehaving check plugin can never kill the TUI; all
-// problems are logged and surfaced through the returned data instead.
+// installs no error handler of its own, so a misbehaving check plugin can
+// never kill the TUI; all problems are logged and surfaced through the
+// returned data instead.
 func NewManager(log sdkLogger.KairosLogger) *pluggable.Manager {
 	m := pluggable.NewManager([]pluggable.EventType{prereqs.EventChecks, prereqs.EventChecksApply})
 
