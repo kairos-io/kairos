@@ -205,8 +205,10 @@ func (k *K3sNode) WorkerArgs() ([]string, error) {
 			fmt.Sprintf("--node-ip %s", ip),
 			"--flannel-iface=edgevpn0")
 	} else {
-		iface := guessInterface(pconfig)
-		ip := utils.GetInterfaceIP(iface)
+		ip := interfaceIP(guessInterface(pconfig))
+		if ip == "" {
+			return nil, errors.New("node doesn't have an ip yet")
+		}
 		args = append(args,
 			fmt.Sprintf("--node-ip %s", ip))
 	}
@@ -308,7 +310,7 @@ func (k *K3sNode) SetIP(ip string) {
 
 func (k *K3sNode) GuessInterface() {
 	iface := guessInterface(k.ProviderConfig())
-	ifaceIP := utils.GetInterfaceIP(iface)
+	ifaceIP := interfaceIP(iface)
 
 	k.iface = iface
 	k.ifaceIP = ifaceIP
