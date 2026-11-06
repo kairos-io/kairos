@@ -431,6 +431,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		var err error
 		var el *elemental.Elemental
 		var tmpDir string
+		var prevPartitionDevice func(disk, name string) (string, error)
 
 		BeforeEach(func() {
 			cInit = &v1mock.FakeCloudInitRunner{ExecStages: []string{}, Error: false}
@@ -446,10 +447,33 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			install.Target = filepath.Join(tmpDir, "/test.img")
 			el = elemental.NewElemental(config)
+			// The target is an image file, so the host has no partition
+			// links for it.
+			prevPartitionDevice = elemental.PartitionDevice
+			elemental.PartitionDevice = func(_, name string) (string, error) {
+				return "/dev/" + name, nil
+			}
 		})
 
 		AfterEach(func() {
+			elemental.PartitionDevice = prevPartitionDevice
 			Expect(os.RemoveAll(tmpDir)).ToNot(HaveOccurred())
+		})
+
+		It("fails without formatting when a partition is not found on the target (kairos-io/kairos#5731)", func() {
+			elemental.PartitionDevice = func(_, name string) (string, error) {
+				return "", fmt.Errorf("partition label %s: /dev/sdz2 is on /dev/sdz, not on the install target", name)
+			}
+			runner.ClearCmds()
+			install.PartTable = sdkConstants.GPT
+			install.Firmware = sdkConstants.EFI
+			Expect(install.Partitions.SetFirmwarePartitions(sdkConstants.EFI, sdkConstants.GPT)).To(BeNil())
+
+			err := el.PartitionAndFormatDevice(install)
+			Expect(err).To(MatchError(ContainSubstring("not on the install target")))
+			for _, cmd := range runner.Cmds() {
+				Expect(cmd[0]).ToNot(HavePrefix("mkfs"), "ran %v", cmd)
+			}
 		})
 
 		It("Successfully creates partitions and formats them, EFI boot", func() {
@@ -487,16 +511,6 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			}
 		})
 		Describe("EFI system partition check", func() {
-			var restore func()
-
-			BeforeEach(func() {
-				restore = elemental.SetPartLabelDevice(func(name string) (string, error) {
-					return "/dev/" + name, nil
-				})
-			})
-
-			AfterEach(func() { restore() })
-
 			It("fails when the formatted ESP is FAT32 with too few clusters for UEFI", func() {
 				install.PartTable = sdkConstants.GPT
 				install.Firmware = sdkConstants.EFI
