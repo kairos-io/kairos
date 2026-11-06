@@ -14,6 +14,9 @@ on:
     branches:
       - master
   pull_request:
+  # Also on each merge queue branch, so this can be a required check
+  # with the merge queue on.
+  merge_group:
   schedule:
     # Weekly, so new queries run against code that has not changed.
     - cron: '30 3 * * 1'

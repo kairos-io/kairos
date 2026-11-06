@@ -71,6 +71,10 @@ spec:
               fieldPath: metadata.namespace
         image: controller:latest
         name: manager
+        ports:
+        - containerPort: 8082
+          protocol: TCP
+          name: wss
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -109,6 +113,8 @@ metadata:
     namespace: system
 spec:
     type: NodePort
+    selector:
+        control-plane: controller-manager
     ports:
         - name: wss
           port: 8082
