@@ -4,19 +4,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
 
 	"github.com/kairos-io/kairos/v4/sdk/bus"
+	"github.com/mudler/go-pluggable"
 )
 
 // `kairos provider ...` hands its arguments to the installed provider plugin.
 //
-// A provider is an executable named agent-provider-* under one of the bus's
-// search paths. The agent talks to it over the go-pluggable event protocol, but
-// provider-kairos also answers as an ordinary CLI when argv[1] is not an event
-// name, which is where `get-kubeconfig`, `role`, `bridge` and the rest live.
+// A provider is an executable named agent-provider-* on PATH or under one of
+// the bus's search paths. The agent talks to it over the go-pluggable event
+// protocol, but provider-kairos also answers as an ordinary CLI when argv[1]
+// is not an event name, which is where `get-kubeconfig`, `role`, `bridge` and
+// the rest live.
 // Before the multi-call binary those commands were reachable as `kairos <cmd>`
 // because /usr/bin/kairos *was* provider-kairos; /system/providers is not on
 // PATH, so after the monorepo rollout they were reachable only by absolute
@@ -33,7 +36,9 @@ import (
 // `kairos provider <name> <args...>` form fits underneath this one without
 // changing what `kairos provider` already means.
 func runProvider() int {
-	return runProviderIn(bus.DefaultProviderPaths, os.Args)
+	// The same directories the agent's bus loads from when it is given none.
+	wd, _ := os.Getwd()
+	return runProviderIn(append(slices.Clone(bus.DefaultProviderPaths), wd), os.Args)
 }
 
 // execProvider is syscall.Exec, indirected so tests can observe what would be
@@ -60,31 +65,23 @@ func runProviderIn(dirs []string, args []string) int {
 	return 0 // not reached; Exec replaces the process
 }
 
-// resolveProvider returns the path of the single installed provider plugin,
-// searching dirs in order. Directories that do not exist are skipped, since a
-// core image has no /system/providers at all.
+// resolveProvider returns the path of the single installed provider plugin.
+//
+// It finds plugins with the same go-pluggable Autoload call the agent's bus
+// uses, so the answer cannot drift from what the agent runs: every PATH entry
+// is searched before dirs, and the first plugin of a given name wins. Missing
+// directories are skipped, since a core image has no /system/providers at all.
 func resolveProvider(dirs []string) (string, error) {
-	prefix := bus.DefaultProviderPrefix + "-"
-
 	var paths []string
-	seen := map[string]bool{}
-	for _, dir := range dirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
+	for _, p := range pluggable.NewManager(nil).Autoload(bus.DefaultProviderPrefix, dirs...).Plugins {
+		// Autoload keeps the first match per name without looking at it, so
+		// dropping a directory or a non-executable file here can never make us
+		// run a different binary than the agent would; it only refuses to.
+		info, err := os.Stat(p.Executable)
+		if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
 			continue
 		}
-		for _, e := range entries {
-			name := e.Name()
-			if !strings.HasPrefix(name, prefix) || seen[name] {
-				continue
-			}
-			info, err := e.Info()
-			if err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
-				continue
-			}
-			seen[name] = true
-			paths = append(paths, filepath.Join(dir, name))
-		}
+		paths = append(paths, p.Executable)
 	}
 
 	switch len(paths) {
@@ -92,7 +89,7 @@ func resolveProvider(dirs []string) (string, error) {
 		return paths[0], nil
 	case 0:
 		return "", fmt.Errorf(
-			"no provider installed (looked in %s). Providers ship in Kairos standard images, not core ones",
+			"no provider installed (looked in PATH, %s). Providers ship in Kairos standard images, not core ones",
 			strings.Join(dirs, ", "))
 	default:
 		names := make([]string, 0, len(paths))
