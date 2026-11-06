@@ -838,7 +838,7 @@ jobs:
 
       - name: Login to registry
         if: inputs.registry_domain != ''
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
         with:
           registry: ${{ inputs.registry_domain }}
           username: ${{ secrets.registry_username }}

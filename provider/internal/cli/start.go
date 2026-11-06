@@ -94,6 +94,20 @@ func applyAPIDefault(envFile string) {
 
 const recoveryAddr = "127.0.0.1:2222"
 
+// tokenInterval returns the token rotation interval given as the first
+// argument, or the largest int when there is none.
+func tokenInterval(c *cli.Context) (int, error) {
+	if !c.Args().Present() {
+		return int(^uint(0) >> 1), nil
+	}
+	arg := c.Args().Get(0)
+	i, err := strconv.Atoi(arg)
+	if err != nil || i <= 0 {
+		return 0, fmt.Errorf("invalid token rotation interval %q: must be a positive number of seconds", arg)
+	}
+	return i, nil
+}
+
 var CreateConfigCMD = cli.Command{
 	Name:      "create-config",
 	Aliases:   []string{"c"},
@@ -106,11 +120,9 @@ var CreateConfigCMD = cli.Command{
 	ArgsUsage: "Optionally takes a token rotation interval (seconds)",
 
 	Action: func(c *cli.Context) error {
-		l := int(^uint(0) >> 1)
-		if c.Args().Present() {
-			if i, err := strconv.Atoi(c.Args().Get(0)); err == nil {
-				l = i
-			}
+		l, err := tokenInterval(c)
+		if err != nil {
+			return err
 		}
 		cc := &providerConfig.Config{P2P: &providerConfig.P2P{NetworkToken: node.GenerateNewConnectionData(l).Base64()}}
 		y, _ := yaml.Marshal(cc)
@@ -130,11 +142,9 @@ var GenerateTokenCMD = cli.Command{
 	ArgsUsage: "Optionally takes a token rotation interval (seconds)",
 
 	Action: func(c *cli.Context) error {
-		l := int(^uint(0) >> 1)
-		if c.Args().Present() {
-			if i, err := strconv.Atoi(c.Args().Get(0)); err == nil {
-				l = i
-			}
+		l, err := tokenInterval(c)
+		if err != nil {
+			return err
 		}
 		fmt.Println(node.GenerateNewConnectionData(l).Base64())
 		return nil
