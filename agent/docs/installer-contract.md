@@ -89,6 +89,11 @@ Steps that do not run are omitted: e.g. `partition` is not emitted when the
 install reuses a pre-prepared disk (`NoFormat`). Consumers should treat the
 sequence as monotonic-but-possibly-sparse, not a fixed-length list.
 
+A UKI install emits `partition` (unless `NoFormat`), `before-install`,
+`active`, `bootloader`, `after-install` and `done`. It never emits `recovery`
+or `passive`: there are no separate images to deploy, and the artifact copies
+for every boot role are written during `bootloader`.
+
 Failure event:
 
     {"event":"error","message":"<message>"}

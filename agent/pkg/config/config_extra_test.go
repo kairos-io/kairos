@@ -336,6 +336,13 @@ var _ = Describe("Specs coverage", Label("types", "config"), func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed unmarshalling the full spec"))
 		})
+		It("fails when install.source cannot be parsed", func() {
+			c.Install.Source = "oci:Not A Valid Image!"
+			_, err := config.NewInstallSpec(c)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("install.source"))
+			Expect(err.Error()).To(ContainSubstring("invalid image reference"))
+		})
 	})
 
 	Describe("the partition keys the schema declares", Label("install"), func() {
@@ -964,6 +971,15 @@ var _ = Describe("Specs coverage", Label("types", "config"), func() {
 				_, err := config.ReadUkiInstallSpecFromConfig(c)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("failed initializing spec"))
+			})
+			It("fails when install.source cannot be parsed", func() {
+				ghwTest = ghwMock.GhwMock{}
+				ghwTest.CreateDevices()
+				c.Install.Source = "oci:Not A Valid Image!"
+				_, err := config.NewUkiInstallSpec(c)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("install.source"))
+				Expect(err.Error()).To(ContainSubstring("invalid image reference"))
 			})
 			It("resolves a script:// target into the device the script prints", func() {
 				ghwTest = ghwMock.GhwMock{}
