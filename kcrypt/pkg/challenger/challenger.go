@@ -267,7 +267,7 @@ func createOrReuseTOFUSecret(kclient kubernetes.Interface, namespace, secretName
 				"app.kubernetes.io/name":      "kcrypt-challenger",
 				"app.kubernetes.io/component": "encryption-secret",
 				tpmHashLabel:                  kube.SafeKubeName(tpmHash),
-				"kcrypt.kairos.io/partition":  partitionLabel,
+				"kcrypt.kairos.io/partition":  kube.SafeLabelValue(partitionLabel),
 				"kcrypt.kairos.io/managed-by": "kcrypt-challenger", // Additional safety label
 			},
 		},
