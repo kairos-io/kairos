@@ -48,6 +48,30 @@ var _ = Describe("mounting immutable setup", func() {
 		})
 	})
 
+	Context("SortedCustomMounts()", func() {
+		It("returns the devices whose mountpoint is a parent before the ones mounted under it", func() {
+			s := &state.State{
+				CustomMounts: map[string]string{
+					"/dev/disk/by-label/DATA":           "/usr/local/data",
+					"/dev/disk/by-label/LOGS":           "/usr/local/data/logs",
+					"/dev/disk/by-label/COS_PERSISTENT": "/usr/local",
+					"/dev/disk/by-label/COS_OEM":        "/oem",
+					"/dev/disk/by-label/EXTRA":          "/usr/local-extra/",
+				},
+			}
+			// Map order is random, so one lucky run proves nothing.
+			for range 50 {
+				Expect(s.SortedCustomMounts()).To(Equal([]string{
+					"/dev/disk/by-label/COS_OEM",
+					"/dev/disk/by-label/COS_PERSISTENT",
+					"/dev/disk/by-label/EXTRA",
+					"/dev/disk/by-label/DATA",
+					"/dev/disk/by-label/LOGS",
+				}))
+			}
+		})
+	})
+
 	Context("QuarantineStaleUnitsDagStep", func() {
 		It("moves a stale unit symlink out of the unit dir when the step runs", func() {
 			internalUtils.KLog = logger.NewNullLogger()
