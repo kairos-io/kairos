@@ -123,7 +123,11 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	}
 	// Then any user provided source
 	if cfg.Install.Source != "" {
-		activeImg.Source, _ = sdkImages.NewSrcFromURI(cfg.Install.Source)
+		src, err := sdkImages.NewSrcFromURI(cfg.Install.Source)
+		if err != nil {
+			return nil, fmt.Errorf("invalid install.source %q: %w", cfg.Install.Source, err)
+		}
+		activeImg.Source = src
 	}
 	// If we dont have any just an empty source so the sanitation fails
 	// TODO: Should we directly fail here if we got no source instead of waiting for the Sanitize() to fail?
@@ -766,7 +770,11 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 	}
 	// Then any user provided source
 	if cfg.Install.Source != "" {
-		activeImg.Source, _ = sdkImages.NewSrcFromURI(cfg.Install.Source)
+		src, err := sdkImages.NewSrcFromURI(cfg.Install.Source)
+		if err != nil {
+			return nil, fmt.Errorf("invalid install.source %q: %w", cfg.Install.Source, err)
+		}
+		activeImg.Source = src
 	}
 	// If we dont have any just an empty source so the sanitation fails
 	// TODO: Should we directly fail here if we got no source instead of waiting for the Sanitize() to fail?
