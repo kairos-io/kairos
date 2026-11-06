@@ -256,6 +256,15 @@ var _ = Describe("mount utils", func() {
 		It("Returns disk path by UUID", func() {
 			Expect(utils.ParseMount("UUID=9999")).To(Equal("/dev/disk/by-uuid/9999"))
 		})
+		It("Returns disk path by PARTUUID", func() {
+			Expect(utils.ParseMount("PARTUUID=0f1e2d3c-01:/srv")).To(Equal("/dev/disk/by-partuuid/0f1e2d3c-01:/srv"))
+		})
+		It("Returns disk path by PARTLABEL", func() {
+			Expect(utils.ParseMount("PARTLABEL=persistent:/usr/local")).To(Equal("/dev/disk/by-partlabel/persistent:/usr/local"))
+		})
+		It("Leaves a device path alone", func() {
+			Expect(utils.ParseMount("/dev/sda1:/srv")).To(Equal("/dev/sda1:/srv"))
+		})
 	})
 	Context("AppendSlash", func() {
 		It("Appends a slash if it doesnt have one", func() {
