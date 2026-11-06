@@ -1,6 +1,9 @@
 package http
 
 import (
+	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -94,5 +97,34 @@ func TestNoHeadersAborts(t *testing.T) {
 	}
 	if time.Since(start) > 3*time.Second {
 		t.Fatalf("took %s to abort", time.Since(start))
+	}
+}
+
+// A stalled body must fail as a timeout, not as a plain cancel, so a caller
+// that retries network timeouts retries it.
+func TestStalledBodyIsATimeout(t *testing.T) {
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "10")
+		_, _ = w.Write([]byte("x"))
+		w.(http.Flusher).Flush()
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	resp, err := NewStallClient(300 * time.Millisecond).Get(srv.URL)
+	if err != nil {
+		t.Fatalf("request failed before the body: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	_, err = io.Copy(io.Discard, resp.Body)
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("got %v, want a net.Error timeout", err)
 	}
 }
