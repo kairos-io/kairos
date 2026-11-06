@@ -16,10 +16,20 @@ GOFLAGS ?= -trimpath
 # outside a git checkout.
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
+# BINARY_VERSION is VERSION with the git describe suffix moved into semver
+# build metadata: v1.2.3-5-gabc1234 becomes v1.2.3+5.gabc1234, and
+# v1.2.3-dirty becomes v1.2.3+dirty. kairos-init writes this string into
+# every image as KAIROS_INIT_VERSION, and the upgrade downgrade gate compares
+# it with semver. Semver reads "-5-gabc1234" as a pre-release and ranks the
+# build below v1.2.3, so an agent already released with the gate refuses to
+# upgrade to any build made after its own tag. Build metadata ranks equal to
+# the tag, which that gate accepts. A tagged build is unchanged.
+BINARY_VERSION ?= $(shell echo '$(VERSION)' | sed -E 's/-([0-9]+)-g([0-9a-f]+)(-dirty)?$$/+\1.g\2\3/;t;s/-dirty$$/+dirty/')
+
 # LDFLAGS default: strip debug/symbol tables and inject the version. Override
 # to add your own -X flags; if you override LDFLAGS, remember to include -X
 # for the version or every binary will report "dev".
-LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(VERSION)
+LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(BINARY_VERSION)
 
 .PHONY: test
 test: kairos-init-embed-stubs test-actions
