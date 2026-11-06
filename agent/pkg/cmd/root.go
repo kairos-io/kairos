@@ -1543,7 +1543,8 @@ func newPhoneHomeCmd() *cobra.Command {
 		Use:   "uninstall",
 		Short: "Stop the phone-home service and remove all phone-home configs and credentials from this node",
 		Long: "Tears down the phone-home installation on the local node: stops and disables the systemd service, " +
-			"removes the unit file, drops the saved credentials, and removes the phone-home cloud-config files. " +
+			"removes the unit file, drops the saved credentials, and strips the phonehome stanza from every cloud-config " +
+			"under /oem and /usr/local/cloud-config. " +
 			"Run this after a node has been decommissioned on the server (especially when the server could not " +
 			"reach the node to run the teardown remotely).",
 		RunE: func(*cobra.Command, []string) error {
@@ -1889,26 +1890,21 @@ func extensionCatalogURLs(flagged []string, cfg *sdkConfig.Config, extType strin
 }
 
 func installCatalogOrURIExtension(cfg *sdkConfig.Config, catalogURLs []string, requested, version, extType string) error {
-	var catalogErr error
-	if len(catalogURLs) > 0 {
-		err := installCatalogExtension(cfg, catalogURLs, requested, version)
-		if err == nil {
-			return nil
-		}
-		// An explicit version can only mean a catalog lookup, so do not go on
-		// to read the name as a URI and report a confusing parse error.
-		if version != "" {
+	extension := extensiontypes.Extension{Name: requested, Version: version}
+	// A path or URI already names one image, so there is nothing to look up
+	// and the catalogs are not fetched: an install from a local file or a
+	// registry has to work without access to any index.
+	if extension.IsReference() {
+		uri, err := installer.ResolveURI(cfg, nil, extension)
+		if err != nil {
 			return err
 		}
-		catalogErr = err
+		return action.InstallExtension(cfg, uri, extType)
 	}
-	if err := validateSourceSysext(requested); err != nil {
-		if catalogErr != nil {
-			return catalogErr
-		}
-		return err
+	if len(catalogURLs) == 0 {
+		return fmt.Errorf("source %s is neither an absolute path nor an oci:, docker:, container:, file: or http(s) URI", requested)
 	}
-	return action.InstallExtension(cfg, requested, extType)
+	return installCatalogExtension(cfg, catalogURLs, requested, version)
 }
 
 func installCatalogExtension(cfg *sdkConfig.Config, catalogURLs []string, name, version string) error {
@@ -2178,22 +2174,6 @@ func validateSource(source string) error {
 	}
 	if !r.MatchString(source) {
 		return fmt.Errorf("source %s does not match any of oci:, dir:, file: or ocifile: ", source)
-	}
-
-	return nil
-}
-
-func validateSourceSysext(source string) error {
-	if source == "" {
-		return nil
-	}
-
-	r, err := regexp.Compile(`^oci:|^file:|^http:|^https:`)
-	if err != nil {
-		return err
-	}
-	if !r.MatchString(source) {
-		return fmt.Errorf("source %s does not match any of oci:, file: or http(s): ", source)
 	}
 
 	return nil
