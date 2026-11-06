@@ -165,7 +165,15 @@ func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 		},
 	}
 
-	tmpFstab := internalUtils.MountToFstab(tmpMount)
+	tmpFstab := internalUtils.MountToFstab(mount.Mount{
+		Type:   tmpMount.Type,
+		Source: tmpMount.Source,
+		Options: []string{
+			fmt.Sprintf("lowerdir=%s", internalUtils.CleanSysrootForFstab(rootMount)),
+			fmt.Sprintf("upperdir=%s", internalUtils.CleanSysrootForFstab(upperdir)),
+			fmt.Sprintf("workdir=%s", internalUtils.CleanSysrootForFstab(workdir)),
+		},
+	})
 	tmpFstab.File = internalUtils.CleanSysrootForFstab(rootMount)
 	// TODO: update fstab with x-systemd info
 	// https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L170

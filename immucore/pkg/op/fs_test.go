@@ -248,6 +248,53 @@ var _ = Describe("MountWithBaseOverlay", func() {
 		Expect(errors.Is(err, constants.ErrMountTargetMissing)).To(BeTrue())
 		Expect(err.Error()).To(ContainSubstring(filepath.Join(readOnly, "mnt")))
 	})
+
+	Context("fstab entry", func() {
+		setCmdline := func(cmdline string) {
+			path := filepath.Join(GinkgoT().TempDir(), "cmdline")
+			Expect(os.WriteFile(path, []byte(cmdline), 0o644)).To(Succeed())
+			old, had := os.LookupEnv("HOST_PROC_CMDLINE")
+			Expect(os.Setenv("HOST_PROC_CMDLINE", path)).To(Succeed())
+			DeferCleanup(func() {
+				if had {
+					Expect(os.Setenv("HOST_PROC_CMDLINE", old)).To(Succeed())
+				} else {
+					Expect(os.Unsetenv("HOST_PROC_CMDLINE")).To(Succeed())
+				}
+			})
+		}
+
+		It("drops /sysroot from the overlay dirs but mounts the real paths at boot", func() {
+			setCmdline("BOOT_IMAGE=/cOS/vmlinuz root=LABEL=COS_ACTIVE")
+
+			operation := op.MountWithBaseOverlay("/etc", "/sysroot", "/run/overlay")
+
+			Expect(operation.MountOption.Options).To(ConsistOf(
+				"lowerdir=/sysroot/etc",
+				"upperdir=/run/overlay/etc/.overlay/upper",
+				"workdir=/run/overlay/etc/.overlay/work",
+			))
+			Expect(operation.FstabEntry.File).To(Equal("/etc"))
+			Expect(operation.FstabEntry.MntOps).To(Equal(map[string]string{
+				"lowerdir": "/etc",
+				"upperdir": "/run/overlay/etc/.overlay/upper",
+				"workdir":  "/run/overlay/etc/.overlay/work",
+			}))
+		})
+
+		It("keeps the paths as they are under UKI", func() {
+			setCmdline("BOOT_IMAGE=/vmlinuz rd.immucore.uki")
+
+			operation := op.MountWithBaseOverlay("/etc", "/", "/run/overlay")
+
+			Expect(operation.FstabEntry.File).To(Equal("/etc"))
+			Expect(operation.FstabEntry.MntOps).To(Equal(map[string]string{
+				"lowerdir": "/etc",
+				"upperdir": "/run/overlay/etc/.overlay/upper",
+				"workdir":  "/run/overlay/etc/.overlay/work",
+			}))
+		})
+	})
 })
 
 var _ = Describe("MountBind onto a symlink", func() {
