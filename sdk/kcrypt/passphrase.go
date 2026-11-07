@@ -230,6 +230,15 @@ func (e *PassphraseEncryptor) Validate() error {
 	return nil
 }
 
+// CheckPassphraseFile reports why Encrypt could not read the passphrase, or
+// nil when it can. Validate cannot do this check, because the same encryptor
+// is chosen at boot where the file is gone; a caller that is about to
+// destroy data before it encrypts (a reset) calls this first.
+func (e *PassphraseEncryptor) CheckPassphraseFile() error {
+	_, err := readPassphraseFile(e.kcryptConfig)
+	return err
+}
+
 func readPassphraseFile(config *bus.KcryptConfig) (string, error) {
 	if config == nil || config.PassphraseFile == "" {
 		return "", errors.New("kcrypt.method is passphrase but kcrypt.passphrase_file is not set")
