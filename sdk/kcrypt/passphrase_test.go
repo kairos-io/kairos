@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -401,5 +402,20 @@ func TestUnlockAllAsksOnceForTwoPassphraseContainers(t *testing.T) {
 	}
 	if len(encryptor.got) != 0 {
 		t.Fatalf("the selected encryptor was given %v, want nothing", encryptor.got)
+	}
+}
+
+func TestAskPasswordArgs(t *testing.T) {
+	agent := askPasswordArgs("Enter:", "kcrypt:vda3", 90*time.Second, false)
+	if want := []string{"--no-tty", "--timeout=90", "--id=kcrypt:vda3", "Enter:"}; !slices.Equal(agent, want) {
+		t.Fatalf("with an agent: %q, want %q", agent, want)
+	}
+	// A UKI boot has no agent: ask on the console, so no --no-tty.
+	console := askPasswordArgs("Enter:", "kcrypt:vda3", 0, true)
+	if want := []string{"--timeout=0", "--id=kcrypt:vda3", "Enter:"}; !slices.Equal(console, want) {
+		t.Fatalf("on the console: %q, want %q", console, want)
+	}
+	if got := askPasswordArgs("p", "i", 100*time.Millisecond, false)[1]; got != "--timeout=1" {
+		t.Fatalf("a timeout under a second must not become 0 (forever): %q", got)
 	}
 }

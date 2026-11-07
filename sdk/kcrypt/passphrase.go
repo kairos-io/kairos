@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
@@ -63,19 +64,59 @@ var AskPasswordCommand = "systemd-ask-password"
 // askPassword asks for a passphrase. timeout 0 waits forever. It is a
 // variable so tests can answer without a console.
 var askPassword = func(prompt, id string, timeout time.Duration) (string, error) {
-	seconds := int(timeout.Round(time.Second) / time.Second)
-	if timeout > 0 && seconds == 0 {
-		seconds = 1
+	var console *os.File
+	if !systemdBooted() {
+		// No systemd, so no password agent: a UKI boot, where immucore is
+		// PID 1. systemd-ask-password --no-tty would queue the question for
+		// an agent that never comes and time out with nothing on the
+		// screen, so ask on the console itself.
+		f, err := os.OpenFile(passwordConsole, os.O_RDWR, 0)
+		if err != nil {
+			return "", fmt.Errorf("opening %s to ask for the passphrase: %w", passwordConsole, err)
+		}
+		defer f.Close()
+		console = f
 	}
-	// --no-tty: immucore runs with no terminal, so the question has to go
-	// through the agent that owns the console.
-	cmd := exec.Command(AskPasswordCommand, "--no-tty", "--timeout="+strconv.Itoa(seconds), "--id="+id, prompt)
+	cmd := exec.Command(AskPasswordCommand, askPasswordArgs(prompt, id, timeout, console != nil)...)
 	cmd.Stderr = os.Stderr
+	if console != nil {
+		cmd.Stdin, cmd.Stderr = console, console
+		// systemd-ask-password reads from /dev/tty, its controlling
+		// terminal; a child of PID 1 has none, so make the console its own.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", AskPasswordCommand, err)
 	}
 	return strings.TrimSuffix(string(out), "\n"), nil
+}
+
+// passwordConsole is where the passphrase is asked when no password agent
+// runs: the kernel's console, the last console= on the cmdline.
+var passwordConsole = "/dev/console"
+
+// systemdBooted reports whether systemd is PID 1, the same test as
+// sd_booted(3). Only then does a password agent answer systemd-ask-password.
+var systemdBooted = func() bool {
+	st, err := os.Stat("/run/systemd/system")
+	return err == nil && st.IsDir()
+}
+
+// askPasswordArgs are the systemd-ask-password arguments. With onConsole
+// it reads from its stdin, which is the console; otherwise --no-tty hands
+// the question to the agent that owns the console (dracut's
+// systemd-tty-ask-password-agent, or plymouth).
+func askPasswordArgs(prompt, id string, timeout time.Duration, onConsole bool) []string {
+	seconds := int(timeout.Round(time.Second) / time.Second)
+	if timeout > 0 && seconds == 0 {
+		seconds = 1
+	}
+	args := []string{"--timeout=" + strconv.Itoa(seconds), "--id=" + id, prompt}
+	if !onConsole {
+		args = append([]string{"--no-tty"}, args...)
+	}
+	return args
 }
 
 // openWithPassphrase opens device as /dev/mapper/<mapper>. It runs
