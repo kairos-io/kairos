@@ -93,6 +93,9 @@ func (r ResetAction) Run() (err error) {
 	if err != nil {
 		return err
 	}
+	// A new passphrase typed for a recreated container is only needed
+	// until the containers exist.
+	cleanup.Push(removeResetPassphraseFile)
 
 	// Reformat persistent partition
 	if r.spec.FormatPersistent {
@@ -101,9 +104,20 @@ func (r ResetAction) Run() (err error) {
 			// The audit trail and the state file are the things on the
 			// persistent partition a reset is not meant to destroy, so carry
 			// them over the format.
-			restore := r.preservePersistent(persistent)
+			// A locked container being recreated holds nothing the reset
+			// can read, so there is nothing to carry over.
+			restore := func() {}
+			if !isLockedContainer(persistent) {
+				restore = r.preservePersistent(persistent)
+			}
 
 			err = e.UnmountPartition(persistent)
+			if err != nil {
+				return err
+			}
+			// A passphrase container left locked in recovery is erased
+			// here; the preflight refused any other raw container.
+			err = WipeLockedContainer(r.cfg, persistent)
 			if err != nil {
 				return err
 			}
@@ -137,6 +151,10 @@ func (r ResetAction) Run() (err error) {
 		if oem != nil {
 			// Try to umount
 			err = e.UnmountPartition(oem)
+			if err != nil {
+				return err
+			}
+			err = WipeLockedContainer(r.cfg, oem)
 			if err != nil {
 				return err
 			}

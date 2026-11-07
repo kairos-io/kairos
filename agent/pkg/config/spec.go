@@ -33,6 +33,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
@@ -608,17 +609,25 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
-		if err := lockedContainerError(sdkConstants.OEMLabel, "reset-oem"); err != nil {
+		if container := lockedPassphraseContainerFn(cfg, sdkConstants.OEMLabel); container != nil {
+			ep.OEM = container
+			spec.Partitions.OEM = container
+		} else if err := lockedContainerError(sdkConstants.OEMLabel, "reset-oem"); err != nil {
 			return nil, err
+		} else {
+			cfg.Logger.Warnf("no OEM partition found, won't format it")
 		}
-		cfg.Logger.Warnf("no OEM partition found, won't format it")
 	}
 
 	if ep.Persistent == nil && spec.FormatPersistent {
-		if err := lockedContainerError(sdkConstants.PersistentLabel, "reset-persistent"); err != nil {
+		if container := lockedPassphraseContainerFn(cfg, sdkConstants.PersistentLabel); container != nil {
+			ep.Persistent = container
+			spec.Partitions.Persistent = container
+		} else if err := lockedContainerError(sdkConstants.PersistentLabel, "reset-persistent"); err != nil {
 			return nil, err
+		} else {
+			cfg.Logger.Warnf("no Persistent partition found, won't format it")
 		}
-		cfg.Logger.Warnf("no Persistent partition found, won't format it")
 	}
 
 	// If we mount partitions by the /dev/disk/by-label stanza, their mountpoints wont show up due to ghw not
@@ -636,6 +645,29 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	}
 
 	return spec, nil
+}
+
+// lockedPassphraseContainerFn returns the LUKS container carrying label when
+// it is locked and only a passphrase opens it (kcrypt.PassphraseContainerFor),
+// or nil. Recovery lets a person who forgot the passphrase boot with it
+// locked, and the reset preflight then erases it and creates a new container
+// with a new passphrase (agent/pkg/action/reset_wipe.go), so the spec takes
+// the raw container instead of refusing. Every other locked container still
+// gets lockedContainerError. A variable for the tests.
+var lockedPassphraseContainerFn = func(cfg *sdkConfig.Config, label string) *sdkPartitions.Partition {
+	container, err := lookup.FindLUKSContainerByLabel(label)
+	if err != nil || container == nil {
+		return nil
+	}
+	if container.Path == "" && container.Name != "" {
+		container.Path = filepath.Join("/dev", container.Name)
+	}
+	subsystem, err := kcrypt.LUKSSubsystem(container.Path)
+	if err != nil || !kcrypt.PassphraseContainerFor(subsystem, &cfg.Collector) {
+		return nil
+	}
+	cfg.Logger.Warnf("%s is a locked passphrase container (%s): the reset will erase it and create a new one", label, container.Path)
+	return container
 }
 
 // lockedContainerError tells an absent partition from one that is there but

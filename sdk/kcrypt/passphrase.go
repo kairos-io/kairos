@@ -126,7 +126,17 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		deadline = time.Now().Add(timeout)
 	}
 
-	prompt := fmt.Sprintf("Enter the passphrase for %s (%s):", label, info.Path)
+	// In recovery an empty or cancelled answer leaves the partition locked,
+	// so a forgotten passphrase does not keep anyone out of the reset.
+	leaveLocked := leaveLockedAllowed()
+	withHint := func(p string) string {
+		if leaveLocked {
+			return leaveLockedPrompt(p)
+		}
+		return p
+	}
+
+	prompt := withHint(fmt.Sprintf("Enter the passphrase for %s (%s):", label, info.Path))
 	for attempt := 1; ; attempt++ {
 		var left time.Duration
 		if !deadline.IsZero() {
@@ -137,6 +147,10 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		}
 
 		pass, err := askPassword(prompt, "kcrypt:"+info.Name, left)
+		if leaveLocked && (err != nil || pass == "") {
+			logger.Logger.Warn().Str("partition", label).Msg("Left locked on request: a reset will erase it")
+			return "", ErrLeftLocked
+		}
 		if err != nil {
 			logger.Logger.Warn().Err(err).Str("partition", label).Msg("No passphrase entered")
 			return "", errNoPassphrase
@@ -144,7 +158,7 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 
 		if err := openWithPassphrase(info.Path, info.Name, pass); err != nil {
 			logger.Logger.Warn().Str("partition", label).Int("attempt", attempt).Msg("Wrong passphrase")
-			prompt = fmt.Sprintf("Wrong passphrase. Try again (%s):", info.Path)
+			prompt = withHint(fmt.Sprintf("Wrong passphrase. Try again (%s):", info.Path))
 			continue
 		}
 
@@ -184,6 +198,13 @@ func unlockLabelsByPrompt(labels []string, timeout time.Duration, logger sdkLogg
 			continue
 		}
 		pass, err := promptUntilOpen(label, timeout, logger)
+		if errors.Is(err, ErrLeftLocked) {
+			// The person chose to go on without the passphrase (recovery
+			// only): do not ask for the other partitions, and let the
+			// boot go on with all of them locked.
+			logger.Logger.Warn().Strs("partitions", labels).Msg("Passphrase partitions left locked on request")
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("failed to unlock partition %s: %w", label, err)
 		}

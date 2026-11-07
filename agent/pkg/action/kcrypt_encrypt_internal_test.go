@@ -60,8 +60,10 @@ var _ = Describe("kcrypt encrypt", func() {
 		origMounts, origConfirm, origCmdline := kcryptMountpointsFn, kcryptConfirmFn, procCmdlinePath
 		origIsUki, origMountSource := resetIsUkiFn, resetMountSourceFn
 		origResetProbe, origResetEncryptor := resetFsProbeFn, resetEncryptorFn
+		origSubsystem := resetLUKSSubsystemFn
 		DeferCleanup(func() {
 			resetFsProbeFn, resetEncryptorFn = origResetProbe, origResetEncryptor
+			resetLUKSSubsystemFn = origSubsystem
 			kcryptScanDisksFn, kcryptBlkidLookupFn, kcryptFsProbeFn = origScan, origBlkid, origProbe
 			kcryptUdevSettleFn, kcryptEncryptFn, kcryptUnlockFn = origSettle, origEncrypt, origUnlock
 			kcryptMountpointsFn, kcryptConfirmFn, procCmdlinePath = origMounts, origConfirm, origCmdline
@@ -92,6 +94,8 @@ var _ = Describe("kcrypt encrypt", func() {
 		resetIsUkiFn = func() bool { return false }
 		resetMountSourceFn = func(string) (string, error) { return "/dev/mapper/vda5", nil }
 		resetFsProbeFn = func(string) (string, error) { return "ext4", nil }
+		// A container made by the TPM or KMS encryptors: no subsystem.
+		resetLUKSSubsystemFn = func(string) (string, error) { return "", nil }
 		resetEncryptorFn = func(*config.Config) (kcrypt.PartitionEncryptor, error) {
 			return &kcrypt.LocalTPMNVEncryptor{}, nil
 		}
