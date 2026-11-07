@@ -555,6 +555,7 @@ func (e *LocalTPMNVEncryptor) Validate() error {
 // 4. Returns the appropriate encryptor implementation
 //
 // Decision logic:
+// 0. If kcrypt.method is passphrase -> Passphrase (asked for at boot)
 // 1. If challenger_server configured OR mdns enabled -> Remote KMS
 // 2. Else if UKI mode -> TPM + PCR policy (requires systemd >= 252 and TPM 2.0)
 // 3. Else (non-UKI, no remote) -> Local TPM NV passphrase.
@@ -592,7 +593,13 @@ func GetEncryptorFromConfig(logger sdkLogger.KairosLogger, collectorConfig *coll
 
 	var encryptor PartitionEncryptor
 
-	if useRemoteKMS {
+	if kcryptConfig != nil && kcryptConfig.Method == PassphraseMethod {
+		logger.Logger.Info().Msg("Using a passphrase for encryption")
+		encryptor = &PassphraseEncryptor{
+			logger:       logger,
+			kcryptConfig: kcryptConfig,
+		}
+	} else if useRemoteKMS {
 		logger.Logger.Info().
 			Str("challenger_server", kcryptConfig.ChallengerServer).
 			Bool("mdns", kcryptConfig.MDNS).
