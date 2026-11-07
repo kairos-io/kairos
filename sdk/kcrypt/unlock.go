@@ -222,6 +222,25 @@ func UnlockAllEncryptedPartitions(logger sdkLogger.KairosLogger) error {
 		logger.Debugf("UnlockAllEncryptedPartitions: %v", scanErr)
 		collectorConfig = nil
 	}
+	kcryptConfig := KcryptConfigFromCollector(collectorConfig, logger)
+
+	// A container PassphraseEncryptor made says so in its header. Those are
+	// asked for whatever encryptor the configuration selects, because that
+	// configuration may sit in the encrypted OEM, or be gone after a reset
+	// that formatted OEM. The rest go through the selected encryptor.
+	byHeader, partitions := splitPassphraseContainers(partitions)
+	if len(byHeader) > 0 {
+		logger.Logger.Info().Strs("partitions", byHeader).Msg("Asking for the passphrase of the containers marked " + PassphraseSubsystem)
+		known, _ := readPassphraseFile(kcryptConfig)
+		if err := unlockLabelsByPrompt(byHeader, 0, logger, known); err != nil {
+			logger.Logger.Err(err).Msg("Failed to unlock the passphrase containers")
+			return err
+		}
+	}
+	if len(partitions) == 0 {
+		logger.Logger.Info().Msg("Successfully unlocked all encrypted partitions")
+		return nil
+	}
 
 	err = unlockWithEncryptor(logger, collectorConfig, partitions)
 	if err == nil {
@@ -229,17 +248,15 @@ func UnlockAllEncryptedPartitions(logger sdkLogger.KairosLogger) error {
 		return nil
 	}
 
-	timeout := passphraseFallbackTimeout(KcryptConfigFromCollector(collectorConfig, logger))
+	timeout := passphraseFallbackTimeout(kcryptConfig)
 	if timeout == 0 {
 		return err
 	}
 
 	logger.Logger.Warn().Err(err).Msg("Automatic unlock failed, asking for a passphrase")
-	for _, label := range partitions {
-		if promptErr := unlockByPrompt(label, timeout, logger); promptErr != nil {
-			logger.Logger.Err(promptErr).Str("partition", label).Msg("Passphrase unlock failed")
-			return fmt.Errorf("%w; passphrase fallback: %w", err, promptErr)
-		}
+	if promptErr := unlockLabelsByPrompt(partitions, timeout, logger); promptErr != nil {
+		logger.Logger.Err(promptErr).Msg("Passphrase unlock failed")
+		return fmt.Errorf("%w; passphrase fallback: %w", err, promptErr)
 	}
 
 	logger.Logger.Info().Msg("Unlocked all encrypted partitions with a passphrase")

@@ -125,29 +125,43 @@ func TestPassphraseFallbackTimeout(t *testing.T) {
 // answers with the given passphrases in turn, and a fake cryptsetup that
 // accepts only "right passphrase".
 type promptFixture struct {
-	answers []string
-	prompts []string
-	opened  int
+	answers  []string
+	prompts  []string
+	opened   int
+	openedBy map[string]bool
 }
 
 func newPromptFixture(t *testing.T, answers ...string) *promptFixture {
 	t.Helper()
+	return newPromptFixtureFor(t, []partitions.Partition{{
+		Name:            "disk1",
+		PartitionLabel:  "persistent",
+		FilesystemLabel: constants.PersistentLUKSLabel,
+		FS:              "crypto_LUKS",
+	}}, answers...)
+}
+
+// newPromptFixtureFor is newPromptFixture with the given LUKS partitions,
+// each opened under its kernel name.
+func newPromptFixtureFor(t *testing.T, parts []partitions.Partition, answers ...string) *promptFixture {
+	t.Helper()
 	var ghwMock mocks.GhwMock
-	ghwMock.AddDisk(partitions.Disk{
-		Name: "disk",
-		Partitions: partitions.PartitionList{{
-			Name:            "disk1",
-			PartitionLabel:  "persistent",
-			FilesystemLabel: constants.PersistentLUKSLabel,
-			FS:              "crypto_LUKS",
-		}},
-	})
+	list := partitions.PartitionList{}
+	names := map[string]bool{}
+	for i := range parts {
+		p := parts[i]
+		list = append(list, &p)
+		names[p.Name] = true
+	}
+	ghwMock.AddDisk(partitions.Disk{Name: "disk", Partitions: list})
 	ghwMock.CreateDevices()
 	t.Cleanup(ghwMock.Clean)
 
-	f := &promptFixture{answers: answers}
-	oldAsk, oldOpen, oldMapper := askPassword, openWithPassphrase, mapperCreated
-	t.Cleanup(func() { askPassword, openWithPassphrase, mapperCreated = oldAsk, oldOpen, oldMapper })
+	f := &promptFixture{answers: answers, openedBy: map[string]bool{}}
+	oldAsk, oldOpen, oldMapper, oldSub := askPassword, openWithPassphrase, mapperCreated, luksHeaderSubsystem
+	t.Cleanup(func() {
+		askPassword, openWithPassphrase, mapperCreated, luksHeaderSubsystem = oldAsk, oldOpen, oldMapper, oldSub
+	})
 
 	askPassword = func(prompt, _ string, _ time.Duration) (string, error) {
 		f.prompts = append(f.prompts, prompt)
@@ -159,16 +173,19 @@ func newPromptFixture(t *testing.T, answers ...string) *promptFixture {
 		return answer, nil
 	}
 	openWithPassphrase = func(_, mapper, passphrase string) error {
-		if mapper != "disk1" {
-			t.Errorf("mapper = %q, want the kernel name disk1 that kcrypt checks", mapper)
+		if !names[mapper] {
+			t.Errorf("mapper = %q, want the kernel name of a fixture partition", mapper)
 		}
 		if passphrase != "right passphrase" {
 			return errors.New("No key available with this passphrase")
 		}
 		f.opened++
+		f.openedBy[mapper] = true
 		return nil
 	}
-	mapperCreated = func(*partitions.Partition) bool { return f.opened > 0 }
+	mapperCreated = func(p *partitions.Partition) bool { return f.openedBy[p.Name] }
+	// No header says kcrypt:passphrase unless a test says so.
+	luksHeaderSubsystem = func(string) string { return "" }
 	return f
 }
 
@@ -279,5 +296,110 @@ func TestPassphraseEncryptorUnlockUsesTheFileWithoutAsking(t *testing.T) {
 	}
 	if f.opened != 1 || len(f.prompts) != 0 {
 		t.Fatalf("opened %d times after %d prompts, want 1 after none", f.opened, len(f.prompts))
+	}
+}
+
+// recordingEncryptor is a TPM-like encryptor that unlocks whatever it is
+// given and records it.
+type recordingEncryptor struct{ got []string }
+
+func (e *recordingEncryptor) Encrypt([]string) error { return nil }
+func (e *recordingEncryptor) Unlock(labels []string) error {
+	e.got = append(e.got, labels...)
+	return nil
+}
+func (e *recordingEncryptor) Name() string    { return "TPM with PCR policy" }
+func (e *recordingEncryptor) Validate() error { return nil }
+
+func TestReadLUKS2Subsystem(t *testing.T) {
+	hdr := make([]byte, 4096)
+	copy(hdr, luks2Magic)
+	hdr[7] = 2
+	copy(hdr[luks2SubsystemOffset:], PassphraseSubsystem)
+	dev := filepath.Join(t.TempDir(), "dev")
+	if err := os.WriteFile(dev, hdr, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := readLUKS2Subsystem(dev)
+	if err != nil || got != PassphraseSubsystem {
+		t.Fatalf("readLUKS2Subsystem() = %q, %v; want %q", got, err, PassphraseSubsystem)
+	}
+
+	hdr[7] = 1 // LUKS1 has no subsystem field
+	if err := os.WriteFile(dev, hdr, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readLUKS2Subsystem(dev); err == nil {
+		t.Fatal("a LUKS1 header must not report a subsystem")
+	}
+}
+
+// The configuration that said kcrypt.method: passphrase is unreadable (in
+// an encrypted OEM, or gone after a reset): the header alone gets the
+// partition asked for, and the selected encryptor is not used for it.
+func TestUnlockAllAsksForAPassphraseHeaderWithoutConfig(t *testing.T) {
+	f := newPromptFixture(t, "right passphrase")
+	luksHeaderSubsystem = func(string) string { return PassphraseSubsystem }
+	encryptor := &recordingEncryptor{}
+	withUnlockConfig(t, collector.ConfigValues{}, encryptor)
+
+	if err := UnlockAllEncryptedPartitions(logger.NewNullLogger()); err != nil {
+		t.Fatalf("UnlockAllEncryptedPartitions() error = %v", err)
+	}
+	if f.opened != 1 || len(f.prompts) != 1 {
+		t.Fatalf("opened %d times after %d prompts, want 1 after 1", f.opened, len(f.prompts))
+	}
+	if len(encryptor.got) != 0 {
+		t.Fatalf("the selected encryptor was given %v, want nothing", encryptor.got)
+	}
+}
+
+// A passphrase container next to a TPM container: each goes its own way.
+func TestUnlockAllSplitsPassphraseAndTPMContainers(t *testing.T) {
+	f := newPromptFixtureFor(t, []partitions.Partition{
+		{Name: "disk1", PartitionLabel: "oem", FilesystemLabel: constants.OEMLUKSLabel, FS: "crypto_LUKS"},
+		{Name: "disk2", PartitionLabel: "persistent", FilesystemLabel: constants.PersistentLUKSLabel, FS: "crypto_LUKS"},
+	}, "right passphrase")
+	luksHeaderSubsystem = func(label string) string {
+		if label == constants.PersistentLUKSLabel {
+			return PassphraseSubsystem
+		}
+		return ""
+	}
+	encryptor := &recordingEncryptor{}
+	withUnlockConfig(t, collector.ConfigValues{}, encryptor)
+
+	if err := UnlockAllEncryptedPartitions(logger.NewNullLogger()); err != nil {
+		t.Fatalf("UnlockAllEncryptedPartitions() error = %v", err)
+	}
+	if !f.openedBy["disk2"] || f.openedBy["disk1"] || len(f.prompts) != 1 {
+		t.Fatalf("opened by passphrase: %v after %d prompts; want only disk2 after 1", f.openedBy, len(f.prompts))
+	}
+	if len(encryptor.got) != 1 || encryptor.got[0] != constants.OEMLUKSLabel {
+		t.Fatalf("the TPM encryptor was given %v, want [%s]", encryptor.got, constants.OEMLUKSLabel)
+	}
+}
+
+// OEM and persistent with one passphrase: asked once.
+func TestUnlockAllAsksOnceForTwoPassphraseContainers(t *testing.T) {
+	f := newPromptFixtureFor(t, []partitions.Partition{
+		{Name: "disk1", PartitionLabel: "oem", FilesystemLabel: constants.OEMLUKSLabel, FS: "crypto_LUKS"},
+		{Name: "disk2", PartitionLabel: "persistent", FilesystemLabel: constants.PersistentLUKSLabel, FS: "crypto_LUKS"},
+	}, "wrong", "right passphrase")
+	luksHeaderSubsystem = func(string) string { return PassphraseSubsystem }
+	encryptor := &recordingEncryptor{}
+	withUnlockConfig(t, collector.ConfigValues{}, encryptor)
+
+	if err := UnlockAllEncryptedPartitions(logger.NewNullLogger()); err != nil {
+		t.Fatalf("UnlockAllEncryptedPartitions() error = %v", err)
+	}
+	if !f.openedBy["disk1"] || !f.openedBy["disk2"] {
+		t.Fatalf("opened %v, want both", f.openedBy)
+	}
+	if len(f.prompts) != 2 {
+		t.Fatalf("asked %d times, want 2 (one wrong, one right, none for the second partition)", len(f.prompts))
+	}
+	if len(encryptor.got) != 0 {
+		t.Fatalf("the selected encryptor was given %v, want nothing", encryptor.got)
 	}
 }

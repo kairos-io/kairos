@@ -1,8 +1,11 @@
 package kcrypt
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -102,12 +105,20 @@ var errNoPassphrase = errors.New("no passphrase was entered")
 // until it opens the partition. timeout is the total time to keep asking; 0
 // asks forever.
 func unlockByPrompt(label string, timeout time.Duration, logger sdkLogger.KairosLogger) error {
+	_, err := promptUntilOpen(label, timeout, logger)
+	return err
+}
+
+// promptUntilOpen is unlockByPrompt that also returns the passphrase that
+// opened the partition, so the caller can try it on the next one before it
+// asks again. It returns "" when the partition was already open.
+func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.KairosLogger) (string, error) {
 	info, err := findPartitionByLabel(label)
 	if err != nil {
-		return fmt.Errorf("find partition %s: %w", label, err)
+		return "", fmt.Errorf("find partition %s: %w", label, err)
 	}
 	if !partitionLocked(info) {
-		return nil
+		return "", nil
 	}
 
 	var deadline time.Time
@@ -121,14 +132,14 @@ func unlockByPrompt(label string, timeout time.Duration, logger sdkLogger.Kairos
 		if !deadline.IsZero() {
 			left = time.Until(deadline)
 			if left <= 0 {
-				return errNoPassphrase
+				return "", errNoPassphrase
 			}
 		}
 
 		pass, err := askPassword(prompt, "kcrypt:"+info.Name, left)
 		if err != nil {
 			logger.Logger.Warn().Err(err).Str("partition", label).Msg("No passphrase entered")
-			return errNoPassphrase
+			return "", errNoPassphrase
 		}
 
 		if err := openWithPassphrase(info.Path, info.Name, pass); err != nil {
@@ -141,11 +152,107 @@ func unlockByPrompt(label string, timeout time.Duration, logger sdkLogger.Kairos
 			logger.Logger.Warn().Err(err).Str("partition", label).Msg("UdevAdmTriggerSettle failed")
 		}
 		if !mapperCreated(info) {
-			return fmt.Errorf("unlock reported success but %s was not created", lookup.MapperPath(info))
+			return "", fmt.Errorf("unlock reported success but %s was not created", lookup.MapperPath(info))
 		}
 		logger.Logger.Info().Str("partition", label).Int("attempt", attempt).Msg("Unlocked with the passphrase")
-		return nil
+		return pass, nil
 	}
+}
+
+// unlockLabelsByPrompt opens every partition in labels with a passphrase.
+// It starts with the known passphrases (a passphrase file, say), and every
+// passphrase that opens a partition is tried on the remaining ones before
+// anyone is asked again, so OEM and persistent sharing one passphrase ask
+// once. timeout bounds each prompt; 0 asks forever.
+func unlockLabelsByPrompt(labels []string, timeout time.Duration, logger sdkLogger.KairosLogger, known ...string) error {
+	var tried []string
+	for _, k := range known {
+		if k != "" {
+			tried = append(tried, k)
+		}
+	}
+	for _, label := range labels {
+		opened := false
+		for _, pass := range tried {
+			if err := unlockWithPassphrase(label, pass, logger); err == nil {
+				logger.Logger.Info().Str("partition", label).Msg("Unlocked with a passphrase entered earlier")
+				opened = true
+				break
+			}
+		}
+		if opened {
+			continue
+		}
+		pass, err := promptUntilOpen(label, timeout, logger)
+		if err != nil {
+			return fmt.Errorf("failed to unlock partition %s: %w", label, err)
+		}
+		if pass != "" {
+			tried = append(tried, pass)
+		}
+	}
+	return nil
+}
+
+// luksHeaderSubsystem returns the LUKS2 subsystem field of the container
+// labelled label, or "" when it cannot be read. A variable for the tests.
+var luksHeaderSubsystem = func(label string) string {
+	info, err := findPartitionByLabel(label)
+	if err != nil || info == nil || info.Path == "" {
+		return ""
+	}
+	sub, err := readLUKS2Subsystem(info.Path)
+	if err != nil {
+		return ""
+	}
+	return sub
+}
+
+// The binary LUKS2 header (cryptsetup's docs/on-disk-format-luks2.pdf):
+// magic[6] version[2] hdr_size[8] seqid[8] label[48] csum_alg[32] salt[64]
+// uuid[40] subsystem[48] ...
+const (
+	luks2SubsystemOffset = 6 + 2 + 8 + 8 + 48 + 32 + 64 + 40
+	luks2SubsystemLen    = 48
+)
+
+var luks2Magic = []byte{'L', 'U', 'K', 'S', 0xba, 0xbe}
+
+// readLUKS2Subsystem reads the subsystem string from the primary LUKS2
+// header on device. It needs no cryptsetup, so it works in any initramfs.
+func readLUKS2Subsystem(device string) (string, error) {
+	f, err := os.Open(device)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	hdr := make([]byte, luks2SubsystemOffset+luks2SubsystemLen)
+	if _, err := io.ReadFull(f, hdr); err != nil {
+		return "", err
+	}
+	if !bytes.Equal(hdr[:6], luks2Magic) || binary.BigEndian.Uint16(hdr[6:8]) != 2 {
+		return "", fmt.Errorf("%s has no LUKS2 header", device)
+	}
+	sub := hdr[luks2SubsystemOffset:]
+	if i := bytes.IndexByte(sub, 0); i >= 0 {
+		sub = sub[:i]
+	}
+	return string(sub), nil
+}
+
+// splitPassphraseContainers separates the containers whose header says only
+// a person can open them (subsystem kcrypt:passphrase) from the others. The
+// header is read because the configuration that set kcrypt.method may live
+// in an encrypted OEM, or be gone after a reset that formatted OEM.
+func splitPassphraseContainers(labels []string) (passphrase, others []string) {
+	for _, label := range labels {
+		if luksHeaderSubsystem(label) == PassphraseSubsystem {
+			passphrase = append(passphrase, label)
+		} else {
+			others = append(others, label)
+		}
+	}
+	return passphrase, others
 }
 
 // unlockWithPassphrase opens the partition labelled label with a passphrase
@@ -205,19 +312,7 @@ func (e *PassphraseEncryptor) Encrypt(partitions []string) error {
 func (e *PassphraseEncryptor) Unlock(partitions []string) error {
 	e.logger.Logger.Info().Str("method", e.Name()).Strs("partitions", partitions).Msg("Unlocking encrypted partitions")
 	known, _ := readPassphraseFile(e.kcryptConfig)
-	for _, label := range partitions {
-		if known != "" {
-			err := unlockWithPassphrase(label, known, e.logger)
-			if err == nil {
-				continue
-			}
-			e.logger.Logger.Warn().Err(err).Str("partition", label).Msg("The passphrase file did not unlock the partition, asking instead")
-		}
-		if err := unlockByPrompt(label, 0, e.logger); err != nil {
-			return fmt.Errorf("failed to unlock partition %s: %w", label, err)
-		}
-	}
-	return nil
+	return unlockLabelsByPrompt(partitions, 0, e.logger, known)
 }
 
 func (e *PassphraseEncryptor) Name() string {
