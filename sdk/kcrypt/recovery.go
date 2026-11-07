@@ -18,7 +18,7 @@ import (
 
 // LeaveLockedText is what the passphrase prompt offers in recovery: an empty
 // answer, or a cancelled question, goes on without the passphrase.
-const LeaveLockedText = "Leave the encrypted files locked — a reset will erase them"
+const LeaveLockedText = "Leave the encrypted files locked: a reset will erase them"
 
 // ErrLeftLocked means the person at the console chose to go on without the
 // passphrase. Only a recovery or reset boot offers that.

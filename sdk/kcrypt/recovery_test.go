@@ -33,7 +33,7 @@ func TestUnlockByPromptLeavesLockedOnAnEmptyAnswerInRecovery(t *testing.T) {
 	if f.opened != 0 {
 		t.Fatal("nothing should have been opened")
 	}
-	if !strings.Contains(f.prompts[0], "leave the encrypted files locked — a reset will erase them") {
+	if !strings.Contains(f.prompts[0], "leave the encrypted files locked: a reset will erase them") {
 		t.Fatalf("prompt = %q, want the way out", f.prompts[0])
 	}
 }
