@@ -169,15 +169,8 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		deadline = time.Now().Add(timeout)
 	}
 
-	// A container with a recovery key asks for "the recovery key": that is
-	// the word on the paper the person kept, and a passphrase they never
-	// chose would send them looking for the wrong thing.
-	what := "passphrase"
-	recovery := luksHasRecoveryKey(label)
-	if recovery {
-		what = "recovery key"
-	}
-	prompt := fmt.Sprintf("Enter the %s for %s (%s):", what, label, info.Path)
+	p := promptFor(luksTokenTypes(label))
+	prompt := p.ask
 	for attempt := 1; ; attempt++ {
 		var left time.Duration
 		if !deadline.IsZero() {
@@ -192,13 +185,10 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 			logger.Logger.Warn().Err(err).Str("partition", label).Msg("No passphrase entered")
 			return "", errNoPassphrase
 		}
-		if recovery {
-			pass = normalizeRecoveryKey(pass)
-		}
-
-		if err := openWithPassphrase(info.Path, info.Name, pass); err != nil {
-			logger.Logger.Warn().Str("partition", label).Int("attempt", attempt).Msg("Wrong " + what)
-			prompt = fmt.Sprintf("Wrong %s. Try again (%s):", what, info.Path)
+		pass, err = openTyped(info, pass, p.recovery)
+		if err != nil {
+			logger.Logger.Warn().Str("partition", label).Int("attempt", attempt).Msg(p.wrong)
+			prompt = p.wrong
 			continue
 		}
 
@@ -208,7 +198,7 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		if !mapperCreated(info) {
 			return "", fmt.Errorf("unlock reported success but %s was not created", lookup.MapperPath(info))
 		}
-		logger.Logger.Info().Str("partition", label).Int("attempt", attempt).Msg("Unlocked with the " + what)
+		logger.Logger.Info().Str("partition", label).Int("attempt", attempt).Msg("Unlocked with " + p.what)
 		return pass, nil
 	}
 }
@@ -254,18 +244,74 @@ func unlockLabelsByPrompt(labels []string, timeout time.Duration, logger sdkLogg
 // --wipe-slot=recovery removes it.
 const RecoveryKeyTokenType = "systemd-recovery"
 
-// luksHasRecoveryKey reports whether the container labelled label has a
-// recovery key keyslot, by its token. A variable for the tests.
-var luksHasRecoveryKey = func(label string) bool {
+// luksTokenTypes returns the token types in the LUKS2 header of the
+// container labelled label, or nil when it cannot be read. A variable for
+// the tests.
+var luksTokenTypes = func(label string) []string {
 	info, err := findPartitionByLabel(label)
 	if err != nil || info == nil || info.Path == "" {
-		return false
+		return nil
 	}
 	types, err := readLUKS2TokenTypes(info.Path)
 	if err != nil {
-		return false
+		return nil
 	}
-	return slices.Contains(types, RecoveryKeyTokenType)
+	return types
+}
+
+// luksHasRecoveryKey reports whether the container labelled label has a
+// recovery key keyslot, by its token.
+func luksHasRecoveryKey(label string) bool {
+	return slices.Contains(luksTokenTypes(label), RecoveryKeyTokenType)
+}
+
+// prompt is what the boot asks and answers for one container. No prompt
+// names a partition: the person knows "the disk", not COS_PERSISTENT_LUKS.
+type prompt struct {
+	ask, wrong, what string
+	recovery         bool
+}
+
+// promptFor words the prompt by what the container holds:
+//   - a TPM-sealed container with a recovery key (Trusted Boot): only the
+//     recovery key can be typed, and the prompt says what it looks like;
+//   - a passphrase container with a recovery key: either works;
+//   - anything else: the passphrase.
+func promptFor(tokenTypes []string) prompt {
+	recovery := slices.Contains(tokenTypes, RecoveryKeyTokenType)
+	switch {
+	case recovery && slices.Contains(tokenTypes, "systemd-tpm2"):
+		return prompt{
+			ask:      "Enter the recovery key for this computer's disk (8 groups of 8 letters; dashes optional)",
+			wrong:    "Wrong recovery key, try again",
+			what:     "the recovery key",
+			recovery: true,
+		}
+	case recovery:
+		return prompt{
+			ask:      "Enter the disk passphrase or recovery key",
+			wrong:    "Wrong passphrase or recovery key, try again",
+			what:     "the passphrase or recovery key",
+			recovery: true,
+		}
+	}
+	return prompt{ask: "Enter the disk passphrase", wrong: "Wrong passphrase, try again", what: "the passphrase"}
+}
+
+// openTyped opens the container with what was typed. When it may be a
+// recovery key and the text as typed does not open it, the key's canonical
+// form is tried too, so the key can be typed in any case and without its
+// dashes while a passphrase is still used byte for byte. It returns the form
+// that opened the container: that is what the next container is tried with.
+func openTyped(info *partitions.Partition, typed string, recovery bool) (string, error) {
+	err := openWithPassphrase(info.Path, info.Name, typed)
+	if err == nil || !recovery {
+		return typed, err
+	}
+	if key := normalizeRecoveryKey(typed); key != typed {
+		return key, openWithPassphrase(info.Path, info.Name, key)
+	}
+	return typed, err
 }
 
 // readLUKS2TokenTypes returns the type of every token in the JSON area of
