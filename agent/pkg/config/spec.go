@@ -609,25 +609,21 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
-		if container := lockedPassphraseContainerFn(cfg, sdkConstants.OEMLabel); container != nil {
-			ep.OEM = container
-			spec.Partitions.OEM = container
-		} else if err := lockedContainerError(sdkConstants.OEMLabel, "reset-oem"); err != nil {
+		container, err := missingResetPartition(cfg, sdkConstants.OEMLabel, "reset-oem", "OEM")
+		if err != nil {
 			return nil, err
-		} else {
-			cfg.Logger.Warnf("no OEM partition found, won't format it")
 		}
+		ep.OEM = container
+		spec.Partitions.OEM = container
 	}
 
 	if ep.Persistent == nil && spec.FormatPersistent {
-		if container := lockedPassphraseContainerFn(cfg, sdkConstants.PersistentLabel); container != nil {
-			ep.Persistent = container
-			spec.Partitions.Persistent = container
-		} else if err := lockedContainerError(sdkConstants.PersistentLabel, "reset-persistent"); err != nil {
+		container, err := missingResetPartition(cfg, sdkConstants.PersistentLabel, "reset-persistent", "Persistent")
+		if err != nil {
 			return nil, err
-		} else {
-			cfg.Logger.Warnf("no Persistent partition found, won't format it")
 		}
+		ep.Persistent = container
+		spec.Partitions.Persistent = container
 	}
 
 	// If we mount partitions by the /dev/disk/by-label stanza, their mountpoints wont show up due to ghw not
@@ -645,6 +641,21 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	}
 
 	return spec, nil
+}
+
+// missingResetPartition handles a partition the reset is asked to format but
+// the ghw walk did not find. It returns the raw container when it is a locked
+// passphrase container the reset may recreate, an error when it is any other
+// locked container, and nil (with a warning) when it is really absent.
+func missingResetPartition(cfg *sdkConfig.Config, label, flag, name string) (*sdkPartitions.Partition, error) {
+	if container := lockedPassphraseContainerFn(cfg, label); container != nil {
+		return container, nil
+	}
+	if err := lockedContainerError(label, flag); err != nil {
+		return nil, err
+	}
+	cfg.Logger.Warnf("no %s partition found, won't format it", name)
+	return nil, nil
 }
 
 // lockedPassphraseContainerFn returns the LUKS container carrying label when
