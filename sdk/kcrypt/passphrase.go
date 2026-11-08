@@ -3,11 +3,13 @@ package kcrypt
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -167,7 +169,15 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		deadline = time.Now().Add(timeout)
 	}
 
-	prompt := fmt.Sprintf("Enter the passphrase for %s (%s):", label, info.Path)
+	// A container with a recovery key asks for "the recovery key": that is
+	// the word on the paper the person kept, and a passphrase they never
+	// chose would send them looking for the wrong thing.
+	what := "passphrase"
+	recovery := luksHasRecoveryKey(label)
+	if recovery {
+		what = "recovery key"
+	}
+	prompt := fmt.Sprintf("Enter the %s for %s (%s):", what, label, info.Path)
 	for attempt := 1; ; attempt++ {
 		var left time.Duration
 		if !deadline.IsZero() {
@@ -182,10 +192,13 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 			logger.Logger.Warn().Err(err).Str("partition", label).Msg("No passphrase entered")
 			return "", errNoPassphrase
 		}
+		if recovery {
+			pass = normalizeRecoveryKey(pass)
+		}
 
 		if err := openWithPassphrase(info.Path, info.Name, pass); err != nil {
-			logger.Logger.Warn().Str("partition", label).Int("attempt", attempt).Msg("Wrong passphrase")
-			prompt = fmt.Sprintf("Wrong passphrase. Try again (%s):", info.Path)
+			logger.Logger.Warn().Str("partition", label).Int("attempt", attempt).Msg("Wrong " + what)
+			prompt = fmt.Sprintf("Wrong %s. Try again (%s):", what, info.Path)
 			continue
 		}
 
@@ -195,7 +208,7 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		if !mapperCreated(info) {
 			return "", fmt.Errorf("unlock reported success but %s was not created", lookup.MapperPath(info))
 		}
-		logger.Logger.Info().Str("partition", label).Int("attempt", attempt).Msg("Unlocked with the passphrase")
+		logger.Logger.Info().Str("partition", label).Int("attempt", attempt).Msg("Unlocked with the " + what)
 		return pass, nil
 	}
 }
@@ -233,6 +246,106 @@ func unlockLabelsByPrompt(labels []string, timeout time.Duration, logger sdkLogg
 		}
 	}
 	return nil
+}
+
+// RecoveryKeyTokenType is the LUKS2 token type that marks the keyslot of a
+// recovery key. It is the type systemd-cryptenroll --recovery-key writes, so
+// a key enrolled either way is recognised, and systemd-cryptenroll
+// --wipe-slot=recovery removes it.
+const RecoveryKeyTokenType = "systemd-recovery"
+
+// luksHasRecoveryKey reports whether the container labelled label has a
+// recovery key keyslot, by its token. A variable for the tests.
+var luksHasRecoveryKey = func(label string) bool {
+	info, err := findPartitionByLabel(label)
+	if err != nil || info == nil || info.Path == "" {
+		return false
+	}
+	types, err := readLUKS2TokenTypes(info.Path)
+	if err != nil {
+		return false
+	}
+	return slices.Contains(types, RecoveryKeyTokenType)
+}
+
+// readLUKS2TokenTypes returns the type of every token in the JSON area of
+// the primary LUKS2 header on device. The JSON area starts at 4096 bytes and
+// runs to hdr_size, the big-endian uint64 at offset 8.
+func readLUKS2TokenTypes(device string) ([]string, error) {
+	f, err := os.Open(device)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	bin := make([]byte, 16)
+	if _, err := io.ReadFull(f, bin); err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(bin[:6], luks2Magic) || binary.BigEndian.Uint16(bin[6:8]) != 2 {
+		return nil, fmt.Errorf("%s has no LUKS2 header", device)
+	}
+	size := binary.BigEndian.Uint64(bin[8:16])
+	if size <= 4096 || size > 4<<20 {
+		return nil, fmt.Errorf("%s: LUKS2 header size %d out of range", device, size)
+	}
+	area := make([]byte, size-4096)
+	if _, err := f.ReadAt(area, 4096); err != nil {
+		return nil, err
+	}
+	if i := bytes.IndexByte(area, 0); i >= 0 {
+		area = area[:i]
+	}
+	var meta struct {
+		Tokens map[string]struct {
+			Type string `json:"type"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal(area, &meta); err != nil {
+		return nil, fmt.Errorf("%s: LUKS2 metadata: %w", device, err)
+	}
+	var types []string
+	for _, t := range meta.Tokens {
+		types = append(types, t.Type)
+	}
+	return types, nil
+}
+
+// modhex is the alphabet of systemd's recovery keys: 16 letters with no
+// look-alikes, one per nibble.
+const modhex = "cbdefghijklnrtuv"
+
+// normalizeRecoveryKey forgives how a recovery key is typed: upper case,
+// spaces, or no dashes at all. The keyslot holds the canonical form, eight
+// dash-separated groups of eight modhex characters. Anything that is not 64
+// modhex characters is returned as typed.
+func normalizeRecoveryKey(in string) string {
+	var chars []rune
+	for _, r := range strings.ToLower(in) {
+		switch {
+		case r == '-' || r == ' ' || r == '\t':
+			continue
+		case strings.ContainsRune(modhex, r):
+			chars = append(chars, r)
+		default:
+			return in
+		}
+	}
+	if len(chars) != 64 {
+		return in
+	}
+	var b strings.Builder
+	for i := 0; i < 64; i += 8 {
+		if i > 0 {
+			b.WriteByte('-')
+		}
+		b.WriteString(string(chars[i : i+8]))
+	}
+	return b.String()
+}
+
+// recoveryKeyAmong reports whether any of labels has a recovery key.
+func recoveryKeyAmong(labels []string) bool {
+	return slices.ContainsFunc(labels, luksHasRecoveryKey)
 }
 
 // luksHeaderSubsystem returns the LUKS2 subsystem field of the container

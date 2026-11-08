@@ -1,6 +1,7 @@
 package kcrypt
 
 import (
+	"encoding/binary"
 	"errors"
 	"os"
 	"path/filepath"
@@ -126,6 +127,7 @@ func TestPassphraseFallbackTimeout(t *testing.T) {
 // answers with the given passphrases in turn, and a fake cryptsetup that
 // accepts only "right passphrase".
 type promptFixture struct {
+	right    string
 	answers  []string
 	prompts  []string
 	opened   int
@@ -158,10 +160,10 @@ func newPromptFixtureFor(t *testing.T, parts []partitions.Partition, answers ...
 	ghwMock.CreateDevices()
 	t.Cleanup(ghwMock.Clean)
 
-	f := &promptFixture{answers: answers, openedBy: map[string]bool{}}
-	oldAsk, oldOpen, oldMapper, oldSub := askPassword, openWithPassphrase, mapperCreated, luksHeaderSubsystem
+	f := &promptFixture{right: "right passphrase", answers: answers, openedBy: map[string]bool{}}
+	oldAsk, oldOpen, oldMapper, oldSub, oldRec := askPassword, openWithPassphrase, mapperCreated, luksHeaderSubsystem, luksHasRecoveryKey
 	t.Cleanup(func() {
-		askPassword, openWithPassphrase, mapperCreated, luksHeaderSubsystem = oldAsk, oldOpen, oldMapper, oldSub
+		askPassword, openWithPassphrase, mapperCreated, luksHeaderSubsystem, luksHasRecoveryKey = oldAsk, oldOpen, oldMapper, oldSub, oldRec
 	})
 
 	askPassword = func(prompt, _ string, _ time.Duration) (string, error) {
@@ -177,7 +179,7 @@ func newPromptFixtureFor(t *testing.T, parts []partitions.Partition, answers ...
 		if !names[mapper] {
 			t.Errorf("mapper = %q, want the kernel name of a fixture partition", mapper)
 		}
-		if passphrase != "right passphrase" {
+		if passphrase != f.right {
 			return errors.New("No key available with this passphrase")
 		}
 		f.opened++
@@ -187,6 +189,7 @@ func newPromptFixtureFor(t *testing.T, parts []partitions.Partition, answers ...
 	mapperCreated = func(p *partitions.Partition) bool { return f.openedBy[p.Name] }
 	// No header says kcrypt:passphrase unless a test says so.
 	luksHeaderSubsystem = func(string) string { return "" }
+	luksHasRecoveryKey = func(string) bool { return false }
 	return f
 }
 
@@ -417,5 +420,66 @@ func TestAskPasswordArgs(t *testing.T) {
 	}
 	if got := askPasswordArgs("p", "i", 100*time.Millisecond, false)[1]; got != "--timeout=1" {
 		t.Fatalf("a timeout under a second must not become 0 (forever): %q", got)
+	}
+}
+
+func TestReadLUKS2TokenTypes(t *testing.T) {
+	hdr := make([]byte, 16384)
+	copy(hdr, luks2Magic)
+	hdr[7] = 2
+	binary.BigEndian.PutUint64(hdr[8:16], 16384)
+	copy(hdr[4096:], `{"keyslots":{},"tokens":{"0":{"type":"systemd-tpm2","keyslots":["1"]},"1":{"type":"systemd-recovery","keyslots":["0"]}}}`)
+	dev := filepath.Join(t.TempDir(), "dev")
+	if err := os.WriteFile(dev, hdr, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := readLUKS2TokenTypes(dev)
+	if err != nil {
+		t.Fatalf("readLUKS2TokenTypes() error = %v", err)
+	}
+	slices.Sort(got)
+	if want := []string{"systemd-recovery", "systemd-tpm2"}; !slices.Equal(got, want) {
+		t.Fatalf("readLUKS2TokenTypes() = %v, want %v", got, want)
+	}
+}
+
+func TestNormalizeRecoveryKey(t *testing.T) {
+	const key = "cbdefghi-jklnrtuv-cbdefghi-jklnrtuv-cbdefghi-jklnrtuv-cbdefghi-jklnrtuv"
+	for _, in := range []string{
+		key,
+		strings.ToUpper(key),
+		strings.ReplaceAll(key, "-", ""),
+		strings.ReplaceAll(key, "-", " "),
+	} {
+		if got := normalizeRecoveryKey(in); got != key {
+			t.Errorf("normalizeRecoveryKey(%q) = %q, want %q", in, got, key)
+		}
+	}
+	for _, in := range []string{"right passphrase", key[:70], key + "x"} {
+		if got := normalizeRecoveryKey(in); got != in {
+			t.Errorf("normalizeRecoveryKey(%q) = %q, want it unchanged", in, got)
+		}
+	}
+}
+
+// A TPM-sealed container with a recovery key and no readable configuration
+// (Trusted Boot: the config is in the encrypted OEM). The TPM refuses, so the
+// boot asks for "the recovery key" and takes it typed without dashes.
+func TestUnlockAllAsksForTheRecoveryKeyWithoutConfig(t *testing.T) {
+	const key = "cbdefghi-jklnrtuv-cbdefghi-jklnrtuv-cbdefghi-jklnrtuv-cbdefghi-jklnrtuv"
+	f := newPromptFixture(t, "wrong", strings.ToUpper(strings.ReplaceAll(key, "-", "")))
+	f.right = key
+	luksHasRecoveryKey = func(string) bool { return true }
+	encryptor := &failingEncryptor{}
+	withUnlockConfig(t, collector.ConfigValues{}, encryptor)
+
+	if err := UnlockAllEncryptedPartitions(logger.NewNullLogger()); err != nil {
+		t.Fatalf("UnlockAllEncryptedPartitions() error = %v", err)
+	}
+	if !encryptor.unlocked || f.opened != 1 || len(f.prompts) != 2 {
+		t.Fatalf("TPM tried: %t, opened %d times after %d prompts; want the TPM first, then 1 after 2", encryptor.unlocked, f.opened, len(f.prompts))
+	}
+	if !strings.Contains(f.prompts[0], "recovery key") || !strings.HasPrefix(f.prompts[1], "Wrong recovery key") {
+		t.Fatalf("prompts = %q, want them to ask for the recovery key", f.prompts)
 	}
 }
