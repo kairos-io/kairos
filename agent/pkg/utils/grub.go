@@ -18,11 +18,11 @@ package utils
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -190,7 +190,8 @@ func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, 
 	if ttyExists && tty != "" && tty != "console" && tty != cnst.DefaultTty {
 		// We need to add a tty to the grub file
 		g.config.Logger.Infof("Adding extra tty (%s) to grub.cfg", tty)
-		finalContent = withExtraConsole(string(grubCfg), tty)
+		defConsole := fmt.Sprintf("console=%s", cnst.DefaultTty)
+		finalContent = strings.ReplaceAll(string(grubCfg), defConsole, fmt.Sprintf("%s console=%s", defConsole, tty))
 	} else {
 		// We don't add anything, just read the file
 		finalContent = string(grubCfg)
@@ -272,18 +273,6 @@ func (g Grub) RefreshESP(sourceDir, efiDir, stateLabel, systemgrub string) error
 	return g.writeEfiGrubCfg(efiDir, stateLabel, systemgrub, flavor)
 }
 
-// extraConsoleRe matches the console that withExtraConsole appends after the
-// default one, so RefreshState can carry it into a new grub.cfg.
-var extraConsoleRe = regexp.MustCompile(regexp.QuoteMeta("console="+cnst.DefaultTty) + ` console=(\S+)`)
-
-// withExtraConsole adds console=<tty> after every console=<DefaultTty> in a
-// grub.cfg, so the kernel also logs to the console the system was installed
-// from.
-func withExtraConsole(grubCfg, tty string) string {
-	defConsole := fmt.Sprintf("console=%s", cnst.DefaultTty)
-	return strings.ReplaceAll(grubCfg, defConsole, fmt.Sprintf("%s console=%s", defConsole, tty))
-}
-
 // RefreshState writes the grub.cfg, modules and fonts from sourceDir to the
 // systemgrub directory on the state partition mounted at stateDir. It is the
 // state partition half of Install, for upgrades: RefreshESP replaces
@@ -291,52 +280,95 @@ func withExtraConsole(grubCfg, tty string) string {
 // GRUB with the tpm module loaded runs out of memory on the loopback of the
 // images unless grub.cfg unloads it, which older grub.cfg files do not do.
 //
-// The extra console that Install added to the old grub.cfg is added to the
-// new one, since the console the system was installed from cannot be detected
-// at upgrade time.
+// The returned restore puts the previous grub.cfg and modules back, so a
+// caller whose next step fails, such as RefreshESP, does not leave the old
+// grub.efi paired with the new files. RefreshState runs it itself when one of
+// its own writes fails. Fonts are not restored: an older grub reads a newer
+// font file without trouble.
 //
 // sourceDir must hold the rootfs of the upgrade image, and grubConf is the
 // path of its grub.cfg relative to sourceDir.
-func (g Grub) RefreshState(sourceDir, stateDir, grubConf, systemgrub string) error {
+func (g Grub) RefreshState(sourceDir, stateDir, grubConf, systemgrub string) (restore func() error, err error) {
 	source := filepath.Join(sourceDir, grubConf)
 	grubCfg, err := g.config.Fs.ReadFile(source)
 	if err != nil {
-		return fmt.Errorf("reading the grub.cfg of the upgrade image: %w", err)
+		return nil, fmt.Errorf("reading the grub.cfg of the upgrade image: %w", err)
 	}
-	finalContent := string(grubCfg)
 
 	target := filepath.Join(stateDir, systemgrub, "grub.cfg")
-	if current, err := g.config.Fs.ReadFile(target); err == nil {
-		if m := extraConsoleRe.FindStringSubmatch(string(current)); m != nil {
-			g.config.Logger.Infof("Keeping extra tty (%s) in grub.cfg", m[1])
-			finalContent = withExtraConsole(finalContent, m[1])
-		}
+	moduleDir := filepath.Join(stateDir, systemgrub, fmt.Sprintf("%s-efi", g.config.Arch))
+	backup := []string{target}
+	for _, m := range cnst.GetGrubModules() {
+		backup = append(backup, filepath.Join(moduleDir, m))
 	}
+	undo, err := g.backupFiles(backup)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			if rerr := undo(); rerr != nil {
+				g.config.Logger.Errorf("Failed putting back the grub files on the state partition: %s", rerr)
+			}
+		}
+	}()
 
-	if err := fsutils.MkdirAll(g.config.Fs, filepath.Join(stateDir, systemgrub, fmt.Sprintf("%s-efi", g.config.Arch)), cnst.DirPerm); err != nil {
-		return fmt.Errorf("error creating grub dir: %w", err)
+	if err = fsutils.MkdirAll(g.config.Fs, moduleDir, cnst.DirPerm); err != nil {
+		return nil, fmt.Errorf("error creating grub dir: %w", err)
 	}
 	// Search /usr only. Upgrade finalize runs chrooted into the upgrade
 	// image, with the host bind-mounted inside it, so a walk of the whole
 	// tree would also find the modules of the running system. Every
 	// supported distro ships grub modules and fonts under /usr.
 	usrDir := filepath.Join(sourceDir, "usr")
-	if err := g.copyGrubModules(usrDir, stateDir, systemgrub); err != nil {
-		return err
+	if err = g.copyGrubModules(usrDir, stateDir, systemgrub); err != nil {
+		return nil, err
 	}
 	copyGrubFonts(g.config, usrDir, stateDir, systemgrub)
 
 	// Write next to the target and rename, so a failed write leaves the
 	// current grub.cfg in place instead of a truncated one.
 	tmp := target + ".new"
-	if err := g.config.Fs.WriteFile(tmp, []byte(finalContent), cnst.FilePerm); err != nil {
-		return fmt.Errorf("error writing %s: %w", tmp, err)
+	if err = g.config.Fs.WriteFile(tmp, grubCfg, cnst.FilePerm); err != nil {
+		return nil, fmt.Errorf("error writing %s: %w", tmp, err)
 	}
-	if err := g.config.Fs.Rename(tmp, target); err != nil {
-		return fmt.Errorf("error replacing %s: %w", target, err)
+	if err = g.config.Fs.Rename(tmp, target); err != nil {
+		return nil, fmt.Errorf("error replacing %s: %w", target, err)
 	}
 	g.config.Logger.Infof("Copied grub.cfg from %s to %s", source, target)
-	return nil
+	return undo, nil
+}
+
+// backupFiles reads the given files into memory and returns a function that
+// writes them back, removing the ones that did not exist.
+func (g Grub) backupFiles(paths []string) (func() error, error) {
+	saved := map[string][]byte{}
+	for _, p := range paths {
+		content, err := g.config.Fs.ReadFile(p)
+		switch {
+		case err == nil:
+			saved[p] = content
+		case errors.Is(err, fs.ErrNotExist):
+			saved[p] = nil
+		default:
+			return nil, fmt.Errorf("backing up %s: %w", p, err)
+		}
+	}
+	return func() error {
+		var errs error
+		for _, p := range paths {
+			if saved[p] == nil {
+				if err := g.config.Fs.RemoveAll(p); err != nil {
+					errs = errors.Join(errs, err)
+				}
+				continue
+			}
+			if err := g.config.Fs.WriteFile(p, saved[p], cnst.FilePerm); err != nil {
+				errs = errors.Join(errs, err)
+			}
+		}
+		return errs
+	}, nil
 }
 
 // copyGrubModules copies the grub modules that grub.cfg loads with insmod from

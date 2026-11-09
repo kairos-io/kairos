@@ -385,6 +385,18 @@ var _ = Describe("RunFinalize ESP refresh", Label("upgrade", "grub", "efi"), fun
 		Expect(string(cfg)).To(Equal("rmmod tpm\n"))
 	})
 
+	It("puts the grub.cfg on the state partition back when the ESP refresh fails", func() {
+		// A directory where the stub grub.cfg goes makes RefreshESP fail
+		// after the space check passed and grub.cfg on state was written.
+		Expect(fsutils.MkdirAll(fs, filepath.Join(efiDir, "EFI/boot/grub.cfg"), constants.DirPerm)).To(Succeed())
+
+		Expect(action.RunFinalize(config, ctx)).ToNot(Succeed())
+
+		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(cfg)).To(Equal("old menu\n"))
+	})
+
 	It("leaves the grub.cfg on the state partition alone when the ESP refresh is skipped", func() {
 		Expect(fs.Remove(filepath.Join(imgDir, "usr/share/efi", config.Arch, "grub.efi"))).To(Succeed())
 
