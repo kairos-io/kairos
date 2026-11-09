@@ -17,7 +17,8 @@ import (
 )
 
 // LeaveLockedText is what the passphrase prompt offers in recovery: an empty
-// answer, or a cancelled question, goes on without the passphrase.
+// answer goes on without the passphrase. A timeout or a failed password
+// agent does not, as nobody chose to have the containers erased.
 const LeaveLockedText = "Leave the encrypted files locked: a reset will erase them"
 
 // ErrLeftLocked means the person at the console chose to go on without the
@@ -42,8 +43,7 @@ var leaveLockedAllowed = func() bool {
 }
 
 // leaveLockedPrompt adds the way out to a recovery prompt. Any password agent
-// shows the text; the console agent sends an empty answer on Enter and
-// cancels on Ctrl-D, and a graphical agent can map Esc to a cancel.
+// shows the text, and the console agent sends an empty answer on Enter.
 func leaveLockedPrompt(prompt string) string {
 	return strings.TrimSuffix(prompt, ":") + ". Press Enter with nothing typed to " + lowerFirst(LeaveLockedText) + ":"
 }

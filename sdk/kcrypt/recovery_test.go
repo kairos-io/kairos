@@ -38,14 +38,22 @@ func TestUnlockByPromptLeavesLockedOnAnEmptyAnswerInRecovery(t *testing.T) {
 	}
 }
 
-// A cancelled question (Ctrl-D on the console, Esc in a graphical agent) is
-// the same as an empty answer in recovery.
-func TestUnlockByPromptLeavesLockedOnACancelInRecovery(t *testing.T) {
+// A question that times out, or a password agent that fails, is nobody
+// choosing to leave the partition locked, so recovery does not treat it as
+// one: a reset with a usable passphrase file would erase the container.
+func TestUnlockByPromptDoesNotLeaveLockedOnATimeoutInRecovery(t *testing.T) {
 	withRecovery(t, true)
-	newPromptFixture(t) // no answers: the fake agent fails, like a cancel
+	f := newPromptFixture(t) // no answers: the fake agent times out
 
-	if err := unlockByPrompt(constants.PersistentLUKSLabel, 0, logger.NewNullLogger()); !errors.Is(err, ErrLeftLocked) {
-		t.Fatalf("unlockByPrompt() error = %v, want ErrLeftLocked", err)
+	err := unlockByPrompt(constants.PersistentLUKSLabel, 0, logger.NewNullLogger())
+	if errors.Is(err, ErrLeftLocked) {
+		t.Fatal("a timed-out prompt left the partition locked on request")
+	}
+	if !errors.Is(err, errNoPassphrase) {
+		t.Fatalf("unlockByPrompt() error = %v, want errNoPassphrase", err)
+	}
+	if f.opened != 0 {
+		t.Fatal("nothing should have been opened")
 	}
 }
 

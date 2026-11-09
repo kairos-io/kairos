@@ -126,8 +126,10 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		deadline = time.Now().Add(timeout)
 	}
 
-	// In recovery an empty or cancelled answer leaves the partition locked,
-	// so a forgotten passphrase does not keep anyone out of the reset.
+	// In recovery an empty answer leaves the partition locked, so a
+	// forgotten passphrase does not keep anyone out of the reset. Only an
+	// answer counts: a timeout or a failed password agent is nobody choosing
+	// to have the container erased.
 	leaveLocked := leaveLockedAllowed()
 	withHint := func(p string) string {
 		if leaveLocked {
@@ -147,7 +149,7 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		}
 
 		pass, err := askPassword(prompt, "kcrypt:"+info.Name, left)
-		if leaveLocked && (err != nil || pass == "") {
+		if leaveLocked && err == nil && pass == "" {
 			logger.Logger.Warn().Str("partition", label).Msg("Left locked on request: a reset will erase it")
 			return "", ErrLeftLocked
 		}
