@@ -66,6 +66,17 @@ func TestElementalSuite(t *testing.T) {
 	RunSpecs(t, "Elemental test suite")
 }
 
+// createImage creates a sparse image file of the given size and closes it.
+// CreateFromPath returns the file open, and a dropped handle is closed by the
+// garbage collector at an arbitrary point, which makes the fd counts taken by
+// countOpenFDsForPath change mid-test (kairos-io/kairos#4610).
+func createImage(path string, size int64) {
+	GinkgoHelper()
+	img, err := fileBackend.CreateFromPath(path, size)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(img.Close()).To(Succeed())
+}
+
 // countOpenFDsForPath returns how many of this process's open file
 // descriptors currently point at the given path. partitioner.NewDisk() opens
 // the install target device via diskfs.Open, so comparing this count before
@@ -440,8 +451,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(err).To(BeNil())
 			Expect(os.RemoveAll(filepath.Join(tmpDir, "/test.img"))).ToNot(HaveOccurred())
 			// at least 2Gb in size as state is set to 1G
-			_, err = fileBackend.CreateFromPath(filepath.Join(tmpDir, "/test.img"), 2*1024*1024*1024)
-			Expect(err).ToNot(HaveOccurred())
+			createImage(filepath.Join(tmpDir, "/test.img"), 2*1024*1024*1024)
 			config.Install.Device = filepath.Join(tmpDir, "/test.img")
 			install, err = agentConfig.NewInstallSpec(config)
 			Expect(err).ToNot(HaveOccurred())
@@ -564,8 +574,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			// persistent + a fixed extra partition.
 			imgPath := filepath.Join(tmpDir, "/test.img")
 			Expect(os.RemoveAll(imgPath)).ToNot(HaveOccurred())
-			_, err = fileBackend.CreateFromPath(imgPath, 8*1024*1024*1024)
-			Expect(err).ToNot(HaveOccurred())
+			createImage(imgPath, 8*1024*1024*1024)
 
 			install.PartTable = sdkConstants.GPT
 			install.Firmware = sdkConstants.EFI
@@ -626,8 +635,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			// catch it before we go anywhere near the partitioner.
 			imgPath := filepath.Join(tmpDir, "/test.img")
 			Expect(os.RemoveAll(imgPath)).ToNot(HaveOccurred())
-			_, err = fileBackend.CreateFromPath(imgPath, 4*1024*1024*1024)
-			Expect(err).ToNot(HaveOccurred())
+			createImage(imgPath, 4*1024*1024*1024)
 
 			install.PartTable = sdkConstants.GPT
 			install.Firmware = sdkConstants.EFI
@@ -677,8 +685,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			// on a disk that can actually hold everything.
 			imgPath := filepath.Join(tmpDir, "/test.img")
 			Expect(os.RemoveAll(imgPath)).ToNot(HaveOccurred())
-			_, err = fileBackend.CreateFromPath(imgPath, 12*1024*1024*1024)
-			Expect(err).ToNot(HaveOccurred())
+			createImage(imgPath, 12*1024*1024*1024)
 
 			install.PartTable = sdkConstants.GPT
 			install.Firmware = sdkConstants.EFI
