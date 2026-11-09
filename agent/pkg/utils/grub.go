@@ -23,6 +23,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -316,15 +317,17 @@ func (g Grub) RefreshState(sourceDir, stateDir, grubConf, systemgrub string) (re
 	if err = fsutils.MkdirAll(g.config.Fs, moduleDir, cnst.DirPerm); err != nil {
 		return nil, fmt.Errorf("error creating grub dir: %w", err)
 	}
-	// Search /usr only. Upgrade finalize runs chrooted into the upgrade
-	// image, with the host bind-mounted inside it, so a walk of the whole
-	// tree would also find the modules of the running system. Every
-	// supported distro ships grub modules and fonts under /usr.
+	// Search /usr only, and not /usr/local. Upgrade finalize runs chrooted
+	// into the upgrade image with the host bind-mounted inside it: the
+	// running system under /host, and the persistent partition at
+	// /usr/local, where container images can carry grub files of their own.
+	// Every supported distro ships grub modules and fonts under /usr.
 	usrDir := filepath.Join(sourceDir, "usr")
-	if err = g.copyGrubModules(usrDir, stateDir, systemgrub); err != nil {
+	usrLocal := filepath.Join(sourceDir, cnst.UsrLocalPath)
+	if err = g.copyGrubModules(usrDir, stateDir, systemgrub, usrLocal); err != nil {
 		return nil, err
 	}
-	copyGrubFonts(g.config, usrDir, stateDir, systemgrub)
+	copyGrubFonts(g.config, usrDir, stateDir, systemgrub, usrLocal)
 
 	// Write next to the target and rename, so a failed write leaves the
 	// current grub.cfg in place instead of a truncated one.
@@ -376,12 +379,17 @@ func (g Grub) backupFiles(paths []string) (func() error, error) {
 // grub.efi on the ESP does not come with them, so without these copies insmod
 // fails. Every module has to be found and copied: a grub.cfg that loads one
 // that is missing or half written fails to boot.
-func (g Grub) copyGrubModules(rootDir, bootDir, systemgrub string) error {
+//
+// Directories listed in skip, and everything under them, are not searched.
+func (g Grub) copyGrubModules(rootDir, bootDir, systemgrub string, skip ...string) error {
 	for _, m := range cnst.GetGrubModules() {
 		found := false
 		err := fsutils.WalkDirFs(g.config.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
+			}
+			if d.IsDir() && slices.Contains(skip, path) {
+				return fs.SkipDir
 			}
 			if d.IsDir() || d.Name() != m || !strings.Contains(path, g.config.Arch) {
 				return nil
@@ -518,7 +526,7 @@ func SetPersistentVariables(grubEnvFile string, vars map[string]string, c *sdkCo
 // copyGrubFonts will try to finds and copy the needed grub fonts into the system
 // rootdir is the dir where to search for the fonts
 // bootdir is the base dir where they will be copied
-func copyGrubFonts(cfg *sdkConfig.Config, rootDir, bootDir, systemgrub string) {
+func copyGrubFonts(cfg *sdkConfig.Config, rootDir, bootDir, systemgrub string, skip ...string) {
 	// grub resolves `loadfont unicode` to $prefix/fonts/unicode.pf2, and the
 	// stub grub.cfg on the ESP sets prefix to ($root)/<systemgrub>, which is
 	// this bootDir. The font dir is not arch suffixed, the module dir is.
@@ -533,6 +541,9 @@ func copyGrubFonts(cfg *sdkConfig.Config, rootDir, bootDir, systemgrub string) {
 		_ = fsutils.WalkDirFs(cfg.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
+			}
+			if d.IsDir() && slices.Contains(skip, path) {
+				return fs.SkipDir
 			}
 			// Fonts are not arch suffixed and distros do not agree on where
 			// they live: Ubuntu and Debian ship them under /usr/share/grub,

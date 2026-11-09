@@ -953,6 +953,28 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(string(got)).To(Equal("new loopback.mod"))
 			})
+			It("ignores grub modules and fonts under /usr/local of the source", func() {
+				// Upgrade finalize binds the host persistent partition to
+				// /usr/local, and container images stored there can carry
+				// grub files of their own. Fonts on openSUSE live under
+				// /usr/share, which a walk reaches after /usr/local.
+				Expect(fsutils.MkdirAll(fs, filepath.Join(sourceDir, "usr/share/grub2"), constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(sourceDir, "usr/share/grub2/unicode.pf2"), []byte("image font"), constants.FilePerm)).To(Succeed())
+				cached := filepath.Join(sourceDir, "usr/local/.state/var-lib-rancher.bind/snapshots/1/fs/usr/lib/grub", fmt.Sprintf("%s-efi", config.Arch))
+				Expect(fsutils.MkdirAll(fs, cached, constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(cached, "loopback.mod"), []byte("host loopback.mod"), constants.FilePerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(filepath.Dir(cached), "unicode.pf2"), []byte("host font"), constants.FilePerm)).To(Succeed())
+
+				_, err := refresh()
+				Expect(err).ToNot(HaveOccurred())
+
+				got, err := fs.ReadFile(filepath.Join(moduleDir, "loopback.mod"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("new loopback.mod"))
+				got, err = fs.ReadFile(filepath.Join(stateDir, "grub2/fonts/unicode.pf2"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("image font"))
+			})
 			It("returns a restore that puts the previous grub.cfg and modules back", func() {
 				restore, err := refresh()
 				Expect(err).ToNot(HaveOccurred())
