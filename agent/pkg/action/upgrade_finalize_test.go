@@ -306,3 +306,102 @@ var _ = Describe("Upgrade finalize handoff", Label("upgrade", "handoff"), func()
 		})).To(Succeed(), "handoff should still fire when only KAIROS_VERSION rolled backwards")
 	})
 })
+
+var _ = Describe("RunFinalize ESP refresh", Label("upgrade", "grub", "efi"), func() {
+	var (
+		config  *sdkConfig.Config
+		fs      vfs.FS
+		cleanup func()
+		ctx     action.FinalizeContext
+	)
+
+	const (
+		imgDir   = "/run/cos/transition"
+		stateDir = "/run/cos/state"
+		efiDir   = "/run/cos/efi"
+	)
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+		Expect(err).ShouldNot(HaveOccurred())
+		config = agentConfig.NewConfig(
+			agentConfig.WithFs(fs),
+			agentConfig.WithRunner(v1mock.NewFakeRunner()),
+			agentConfig.WithLogger(sdkLogger.NewBufferLogger(&bytes.Buffer{})),
+			agentConfig.WithMounter(v1mock.NewErrorMounter()),
+			agentConfig.WithSyscall(&v1mock.FakeSyscall{}),
+			agentConfig.WithCloudInitRunner(&v1mock.FakeCloudInitRunner{}),
+			agentConfig.WithPlatform("linux/amd64"),
+		)
+
+		// The upgrade image: shim, grub.efi, grub modules and the grub.cfg
+		// that install would write to the state partition.
+		efiSrc := filepath.Join(imgDir, "usr/share/efi", config.Arch)
+		modSrc := filepath.Join(imgDir, "usr/lib/grub2", config.Arch+"-efi")
+		Expect(fsutils.MkdirAll(fs, efiSrc, constants.DirPerm)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, modSrc, constants.DirPerm)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, filepath.Join(imgDir, "etc/cos"), constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(efiSrc, constants.SignedShim), []byte("shim"), constants.FilePerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(efiSrc, "grub.efi"), []byte("grub"), constants.FilePerm)).To(Succeed())
+		for _, m := range constants.GetGrubModules() {
+			Expect(fs.WriteFile(filepath.Join(modSrc, m), []byte("new "+m), constants.FilePerm)).To(Succeed())
+		}
+		Expect(fs.WriteFile(filepath.Join(imgDir, constants.GrubConf), []byte("rmmod tpm\n"), constants.FilePerm)).To(Succeed())
+
+		// The state partition, with the grub.cfg of an older install.
+		Expect(fsutils.MkdirAll(fs, filepath.Join(stateDir, "grub2"), constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(stateDir, "grub2/grub.cfg"), []byte("old menu\n"), constants.FilePerm)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, efiDir, constants.DirPerm)).To(Succeed())
+
+		ctx = action.FinalizeContext{
+			ImgMountPoint:   imgDir,
+			TransitionImgFS: constants.SquashFs,
+			StateMountPoint: stateDir,
+			StateFSLabel:    constants.StateLabel,
+			Arch:            config.Arch,
+			EFIPartition: &action.SerializedPartition{
+				Name:            "device1",
+				Path:            "/dev/device1",
+				FilesystemLabel: constants.EfiLabel,
+				FS:              "vfat",
+				MountPoint:      efiDir,
+			},
+		}
+	})
+
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("writes the grub.cfg of the upgrade image to the state partition along with grub on the ESP", func() {
+		Expect(action.RunFinalize(config, ctx)).To(Succeed())
+
+		grub, err := fs.ReadFile(filepath.Join(efiDir, "EFI/boot/grub.efi"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(grub)).To(Equal("grub"))
+		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(cfg)).To(Equal("rmmod tpm\n"))
+	})
+
+	It("leaves the grub.cfg on the state partition alone when the ESP refresh is skipped", func() {
+		Expect(fs.Remove(filepath.Join(imgDir, "usr/share/efi", config.Arch, "grub.efi"))).To(Succeed())
+
+		Expect(action.RunFinalize(config, ctx)).To(Succeed())
+
+		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(cfg)).To(Equal("old menu\n"))
+	})
+
+	It("leaves the grub.cfg on the state partition alone on a recovery upgrade", func() {
+		ctx.RecoveryUpgrade = true
+
+		Expect(action.RunFinalize(config, ctx)).To(Succeed())
+
+		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(cfg)).To(Equal("old menu\n"))
+	})
+})

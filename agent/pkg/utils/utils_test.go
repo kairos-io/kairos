@@ -891,6 +891,78 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(buf).To(ContainSubstring("Failed reading grub config file"))
 			})
 		})
+		Describe("RefreshState", func() {
+			var sourceDir, stateDir, stateGrubCfg, moduleDir string
+			BeforeEach(func() {
+				sourceDir = "/run/transition"
+				stateDir = "/run/state"
+				stateGrubCfg = filepath.Join(stateDir, "grub2", "grub.cfg")
+				moduleDir = filepath.Join(stateDir, "grub2", fmt.Sprintf("%s-efi", config.Arch))
+
+				Expect(fsutils.MkdirAll(fs, filepath.Dir(filepath.Join(sourceDir, constants.GrubConf)), constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(sourceDir, constants.GrubConf), []byte("rmmod tpm\nlinux /vmlinuz console=tty1\n"), constants.FilePerm)).To(Succeed())
+				Expect(fsutils.MkdirAll(fs, filepath.Join(sourceDir, "usr/lib/grub2", fmt.Sprintf("%s-efi", config.Arch)), constants.DirPerm)).To(Succeed())
+				for _, m := range constants.GetGrubModules() {
+					Expect(fs.WriteFile(filepath.Join(sourceDir, "usr/lib/grub2", fmt.Sprintf("%s-efi", config.Arch), m), []byte("new "+m), constants.FilePerm)).To(Succeed())
+				}
+
+				// The state partition as an install from an older release left it.
+				Expect(fsutils.MkdirAll(fs, moduleDir, constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(stateGrubCfg, []byte("linux /vmlinuz console=tty1\n"), constants.FilePerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(moduleDir, "loopback.mod"), []byte("old loopback.mod"), constants.FilePerm)).To(Succeed())
+			})
+			It("replaces the grub.cfg on the state partition with the one from the source", func() {
+				Expect(utils.NewGrub(config).RefreshState(sourceDir, stateDir, constants.GrubConf, "grub2")).To(Succeed())
+
+				got, err := fs.ReadFile(stateGrubCfg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("rmmod tpm\nlinux /vmlinuz console=tty1\n"))
+			})
+			It("keeps the extra console that install added to the grub.cfg", func() {
+				Expect(fs.WriteFile(stateGrubCfg, []byte("linux /vmlinuz console=tty1 console=ttyS0\n"), constants.FilePerm)).To(Succeed())
+
+				Expect(utils.NewGrub(config).RefreshState(sourceDir, stateDir, constants.GrubConf, "grub2")).To(Succeed())
+
+				got, err := fs.ReadFile(stateGrubCfg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("rmmod tpm\nlinux /vmlinuz console=tty1 console=ttyS0\n"))
+			})
+			It("replaces the grub modules on the state partition with the ones from the source", func() {
+				Expect(utils.NewGrub(config).RefreshState(sourceDir, stateDir, constants.GrubConf, "grub2")).To(Succeed())
+
+				for _, m := range constants.GetGrubModules() {
+					got, err := fs.ReadFile(filepath.Join(moduleDir, m))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(string(got)).To(Equal("new " + m))
+				}
+			})
+			It("takes the grub modules from /usr of the source only", func() {
+				// Upgrade finalize runs chrooted into the upgrade image with
+				// the host bind-mounted inside it, so modules outside /usr
+				// can belong to another system.
+				stray := filepath.Join(sourceDir, "var/host", fmt.Sprintf("%s-efi", config.Arch))
+				Expect(fsutils.MkdirAll(fs, stray, constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(filepath.Join(stray, "loopback.mod"), []byte("stray loopback.mod"), constants.FilePerm)).To(Succeed())
+
+				Expect(utils.NewGrub(config).RefreshState(sourceDir, stateDir, constants.GrubConf, "grub2")).To(Succeed())
+
+				got, err := fs.ReadFile(filepath.Join(moduleDir, "loopback.mod"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("new loopback.mod"))
+			})
+			It("leaves the state partition untouched when the source has no grub.cfg", func() {
+				Expect(fs.Remove(filepath.Join(sourceDir, constants.GrubConf))).To(Succeed())
+
+				Expect(utils.NewGrub(config).RefreshState(sourceDir, stateDir, constants.GrubConf, "grub2")).ToNot(Succeed())
+
+				got, err := fs.ReadFile(stateGrubCfg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("linux /vmlinuz console=tty1\n"))
+				got, err = fs.ReadFile(filepath.Join(moduleDir, "loopback.mod"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(got)).To(Equal("old loopback.mod"))
+			})
+		})
 		Describe("SetPersistentVariables", func() {
 			It("Sets the grub environment file", func() {
 				temp, err := os.CreateTemp("", "grub-*")

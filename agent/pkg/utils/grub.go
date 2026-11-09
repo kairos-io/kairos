@@ -22,6 +22,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -189,8 +190,7 @@ func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, 
 	if ttyExists && tty != "" && tty != "console" && tty != cnst.DefaultTty {
 		// We need to add a tty to the grub file
 		g.config.Logger.Infof("Adding extra tty (%s) to grub.cfg", tty)
-		defConsole := fmt.Sprintf("console=%s", cnst.DefaultTty)
-		finalContent = strings.ReplaceAll(string(grubCfg), defConsole, fmt.Sprintf("%s console=%s", defConsole, tty))
+		finalContent = withExtraConsole(string(grubCfg), tty)
 	} else {
 		// We don't add anything, just read the file
 		finalContent = string(grubCfg)
@@ -208,31 +208,8 @@ func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, 
 		// We no longer call grub-install here so the modules are not setup automatically in the state partition
 		// as they were before. We now use the bundled grub.efi provided by the shim package
 		g.config.Logger.Infof("Generating grub files for efi on %s", target)
-		var foundModules bool
-		for _, m := range cnst.GetGrubModules() {
-			err = fsutils.WalkDirFs(g.config.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
-				if d.Name() == m && strings.Contains(path, g.config.Arch) {
-					fileWriteName := filepath.Join(bootDir, fmt.Sprintf("%s/%s-efi/%s", systemgrub, g.config.Arch, m))
-					g.config.Logger.Debugf("Copying %s to %s", path, fileWriteName)
-					fileContent, err := g.config.Fs.ReadFile(path)
-					if err != nil {
-						return fmt.Errorf("error reading %s: %s", path, err)
-					}
-					err = g.config.Fs.WriteFile(fileWriteName, fileContent, cnst.FilePerm)
-					if err != nil {
-						return fmt.Errorf("error writing %s: %s", fileWriteName, err)
-					}
-					foundModules = true
-					return nil
-				}
-				return err
-			})
-			if !foundModules {
-				return fmt.Errorf("did not find grub modules under %s", rootDir)
-			}
+		if err = g.copyGrubModules(rootDir, bootDir, systemgrub); err != nil {
+			return err
 		}
 
 		copyGrubFonts(g.config, rootDir, bootDir, systemgrub)
@@ -293,6 +270,107 @@ func (g Grub) RefreshESP(sourceDir, efiDir, stateLabel, systemgrub string) error
 	}
 
 	return g.writeEfiGrubCfg(efiDir, stateLabel, systemgrub, flavor)
+}
+
+// extraConsoleRe matches the console that withExtraConsole appends after the
+// default one, so RefreshState can carry it into a new grub.cfg.
+var extraConsoleRe = regexp.MustCompile(regexp.QuoteMeta("console="+cnst.DefaultTty) + ` console=(\S+)`)
+
+// withExtraConsole adds console=<tty> after every console=<DefaultTty> in a
+// grub.cfg, so the kernel also logs to the console the system was installed
+// from.
+func withExtraConsole(grubCfg, tty string) string {
+	defConsole := fmt.Sprintf("console=%s", cnst.DefaultTty)
+	return strings.ReplaceAll(grubCfg, defConsole, fmt.Sprintf("%s console=%s", defConsole, tty))
+}
+
+// RefreshState writes the grub.cfg, modules and fonts from sourceDir to the
+// systemgrub directory on the state partition mounted at stateDir. It is the
+// state partition half of Install, for upgrades: RefreshESP replaces
+// grub.efi, and a grub.efi newer than the grub.cfg it loads can fail to boot.
+// GRUB with the tpm module loaded runs out of memory on the loopback of the
+// images unless grub.cfg unloads it, which older grub.cfg files do not do.
+//
+// The extra console that Install added to the old grub.cfg is added to the
+// new one, since the console the system was installed from cannot be detected
+// at upgrade time.
+//
+// sourceDir must hold the rootfs of the upgrade image, and grubConf is the
+// path of its grub.cfg relative to sourceDir.
+func (g Grub) RefreshState(sourceDir, stateDir, grubConf, systemgrub string) error {
+	source := filepath.Join(sourceDir, grubConf)
+	grubCfg, err := g.config.Fs.ReadFile(source)
+	if err != nil {
+		return fmt.Errorf("reading the grub.cfg of the upgrade image: %w", err)
+	}
+	finalContent := string(grubCfg)
+
+	target := filepath.Join(stateDir, systemgrub, "grub.cfg")
+	if current, err := g.config.Fs.ReadFile(target); err == nil {
+		if m := extraConsoleRe.FindStringSubmatch(string(current)); m != nil {
+			g.config.Logger.Infof("Keeping extra tty (%s) in grub.cfg", m[1])
+			finalContent = withExtraConsole(finalContent, m[1])
+		}
+	}
+
+	if err := fsutils.MkdirAll(g.config.Fs, filepath.Join(stateDir, systemgrub, fmt.Sprintf("%s-efi", g.config.Arch)), cnst.DirPerm); err != nil {
+		return fmt.Errorf("error creating grub dir: %w", err)
+	}
+	// Search /usr only. Upgrade finalize runs chrooted into the upgrade
+	// image, with the host bind-mounted inside it, so a walk of the whole
+	// tree would also find the modules of the running system. Every
+	// supported distro ships grub modules and fonts under /usr.
+	usrDir := filepath.Join(sourceDir, "usr")
+	if err := g.copyGrubModules(usrDir, stateDir, systemgrub); err != nil {
+		return err
+	}
+	copyGrubFonts(g.config, usrDir, stateDir, systemgrub)
+
+	// Write next to the target and rename, so a failed write leaves the
+	// current grub.cfg in place instead of a truncated one.
+	tmp := target + ".new"
+	if err := g.config.Fs.WriteFile(tmp, []byte(finalContent), cnst.FilePerm); err != nil {
+		return fmt.Errorf("error writing %s: %w", tmp, err)
+	}
+	if err := g.config.Fs.Rename(tmp, target); err != nil {
+		return fmt.Errorf("error replacing %s: %w", target, err)
+	}
+	g.config.Logger.Infof("Copied grub.cfg from %s to %s", source, target)
+	return nil
+}
+
+// copyGrubModules copies the grub modules that grub.cfg loads with insmod from
+// rootDir to the systemgrub module directory under bootDir. The signed
+// grub.efi on the ESP does not come with them, so without these copies insmod
+// fails.
+func (g Grub) copyGrubModules(rootDir, bootDir, systemgrub string) error {
+	var foundModules bool
+	for _, m := range cnst.GetGrubModules() {
+		_ = fsutils.WalkDirFs(g.config.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.Name() == m && strings.Contains(path, g.config.Arch) {
+				fileWriteName := filepath.Join(bootDir, fmt.Sprintf("%s/%s-efi/%s", systemgrub, g.config.Arch, m))
+				g.config.Logger.Debugf("Copying %s to %s", path, fileWriteName)
+				fileContent, err := g.config.Fs.ReadFile(path)
+				if err != nil {
+					return fmt.Errorf("error reading %s: %s", path, err)
+				}
+				err = g.config.Fs.WriteFile(fileWriteName, fileContent, cnst.FilePerm)
+				if err != nil {
+					return fmt.Errorf("error writing %s: %s", fileWriteName, err)
+				}
+				foundModules = true
+				return nil
+			}
+			return err
+		})
+		if !foundModules {
+			return fmt.Errorf("did not find grub modules under %s", rootDir)
+		}
+	}
+	return nil
 }
 
 // readFlavorAndModel pulls KAIROS_FLAVOR and KAIROS_MODEL from the release
