@@ -374,32 +374,35 @@ func (g Grub) backupFiles(paths []string) (func() error, error) {
 // copyGrubModules copies the grub modules that grub.cfg loads with insmod from
 // rootDir to the systemgrub module directory under bootDir. The signed
 // grub.efi on the ESP does not come with them, so without these copies insmod
-// fails.
+// fails. Every module has to be found and copied: a grub.cfg that loads one
+// that is missing or half written fails to boot.
 func (g Grub) copyGrubModules(rootDir, bootDir, systemgrub string) error {
-	var foundModules bool
 	for _, m := range cnst.GetGrubModules() {
-		_ = fsutils.WalkDirFs(g.config.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
+		found := false
+		err := fsutils.WalkDirFs(g.config.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if d.Name() == m && strings.Contains(path, g.config.Arch) {
-				fileWriteName := filepath.Join(bootDir, fmt.Sprintf("%s/%s-efi/%s", systemgrub, g.config.Arch, m))
-				g.config.Logger.Debugf("Copying %s to %s", path, fileWriteName)
-				fileContent, err := g.config.Fs.ReadFile(path)
-				if err != nil {
-					return fmt.Errorf("error reading %s: %s", path, err)
-				}
-				err = g.config.Fs.WriteFile(fileWriteName, fileContent, cnst.FilePerm)
-				if err != nil {
-					return fmt.Errorf("error writing %s: %s", fileWriteName, err)
-				}
-				foundModules = true
+			if d.IsDir() || d.Name() != m || !strings.Contains(path, g.config.Arch) {
 				return nil
 			}
-			return err
+			fileWriteName := filepath.Join(bootDir, fmt.Sprintf("%s/%s-efi/%s", systemgrub, g.config.Arch, m))
+			g.config.Logger.Debugf("Copying %s to %s", path, fileWriteName)
+			fileContent, err := g.config.Fs.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("error reading %s: %w", path, err)
+			}
+			if err := g.config.Fs.WriteFile(fileWriteName, fileContent, cnst.FilePerm); err != nil {
+				return fmt.Errorf("error writing %s: %w", fileWriteName, err)
+			}
+			found = true
+			return nil
 		})
-		if !foundModules {
-			return fmt.Errorf("did not find grub modules under %s", rootDir)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("did not find grub modules under %s: %s is missing", rootDir, m)
 		}
 	}
 	return nil

@@ -729,8 +729,7 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
-				err = fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)
-				Expect(err).ShouldNot(HaveOccurred())
+				writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/etc/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fs.WriteFile(filepath.Join(rootDir, "/etc/os-release"), []byte("ID=\"suse\""), constants.FilePerm)
@@ -770,8 +769,7 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fs.WriteFile(filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/grubriscv64.efi"), []byte("grub"), constants.FilePerm)
 				Expect(err).ShouldNot(HaveOccurred())
-				err = fs.WriteFile(filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/loopback.mod"), []byte(""), constants.FilePerm)
-				Expect(err).ShouldNot(HaveOccurred())
+				writeGrubModules(fs, filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/"))
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/etc/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fs.WriteFile(filepath.Join(rootDir, "/etc/os-release"), []byte("ID=\"fedora\""), constants.FilePerm)
@@ -804,8 +802,7 @@ var _ = Describe("Utils", Label("utils"), func() {
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
-				err = fs.WriteFile(filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/loopback.mod"), []byte(""), constants.FilePerm)
-				Expect(err).ShouldNot(HaveOccurred())
+				writeGrubModules(fs, filepath.Join(rootDir, "/usr/lib/grub/riscv64-efi/"))
 				err = fsutils.MkdirAll(fs, filepath.Join(rootDir, "/etc/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
 				err = fs.WriteFile(filepath.Join(rootDir, "/etc/os-release"), []byte("ID=\"suse\""), constants.FilePerm)
@@ -845,8 +842,7 @@ var _ = Describe("Utils", Label("utils"), func() {
 			It("fails with efi if no shim/grub files exist", Label("efi"), func() {
 				err := fsutils.MkdirAll(fs, filepath.Join(rootDir, "/x86_64/"), constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
-				err = fs.WriteFile(filepath.Join(rootDir, "/x86_64/loopback.mod"), []byte(""), constants.FilePerm)
-				Expect(err).ShouldNot(HaveOccurred())
+				writeGrubModules(fs, filepath.Join(rootDir, "/x86_64/"))
 				err = fs.WriteFile(filepath.Join(rootDir, "/etc/os-release"), []byte("ID=\"suse\""), constants.FilePerm)
 				Expect(err).ShouldNot(HaveOccurred())
 				grub := utils.NewGrub(config)
@@ -970,6 +966,24 @@ var _ = Describe("Utils", Label("utils"), func() {
 					}
 					Expect(fsutils.Exists(fs, filepath.Join(moduleDir, m))).To(BeFalse(), "%s did not exist before the refresh", m)
 				}
+			})
+			It("fails and leaves the state partition as it was when a module is missing from the source", func() {
+				Expect(fs.Remove(filepath.Join(sourceDir, "usr/lib/grub2", fmt.Sprintf("%s-efi", config.Arch), "squash4.mod"))).To(Succeed())
+
+				_, err := refresh()
+				Expect(err).To(MatchError(ContainSubstring("squash4.mod")))
+
+				expectOldState()
+			})
+			It("fails and leaves the state partition as it was when a module cannot be written", func() {
+				// A dangling symlink reads as missing, so the backup passes,
+				// and the copy through it fails.
+				Expect(fs.Symlink("/nonexistent/dir/xzio.mod", filepath.Join(moduleDir, "xzio.mod"))).To(Succeed())
+
+				_, err := refresh()
+				Expect(err).To(MatchError(ContainSubstring("xzio.mod")))
+
+				expectOldState()
 			})
 			It("leaves the state partition untouched when the source has no grub.cfg", func() {
 				Expect(fs.Remove(filepath.Join(sourceDir, constants.GrubConf))).To(Succeed())
