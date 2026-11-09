@@ -385,16 +385,28 @@ var _ = Describe("RunFinalize ESP refresh", Label("upgrade", "grub", "efi"), fun
 		Expect(string(cfg)).To(Equal("rmmod tpm\n"))
 	})
 
-	It("puts the grub.cfg on the state partition back when the ESP refresh fails", func() {
-		// A directory where the stub grub.cfg goes makes RefreshESP fail
-		// after the space check passed and grub.cfg on state was written.
-		Expect(fsutils.MkdirAll(fs, filepath.Join(efiDir, "EFI/boot/grub.cfg"), constants.DirPerm)).To(Succeed())
+	It("puts both partitions back as they were when the ESP refresh fails late", func() {
+		// The ESP as an older install left it.
+		efiBoot := filepath.Join(efiDir, "EFI/boot")
+		Expect(fsutils.MkdirAll(fs, efiBoot, constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(efiBoot, constants.GetFallBackEfi(config.Arch)), []byte("old shim"), constants.FilePerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(efiBoot, "grub.efi"), []byte("old grub"), constants.FilePerm)).To(Succeed())
+		// A directory where the stub grub.cfg goes makes RefreshESP fail on
+		// its last write, after shim and grub were already replaced.
+		Expect(fsutils.MkdirAll(fs, filepath.Join(efiBoot, "grub.cfg"), constants.DirPerm)).To(Succeed())
 
 		Expect(action.RunFinalize(config, ctx)).ToNot(Succeed())
 
 		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(cfg)).To(Equal("old menu\n"))
+		shim, err := fs.ReadFile(filepath.Join(efiBoot, constants.GetFallBackEfi(config.Arch)))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(shim)).To(Equal("old shim"))
+		grub, err := fs.ReadFile(filepath.Join(efiBoot, "grub.efi"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(grub)).To(Equal("old grub"))
+		Expect(fsutils.Exists(fs, filepath.Join(efiBoot, constants.SignedShim))).To(BeFalse(), "the refresh added this file, so restoring removes it")
 	})
 
 	It("leaves the grub.cfg on the state partition alone when the ESP refresh is skipped", func() {

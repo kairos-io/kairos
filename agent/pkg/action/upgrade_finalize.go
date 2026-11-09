@@ -323,14 +323,22 @@ func refreshESPFromCtx(cfg *sdkConfig.Config, ctx FinalizeContext) error {
 
 	// grub.cfg on the state partition goes with the grub.efi on the ESP: a
 	// new grub.efi running the grub.cfg of an older install can fail to boot
-	// every entry. Write it first, and put it back if the ESP refresh fails,
-	// so a failure leaves the current pair.
+	// every entry. Both partitions are backed up first, and when either
+	// refresh fails both are put back, so a failure leaves the current pair.
 	grub := utils.NewGrub(cfg)
+	restoreESP, err := grub.BackupESP(efiPart.MountPoint)
+	if err != nil {
+		cfg.Logger.Warnf("Skipping ESP refresh, could not back up the EFI partition: %s", err)
+		return nil
+	}
 	restoreState, err := grub.RefreshState(sourceDir, ctx.StateMountPoint, constants.GrubConf, "grub2")
 	if err != nil {
 		return fmt.Errorf("refreshing the grub.cfg on the state partition from %s: %w", sourceDir, err)
 	}
 	if err := grub.RefreshESP(sourceDir, efiPart.MountPoint, ctx.StateFSLabel, "grub2"); err != nil {
+		if rerr := restoreESP(); rerr != nil {
+			cfg.Logger.Errorf("Failed putting back the EFI partition: %s", rerr)
+		}
 		if rerr := restoreState(); rerr != nil {
 			cfg.Logger.Errorf("Failed putting back the grub.cfg on the state partition: %s", rerr)
 		}

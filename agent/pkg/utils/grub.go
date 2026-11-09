@@ -374,6 +374,56 @@ func (g Grub) backupFiles(paths []string) (func() error, error) {
 	}, nil
 }
 
+// BackupESP reads the files under EFI/boot and EFI/ubuntu of the ESP mounted
+// at efiDir, the directories RefreshESP writes to, and returns a function that
+// puts them back and removes the files added since. The upgrade runs it when
+// RefreshESP fails part way, so the ESP does not keep a new grub.efi next to
+// the old grub.cfg on the state partition.
+func (g Grub) BackupESP(efiDir string) (func() error, error) {
+	dirs := []string{filepath.Join(efiDir, "EFI/boot"), filepath.Join(efiDir, "EFI/ubuntu")}
+	saved := map[string][]byte{}
+	for _, dir := range dirs {
+		err := fsutils.WalkDirFs(g.config.Fs, dir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) && path == dir {
+					return fs.SkipDir
+				}
+				return err
+			}
+			if !d.Type().IsRegular() {
+				return nil
+			}
+			content, err := g.config.Fs.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			saved[path] = content
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("backing up %s: %w", dir, err)
+		}
+	}
+	return func() error {
+		var errs error
+		for _, dir := range dirs {
+			_ = fsutils.WalkDirFs(g.config.Fs, dir, func(path string, d fs.DirEntry, err error) error {
+				if err != nil || !d.Type().IsRegular() {
+					return nil
+				}
+				if _, ok := saved[path]; !ok {
+					errs = errors.Join(errs, g.config.Fs.Remove(path))
+				}
+				return nil
+			})
+		}
+		for path, content := range saved {
+			errs = errors.Join(errs, g.config.Fs.WriteFile(path, content, cnst.FilePerm))
+		}
+		return errs
+	}, nil
+}
+
 // copyGrubModules copies the grub modules that grub.cfg loads with insmod from
 // rootDir to the systemgrub module directory under bootDir. The signed
 // grub.efi on the ESP does not come with them, so without these copies insmod
