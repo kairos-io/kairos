@@ -155,6 +155,9 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		err = vm.Scp(filepath.Join(tempDir, "nodeopupgrade.yaml"), "./nodeopupgrade.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
+		bootIDBeforeUpgrade, err := vm.Sudo("cat /proc/sys/kernel/random/boot_id")
+		Expect(err).ToNot(HaveOccurred(), bootIDBeforeUpgrade)
+
 		By("applying the NodeOpUpgrade resource")
 		Eventually(func() string {
 			out, _ := kubectl(vm, "apply -f nodeopupgrade.yaml")
@@ -194,6 +197,15 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 			return debugOutput
 		})
+
+		// A completed NodeOpUpgrade alone does not prove anything ran: the
+		// operator also reports Completed when it skips a node that is
+		// already at the target version. A real upgrade ends in a reboot.
+		By("checking the node rebooted into the upgrade")
+		Eventually(func() string {
+			out, _ := vm.Sudo("cat /proc/sys/kernel/random/boot_id")
+			return out
+		}, 10*time.Minute, 10*time.Second).ShouldNot(Or(BeEmpty(), Equal(bootIDBeforeUpgrade)))
 
 		// Verify k3s is still operational after the upgrade
 		By("verifying k3s is operational after upgrade")
