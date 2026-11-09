@@ -267,6 +267,33 @@ var _ = Describe("Upgrade finalize handoff", Label("upgrade", "handoff"), func()
 		Expect(nowActive).To(Equal(originalActive), "active.img changed after a refused downgrade")
 	})
 
+	It("reads the node's KAIROS_INIT_VERSION under HOST_DIR when running under Kubernetes", func() {
+		// kairos-operator runs the upgrade in a pod whose image is the
+		// target image, with the node's root mounted at HOST_DIR. The
+		// container's own /etc/kairos-release is the target's, so the
+		// gate has to read the node's copy under HOST_DIR.
+		GinkgoT().Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+		GinkgoT().Setenv("HOST_DIR", "/host")
+		Expect(fsutils.MkdirAll(fs, "/host/etc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/host/etc/kairos-release", []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+		Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.2.0"`+"\n"), constants.FilePerm)).To(Succeed())
+		extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+			if err := fsutils.MkdirAll(fs, filepath.Join(destination, "etc"), constants.DirPerm); err != nil {
+				return err
+			}
+			return fs.WriteFile(filepath.Join(destination, "etc/kairos-release"),
+				[]byte(`KAIROS_INIT_VERSION="v4.2.0"`+"\n"), 0o644)
+		}
+
+		upgrade = action.NewUpgradeAction(config, spec)
+		err := upgrade.Run()
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+		Expect(runner.IncludesCmds([][]string{
+			{constants.TargetKairosAgentPath},
+		})).ToNot(Succeed(), "target agent must not run on downgrade refusal")
+	})
+
 	It("refuses when the target image carries no KAIROS_INIT_VERSION at all", func() {
 		extractor.SideEffect = func(imageRef, destination, platformRef string) error {
 			// Deliberately no /etc/kairos-release at all: models an

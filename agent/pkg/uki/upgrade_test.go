@@ -140,6 +140,40 @@ var _ = Describe("Uki upgrade action", func() {
 		Expect(err.Error()).To(ContainSubstring("unknown image source type"))
 	})
 
+	It("reads the node's KAIROS_INIT_VERSION under HOST_DIR when running under Kubernetes", func() {
+		// kairos-operator runs the upgrade in a pod whose image is the
+		// target image, with the node's root mounted at HOST_DIR. The
+		// container's own /etc/kairos-release is the target's, so the
+		// downgrade gate has to read the node's copy under HOST_DIR.
+		GinkgoT().Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+		GinkgoT().Setenv("HOST_DIR", "/host")
+		Expect(fsutils.MkdirAll(fs, "/host/etc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/host/etc/kairos-release", []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), 0o644)).To(Succeed())
+		Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.2.0"`+"\n"), 0o644)).To(Succeed())
+
+		origExtract := extractFromInitrd
+		extractFromInitrd = func(_ string, extractions map[string]string) ([]string, error) {
+			found := []string{}
+			for src, dst := range extractions {
+				var body []byte
+				if src == constants.KairosReleaseFile {
+					body = []byte(`KAIROS_INIT_VERSION="v4.2.0"` + "\n")
+				}
+				if err := os.WriteFile(dst, body, 0o644); err != nil {
+					return found, err
+				}
+				found = append(found, src)
+			}
+			return found, nil
+		}
+		DeferCleanup(func() { extractFromInitrd = origExtract })
+
+		stage, err := upgrader.prepareFinalize("/efi/EFI/Kairos/" + UnassignedArtifactRole + ".efi")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+		Expect(stage).To(BeNil())
+	})
+
 	Describe("with a validly signed artifact in place", func() {
 		BeforeEach(func() {
 			// redirect the efivars lookup to the test fs and install a db that
