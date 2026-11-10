@@ -11,8 +11,12 @@ name: Upload cloud images
 #
 # Every job checks out the default branch, so the upload scripts are
 # always reviewed code. A workflow_run carries the release tag in
-# workflow_run.head_branch; the GCP and AWS jobs upload that tag, and
-# schedule and workflow_dispatch runs upload the latest tag instead.
+# workflow_run.head_branch; the GCP and AWS jobs upload that tag.
+# Schedule and workflow_dispatch runs, and every Azure run, upload the
+# tag of the GitHub Latest release instead. release.yaml sets Latest
+# only when a maintainer approves its promote job, so a prerelease that
+# waits for approval or was rejected is never uploaded. The highest git
+# tag can be such a prerelease.
 on:
   workflow_run:  # zizmor: ignore[dangerous-triggers]
     workflows: ["release"]
@@ -40,6 +44,8 @@ jobs:
     # workflow_run context at all, so they are unaffected and always run.
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
+      # gh release view reads the Latest release.
+      contents: read
       id-token: write
     steps:
       - name: "Checkout code"
@@ -67,10 +73,12 @@ jobs:
           GCP_PROJECT: palette-kairos
           GCS_BUCKET: kairos-cloud-images
           RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -xe
 
-          latestTag="${RELEASE_TAG:-$(git describe --tags --abbrev=0)}"
+          latestTag="${RELEASE_TAG:-$(gh release view -R "$REPO" --json tagName --jq .tagName)}"
           if [[ ! "$latestTag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "Not a release tag: $latestTag"
             exit 1
@@ -138,6 +146,8 @@ jobs:
     # See upload-gcp's identical guard above.
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
+      # gh release view reads the Latest release.
+      contents: read
       id-token: write
     steps:
       - name: "Checkout code"
@@ -159,10 +169,12 @@ jobs:
           AWS_S3_BUCKET: kairos-cloud-images
           AWS_REGION: eu-central-1
           RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -e
 
-          latestTag="${RELEASE_TAG:-$(git describe --tags --abbrev=0)}"
+          latestTag="${RELEASE_TAG:-$(gh release view -R "$REPO" --json tagName --jq .tagName)}"
           if [[ ! "$latestTag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "Not a release tag: $latestTag"
             exit 1
@@ -204,6 +216,8 @@ jobs:
 
   upload-azure:
     permissions:
+      # gh release view reads the Latest release.
+      contents: read
       id-token: write
     name: Upload to Azure
     runs-on: ubuntu-latest
@@ -231,10 +245,17 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Find latest stable version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
+          latestTag="$(gh release view -R "$REPO" --json tagName --jq .tagName)"
           # Azure only allows "stable" version strings. E.g. "v1.2.3" (not "v1.2.3-beta1")
-          latestTag=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
-          echo $latestTag > LATEST_TAG
+          if [[ ! "$latestTag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Not a release tag: $latestTag"
+            exit 1
+          fi
+          echo "$latestTag" > LATEST_TAG
 
       - name: Check if already pushed
         id: checkPushed
