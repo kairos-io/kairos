@@ -3,13 +3,16 @@ package kcrypt
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
@@ -63,19 +66,59 @@ var AskPasswordCommand = "systemd-ask-password"
 // askPassword asks for a passphrase. timeout 0 waits forever. It is a
 // variable so tests can answer without a console.
 var askPassword = func(prompt, id string, timeout time.Duration) (string, error) {
-	seconds := int(timeout.Round(time.Second) / time.Second)
-	if timeout > 0 && seconds == 0 {
-		seconds = 1
+	var console *os.File
+	if !systemdBooted() {
+		// No systemd, so no password agent: a UKI boot, where immucore is
+		// PID 1. systemd-ask-password --no-tty would queue the question for
+		// an agent that never comes and time out with nothing on the
+		// screen, so ask on the console itself.
+		f, err := os.OpenFile(passwordConsole, os.O_RDWR, 0)
+		if err != nil {
+			return "", fmt.Errorf("opening %s to ask for the passphrase: %w", passwordConsole, err)
+		}
+		defer f.Close()
+		console = f
 	}
-	// --no-tty: immucore runs with no terminal, so the question has to go
-	// through the agent that owns the console.
-	cmd := exec.Command(AskPasswordCommand, "--no-tty", "--timeout="+strconv.Itoa(seconds), "--id="+id, prompt)
+	cmd := exec.Command(AskPasswordCommand, askPasswordArgs(prompt, id, timeout, console != nil)...)
 	cmd.Stderr = os.Stderr
+	if console != nil {
+		cmd.Stdin, cmd.Stderr = console, console
+		// systemd-ask-password reads from /dev/tty, its controlling
+		// terminal; a child of PID 1 has none, so make the console its own.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", AskPasswordCommand, err)
 	}
 	return strings.TrimSuffix(string(out), "\n"), nil
+}
+
+// passwordConsole is where the passphrase is asked when no password agent
+// runs: the kernel's console, the last console= on the cmdline.
+var passwordConsole = "/dev/console"
+
+// systemdBooted reports whether systemd is PID 1, the same test as
+// sd_booted(3). Only then does a password agent answer systemd-ask-password.
+var systemdBooted = func() bool {
+	st, err := os.Stat("/run/systemd/system")
+	return err == nil && st.IsDir()
+}
+
+// askPasswordArgs are the systemd-ask-password arguments. With onConsole
+// it reads from its stdin, which is the console; otherwise --no-tty hands
+// the question to the agent that owns the console (dracut's
+// systemd-tty-ask-password-agent, or plymouth).
+func askPasswordArgs(prompt, id string, timeout time.Duration, onConsole bool) []string {
+	seconds := int(timeout.Round(time.Second) / time.Second)
+	if timeout > 0 && seconds == 0 {
+		seconds = 1
+	}
+	args := []string{"--timeout=" + strconv.Itoa(seconds), "--id=" + id, prompt}
+	if !onConsole {
+		args = append([]string{"--no-tty"}, args...)
+	}
+	return args
 }
 
 // openWithPassphrase opens device as /dev/mapper/<mapper>. It runs
@@ -126,7 +169,8 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		deadline = time.Now().Add(timeout)
 	}
 
-	prompt := fmt.Sprintf("Enter the passphrase for %s (%s):", label, info.Path)
+	p := promptFor(luksTokenTypes(label))
+	prompt := p.ask
 	for attempt := 1; ; attempt++ {
 		var left time.Duration
 		if !deadline.IsZero() {
@@ -141,10 +185,10 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 			logger.Logger.Warn().Err(err).Str("partition", label).Msg("No passphrase entered")
 			return "", errNoPassphrase
 		}
-
-		if err := openWithPassphrase(info.Path, info.Name, pass); err != nil {
-			logger.Logger.Warn().Str("partition", label).Int("attempt", attempt).Msg("Wrong passphrase")
-			prompt = fmt.Sprintf("Wrong passphrase. Try again (%s):", info.Path)
+		pass, err = openTyped(info, pass, p.recovery)
+		if err != nil {
+			logger.Logger.Warn().Str("partition", label).Int("attempt", attempt).Msg(p.wrong)
+			prompt = p.wrong
 			continue
 		}
 
@@ -154,7 +198,7 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		if !mapperCreated(info) {
 			return "", fmt.Errorf("unlock reported success but %s was not created", lookup.MapperPath(info))
 		}
-		logger.Logger.Info().Str("partition", label).Int("attempt", attempt).Msg("Unlocked with the passphrase")
+		logger.Logger.Info().Str("partition", label).Int("attempt", attempt).Msg("Unlocked with " + p.what)
 		return pass, nil
 	}
 }
@@ -192,6 +236,162 @@ func unlockLabelsByPrompt(labels []string, timeout time.Duration, logger sdkLogg
 		}
 	}
 	return nil
+}
+
+// RecoveryKeyTokenType is the LUKS2 token type that marks the keyslot of a
+// recovery key. It is the type systemd-cryptenroll --recovery-key writes, so
+// a key enrolled either way is recognised, and systemd-cryptenroll
+// --wipe-slot=recovery removes it.
+const RecoveryKeyTokenType = "systemd-recovery"
+
+// luksTokenTypes returns the token types in the LUKS2 header of the
+// container labelled label, or nil when it cannot be read. A variable for
+// the tests.
+var luksTokenTypes = func(label string) []string {
+	info, err := findPartitionByLabel(label)
+	if err != nil || info == nil || info.Path == "" {
+		return nil
+	}
+	types, err := readLUKS2TokenTypes(info.Path)
+	if err != nil {
+		return nil
+	}
+	return types
+}
+
+// luksHasRecoveryKey reports whether the container labelled label has a
+// recovery key keyslot, by its token.
+func luksHasRecoveryKey(label string) bool {
+	return slices.Contains(luksTokenTypes(label), RecoveryKeyTokenType)
+}
+
+// prompt is what the boot asks and answers for one container. No prompt
+// names a partition: the person knows "the disk", not COS_PERSISTENT_LUKS.
+type prompt struct {
+	ask, wrong, what string
+	recovery         bool
+}
+
+// promptFor words the prompt by what the container holds:
+//   - a TPM-sealed container with a recovery key (Trusted Boot): only the
+//     recovery key can be typed, and the prompt says what it looks like;
+//   - a passphrase container with a recovery key: either works;
+//   - anything else: the passphrase.
+func promptFor(tokenTypes []string) prompt {
+	recovery := slices.Contains(tokenTypes, RecoveryKeyTokenType)
+	switch {
+	case recovery && slices.Contains(tokenTypes, "systemd-tpm2"):
+		return prompt{
+			ask:      "Enter the recovery key for this computer's disk (8 groups of 8 letters; dashes optional)",
+			wrong:    "Wrong recovery key, try again",
+			what:     "the recovery key",
+			recovery: true,
+		}
+	case recovery:
+		return prompt{
+			ask:      "Enter the disk passphrase or recovery key",
+			wrong:    "Wrong passphrase or recovery key, try again",
+			what:     "the passphrase or recovery key",
+			recovery: true,
+		}
+	}
+	return prompt{ask: "Enter the disk passphrase", wrong: "Wrong passphrase, try again", what: "the passphrase"}
+}
+
+// openTyped opens the container with what was typed. When it may be a
+// recovery key and the text as typed does not open it, the key's canonical
+// form is tried too, so the key can be typed in any case and without its
+// dashes while a passphrase is still used byte for byte. It returns the form
+// that opened the container: that is what the next container is tried with.
+func openTyped(info *partitions.Partition, typed string, recovery bool) (string, error) {
+	err := openWithPassphrase(info.Path, info.Name, typed)
+	if err == nil || !recovery {
+		return typed, err
+	}
+	if key := normalizeRecoveryKey(typed); key != typed {
+		return key, openWithPassphrase(info.Path, info.Name, key)
+	}
+	return typed, err
+}
+
+// readLUKS2TokenTypes returns the type of every token in the JSON area of
+// the primary LUKS2 header on device. The JSON area starts at 4096 bytes and
+// runs to hdr_size, the big-endian uint64 at offset 8.
+func readLUKS2TokenTypes(device string) ([]string, error) {
+	f, err := os.Open(device)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	bin := make([]byte, 16)
+	if _, err := io.ReadFull(f, bin); err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(bin[:6], luks2Magic) || binary.BigEndian.Uint16(bin[6:8]) != 2 {
+		return nil, fmt.Errorf("%s has no LUKS2 header", device)
+	}
+	size := binary.BigEndian.Uint64(bin[8:16])
+	if size <= 4096 || size > 4<<20 {
+		return nil, fmt.Errorf("%s: LUKS2 header size %d out of range", device, size)
+	}
+	area := make([]byte, size-4096)
+	if _, err := f.ReadAt(area, 4096); err != nil {
+		return nil, err
+	}
+	if i := bytes.IndexByte(area, 0); i >= 0 {
+		area = area[:i]
+	}
+	var meta struct {
+		Tokens map[string]struct {
+			Type string `json:"type"`
+		} `json:"tokens"`
+	}
+	if err := json.Unmarshal(area, &meta); err != nil {
+		return nil, fmt.Errorf("%s: LUKS2 metadata: %w", device, err)
+	}
+	var types []string
+	for _, t := range meta.Tokens {
+		types = append(types, t.Type)
+	}
+	return types, nil
+}
+
+// modhex is the alphabet of systemd's recovery keys: 16 letters with no
+// look-alikes, one per nibble.
+const modhex = "cbdefghijklnrtuv"
+
+// normalizeRecoveryKey forgives how a recovery key is typed: upper case,
+// spaces, or no dashes at all. The keyslot holds the canonical form, eight
+// dash-separated groups of eight modhex characters. Anything that is not 64
+// modhex characters is returned as typed.
+func normalizeRecoveryKey(in string) string {
+	var chars []rune
+	for _, r := range strings.ToLower(in) {
+		switch {
+		case r == '-' || r == ' ' || r == '\t':
+			continue
+		case strings.ContainsRune(modhex, r):
+			chars = append(chars, r)
+		default:
+			return in
+		}
+	}
+	if len(chars) != 64 {
+		return in
+	}
+	var b strings.Builder
+	for i := 0; i < 64; i += 8 {
+		if i > 0 {
+			b.WriteByte('-')
+		}
+		b.WriteString(string(chars[i : i+8]))
+	}
+	return b.String()
+}
+
+// recoveryKeyAmong reports whether any of labels has a recovery key.
+func recoveryKeyAmong(labels []string) bool {
+	return slices.ContainsFunc(labels, luksHasRecoveryKey)
 }
 
 // luksHeaderSubsystem returns the LUKS2 subsystem field of the container

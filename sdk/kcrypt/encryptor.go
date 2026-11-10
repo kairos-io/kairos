@@ -361,8 +361,12 @@ func (e *TPMWithPCREncryptor) unlockPartition(partitionLabel string) error {
 			return nil
 		}
 
-		// Attempt to unlock with TPM
-		out, err := utils.SH(fmt.Sprintf("/usr/lib/systemd/systemd-cryptsetup attach %s %s - tpm2-device=auto", info.Name, info.Path))
+		// Attempt to unlock with TPM. headless=1: when the TPM cannot unseal
+		// and the container also has a passphrase keyslot (a recovery
+		// passphrase), systemd-cryptsetup would otherwise ask for it through
+		// a password agent. On a UKI boot there is none, so it waited
+		// forever and kcrypt.passphrase_fallback never got its turn.
+		out, err := utils.SH(fmt.Sprintf("/usr/lib/systemd/systemd-cryptsetup attach %s %s - tpm2-device=auto,headless=1", info.Name, info.Path))
 		if err != nil {
 			err = fmt.Errorf("TPM unlock failed: %w (output: %s)", err, out)
 			e.logger.Logger.Warn().
