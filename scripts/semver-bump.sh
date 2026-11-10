@@ -11,7 +11,7 @@
 #   major  a `!` after the type or scope, or a `BREAKING CHANGE:` (or
 #          `BREAKING-CHANGE:`) footer at the start of a line in the body
 #   minor  type `feat`
-#   patch  every other type, and reverts
+#   patch  every other type, and reverts without a breaking footer
 #
 # The pull request title check uses it to reject titles that would leave the
 # squashed commit on master without a type, and the release workflow uses it
@@ -28,8 +28,17 @@ if [[ "$msg" == *$'\n'* ]]; then
   body="${msg#*$'\n'}"
 fi
 
+breaking=""
+if grep -qE '^BREAKING[ -]CHANGE: ' <<<"$body"; then
+  breaking=yes
+fi
+
 if [[ "$subject" =~ ^Revert\ \".+\"$ ]]; then
-  echo patch
+  if [ -n "$breaking" ]; then
+    echo major
+  else
+    echo patch
+  fi
   exit 0
 fi
 
@@ -46,7 +55,7 @@ fi
 type="${BASH_REMATCH[1]}"
 bang="${BASH_REMATCH[3]}"
 
-if [ -n "$bang" ] || grep -qE '^BREAKING[ -]CHANGE: ' <<<"$body"; then
+if [ -n "$bang" ] || [ -n "$breaking" ]; then
   echo major
 elif [ "$type" = feat ]; then
   echo minor

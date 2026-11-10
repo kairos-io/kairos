@@ -45,6 +45,7 @@ for type in build chore ci docs perf refactor revert style test; do
   expect patch "$type: something"
 done
 expect patch 'Revert "feat(sysext): cover the live media extension sweep"'
+expect major $'Revert "feat(agent): rename the install keys"\n\nBREAKING CHANGE: install.bar is install.foo again'
 
 expect major 'feat(agent)!: drop the --legacy flag'
 expect major 'fix!: change the default partition layout'
