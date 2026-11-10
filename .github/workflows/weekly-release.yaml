@@ -1,0 +1,228 @@
+name: weekly-release
+
+# Cuts a release from the newest green master commit every Monday at
+# 06:00 UTC. A maintainer can also start it by hand, choosing the bump
+# and whether it is a dry run.
+#
+# What it does, in order:
+#   - picks the newest master commit whose push runs have a finished
+#     verdict (scripts/green-commit.sh)
+#   - picks the next version from the commits since the last release
+#     reachable from that commit (scripts/release-version.sh)
+#   - creates the tag and a GitHub prerelease together with
+#     `gh release create --target`, so the tag is made through the API
+#     on exactly the chosen commit
+#   - starts release.yaml on the new tag and release-notes-diff.yaml
+#     for it, then posts to Slack that the release is building
+#
+# The release stays a prerelease until a maintainer approves the
+# promote job of its release.yaml run.
+#
+# The release.yaml run is started with `gh workflow run` because a tag
+# created with the workflow's GITHUB_TOKEN does not trigger the
+# release.yaml push trigger: GitHub starts no workflow for events made
+# with that token, except workflow_dispatch.
+#
+# A red master, no commit with a verdict, nothing landed since the last
+# release, and a breaking change under bump=auto all skip the release
+# and end the job successfully, with a Slack message where a maintainer
+# needs to know. ci-doctor scans every failed run on master, scheduled
+# ones included, and would try to fix this workflow when the failure
+# it reports belongs to some other workflow. A breaking change waits
+# for a maintainer, who runs this workflow with bump=major.
+#
+# On a schedule run there are no inputs, so bump is auto and dry_run
+# is false. A dry run stops after writing the job summary and creates
+# nothing.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump; auto reads the commit subjects"
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+        default: auto
+      dry_run:
+        description: "Pick the commit and version, create nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Two runs at once could pick the same version and race to create it.
+concurrency:
+  group: weekly-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # gh release create makes the tag and the prerelease.
+      contents: write
+      # gh workflow run starts release.yaml and release-notes-diff.yaml.
+      actions: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Write the Slack notify helper
+        # Posts its argument to Slack, or prints it as a warning when the
+        # webhook secret is not set.
+        run: |
+          cat > "$RUNNER_TEMP/notify.sh" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if [ -z "${SLACK_RELEASE_WEBHOOK:-}" ]; then
+            echo "::warning::$1"
+            exit 0
+          fi
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg t "$1" '{text:$t}')" "$SLACK_RELEASE_WEBHOOK"
+          EOF
+          chmod +x "$RUNNER_TEMP/notify.sh"
+
+      - name: Fetch master commits and runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh api "repos/$REPO/commits?sha=master&per_page=50" > "$RUNNER_TEMP/commits.json"
+          gh run list -R "$REPO" --branch master --event push --limit 500 \
+            --json workflowName,headSha,status,conclusion,url > "$RUNNER_TEMP/runs.json"
+
+      - name: Pick the newest green commit
+        id: green
+        env:
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          set +e
+          out="$(scripts/green-commit.sh "$RUNNER_TEMP/commits.json" "$RUNNER_TEMP/runs.json")"
+          rc=$?
+          set -e
+          echo "$out" >> "$GITHUB_OUTPUT"
+          get() { sed -n "s/^$1=//p" <<<"$out"; }
+          case "$rc" in
+            0)
+              echo "Newest green master commit: \`$(get sha)\`." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            2)
+              msg="Weekly release skipped: \`$(get workflow)\` is red on master since \`$(get since)\`, $(get url)"
+              echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+              "$RUNNER_TEMP/notify.sh" "$msg"
+              ;;
+            3)
+              msg="Weekly release skipped: no master commit in the last 50 has a finished CI run"
+              echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+              "$RUNNER_TEMP/notify.sh" "$msg"
+              ;;
+            *)
+              echo "::error::green-commit.sh failed with exit status $rc"
+              exit 1
+              ;;
+          esac
+
+      - name: Pick the next version
+        id: version
+        if: steps.green.outputs.state == 'green'
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+          SHA: ${{ steps.green.outputs.sha }}
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          set +e
+          out="$(scripts/release-version.sh --bump "$BUMP" --notes "$RUNNER_TEMP/notes.md" "$SHA")"
+          rc=$?
+          set -e
+          echo "$out" >> "$GITHUB_OUTPUT"
+          get() { sed -n "s/^$1=//p" <<<"$out"; }
+          case "$rc" in
+            0)
+              echo "outcome=release" >> "$GITHUB_OUTPUT"
+              ;;
+            3)
+              echo "outcome=nothing" >> "$GITHUB_OUTPUT"
+              echo "Nothing landed since \`$(get base)\`." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            4)
+              echo "outcome=breaking" >> "$GITHUB_OUTPUT"
+              msg="Weekly release skipped: master has a breaking change since \`$(get base)\`. A maintainer cuts \`$(get version)\` by running weekly-release with bump=major."
+              echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+              "$RUNNER_TEMP/notify.sh" "$msg"
+              ;;
+            *)
+              echo "::error::release-version.sh failed with exit status $rc"
+              exit 1
+              ;;
+          esac
+
+      - name: Write the job summary
+        if: steps.version.outputs.outcome == 'release'
+        env:
+          SHA: ${{ steps.green.outputs.sha }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUMP: ${{ steps.version.outputs.bump }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+        run: |
+          {
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`$SHA\` |"
+            echo "| Previous | \`$PREVIOUS\` |"
+            echo "| Version | \`$VERSION\` |"
+            echo "| Bump | $BUMP |"
+            echo "| Dry run | $DRY_RUN |"
+            echo
+            cat "$RUNNER_TEMP/notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create the tag and the prerelease
+        if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ steps.green.outputs.sha }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUMP: ${{ steps.version.outputs.bump }}
+        run: |
+          {
+            echo "Version bump: $BUMP (from $PREVIOUS)"
+            echo
+            cat "$RUNNER_TEMP/notes.md"
+          } > "$RUNNER_TEMP/body.md"
+          gh release create "$VERSION" -R "$REPO" --target "$SHA" --prerelease \
+            --title "$VERSION" --notes-file "$RUNNER_TEMP/body.md"
+
+      - name: Start the release and release notes workflows
+        if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh workflow run release.yaml -R "$REPO" --ref "$VERSION"
+          gh workflow run release-notes-diff.yaml -R "$REPO" --ref master -f tag="$VERSION"
+
+      - name: Announce the prerelease
+        if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          msg="Kairos \`$VERSION\` is building as a prerelease. Approve the promote job of its release run to publish it."
+          echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/notify.sh" "$msg"
