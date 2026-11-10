@@ -12,11 +12,12 @@ name: release
 # Triggers: a push of a v* tag (manual releases), or workflow_dispatch
 # on a tag ref (`gh workflow run release.yaml --ref <tag>`, which the
 # weekly release workflow does). The guard job fails the run unless
-# github.ref is a refs/tags/v* ref, and every other job waits on it,
-# so a dispatch on a branch builds and pushes nothing.
+# github.ref is a release tag (vX.Y.Z) or a release candidate tag
+# (vX.Y.Z-rcN), and every other job waits on it, so a dispatch on a
+# branch builds and pushes nothing.
 #
 # What runs:
-#   - guard (refuses anything but a v* tag)
+#   - guard (refuses anything but vX.Y.Z and vX.Y.Z-rcN tags)
 #   - create-release (creates the GH Release as a prerelease if it
 #     does not exist yet, before any job uploads to it)
 #   - unit-tests, lint, vulnerability-scan (fast source-level gates
@@ -30,15 +31,18 @@ name: release
 #     attached to the GH Release)
 #   - upload-release (binary tarballs attached to the GH Release)
 #   - promote (waits for a maintainer to approve the `release`
-#     environment, then copies kairos-init and kcrypt-challenger
-#     :<tag> to :latest and marks the GH Release as a full release
-#     and as Latest)
+#     environment, then marks the GH Release as a full release; if the
+#     tag is the highest vX.Y.Z in the repository it also copies
+#     kairos-init and kcrypt-challenger :<tag> to :latest and marks the
+#     GH Release as Latest)
 #
 # Until promote runs, the release stays a prerelease and :latest
 # keeps pointing at the previous release. A rejected or never
-# approved run leaves the prerelease and its tag in place. A tag with
-# a hyphen (a release candidate such as v4.4.0-rc1) skips promote, so
-# it never becomes Latest.
+# approved run leaves the prerelease and its tag in place. A release
+# candidate (a tag with a hyphen, such as v4.4.0-rc1) skips promote,
+# so it never becomes Latest. A backport (v4.3.2 after v4.4.0) is
+# promoted to a full release but leaves :latest and Latest on the
+# highest release.
 #
 # Matrix scope vs master: FIPS, UKI, ubuntu-20.04 and the unpinned
 # amd64-standard cells all live in master.yaml, not here. They exist
@@ -69,24 +73,24 @@ concurrency:
   cancel-in-progress: false   # do NOT cancel a release run mid-way
 
 jobs:
-  # workflow_dispatch can be started on any ref. Building from a
-  # branch would push images tagged with the branch name, so stop here
-  # unless the ref is a v* tag.
+  # workflow_dispatch can be started on any ref, and the push trigger
+  # matches any tag starting with v. Building from a branch would push
+  # images tagged with the branch name, so stop here unless the ref is
+  # a release tag (vX.Y.Z) or a release candidate tag (vX.Y.Z-rcN).
   guard:
     runs-on: ubuntu-latest
     permissions: {}
     steps:
-      - name: Require a v* tag
+      - name: Require a release or release candidate tag
         env:
           REF: ${{ github.ref }}
         run: |
-          case "$REF" in
-            refs/tags/v*) echo "Releasing $REF" ;;
-            *)
-              echo "::error::release.yaml runs only on a v* tag, not $REF"
-              exit 1
-              ;;
-          esac
+          re='^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'
+          if [[ ! "$REF" =~ $re ]]; then
+            echo "::error::release.yaml runs only on a vX.Y.Z or vX.Y.Z-rcN tag, not $REF"
+            exit 1
+          fi
+          echo "Releasing $REF"
 
   # Creates the GH Release as a prerelease, so it is not shown as
   # Latest while the build runs. reusable-factory.yaml and
@@ -510,7 +514,15 @@ jobs:
   # Publishes the release after a maintainer approves the `release`
   # environment. Until then the GH Release is a prerelease and :latest
   # points at the previous release. Release candidates (a hyphen in the
-  # tag, such as v4.4.0-rc1) skip this job and stay prereleases.
+  # tag, such as v4.4.0-rc1) skip this job and stay prereleases; the
+  # first step restates that rule as a regex, which a job-level `if:`
+  # cannot use.
+  #
+  # Only the highest vX.Y.Z tag in the repository (by `sort -V`) gets
+  # :latest and the Latest badge. Any other tag, such as a backport
+  # v4.3.2 cut after v4.4.0, becomes a full release with
+  # --latest=false and leaves :latest on the highest release. Tags are
+  # read through the API because this job has no checkout.
   # `docker buildx imagetools create` copies the manifest by reference,
   # so :latest has the same digest as :<tag>, as promote-images does in
   # master.yaml.
@@ -522,13 +534,47 @@ jobs:
     permissions:
       contents: write  # gh release edit
     steps:
+      - name: Require a vX.Y.Z tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          re='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          if [[ ! "$TAG" =~ $re ]]; then
+            echo "::error::promote runs only on a vX.Y.Z tag, not $TAG"
+            exit 1
+          fi
+      - name: Find the highest release tag
+        id: highest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          highest=$(gh api --paginate "repos/$REPO/git/matching-refs/tags/v" --jq '.[].ref' \
+            | sed 's|^refs/tags/||' \
+            | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+            | sort -V | tail -n 1)
+          if [[ -z "$highest" ]]; then
+            echo "::error::no vX.Y.Z tag found in $REPO"
+            exit 1
+          fi
+          echo "highest=$highest" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == "$highest" ]]; then
+            echo "is_highest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_highest=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG is older than $highest, so :latest and Latest stay on $highest"
+          fi
       - name: Login to quay.io
+        if: steps.highest.outputs.is_highest == 'true'
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Point kairos-init and kcrypt-challenger :latest at the tag
+        if: steps.highest.outputs.is_highest == 'true'
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -539,9 +585,16 @@ jobs:
             echo "Promoting $src -> $dst"
             docker buildx imagetools create -t "$dst" "$src"
           done
-      - name: Mark the GH Release as a full release and Latest
+      - name: Mark the GH Release as a full release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
-        run: gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest
+          IS_HIGHEST: ${{ steps.highest.outputs.is_highest }}
+        run: |
+          set -euo pipefail
+          if [[ "$IS_HIGHEST" == "true" ]]; then
+            gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest
+          else
+            gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest=false
+          fi

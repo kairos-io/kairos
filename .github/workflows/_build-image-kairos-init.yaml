@@ -6,8 +6,9 @@ name: Build kairos-init image
 #
 # On PR the caller typically pushes to ghcr.io/kairos-io/kairos with a
 # pr-<N> tag; on master to :master(-scratch); on release tags to
-# quay.io/kairos at :<tag> and :latest. `push=false` builds without
-# pushing (compile-verify).
+# quay.io/kairos at :<tag> only (release.yaml's promote job moves
+# :latest after approval). `push=false` builds without pushing
+# (compile-verify).
 
 on:
   workflow_call:
@@ -23,7 +24,7 @@ on:
         required: true
 
       image_extra_tag:
-        description: 'Optional second image tag (e.g. "latest" on release), empty otherwise'
+        description: 'Optional second image tag, empty otherwise'
         type: string
         default: ''
 
