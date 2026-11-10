@@ -169,14 +169,33 @@ type httpSource struct {
 	cfg *sdkConfig.Config
 }
 
+// Download fetches the extension into a temporary file next to the
+// destination and renames it over the destination only once the transfer
+// completed, so a failed download leaves an extension already installed under
+// that name untouched and no truncated image behind.
 func (h httpSource) Download(s string) error {
 	name, err := extensionFileNameFromURI(h.uri)
 	if err != nil {
 		return err
 	}
 	target := filepath.Join(s, name)
+	partial := filepath.Join(s, "."+name+".partial")
+	if _, err := h.cfg.Fs.Lstat(partial); err == nil {
+		if err := h.cfg.Fs.Remove(partial); err != nil {
+			return fmt.Errorf("failed to remove leftover file %s: %w", partial, err)
+		}
+	}
+
 	h.cfg.Logger.Logger.Debug().Str("uri", h.uri).Str("target", target).Msg("Downloading system extension")
-	return h.cfg.Client.GetURL(sdkLogger.NewNullLogger(), h.uri, target)
+	if err := h.cfg.Client.GetURL(sdkLogger.NewNullLogger(), h.uri, partial); err != nil {
+		_ = h.cfg.Fs.Remove(partial)
+		return fmt.Errorf("failed to download %s: %w", h.uri, err)
+	}
+	if err := h.cfg.Fs.Rename(partial, target); err != nil {
+		_ = h.cfg.Fs.Remove(partial)
+		return fmt.Errorf("failed to move %s to %s: %w", partial, target, err)
+	}
+	return nil
 }
 
 // extensionFileNameFromURI derives the on-disk filename for a downloaded
