@@ -34,7 +34,8 @@ name: release
 #     environment, then marks the GH Release as a full release; if the
 #     tag is the highest vX.Y.Z in the repository it also copies
 #     kairos-init and kcrypt-challenger :<tag> to :latest and marks the
-#     GH Release as Latest)
+#     GH Release as Latest; last, it starts release-notes-diff.yaml for
+#     the now final release)
 #
 # Until promote runs, the release stays a prerelease and :latest
 # keeps pointing at the previous release. A rejected or never
@@ -533,6 +534,9 @@ jobs:
     environment: release
     permissions:
       contents: write  # gh release edit
+      # gh workflow run release-notes-diff.yaml. Its release trigger does
+      # not fire for a release edited with this job's GITHUB_TOKEN.
+      actions: write
     steps:
       - name: Require a vX.Y.Z tag
         env:
@@ -598,3 +602,12 @@ jobs:
           else
             gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest=false
           fi
+      - name: Start the release notes diff
+        # release-notes-diff.yaml diffs against the previous final release
+        # and looks the tag up among final releases, so it runs only once
+        # the release is final.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: gh workflow run release-notes-diff.yaml --repo "$REPO" --ref master -f tag="$TAG"
