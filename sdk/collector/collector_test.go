@@ -2037,6 +2037,52 @@ some:
 			Expect(err).ToNot(HaveOccurred())
 			Expect(v).To(Equal("false\n"))
 		})
+
+		Context("with dashed keys", func() {
+			var c *Config
+
+			BeforeEach(func() {
+				err = os.WriteFile(path.Join(tmpDir, "local_config.yaml"), []byte(`#cloud-config
+k3s-agent:
+  enabled: true
+  args:
+  - --node-label=a
+some:
+  other-key:
+    deep-er:
+      last-one: 7
+  plain: 1
+list:
+- name: first
+`), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				o := &Options{}
+				err = o.Apply(Directories(tmpDir))
+				Expect(err).ToNot(HaveOccurred())
+
+				c, err = Scan(o, FilterKeysTest)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			DescribeTable("returns the value",
+				func(query, expected string) {
+					v, err := c.Query(query)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(v).To(Equal(expected))
+				},
+				Entry("dashed top-level key", "k3s-agent.enabled", "true\n"),
+				Entry("dashed key alone", "k3s-agent", "args:\n    - --node-label=a\nenabled: true\n"),
+				Entry("dashed nested key", "some.other-key", "deep-er:\n    last-one: 7\n"),
+				Entry("dashed keys at depth", "some.other-key.deep-er.last-one", "7\n"),
+				Entry("dashed key with an index", "k3s-agent.args[0]", "--node-label=a\n"),
+				Entry("already quoted key", `"k3s-agent".enabled`, "true\n"),
+				Entry("plain key", "some.plain", "1\n"),
+				Entry("index into a list", "list[0].name", "first\n"),
+				Entry("jq expression with a pipe", `"k3s-agent" | .enabled`, "true\n"),
+				Entry("bracket key lookup", `["k3s-agent"].enabled`, "true\n"),
+			)
+		})
 	})
 })
 
