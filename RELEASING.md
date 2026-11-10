@@ -6,9 +6,11 @@ A maintainer approves it before it is published.
 
 ## What happens on Monday
 
-1. The workflow picks the newest commit on `master` whose CI has finished
-   (`scripts/green-commit.sh`). If a newer commit is still running CI, it is
-   skipped in favour of an older commit with a result.
+1. The workflow picks the newest commit on `master` that has a CI result
+   (`scripts/green-commit.sh`). A commit with any finished red run counts as
+   red, even while its other runs are still going. A commit whose runs have
+   not all finished, and that has no red run yet, is skipped in favour of an
+   older commit with a result.
 2. It reads the commit messages since the last final release and chooses the
    next version (`scripts/release-version.sh`). Messages follow Conventional
    Commits: a breaking change asks for a major bump, `feat` for a minor bump,
@@ -123,8 +125,10 @@ version is chosen.
 ## Setup an administrator must keep in place
 
 - The `release` environment (Settings, Environments). Required reviewers: the
-  maintainers team. Deployment branches and tags rule: tags matching `v*`. It
-  exists.
+  maintainers team. Deployment branches and tags rule: tags matching `v*`. The
+  `promote` job of `release.yaml` waits on it for approval. Without the
+  environment, or without required reviewers on it, `promote` runs as soon as
+  the build is done and every release becomes final with nobody approving it.
 - The repository secret `SLACK_RELEASE_WEBHOOK`, a Slack incoming webhook URL.
-  It does not exist yet. Without it the Slack messages appear only as warnings
-  in the workflow run, and the release still works.
+  `weekly-release` posts its messages there. Without it the messages appear
+  only as warnings in the workflow run, and the release still works.
