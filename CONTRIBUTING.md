@@ -80,7 +80,7 @@ are cut from the commit subjects on `master`:
 |---|---|---|
 | `feat` | `feat(agent): add --dry-run to upgrade` | minor, such as `v4.4.0` to `v4.5.0` |
 | `fix`, `docs`, `test`, `ci`, `chore`, `refactor`, `perf`, `build`, `style`, `revert` | `fix(iso): ...` | patch, such as `v4.4.0` to `v4.4.1` |
-| any type with `!` before the colon, or a `BREAKING CHANGE:` footer in the commit body | `feat(agent)!: drop the --legacy flag` | major, cut by a maintainer |
+| any type with `!` before the colon, or a `BREAKING CHANGE:` footer in any commit message of the pull request | `feat(agent)!: drop the --legacy flag` | major, cut by a maintainer |
 
 Use `feat` for anything a user can see or use that was not there before, and
 `fix` for a change that makes existing behaviour work as intended. A
@@ -97,11 +97,16 @@ All changes must be code reviewed. Expect reviewers to request that you
 avoid common [go style mistakes](https://github.com/golang/go/wiki/CodeReviewComments) in your PRs.
 
 As you develop code, continue to push code to your remote feature
-branch. Write commit subjects in the same format as the title, and reference
-the issue you are addressing, such as:
+branch. Only the pull request title has to follow the format above. The
+commits inside the pull request are not checked, because the squash merge
+replaces their subjects with the title, so a commit such as "address review"
+or "Apply suggestion from ..." is fine. Their messages do become the body of
+the squashed commit, so a `BREAKING CHANGE:` footer in any of them makes the
+next release a major one. Please reference the issue you are addressing in
+the pull request description or in a commit message, such as:
 
 ```bash
-git commit -s -am "fix(agent): drop the foo flag (fixes #123)"
+git commit -s -am "Drop the foo flag (fixes #123)"
 ```
 
 NOTE: All commits must be signed-off (DCO - Developer Certificate of Origin) so make sure you use the `-s` flag when you commit.

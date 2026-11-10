@@ -30,11 +30,14 @@ locally because you assume the real fix will be slow to merge.
 - Sign off every commit: `git commit -s`. DCO is a required check.
 - Disclose in the pull request body that AI was used, and say whether a human
   read the code before it was opened.
-- Conventional Commits for the subject line and for the pull request title:
+- The pull request title must be a Conventional Commit subject:
   `fix(iso): ...`, `docs: ...`. Pull requests are squash-merged with the
   title as the subject, and the release workflow picks the next version from
   those subjects: `feat` is a minor release, `!` before the colon or a
-  `BREAKING CHANGE:` footer is a major one, every other type is a patch. So
+  `BREAKING CHANGE:` footer is a major one, every other type is a patch.
+  Commit subjects inside a pull request are not checked, because the squash
+  replaces them with the title. A `BREAKING CHANGE:` footer in any of the
+  commits still counts: the squash commit's body is made of their messages. So
   `feat` is for something a user can see or use that was not there before,
   and `fix` is for making existing behaviour work as intended. Choose the
   type by what the change does for a user: a CI-only addition is `ci`, even
