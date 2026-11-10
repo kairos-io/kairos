@@ -8,11 +8,15 @@
 # `gh run list --json workflowName,headSha,status,conclusion,url` output for
 # push runs on master.
 #
-# A commit has a verdict when its `master` workflow run has completed without
-# being cancelled and no run of any workflow on it is still unfinished. The
-# newest commit with a verdict decides. If it is red, older commits are walked
-# while they are red or have no verdict, so `since` names the oldest commit of
-# the streak.
+# A commit is red as soon as any completed run on it, of any workflow
+# including `master`, has a red conclusion, even while other runs on it are
+# still going. A commit is green when its `master` run has completed without
+# being cancelled, every run on it has completed, and none is red. Any other
+# commit has no verdict. The newest commit with a verdict decides. If it is
+# red, older commits are walked while they are red or have no verdict, so
+# `since` names the oldest commit of the streak.
+#
+# Exit 1 on bad arguments, a missing file or invalid JSON.
 #
 # Prints key=value lines:
 #   green: state=green sha=<sha>                          exit 0
@@ -26,19 +30,23 @@ if [ "$#" -ne 2 ]; then
   exit 1
 fi
 
-result="$(jq -n -r --slurpfile commits "$1" --slurpfile runs "$2" '
+if ! result="$(jq -n -r --slurpfile commits "$1" --slurpfile runs "$2" '
   ["failure", "timed_out", "startup_failure", "action_required"] as $red
   | ($runs[0]) as $all
   | [ $commits[0][]
       | .sha as $sha
       | [ $all[] | select(.headSha == $sha) ] as $r
+      | [ $r[] | select(.status == "completed" and (.conclusion as $c | $red | index($c))) ] as $reds
       | {
           sha: $sha,
           verdict: (
-            ([ $r[] | select(.workflowName == "master" and .status == "completed" and .conclusion != "cancelled") ] | length > 0)
-            and ([ $r[] | select(.status != "completed") ] | length == 0)
+            ($reds | length > 0)
+            or (
+              ([ $r[] | select(.workflowName == "master" and .status == "completed" and .conclusion != "cancelled") ] | length > 0)
+              and ([ $r[] | select(.status != "completed") ] | length == 0)
+            )
           ),
-          reds: [ $r[] | select(.status == "completed" and (.conclusion as $c | $red | index($c))) ]
+          reds: $reds
         }
     ] as $list
   | ([ $list[] | select(.verdict) ] | first) as $first
@@ -52,7 +60,10 @@ result="$(jq -n -r --slurpfile commits "$1" --slurpfile runs "$2" '
       | $first.reds[0] as $run
       | "state=red\nsha=\($first.sha)\nsince=\($streak[-1].sha)\nworkflow=\($run.workflowName)\nurl=\($run.url)"
     end
-')"
+')"; then
+  echo "${0##*/}: cannot read or parse the input files" >&2
+  exit 1
+fi
 
 printf '%s\n' "$result"
 

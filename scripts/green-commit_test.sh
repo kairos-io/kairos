@@ -116,5 +116,31 @@ runs c5:master:completed:startup_failure c4:master:completed:action_required c3:
 pick
 check "startup_failure and action_required are red" 2 state=red sha=c5 since=c4
 
+runs c5:master:completed:failure c5:CodeQL:in_progress: c4:master:completed:success
+pick
+check "red while another runs" 2 state=red sha=c5 since=c5 workflow=master
+
+runs c5:master:completed:success c5:CodeQL:completed:failure c5:zizmor:queued: c4:master:completed:success
+pick
+check "red streak walk skips unfinished commit" 2 state=red sha=c5
+
+echo '[]' >"$tmp/commits.json"
+echo '[]' >"$tmp/runs.json"
+pick
+check "empty inputs" 3 state=none
+
+runs c5:master:completed:success
+rm -f "$tmp/missing.json"
+status=0
+out="$("$SCRIPT" "$tmp/missing.json" "$tmp/runs.json" 2>/dev/null)" || status=$?
+check "missing file" 1
+[ -z "$out" ] || { echo "FAIL: missing file: stdout not empty" >&2; failed=$((failed + 1)); }
+
+echo '{bad' >"$tmp/bad.json"
+status=0
+out="$("$SCRIPT" "$tmp/bad.json" "$tmp/runs.json" 2>/dev/null)" || status=$?
+check "malformed json" 1
+[ -z "$out" ] || { echo "FAIL: malformed json: stdout not empty" >&2; failed=$((failed + 1)); }
+
 echo "green-commit: $passed passed, $failed failed"
 [ "$failed" -eq 0 ]
