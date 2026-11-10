@@ -23,9 +23,13 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
+# Keyed by pull request number: branch names collide across forks (two
+# `patch-1` branches), and a shared group would let one fork's run cancel
+# another's.
 concurrency:
-  group: ci-pr-title-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  group: ci-pr-title-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -43,9 +47,15 @@ jobs:
         run: scripts/semver-bump_test.sh
       - name: Check the title
         if: github.event_name == 'pull_request'
+        # The title is read from the API when the job runs, not from the
+        # event payload: a manual re-run reuses the old payload, so a re-run
+        # of an older run would check the title as it was then.
         env:
-          TITLE: ${{ github.event.pull_request.title }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
+          TITLE="$(gh api "repos/${REPO}/pulls/${PR}" --jq .title)"
           if bump="$(scripts/semver-bump.sh "$TITLE")"; then
             echo "Title '$TITLE' asks for a $bump release." | tee -a "$GITHUB_STEP_SUMMARY"
           else
