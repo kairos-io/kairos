@@ -70,7 +70,7 @@ require (
 	github.com/twpayne/go-vfs/v4 v4.3.0
 	github.com/twpayne/go-vfs/v5 v5.0.5
 	github.com/urfave/cli/v2 v2.27.7
-	github.com/zcalusic/sysinfo v1.2.1
+	github.com/zcalusic/sysinfo v1.2.3
 	golang.org/x/mod v0.42.0
 	golang.org/x/net v0.62.0
 	golang.org/x/oauth2 v0.37.0
