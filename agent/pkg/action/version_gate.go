@@ -59,13 +59,22 @@ func RefuseIfTargetIsDowngrade(currentStr, targetStr string) error {
 }
 
 // CurrentKairosReleaseFile returns the path of the running node's
-// kairos-release. Under Kubernetes (kairos-operator, system-upgrade-controller)
-// the agent runs inside the target image with the node's root mounted at
-// HOST_DIR, so the plain /etc/kairos-release is the target's own file and
-// comparing against it would let any downgrade through
-// (kairos-io/kairos#6033).
-func CurrentKairosReleaseFile() string {
-	return filepath.Join(k8sutils.GetHostDirForK8s(), constants.KairosReleaseFile)
+// kairos-release. Under Kubernetes the agent usually runs inside the target
+// image with the node's root mounted at HOST_DIR (kairos-operator's
+// NodeOpUpgrade, system-upgrade-controller), so the plain /etc/kairos-release
+// is the target's own file and comparing against it would let any downgrade
+// through (kairos-io/kairos#6033). A pod can also `chroot` into HOST_DIR and
+// run the node's agent, as the documented Trusted Boot upgrade does. The
+// Kubernetes environment survives the chroot but HOST_DIR does not exist
+// inside it, and /etc/kairos-release is the node's file there.
+func CurrentKairosReleaseFile(fs sdkFS.KairosFS) string {
+	if hostDir := k8sutils.GetHostDirForK8s(); hostDir != "" {
+		hostFile := filepath.Join(hostDir, constants.KairosReleaseFile)
+		if _, err := fs.Stat(hostFile); err == nil {
+			return hostFile
+		}
+	}
+	return constants.KairosReleaseFile
 }
 
 // ReadKairosInitVersionFromFs loads the given os-release-style file via

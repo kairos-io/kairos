@@ -174,6 +174,39 @@ var _ = Describe("Uki upgrade action", func() {
 		Expect(stage).To(BeNil())
 	})
 
+	It("reads the node's own KAIROS_INIT_VERSION when chrooted into the node under Kubernetes", func() {
+		// The documented Trusted Boot upgrade through kairos-operator runs
+		// `chroot /host kairos-agent upgrade` from a pod. The pod's
+		// environment survives the chroot, so the agent sees
+		// KUBERNETES_SERVICE_HOST, but HOST_DIR does not exist inside the
+		// chroot and /etc/kairos-release is already the node's file.
+		GinkgoT().Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+		GinkgoT().Setenv("HOST_DIR", "/host")
+		Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), 0o644)).To(Succeed())
+
+		origExtract := extractFromInitrd
+		extractFromInitrd = func(_ string, extractions map[string]string) ([]string, error) {
+			found := []string{}
+			for src, dst := range extractions {
+				var body []byte
+				if src == constants.KairosReleaseFile {
+					body = []byte(`KAIROS_INIT_VERSION="v4.2.0"` + "\n")
+				}
+				if err := os.WriteFile(dst, body, 0o644); err != nil {
+					return found, err
+				}
+				found = append(found, src)
+			}
+			return found, nil
+		}
+		DeferCleanup(func() { extractFromInitrd = origExtract })
+
+		stage, err := upgrader.prepareFinalize("/efi/EFI/Kairos/" + UnassignedArtifactRole + ".efi")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+		Expect(stage).To(BeNil())
+	})
+
 	Describe("with a validly signed artifact in place", func() {
 		BeforeEach(func() {
 			// redirect the efivars lookup to the test fs and install a db that

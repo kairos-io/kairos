@@ -294,6 +294,29 @@ var _ = Describe("Upgrade finalize handoff", Label("upgrade", "handoff"), func()
 		})).ToNot(Succeed(), "target agent must not run on downgrade refusal")
 	})
 
+	It("reads the node's own KAIROS_INIT_VERSION when chrooted into the node under Kubernetes", func() {
+		// The documented Trusted Boot upgrade through kairos-operator runs
+		// `chroot /host kairos-agent upgrade` from a pod. The pod's
+		// environment survives the chroot, so the agent sees
+		// KUBERNETES_SERVICE_HOST, but HOST_DIR does not exist inside the
+		// chroot and /etc/kairos-release is already the node's file.
+		GinkgoT().Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+		GinkgoT().Setenv("HOST_DIR", "/host")
+		Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+		extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+			if err := fsutils.MkdirAll(fs, filepath.Join(destination, "etc"), constants.DirPerm); err != nil {
+				return err
+			}
+			return fs.WriteFile(filepath.Join(destination, "etc/kairos-release"),
+				[]byte(`KAIROS_INIT_VERSION="v4.2.0"`+"\n"), 0o644)
+		}
+
+		upgrade = action.NewUpgradeAction(config, spec)
+		err := upgrade.Run()
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+	})
+
 	It("refuses when the target image carries no KAIROS_INIT_VERSION at all", func() {
 		extractor.SideEffect = func(imageRef, destination, platformRef string) error {
 			// Deliberately no /etc/kairos-release at all: models an
