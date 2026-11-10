@@ -132,4 +132,21 @@ var _ = Describe("The cloud-config directory stage", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0770)))
 	})
+
+	// chmod follows a symlink, so with the directory replaced by a link to
+	// /etc an unguarded stage would make /etc 0770 on every boot.
+	It("leaves the target alone when the directory is a symlink", func() {
+		victim := filepath.Join(GinkgoT().TempDir(), "etc")
+		Expect(os.Mkdir(victim, 0755)).To(Succeed())
+		Expect(os.Chmod(victim, 0755)).To(Succeed())
+		Expect(os.RemoveAll(root)).To(Succeed())
+		Expect(os.Symlink(victim, root)).To(Succeed())
+
+		shippedCloudConfigStage().runAgainst(root)
+
+		info, err := os.Stat(victim)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0755)),
+			"the stage followed the symlink and changed its target to %04o", info.Mode().Perm())
+	})
 })

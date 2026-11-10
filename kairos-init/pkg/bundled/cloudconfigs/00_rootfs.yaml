@@ -173,10 +173,14 @@ stages:
     # creates it matches every later one. Not 0600: a directory without the
     # execute bit cannot be traversed, which would take away the access the
     # admin group is deliberately granted.
+    #
+    # Not on a symlink: chmod has no -h and follows it, so a link to /etc
+    # would make /etc 0770 on every boot. Same guard as 10_accounting.yaml.
     - name: "Ensure /usr/local/cloud-config is not world readable"
+      if: '[ ! -L "/usr/local/cloud-config" ]'
       commands:
         - mkdir -p /usr/local/cloud-config
-        - chown root:admin /usr/local/cloud-config
+        - chown -h root:admin /usr/local/cloud-config
         - chmod 770 /usr/local/cloud-config
   boot.before:
     - name: "Mount tmp on alpine"
