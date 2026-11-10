@@ -24,6 +24,11 @@ the previous release until a maintainer approves it. While a prerelease waits
 for approval, the Monday run does not cut a new release unless new commits
 landed on `master` since its tag.
 
+Before it creates the tag, the workflow checks that
+`quay.io/kairos/kairos-init:<version>` does not exist. If it exists, that
+version was released before and its tag was deleted. The run then fails and
+posts to Slack, and a maintainer recreates the tag or releases by hand.
+
 The workflow ends successfully without a release, and posts to Slack, when
 `master` is red, when no commit has a finished CI result, or when a breaking
 change is found. The job summary of the run says which one happened. For a

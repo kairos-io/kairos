@@ -11,6 +11,9 @@ name: weekly-release
 #     release reachable from that commit (scripts/release-version.sh);
 #     a prerelease that waits for approval or was rejected is not a
 #     base, so its commits go into the next release
+#   - stops with an error when quay.io/kairos/kairos-init already has
+#     an image for that version, which means the version was released
+#     before and its tag was deleted
 #   - creates the tag and a GitHub prerelease together with
 #     `gh release create --target`, so the tag is made through the API
 #     on exactly the chosen commit
@@ -220,6 +223,27 @@ jobs:
             echo
             cat "$RUNNER_TEMP/notes.md"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check that the version was never released
+        # A deleted tag leaves its images on quay.io, and building the
+        # same version again would overwrite them. kairos-init is public,
+        # so docker manifest inspect needs no login; it fails when the
+        # image is absent.
+        if: steps.version.outputs.outcome == 'release'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          image="quay.io/kairos/kairos-init:$VERSION"
+          if ! docker manifest inspect "$image" > /dev/null 2>&1; then
+            echo "\`$image\` does not exist, so \`$VERSION\` is unused." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          msg="Weekly release stopped: $image already exists, so $VERSION was released before and its tag was deleted. Recreate the tag or release by hand."
+          echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/notify.sh" "$msg"
+          echo "::error::$msg"
+          exit 1
 
       - name: Create the tag and the prerelease
         if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true
