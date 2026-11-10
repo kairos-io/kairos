@@ -1,0 +1,54 @@
+name: PR title
+
+# Fails a pull request whose title is not a Conventional Commit subject.
+# Pull requests are squash-merged with the title as the commit subject, and
+# the release workflow reads those subjects to choose the next version:
+# `feat` is a minor release, a `!` or a `BREAKING CHANGE:` footer is a major
+# one, everything else is a patch. scripts/semver-bump.sh holds the rule for
+# both.
+#
+# `edited` re-runs the check when the title changes, which the default
+# pull_request types do not. That is why this is its own workflow and not a
+# job in pr.yaml: a title edit there would restart the whole smoke pipeline.
+#
+# merge_group: a queued pull request already passed this check, and a merge
+# queue run has no title to check, so the job reports success without
+# checking anything. It still has to run, because a required check that
+# never reports holds the queue until it times out.
+
+on:
+  merge_group:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-pr-title-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  conventional-title:
+    name: conventional-title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the bump script
+        if: github.event_name == 'pull_request'
+        run: scripts/semver-bump_test.sh
+      - name: Check the title
+        if: github.event_name == 'pull_request'
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if bump="$(scripts/semver-bump.sh "$TITLE")"; then
+            echo "Title '$TITLE' asks for a $bump release." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error title=PR title::'$TITLE' is not a Conventional Commit subject. See CONTRIBUTING.md, Step 5."
+            exit 1
+          fi
