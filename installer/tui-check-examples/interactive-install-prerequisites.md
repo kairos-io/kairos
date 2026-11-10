@@ -192,8 +192,9 @@ factory.Run(pluggable.EventType(os.Args[1]), os.Stdin, os.Stdout)
 
 > **Important:** report problems through the returned data
 > (`Severity: "error"` on a check, or `Success: false` on a result), **never**
-> through `EventResponse.Error`. A non-empty `Error` is logged and that plugin's
-> checks are dropped.
+> through `EventResponse.Error`. A non-empty `Error`, or a plugin that crashes or
+> exits non-zero, counts as that plugin failing: a failure on apply keeps the
+> installer on the prerequisites page until a retry succeeds.
 
 ### Building and installing the examples
 
