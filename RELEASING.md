@@ -9,8 +9,8 @@ A maintainer approves it before it is published.
 1. The workflow picks the newest commit on `master` whose CI has finished
    (`scripts/green-commit.sh`). If a newer commit is still running CI, it is
    skipped in favour of an older commit with a result.
-2. It reads the commit messages since the last release and chooses the next
-   version (`scripts/release-version.sh`). Messages follow Conventional
+2. It reads the commit messages since the last final release and chooses the
+   next version (`scripts/release-version.sh`). Messages follow Conventional
    Commits: a breaking change asks for a major bump, `feat` for a minor bump,
    and anything else for a patch bump. The next version counts up from the
    highest `vX.Y.Z` tag in the repository, including tags on release branches.
@@ -20,7 +20,9 @@ A maintainer approves it before it is published.
 4. It posts to Slack that the release is building.
 
 The prerelease is not shown as Latest and `:latest` on quay.io still points at
-the previous release until a maintainer approves it.
+the previous release until a maintainer approves it. While a prerelease waits
+for approval, the Monday run does not cut a new release unless new commits
+landed on `master` since its tag.
 
 The workflow ends successfully without a release, and posts to Slack, when
 `master` is red, when no commit has a finished CI result, or when a breaking
@@ -50,9 +52,17 @@ The run is then marked failed, which is expected. The same happens when nobody
 approves it.
 
 The tag keeps its version number, because its images already exist on quay.io
-under that version. The next weekly run counts up from it and includes the
-commits since it. To release sooner with a different bump, run the workflow by
-hand with `bump` (below).
+under that version. The next release counts up from it, and its release notes
+include the commits of the rejected release, because only a final release
+starts the commit range. The next Monday run cuts that release when new commits
+have landed since the rejected tag. To re-cut now with another bump:
+
+```
+gh workflow run weekly-release.yaml -f bump=<patch|minor|major>
+```
+
+An explicit `bump` cuts a release even when nothing landed since the rejected
+tag.
 
 ## Cut a minor or major release
 

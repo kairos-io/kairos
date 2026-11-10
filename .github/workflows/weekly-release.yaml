@@ -7,8 +7,10 @@ name: weekly-release
 # What it does, in order:
 #   - picks the newest master commit whose push runs have a finished
 #     verdict (scripts/green-commit.sh)
-#   - picks the next version from the commits since the last release
-#     reachable from that commit (scripts/release-version.sh)
+#   - picks the next version from the commits since the last final
+#     release reachable from that commit (scripts/release-version.sh);
+#     a prerelease that waits for approval or was rejected is not a
+#     base, so its commits go into the next release
 #   - creates the tag and a GitHub prerelease together with
 #     `gh release create --target`, so the tag is made through the API
 #     on exactly the chosen commit
@@ -27,7 +29,9 @@ name: weekly-release
 # A red master, no commit with a verdict, nothing landed since the last
 # release, and a breaking change under bump=auto all skip the release
 # and end the job successfully, with a Slack message where a maintainer
-# needs to know. ci-doctor scans every failed run on master, scheduled
+# needs to know. In auto mode "nothing landed" counts from the newest
+# tag, so a prerelease that waits for approval is not cut again every
+# Monday. ci-doctor scans every failed run on master, scheduled
 # ones included, and would try to fix this workflow when the failure
 # it reports belongs to some other workflow. A breaking change waits
 # for a maintainer, who runs this workflow with bump=major.
@@ -139,12 +143,19 @@ jobs:
         id: version
         if: steps.green.outputs.state == 'green'
         env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           BUMP: ${{ inputs.bump || 'auto' }}
           SHA: ${{ steps.green.outputs.sha }}
           SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
         run: |
+          # Only a final release can be the base, so the commits of a
+          # rejected or pending prerelease are released again.
+          gh release list -R "$REPO" --exclude-pre-releases --exclude-drafts --limit 200 \
+            --json tagName --jq '.[].tagName' > "$RUNNER_TEMP/final-tags.txt"
           set +e
-          out="$(scripts/release-version.sh --bump "$BUMP" --notes "$RUNNER_TEMP/notes.md" "$SHA")"
+          out="$(scripts/release-version.sh --bump "$BUMP" --notes "$RUNNER_TEMP/notes.md" \
+            --final-tags "$RUNNER_TEMP/final-tags.txt" "$SHA")"
           rc=$?
           set -e
           echo "$out" >> "$GITHUB_OUTPUT"
@@ -155,7 +166,11 @@ jobs:
               ;;
             3)
               echo "outcome=nothing" >> "$GITHUB_OUTPUT"
-              echo "Nothing landed since \`$(get base)\`." >> "$GITHUB_STEP_SUMMARY"
+              if [ "$BUMP" = auto ]; then
+                echo "Nothing landed since \`$(get previous)\`." >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "Nothing landed since \`$(get base)\`." >> "$GITHUB_STEP_SUMMARY"
+              fi
               ;;
             4)
               echo "outcome=breaking" >> "$GITHUB_OUTPUT"
@@ -174,8 +189,11 @@ jobs:
         env:
           SHA: ${{ steps.green.outputs.sha }}
           PREVIOUS: ${{ steps.version.outputs.previous }}
+          BASE: ${{ steps.version.outputs.base }}
           VERSION: ${{ steps.version.outputs.version }}
           BUMP: ${{ steps.version.outputs.bump }}
+          COMMITS: ${{ steps.version.outputs.commits }}
+          NEW: ${{ steps.version.outputs.new }}
           DRY_RUN: ${{ inputs.dry_run || false }}
         run: |
           {
@@ -183,8 +201,11 @@ jobs:
             echo "|---|---|"
             echo "| Commit | \`$SHA\` |"
             echo "| Previous | \`$PREVIOUS\` |"
+            echo "| Base | \`$BASE\` |"
             echo "| Version | \`$VERSION\` |"
             echo "| Bump | $BUMP |"
+            echo "| Commits since base | $COMMITS |"
+            echo "| New since previous | $NEW |"
             echo "| Dry run | $DRY_RUN |"
             echo
             cat "$RUNNER_TEMP/notes.md"

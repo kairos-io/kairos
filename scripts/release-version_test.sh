@@ -68,7 +68,7 @@ tag v4.4.0
 commit 'fix(a): x'
 commit 'docs: y'
 run HEAD
-check "patch only" 0 version=v4.4.1 previous=v4.4.0 base=v4.4.0 bump=patch commits=2
+check "patch only" 0 version=v4.4.1 previous=v4.4.0 base=v4.4.0 bump=patch commits=2 new=2
 run --bump minor HEAD
 check "override minor" 0 version=v4.5.0 bump=minor
 run --bump major HEAD
@@ -105,7 +105,7 @@ new_repo
 commit 'chore: init'
 tag v4.4.0
 run HEAD
-check "nothing landed" 3 commits=0
+check "nothing landed" 3 commits=0 new=0
 
 new_repo
 commit 'chore: init'
@@ -125,7 +125,7 @@ tag v4.4.1
 git_t -C "$repo" checkout -q master
 commit 'fix: c'
 run HEAD
-check "backport tag" 0 previous=v4.4.1 base=v4.4.0 commits=1 version=v4.4.2
+check "backport tag" 0 previous=v4.4.1 base=v4.4.0 commits=1 new=1 version=v4.4.2
 
 new_repo
 commit 'chore: init'
@@ -147,7 +147,36 @@ commit 'fix: a'
 tag v4.4.1
 commit 'fix: b'
 run HEAD
-check "rejected release kept" 0 previous=v4.4.1 base=v4.4.1 commits=1 version=v4.4.2
+check "rejected release kept" 0 previous=v4.4.1 base=v4.4.1 commits=1 new=1 version=v4.4.2
+
+new_repo
+commit 'chore: init'
+tag v4.4.0
+commit 'fix: actually a feature'
+tag v4.4.1
+echo v4.4.0 >"$tmp/final-tags.txt"
+run --bump minor --final-tags "$tmp/final-tags.txt" HEAD
+check "rejected release re-cut with bump" 0 previous=v4.4.1 base=v4.4.0 commits=1 new=0 version=v4.5.0 bump=minor
+run --final-tags "$tmp/final-tags.txt" HEAD
+check "pending prerelease is not cut again" 3 new=0
+commit 'fix: b'
+run --notes "$tmp/notes3.md" --final-tags "$tmp/final-tags.txt" HEAD
+check "rejected commits are in the next release" 0 base=v4.4.0 commits=2 new=1 version=v4.4.2
+if grep -qF -- '- patch: fix: b (' "$tmp/notes3.md" &&
+  grep -qF -- '- patch: fix: actually a feature (' "$tmp/notes3.md"; then
+  passed=$((passed + 1))
+else
+  echo "FAIL: rejected commits notes: got: $(cat "$tmp/notes3.md" 2>/dev/null)" >&2
+  failed=$((failed + 1))
+fi
+
+new_repo
+commit 'chore: init'
+tag v4.4.0
+commit 'fix: a'
+echo v9.9.9 >"$tmp/final-tags-none.txt"
+run --final-tags "$tmp/final-tags-none.txt" HEAD
+check "no final ancestor" 1
 
 new_repo
 commit 'fix: a'
