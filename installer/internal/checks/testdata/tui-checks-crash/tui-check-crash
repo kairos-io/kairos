@@ -1,0 +1,6 @@
+#!/bin/bash
+# tui-check-crash is an interactive-install check plugin that dies on every
+# event without printing a response, the way a plugin with a bug or a missing
+# dependency does. Used only by the checks tests.
+echo "tui-check-crash: something went wrong" >&2
+exit 1

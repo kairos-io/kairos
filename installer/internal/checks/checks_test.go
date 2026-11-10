@@ -133,3 +133,37 @@ var _ = Describe("Prerequisites round-trip", Label("prerequisites"), func() {
 		Expect(blocked).To(BeTrue())
 	})
 })
+
+var _ = Describe("A crashing check plugin", Label("prerequisites"), func() {
+	var m *pluggable.Manager
+	var log sdkLogger.KairosLogger
+
+	BeforeEach(func() {
+		fixtureDir, err := filepath.Abs("testdata/tui-checks-crash")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(os.Chmod(filepath.Join(fixtureDir, "tui-check-crash"), 0o755)).To(Succeed())
+
+		log = sdkLogger.NewNullLogger()
+		m = pluggable.NewManager([]pluggable.EventType{prereqs.EventChecks, prereqs.EventChecksApply})
+		m.Autoload(CheckPluginPrefix, fixtureDir)
+		m.Register()
+		Expect(m.Plugins).To(HaveLen(1))
+	})
+
+	It("makes Gather return an error", func() {
+		found, err := Gather(m, log, "")
+		Expect(found).To(BeEmpty())
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("crash"))
+		Expect(err.Error()).To(ContainSubstring("something went wrong"))
+	})
+
+	It("makes Apply return an error", func() {
+		decisions := []prereqs.Decision{{ID: "wipe", Confirmed: true}}
+		results, err := Apply(m, log, decisions, "")
+		Expect(results).To(BeEmpty())
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("crash"))
+		Expect(err.Error()).To(ContainSubstring("something went wrong"))
+	})
+})
