@@ -30,7 +30,19 @@ locally because you assume the real fix will be slow to merge.
 - Sign off every commit: `git commit -s`. DCO is a required check.
 - Disclose in the pull request body that AI was used, and say whether a human
   read the code before it was opened.
-- Conventional Commits for the subject line: `fix(iso): ...`, `docs: ...`.
+- The pull request title must be a Conventional Commit subject:
+  `fix(iso): ...`, `docs: ...`. Pull requests are squash-merged with the
+  title as the subject, and the release workflow picks the next version from
+  those subjects: `feat` is a minor release, `!` before the colon or a
+  `BREAKING CHANGE:` footer is a major one, every other type is a patch.
+  Commit subjects inside a pull request are not checked, because the squash
+  replaces them with the title. A `BREAKING CHANGE:` footer in any of the
+  commits still counts: the squash commit's body is made of their messages. So
+  `feat` is for something a user can see or use that was not there before,
+  and `fix` is for making existing behaviour work as intended. Choose the
+  type by what the change does for a user: a CI-only addition is `ci`, even
+  when it adds something. `scripts/semver-bump.sh` holds the rule, and the
+  `PR title` check runs it on every pull request.
 - Every pull request references an issue. Write
   `Fixes kairos-io/kairos#NNNN` when the pull request completes the issue, or
   `Part of kairos-io/kairos#NNNN` when it is one step of a larger piece of
@@ -163,9 +175,8 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
   reports a different set of findings, in both directions.
 - `tests/` is a separate module, so a green root `go test ./...` says nothing
   about whether the system still boots.
-- Ignore `CONTRIBUTING.md`'s emoji commit prefixes and its ten emoji pull
-  request labels. `master` uses Conventional Commits, and recent merges carry
-  `QA: pass` and nothing else. `CONTRIBUTING.md` is right about `-s`.
+- Pull requests get no label for their type, since the title carries it.
+  Recent merges carry `QA: pass` and nothing else.
 - Where there is no C compiler, `CGO_ENABLED=0 go build ./...` builds the whole
   tree. Do not commit a build tag or a dependency swap to work around a missing
   local compiler.
