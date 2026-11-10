@@ -194,3 +194,7 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
   and `libpcsclite`; building system extensions also needs Docker. Set
   `KAIROS_TEST_AURORABOOT_BINARY` to a local `auroraboot` binary to skip the
   download, for offline hosts or architectures without a release binary.
+- Releases are cut by the `weekly-release` workflow and approved by a
+  maintainer in the `promote` job of `release.yaml`. `RELEASING.md` has the
+  procedure. Change that file in the same pull request as any change to those
+  workflows or to `scripts/release-version.sh` and `scripts/green-commit.sh`.
