@@ -82,6 +82,29 @@ name: "kairos"`
 		})
 	})
 
+	Context("With lock_passwd", func() {
+		It("accepts a boolean", func() {
+			config, err = NewConfigFromYAML("#cloud-config\nname: kairos\nlock_passwd: true", UserSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.IsValid()).To(BeTrue())
+		})
+
+		It("rejects a value that is not a boolean", func() {
+			config, err = NewConfigFromYAML("#cloud-config\nname: kairos\nlock_passwd: \"nope\"", UserSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.IsValid()).To(BeFalse())
+			Expect(config.ValidationError.Error()).To(ContainSubstring("lock_passwd"))
+		})
+
+		It("reports lockPasswd as an unknown key that means lock_passwd", func() {
+			config, err = NewConfigFromYAML("#cloud-config\nname: kairos\nlockPasswd: true", UserSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.SuggestUnknownKeys()).To(ConsistOf(
+				`unknown configuration key "lockPasswd", which is ignored; did you mean "lock_passwd"?`,
+			))
+		})
+	})
+
 	Context("With all possible attributes", func() {
 		BeforeEach(func() {
 			yaml = `#cloud-config
