@@ -63,18 +63,9 @@ func RefuseIfTargetIsDowngrade(currentStr, targetStr string) error {
 // image with the node's root mounted at HOST_DIR (kairos-operator's
 // NodeOpUpgrade, system-upgrade-controller), so the plain /etc/kairos-release
 // is the target's own file and comparing against it would let any downgrade
-// through (kairos-io/kairos#6033). A pod can also `chroot` into HOST_DIR and
-// run the node's agent, as the documented Trusted Boot upgrade does. The
-// Kubernetes environment survives the chroot but HOST_DIR does not exist
-// inside it, and /etc/kairos-release is the node's file there.
+// through (kairos-io/kairos#6033).
 func CurrentKairosReleaseFile(fs sdkFS.KairosFS) string {
-	if hostDir := k8sutils.GetHostDirForK8s(); hostDir != "" {
-		hostFile := filepath.Join(hostDir, constants.KairosReleaseFile)
-		if _, err := fs.Stat(hostFile); err == nil {
-			return hostFile
-		}
-	}
-	return constants.KairosReleaseFile
+	return filepath.Join(k8sutils.GetHostDirForK8s(fs), constants.KairosReleaseFile)
 }
 
 // ReadKairosInitVersionFromFs loads the given os-release-style file via
