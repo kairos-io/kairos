@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -44,6 +45,7 @@ import (
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
+	sdkImage "github.com/kairos-io/kairos/v4/sdk/utils/image"
 )
 
 // Elemental is the struct meant to self-contain most utils and actions related to Elemental, like installing or applying selinux
@@ -529,7 +531,11 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 			return nil, fmt.Errorf("failed to extract image contents: %w", err)
 		}
 	} else if imgSrc.IsDir() {
-		mergedExcludes := append(excludes, "/mnt", "/proc", "/sys", "/dev", "/tmp", "/host", "/run")
+		mergedExcludes := make([]string, 0, len(excludes)+7)
+		for _, exclude := range excludes {
+			mergedExcludes = append(mergedExcludes, path.Clean("/"+exclude))
+		}
+		mergedExcludes = append(mergedExcludes, "/mnt", "/proc", "/sys", "/dev", "/tmp", "/host", "/run")
 		err = utils.SyncData(e.config.Logger, e.config.Runner, e.config.Fs, imgSrc.Value(), target, mergedExcludes...)
 		if err != nil {
 			return nil, err
@@ -753,7 +759,7 @@ func (e *Elemental) platformMatches(descriptorPlatform *ggcrv1.Platform) bool {
 }
 
 // applyImageToTarget unpacks the layers of an image onto target, dropping any
-// entry named in excludes.
+// entry that sdkImage.Excluded matches against excludes.
 func (e *Elemental) applyImageToTarget(img ggcrv1.Image, target string, excludes ...string) error {
 	reader := mutate.Extract(img)
 	defer func() { _ = reader.Close() }()
@@ -763,14 +769,13 @@ func (e *Elemental) applyImageToTarget(img ggcrv1.Image, target string, excludes
 		return err
 	}
 
-	excluded := make(map[string]struct{}, len(excludes))
-	for _, exclude := range excludes {
-		excluded[exclude] = struct{}{}
-	}
-
 	filter := archive.WithFilter(func(hdr *tar.Header) (bool, error) {
-		if _, found := excluded[hdr.Name]; found {
-			e.config.Logger.Infof("Excluding file from extraction: %s", hdr.Name)
+		excluded, err := sdkImage.Excluded(hdr.Name, excludes...)
+		if err != nil {
+			return false, err
+		}
+		if excluded {
+			e.config.Logger.Debugf("Excluding file from extraction: %s", hdr.Name)
 			return false, nil
 		}
 		return true, nil
