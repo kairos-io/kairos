@@ -84,7 +84,9 @@ gh workflow run weekly-release.yaml -f dry_run=true
 ```
 
 A dry run writes the chosen commit, the previous version, the next version and
-the commit list to the job summary, and creates nothing. It accepts `bump` too.
+the commit list to the job summary. It creates nothing and posts nothing to
+Slack: a message it would have posted goes to the job summary instead. It
+accepts `bump` too.
 
 ## If the build did not start
 

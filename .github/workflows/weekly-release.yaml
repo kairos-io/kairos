@@ -37,8 +37,9 @@ name: weekly-release
 # for a maintainer, who runs this workflow with bump=major.
 #
 # On a schedule run there are no inputs, so bump is auto and dry_run
-# is false. A dry run stops after writing the job summary and creates
-# nothing.
+# is false. A dry run stops after writing the job summary, creates
+# nothing and posts nothing to Slack: the notify helper writes its
+# text to the job summary and prints a notice instead.
 
 on:
   schedule:
@@ -61,6 +62,10 @@ on:
 
 permissions:
   contents: read
+
+env:
+  # A schedule run has no inputs, so it is never a dry run.
+  DRY_RUN: ${{ inputs.dry_run || false }}
 
 # Two runs at once could pick the same version and race to create it.
 concurrency:
@@ -85,11 +90,17 @@ jobs:
 
       - name: Write the Slack notify helper
         # Posts its argument to Slack, or prints it as a warning when the
-        # webhook secret is not set.
+        # webhook secret is not set. On a dry run it posts nothing and
+        # writes the text to the job summary and a notice instead.
         run: |
           cat > "$RUNNER_TEMP/notify.sh" <<'EOF'
           #!/usr/bin/env bash
           set -euo pipefail
+          if [ "${DRY_RUN:-false}" = true ]; then
+            echo "Dry run, not posted to Slack: $1" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::Dry run, not posted to Slack: $1"
+            exit 0
+          fi
           if [ -z "${SLACK_RELEASE_WEBHOOK:-}" ]; then
             echo "::warning::$1"
             exit 0
@@ -194,7 +205,6 @@ jobs:
           BUMP: ${{ steps.version.outputs.bump }}
           COMMITS: ${{ steps.version.outputs.commits }}
           NEW: ${{ steps.version.outputs.new }}
-          DRY_RUN: ${{ inputs.dry_run || false }}
         run: |
           {
             echo "| | |"
