@@ -108,7 +108,7 @@ var _ = Describe("The cloud-config directory stage", func() {
 		// 0600 on a directory clears the execute bit, and then nothing but
 		// root can traverse it, which takes away the access the admin group
 		// is granted by 10_accounting.yaml.
-		Expect(info.Mode().Perm() & 0010).To(Equal(os.FileMode(0010)),
+		Expect(info.Mode().Perm()&0010).To(Equal(os.FileMode(0010)),
 			"%s is not traversable by its group at %04o", root, info.Mode().Perm())
 	})
 
