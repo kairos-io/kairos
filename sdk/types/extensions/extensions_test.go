@@ -259,18 +259,17 @@ func TestParseCmdlineRejectsAnUnreadableEntry(t *testing.T) {
 	}
 }
 
-// Reproduces kairos-io/kairos#5951: a comma inside a version constraint is
-// taken for the separator between two extensions, so the tail of the
-// constraint becomes an extension of its own. This pins the current, wrong
-// behaviour.
-func TestParseCmdlineSplitsConstraintOnComma(t *testing.T) {
-	got, err := ParseCmdline("quiet kairos.extensions=fwupd@>=2.1,<3")
+// A comma inside a version constraint belongs to the constraint, so
+// `fwupd@>=2.1,<3` is one extension, and the list around it still splits.
+func TestParseCmdlineKeepsCommaInConstraint(t *testing.T) {
+	got, err := ParseCmdline("quiet kairos.extensions=gpg,fwupd@>=2.1,<3,oci://ghcr.io/example/a.sysext.raw")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := Extensions{
-		{Name: "fwupd", Version: ">=2.1"},
-		{Name: "<3"},
+		{Name: "gpg"},
+		{Name: "fwupd", Version: ">=2.1,<3"},
+		{Name: "oci://ghcr.io/example/a.sysext.raw"},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
