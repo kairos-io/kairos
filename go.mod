@@ -49,7 +49,7 @@ require (
 	github.com/mudler/edgevpn v0.35.3
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
 	github.com/mudler/go-processmanager v0.1.2
-	github.com/mudler/yip v1.26.4
+	github.com/mudler/yip v1.26.5-0.20261027073353-b1c67bef913c
 	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/onsi/gomega v1.44.0
 	github.com/pterm/pterm v0.12.84
