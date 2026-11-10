@@ -324,7 +324,7 @@ func (i *UpgradeAction) prepareFinalize(noroleEfi string) (*finalizeStage, error
 		cleanupTempDir()
 		return nil, fmt.Errorf("target %s carries no %s in its .initrd; refusing upgrade (kairos-io/kairos#4917)", noroleEfi, constants.KairosReleaseFile)
 	}
-	current, err := action.ReadKairosInitVersionFromFs(i.cfg.Fs, constants.KairosReleaseFile)
+	current, err := action.ReadKairosInitVersionFromFs(i.cfg.Fs, action.CurrentKairosReleaseFile(i.cfg.Fs))
 	if err != nil {
 		cleanupTempDir()
 		return nil, fmt.Errorf("reading current KAIROS_INIT_VERSION: %w", err)

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -427,6 +428,36 @@ var _ = Describe("kcrypt encrypt", func() {
 				To(MatchError(ContainSubstring("remote KMS")))
 			Expect(PreflightResetFormat(configWithEncrypt(sdkConstants.PersistentLabel), persistentAt("/dev/vda5"), false)).
 				To(Succeed(), "remote KMS without an OEM format is allowed")
+		})
+
+		It("refuses passphrase re-encryption before any format when the passphrase file is unusable", func() {
+			stubAll()
+			dir := GinkgoT().TempDir()
+			short := filepath.Join(dir, "short")
+			Expect(os.WriteFile(short, []byte("abc\n"), 0o600)).To(Succeed())
+			good := filepath.Join(dir, "good")
+			Expect(os.WriteFile(good, []byte("correct horse battery\n"), 0o600)).To(Succeed())
+
+			passphraseFile := ""
+			resetEncryptorFn = func(*config.Config) (kcrypt.PartitionEncryptor, error) {
+				kc := collector.ConfigValues{"method": kcrypt.PassphraseMethod}
+				if passphraseFile != "" {
+					kc["passphrase_file"] = passphraseFile
+				}
+				return kcrypt.GetEncryptorFromConfig(newConfig().Logger,
+					&collector.Config{Values: collector.ConfigValues{"kcrypt": kc}})
+			}
+			cfg := configWithEncrypt(sdkConstants.PersistentLabel)
+
+			for _, f := range []string{"", filepath.Join(dir, "missing"), short} {
+				passphraseFile = f
+				err := PreflightResetFormat(cfg, persistentAt("/dev/vda5"), false)
+				Expect(err).To(MatchError(ContainSubstring("passphrase")), "passphrase_file %q", f)
+				Expect(err).To(MatchError(ContainSubstring("nothing was formatted")), "passphrase_file %q", f)
+			}
+
+			passphraseFile = good
+			Expect(PreflightResetFormat(cfg, persistentAt("/dev/vda5"), false)).To(Succeed())
 		})
 
 		It("allows local TPM re-encryption when OEM is formatted too", func() {

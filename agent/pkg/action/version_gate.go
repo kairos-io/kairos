@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/joho/godotenv"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	k8sutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/k8s"
 	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 )
 
@@ -53,6 +56,16 @@ func RefuseIfTargetIsDowngrade(currentStr, targetStr string) error {
 			targetStr, currentStr)
 	}
 	return nil
+}
+
+// CurrentKairosReleaseFile returns the path of the running node's
+// kairos-release. Under Kubernetes the agent usually runs inside the target
+// image with the node's root mounted at HOST_DIR (kairos-operator's
+// NodeOpUpgrade, system-upgrade-controller), so the plain /etc/kairos-release
+// is the target's own file and comparing against it would let any downgrade
+// through (kairos-io/kairos#6033).
+func CurrentKairosReleaseFile(fs sdkFS.KairosFS) string {
+	return filepath.Join(k8sutils.GetHostDirForK8s(fs), constants.KairosReleaseFile)
 }
 
 // ReadKairosInitVersionFromFs loads the given os-release-style file via

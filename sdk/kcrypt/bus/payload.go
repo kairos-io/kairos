@@ -16,6 +16,11 @@ type KcryptConfig struct {
 	NVIndex     string `json:"nv_index,omitempty"`
 	CIndex      string `json:"c_index,omitempty"`
 	TPMDevice   string `json:"tpm_device,omitempty"`
+	// Passphrase configuration (for a passphrase typed by a person)
+	Method             string `json:"method,omitempty"`
+	PassphraseFile     string `json:"passphrase_file,omitempty"`
+	PassphraseFallback bool   `json:"passphrase_fallback,omitempty"`
+	PassphraseTimeout  int    `json:"passphrase_timeout,omitempty"`
 }
 
 // DiscoveryPasswordPayload is the data sent to kcrypt-challenger plugin.
