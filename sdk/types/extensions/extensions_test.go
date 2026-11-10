@@ -258,3 +258,26 @@ func TestParseCmdlineRejectsAnUnreadableEntry(t *testing.T) {
 		t.Errorf("error %q does not name the key that carried the bad value", err)
 	}
 }
+
+// Reproduces kairos-io/kairos#5951: a comma inside a version constraint is
+// taken for the separator between two extensions, so the tail of the
+// constraint becomes an extension of its own. This pins the current, wrong
+// behaviour.
+func TestParseCmdlineSplitsConstraintOnComma(t *testing.T) {
+	got, err := ParseCmdline("quiet kairos.extensions=fwupd@>=2.1,<3")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := Extensions{
+		{Name: "fwupd", Version: ">=2.1"},
+		{Name: "<3"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("entry %d: got %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
