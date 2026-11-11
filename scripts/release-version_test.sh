@@ -166,9 +166,15 @@ tag v4.4.0
 commit 'fix: a'
 tag v4.4.1
 run HEAD
-check "pending prerelease is not cut again" 3 base=v4.4.1 commits=0
-run --bump minor HEAD
+check "pending prerelease is not cut again" 3 previous=v4.4.1 base=v4.4.1 commits=0
+run --bump minor --notes "$tmp/notes3.md" HEAD
 check "explicit bump re-cuts at the same commit" 0 version=v4.5.0 base=v4.4.1 commits=0 bump=minor
+if [ -f "$tmp/notes3.md" ] && [ ! -s "$tmp/notes3.md" ]; then
+  passed=$((passed + 1))
+else
+  echo "FAIL: empty notes: got: $(cat "$tmp/notes3.md" 2>&1)" >&2
+  failed=$((failed + 1))
+fi
 echo v4.4.0 >"$tmp/tags.txt"
 run --final-tags "$tmp/tags.txt" HEAD
 check "final-tags option is rejected" 1
