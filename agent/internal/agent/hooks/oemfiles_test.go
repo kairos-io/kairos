@@ -172,9 +172,9 @@ func TestOemFileName(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:     "a launch cloud-config slot past ten entries is rejected too",
-			input:    "910_custom",
-			expected: "910_custom.yaml",
+			name:    "a launch cloud-config slot past ten entries is rejected too",
+			input:   "910_custom",
+			wantErr: true,
 		},
 		{
 			name:    "SSHHardening's own file is rejected",

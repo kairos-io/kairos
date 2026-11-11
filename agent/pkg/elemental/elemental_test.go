@@ -1540,7 +1540,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 				inLexicalOrder = append(inLexicalOrder, string(content))
 				inListOrder = append(inListOrder, fmt.Sprintf("entry %d", i))
 			}
-			Expect(inLexicalOrder).ToNot(Equal(inListOrder))
+			Expect(inLexicalOrder).To(Equal(inListOrder))
 		})
 		It("Doesnt do anything if the config file is not set", func() {
 			err := e.CopyCloudConfig([]string{})
