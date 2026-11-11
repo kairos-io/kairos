@@ -51,6 +51,15 @@ var _ = Describe("findPartitionInVolume", func() {
 		Expect(data.VolumeName).To(Equal("tofu-a1b2c3d4"))
 	})
 
+	It("does not match on an unknown UUID", func() {
+		volume.Spec.Partitions = []keyserverv1alpha1.PartitionSpec{
+			{Label: "COS_PERSISTENT", Secret: &keyserverv1alpha1.SecretSpec{Name: "secret-persistent"}},
+			{Label: "COS_OEM", UUID: "unknown", Secret: &keyserverv1alpha1.SecretSpec{Name: "secret-oem"}},
+		}
+		data := find(PartitionInfo{Label: "COS_PERSISTENT", UUID: "unknown"})
+		Expect(data.SecretName).To(Equal("secret-persistent"))
+	})
+
 	It("does not match on empty fields", func() {
 		volume.Spec.Partitions = []keyserverv1alpha1.PartitionSpec{
 			{Label: "COS_OEM", Secret: &keyserverv1alpha1.SecretSpec{Name: "secret-oem"}},
