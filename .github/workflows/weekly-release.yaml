@@ -158,19 +158,12 @@ jobs:
         id: version
         if: steps.green.outputs.state == 'green'
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           BUMP: ${{ inputs.bump || 'auto' }}
           SHA: ${{ steps.green.outputs.sha }}
           SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
         run: |
-          # Only a final release can be the base, so the commits of a
-          # rejected or pending prerelease are released again.
-          gh release list -R "$REPO" --exclude-pre-releases --exclude-drafts --limit 200 \
-            --json tagName --jq '.[].tagName' > "$RUNNER_TEMP/final-tags.txt"
           set +e
-          out="$(scripts/release-version.sh --bump "$BUMP" --notes "$RUNNER_TEMP/notes.md" \
-            --final-tags "$RUNNER_TEMP/final-tags.txt" "$SHA")"
+          out="$(scripts/release-version.sh --bump "$BUMP" --notes "$RUNNER_TEMP/notes.md" "$SHA")"
           rc=$?
           set -e
           echo "$out" >> "$GITHUB_OUTPUT"
@@ -181,11 +174,7 @@ jobs:
               ;;
             3)
               echo "outcome=nothing" >> "$GITHUB_OUTPUT"
-              if [ "$BUMP" = auto ]; then
-                echo "Nothing landed since \`$(get previous)\`." >> "$GITHUB_STEP_SUMMARY"
-              else
-                echo "Nothing landed since \`$(get base)\`." >> "$GITHUB_STEP_SUMMARY"
-              fi
+              echo "Nothing landed since \`$(get base)\`." >> "$GITHUB_STEP_SUMMARY"
               ;;
             4)
               echo "outcome=breaking" >> "$GITHUB_OUTPUT"
@@ -208,7 +197,6 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           BUMP: ${{ steps.version.outputs.bump }}
           COMMITS: ${{ steps.version.outputs.commits }}
-          NEW: ${{ steps.version.outputs.new }}
         run: |
           {
             echo "| | |"
@@ -219,7 +207,6 @@ jobs:
             echo "| Version | \`$VERSION\` |"
             echo "| Bump | $BUMP |"
             echo "| Commits since base | $COMMITS |"
-            echo "| New since previous | $NEW |"
             echo "| Dry run | $DRY_RUN |"
             echo
             cat "$RUNNER_TEMP/notes.md"

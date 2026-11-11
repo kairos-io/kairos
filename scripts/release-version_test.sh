@@ -68,7 +68,7 @@ tag v4.4.0
 commit 'fix(a): x'
 commit 'docs: y'
 run HEAD
-check "patch only" 0 version=v4.4.1 previous=v4.4.0 base=v4.4.0 bump=patch commits=2 new=2
+check "patch only" 0 version=v4.4.1 previous=v4.4.0 base=v4.4.0 bump=patch commits=2
 run --bump minor HEAD
 check "override minor" 0 version=v4.5.0 bump=minor
 run --bump major HEAD
@@ -105,7 +105,7 @@ new_repo
 commit 'chore: init'
 tag v4.4.0
 run HEAD
-check "nothing landed" 3 commits=0 new=0
+check "nothing landed" 3 commits=0
 
 new_repo
 commit 'chore: init'
@@ -125,7 +125,7 @@ tag v4.4.1
 git_t -C "$repo" checkout -q master
 commit 'fix: c'
 run HEAD
-check "backport tag" 0 previous=v4.4.1 base=v4.4.0 commits=1 new=1 version=v4.4.2
+check "backport tag" 0 previous=v4.4.1 base=v4.4.0 commits=1 version=v4.4.2
 
 new_repo
 commit 'chore: init'
@@ -136,12 +136,42 @@ git_t -C "$repo" checkout -q -b release/v4.4
 commit 'fix: backport'
 tag v4.4.2
 git_t -C "$repo" checkout -q master
-echo v4.4.0 >"$tmp/final-tags-bp.txt"
-run --final-tags "$tmp/final-tags-bp.txt" HEAD
-check "pending prerelease with a higher backport is not cut again" 3 previous=v4.4.2 base=v4.4.0 commits=1 new=0
+run HEAD
+check "higher backport on another branch" 3 previous=v4.4.2 base=v4.4.1 commits=0
 commit 'fix: b'
-run --final-tags "$tmp/final-tags-bp.txt" HEAD
-check "commits after a pending prerelease with a higher backport" 0 previous=v4.4.2 commits=2 new=1 version=v4.4.3
+run HEAD
+check "commit after a higher backport" 0 previous=v4.4.2 base=v4.4.1 commits=1 version=v4.4.3
+
+new_repo
+commit 'chore: init'
+tag v4.4.0
+commit 'feat: b'
+tag v4.5.0
+commit 'fix: c'
+run HEAD
+check "pending minor is not counted again" 0 version=v4.5.1 previous=v4.5.0 base=v4.5.0 bump=patch commits=1
+
+new_repo
+commit 'chore: init'
+tag v4.4.0
+commit 'feat!: b'
+tag v5.0.0
+commit 'fix: c'
+run HEAD
+check "pending major is not counted again" 0 version=v5.0.1 previous=v5.0.0 base=v5.0.0 bump=patch commits=1
+
+new_repo
+commit 'chore: init'
+tag v4.4.0
+commit 'fix: a'
+tag v4.4.1
+run HEAD
+check "pending prerelease is not cut again" 3 base=v4.4.1 commits=0
+run --bump minor HEAD
+check "explicit bump re-cuts at the same commit" 0 version=v4.5.0 base=v4.4.1 commits=0 bump=minor
+echo v4.4.0 >"$tmp/tags.txt"
+run --final-tags "$tmp/tags.txt" HEAD
+check "final-tags option is rejected" 1
 
 new_repo
 commit 'chore: init'
@@ -163,36 +193,7 @@ commit 'fix: a'
 tag v4.4.1
 commit 'fix: b'
 run HEAD
-check "rejected release kept" 0 previous=v4.4.1 base=v4.4.1 commits=1 new=1 version=v4.4.2
-
-new_repo
-commit 'chore: init'
-tag v4.4.0
-commit 'fix: actually a feature'
-tag v4.4.1
-echo v4.4.0 >"$tmp/final-tags.txt"
-run --bump minor --final-tags "$tmp/final-tags.txt" HEAD
-check "rejected release re-cut with bump" 0 previous=v4.4.1 base=v4.4.0 commits=1 new=0 version=v4.5.0 bump=minor
-run --final-tags "$tmp/final-tags.txt" HEAD
-check "pending prerelease is not cut again" 3 new=0
-commit 'fix: b'
-run --notes "$tmp/notes3.md" --final-tags "$tmp/final-tags.txt" HEAD
-check "rejected commits are in the next release" 0 base=v4.4.0 commits=2 new=1 version=v4.4.2
-if grep -qF -- '- patch: fix: b (' "$tmp/notes3.md" &&
-  grep -qF -- '- patch: fix: actually a feature (' "$tmp/notes3.md"; then
-  passed=$((passed + 1))
-else
-  echo "FAIL: rejected commits notes: got: $(cat "$tmp/notes3.md" 2>/dev/null)" >&2
-  failed=$((failed + 1))
-fi
-
-new_repo
-commit 'chore: init'
-tag v4.4.0
-commit 'fix: a'
-echo v9.9.9 >"$tmp/final-tags-none.txt"
-run --final-tags "$tmp/final-tags-none.txt" HEAD
-check "no final ancestor" 1
+check "rejected release kept" 0 previous=v4.4.1 base=v4.4.1 commits=1 version=v4.4.2
 
 new_repo
 commit 'fix: a'
