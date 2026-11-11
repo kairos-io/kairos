@@ -42,9 +42,12 @@ name: release
 # keeps pointing at the previous release. A rejected or never
 # approved run leaves the prerelease and its tag in place. A release
 # candidate (a tag with a hyphen, such as v4.4.0-rc1) skips promote
-# and publish, so it never becomes Latest. A backport (v4.3.2 after v4.4.0) is
-# promoted to a full release but leaves :latest and Latest on the
-# highest release.
+# and publish, so it never becomes Latest. A backport (v4.3.2 after
+# v4.4.0) is promoted to a full release but leaves :latest and
+# Latest on the highest release. This holds only for a branch that
+# carries this file: a tag runs the release.yaml stored at its
+# commit, and an older copy pushes :latest at build time with no
+# approval.
 #
 # Matrix scope vs master: FIPS, UKI, ubuntu-20.04 and the unpinned
 # amd64-standard cells all live in master.yaml, not here. They exist

@@ -4,8 +4,10 @@ name: Upload cloud images
 # GitHub Latest release and uploads that version. A release becomes Latest
 # only after a maintainer approves it in release.yaml, so a release candidate
 # or an approved backport stays off Latest. Each job stops early when Latest
-# is already uploaded, so images appear up to a day after approval. Every job
-# checks out the default branch, so the upload scripts it runs are reviewed code.
+# is already uploaded, so images appear up to a day after approval. On the
+# nightly schedule every job checks out the default branch, so the upload
+# scripts it runs are reviewed code; a manual run checks out the branch it was
+# started from.
 on:
   schedule:
     # Everyday at 2am

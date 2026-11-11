@@ -35,11 +35,12 @@ name: weekly-release
 # with that token, except workflow_dispatch.
 #
 # In auto mode the run skips and ends successfully when master.yaml did
-# not succeed, when no run has finished, and when no commit lies after
+# not succeed (the CI-fixing bot, ci-doctor, opens fix pull requests for
+# failed runs on master, and a skip is not a CI fault), when no run has finished, and when no commit lies after
 # the newest release tag. A breaking change also skips and waits for a
 # maintainer, who runs this workflow with bump=major. An explicit bump
 # cuts even with no new commit, which re-cuts a rejected release at the
-# same commit.
+# newest green commit, the rejected one when nothing landed since.
 #
 # On a schedule run there are no inputs, so bump is auto and dry_run
 # is false. A dry run stops after writing the job summary, creates
@@ -95,7 +96,8 @@ jobs:
 
       - name: Write the Slack notify helper
         # Posts its argument to Slack, or prints it as a warning when the
-        # webhook secret is not set. On a dry run it posts nothing and
+        # webhook secret is not set or the post fails, so a Slack outage
+        # never fails a run after the release was created. On a dry run it posts nothing and
         # writes the text to the job summary and a notice instead.
         run: |
           cat > "$RUNNER_TEMP/notify.sh" <<'EOF'
@@ -110,8 +112,10 @@ jobs:
             echo "::warning::$1"
             exit 0
           fi
-          curl -fsS -X POST -H 'Content-Type: application/json' \
-            --data "$(jq -n --arg t "$1" '{text:$t}')" "$SLACK_RELEASE_WEBHOOK"
+          if ! curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg t "$1" '{text:$t}')" "$SLACK_RELEASE_WEBHOOK"; then
+            echo "::warning::Slack post failed: $1"
+          fi
           EOF
           chmod +x "$RUNNER_TEMP/notify.sh"
 
@@ -220,8 +224,8 @@ jobs:
         # from kairos-init and cannot exist without it. Both
         # repositories are public, so quay.io's tag API needs no login.
         # It answers 200 with an empty `tags` list when the tag is
-        # absent. Any other answer, an outage or a rate limit included,
-        # fails the run, so the check never passes on an error.
+        # absent. Any other answer, an outage, a rate limit or a body
+        # without a `tags` list included, fails the run, so the check never passes on an error.
         if: steps.version.outputs.outcome == 'release'
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -237,7 +241,7 @@ jobs:
           for repo in kairos-init kcrypt-challenger; do
             image="quay.io/kairos/$repo:$VERSION"
             url="https://quay.io/api/v1/repository/kairos/$repo/tag/?specificTag=${VERSION}&onlyActiveTags=true"
-            if ! found=$(curl -fsS --retry 3 --retry-all-errors "$url" | jq -e '.tags | length'); then
+            if ! found=$(curl -fsS --retry 3 --retry-all-errors "$url" | jq -e '.tags | if type == "array" then length else error("no tags array") end'); then
               stop "Weekly release stopped: could not ask quay.io whether $image exists. Run the workflow again later."
             fi
             if [[ "$found" != "0" ]]; then
