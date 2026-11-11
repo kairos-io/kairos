@@ -1520,6 +1520,28 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(int(stat.Mode().Perm())).To(Equal(cnst.ConfigPerm))
 
 		})
+		It("names the last cloud config so it sorts last with ten or more entries", func() {
+			var cloudInit []string
+			for i := 0; i < 11; i++ {
+				path := fmt.Sprintf("/config%d.yaml", i)
+				Expect(fs.WriteFile(path, []byte(fmt.Sprintf("entry %d", i)), cnst.FilePerm)).To(Succeed())
+				cloudInit = append(cloudInit, path)
+			}
+			Expect(fsutils.MkdirAll(fs, cnst.OEMDir, cnst.DirPerm)).To(Succeed())
+
+			Expect(e.CopyCloudConfig(cloudInit)).To(Succeed())
+
+			entries, err := fs.ReadDir(cnst.OEMDir)
+			Expect(err).ToNot(HaveOccurred())
+			var inLexicalOrder, inListOrder []string
+			for i, entry := range entries {
+				content, err := fs.ReadFile(filepath.Join(cnst.OEMDir, entry.Name()))
+				Expect(err).ToNot(HaveOccurred())
+				inLexicalOrder = append(inLexicalOrder, string(content))
+				inListOrder = append(inListOrder, fmt.Sprintf("entry %d", i))
+			}
+			Expect(inLexicalOrder).ToNot(Equal(inListOrder))
+		})
 		It("Doesnt do anything if the config file is not set", func() {
 			err := e.CopyCloudConfig([]string{})
 			Expect(err).To(BeNil())
