@@ -537,9 +537,9 @@ jobs:
   # :latest on the highest release. The comparison uses final releases
   # and not all tags, so a higher tag that is pending or was rejected
   # does not keep an approved release off Latest. Releases are read
-  # through the API because this job has no checkout. `docker buildx imagetools create` copies the manifest by
-  # reference, so :latest has the same digest as :<tag>, as
-  # promote-images does in master.yaml.
+  # through the API because this job has no checkout. `docker buildx
+  # imagetools create` copies the manifest by reference, so :latest has
+  # the same digest as :<tag>, as promote-images does in master.yaml.
   #
   # Two approved tags would otherwise publish at the same time, and an
   # older one that read the tag list before a newer tag existed could
@@ -569,7 +569,10 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          highest=$({ gh release list --repo "$REPO" --exclude-pre-releases --exclude-drafts --limit 200 --json tagName --jq '.[].tagName'; echo "$TAG"; } \
+          finals=$(gh release list --repo "$REPO" \
+            --exclude-pre-releases --exclude-drafts --limit 200 \
+            --json tagName --jq '.[].tagName')
+          highest=$({ printf '%s\n' "$finals"; echo "$TAG"; } \
             | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
             | sort -V | tail -n 1)
           echo "highest=$highest" >> "$GITHUB_OUTPUT"
