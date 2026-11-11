@@ -1047,14 +1047,29 @@ func findVolumeForTPM(tpmHash string, volumeList *keyserverv1alpha1.SealedVolume
 	return nil
 }
 
-// findPartitionInVolume checks if a specific partition exists in a SealedVolume
+// findPartitionInVolume checks if a specific partition exists in a SealedVolume.
+// A partition can be identified by any of its UUID, label or device name. When
+// those point at different entries, the UUID wins over the label, and the label
+// wins over the device name, because kernel device names can change between
+// boots and may then equal the name stored for another partition.
 func findPartitionInVolume(volume *keyserverv1alpha1.SealedVolume, partition PartitionInfo) (*SealedVolumeData, bool) {
-	for _, p := range volume.Spec.Partitions {
-		deviceNameMatches := partition.DeviceName != "" && p.DeviceName == partition.DeviceName
-		uuidMatches := partition.UUID != "" && p.UUID == partition.UUID
-		labelMatches := partition.Label != "" && p.Label == partition.Label
+	matchers := []func(p keyserverv1alpha1.PartitionSpec) bool{
+		func(p keyserverv1alpha1.PartitionSpec) bool {
+			return partition.UUID != "" && p.UUID == partition.UUID
+		},
+		func(p keyserverv1alpha1.PartitionSpec) bool {
+			return partition.Label != "" && p.Label == partition.Label
+		},
+		func(p keyserverv1alpha1.PartitionSpec) bool {
+			return partition.DeviceName != "" && p.DeviceName == partition.DeviceName
+		},
+	}
 
-		if labelMatches || uuidMatches || deviceNameMatches {
+	for _, matches := range matchers {
+		for _, p := range volume.Spec.Partitions {
+			if !matches(p) {
+				continue
+			}
 			secretName := ""
 			if p.Secret != nil && p.Secret.Name != "" {
 				secretName = p.Secret.Name
