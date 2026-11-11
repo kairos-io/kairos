@@ -77,7 +77,7 @@ reason = "prerelease-only-fix: golang.org/x/crypto/openpgp. Fixed only in the un
 # These are package overrides, not IgnoredVulns: an IgnoredVulns entry drops an
 # advisory ID for the whole scan, which would also hide it in the binaries built
 # from this repo. An override matches one package at one version, and only the
-# prebuilt edgevpn carries these versions (this repo builds with Go 1.27.3 and
+# prebuilt edgevpn carries these versions (this repo builds with Go 1.27.4 and
 # x/net v0.61.0). Covers 15 advisories: GO-2026-6599, -6600, -6603, -6604,
 # -6605, -6607, -6608, -6609, -6610, -6611, -6612, -6613 and -6617 (stdlib and
 # x/net) and GHSA-g35j-m5xg-vh3q / GO-2026-6099 (webtransport-go).
