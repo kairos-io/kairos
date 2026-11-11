@@ -145,6 +145,20 @@ jobs:
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
 
+  # Tests for the scripts weekly-release.yaml runs. They need only
+  # bash, git and jq, so they do not wait for any build.
+  release-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the release version script
+        run: scripts/release-version_test.sh
+      - name: Test the green commit script
+        run: scripts/green-commit_test.sh
+
   # Per-PR ISO size signal against the last green master run. It is an
   # informational report and never gates the PR. This run builds no UKI
   # ISO, so the UKI size gate lives in pr-full.yaml; the script's own
