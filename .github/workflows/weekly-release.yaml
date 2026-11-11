@@ -1,19 +1,22 @@
 name: weekly-release
 
-# Cuts a release from the newest green master commit every Monday at
+# Cuts a release from the newest finished master.yaml run every Monday at
 # 06:00 UTC. A maintainer can also start it by hand, choosing the bump
 # and whether it is a dry run.
 #
 # What it does, in order:
-#   - picks the newest master commit whose push runs have a finished
-#     verdict (scripts/green-commit.sh)
-#   - picks the next version from the commits since the last final
-#     release reachable from that commit (scripts/release-version.sh);
-#     a prerelease that waits for approval or was rejected is not a
-#     base, so its commits go into the next release
-#   - stops with an error when quay.io/kairos/kairos-init already has
-#     an image for that version, which means the version was released
-#     before and its tag was deleted
+#   - reads the newest finished master.yaml push run on master
+#     (scripts/green-commit.sh); cancelled, skipped and in-progress runs
+#     are ignored, success releases its commit, and anything else skips
+#     the week, with no fallback to an older green commit
+#   - picks the next version from the commits since the newest vX.Y.Z tag
+#     the commit contains, whether that release is final, pending approval
+#     or rejected (scripts/release-version.sh); the version counts up from
+#     the highest tag anywhere in the repository
+#   - fails when quay.io/kairos/kairos-init or
+#     quay.io/kairos/kcrypt-challenger already has an image for that
+#     version, which means it was released before and its tag was deleted,
+#     and fails when quay.io cannot answer
 #   - creates the tag and a GitHub prerelease together with
 #     `gh release create --target`, so the tag is made through the API
 #     on exactly the chosen commit
@@ -21,24 +24,22 @@ name: weekly-release
 #     release is building
 #
 # The release stays a prerelease until a maintainer approves the
-# promote job of its release.yaml run. The publish job after it also
-# starts release-notes-diff.yaml, which works only on a final release.
+# promote job of its release.yaml run. The publish job after it gives
+# :latest and Latest to the highest release and starts
+# release-notes-diff.yaml. upload-cloud-images.yaml uploads the Latest
+# release on its nightly run.
 #
 # The release.yaml run is started with `gh workflow run` because a tag
 # created with the workflow's GITHUB_TOKEN does not trigger the
 # release.yaml push trigger: GitHub starts no workflow for events made
 # with that token, except workflow_dispatch.
 #
-# A red master, no commit with a verdict, nothing landed since the last
-# release, and a breaking change under bump=auto all skip the release
-# and end the job successfully, with a Slack message where a maintainer
-# needs to know. In auto mode "nothing landed" counts from the newest
-# release tag the commit contains, so a prerelease that waits for
-# approval is not cut again every Monday. ci-doctor scans every
-# failed run on master, scheduled ones included, and would try to
-# fix this workflow when the failure it reports belongs to some other
-# workflow. A breaking change waits for a maintainer, who runs this
-# workflow with bump=major.
+# In auto mode the run skips and ends successfully when master.yaml did
+# not succeed, when no run has finished, and when no commit lies after
+# the newest release tag. A breaking change also skips and waits for a
+# maintainer, who runs this workflow with bump=major. An explicit bump
+# cuts even with no new commit, which re-cuts a rejected release at the
+# same commit.
 #
 # On a schedule run there are no inputs, so bump is auto and dry_run
 # is false. A dry run stops after writing the job summary, creates
