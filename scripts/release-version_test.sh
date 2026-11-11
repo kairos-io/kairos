@@ -130,6 +130,22 @@ check "backport tag" 0 previous=v4.4.1 base=v4.4.0 commits=1 new=1 version=v4.4.
 new_repo
 commit 'chore: init'
 tag v4.4.0
+commit 'fix: a'
+tag v4.4.1
+git_t -C "$repo" checkout -q -b release/v4.4
+commit 'fix: backport'
+tag v4.4.2
+git_t -C "$repo" checkout -q master
+echo v4.4.0 >"$tmp/final-tags-bp.txt"
+run --final-tags "$tmp/final-tags-bp.txt" HEAD
+check "pending prerelease with a higher backport is not cut again" 3 previous=v4.4.2 base=v4.4.0 commits=1 new=0
+commit 'fix: b'
+run --final-tags "$tmp/final-tags-bp.txt" HEAD
+check "commits after a pending prerelease with a higher backport" 0 previous=v4.4.2 commits=2 new=1 version=v4.4.3
+
+new_repo
+commit 'chore: init'
+tag v4.4.0
 commit 'Relax config'
 run --notes "$tmp/notes2.md" HEAD
 check "unconventional counts as patch" 0 bump=patch

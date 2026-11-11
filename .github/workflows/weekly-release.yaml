@@ -33,11 +33,12 @@ name: weekly-release
 # release, and a breaking change under bump=auto all skip the release
 # and end the job successfully, with a Slack message where a maintainer
 # needs to know. In auto mode "nothing landed" counts from the newest
-# tag, so a prerelease that waits for approval is not cut again every
-# Monday. ci-doctor scans every failed run on master, scheduled
-# ones included, and would try to fix this workflow when the failure
-# it reports belongs to some other workflow. A breaking change waits
-# for a maintainer, who runs this workflow with bump=major.
+# release tag the commit contains, so a prerelease that waits for
+# approval is not cut again every Monday. ci-doctor scans every
+# failed run on master, scheduled ones included, and would try to
+# fix this workflow when the failure it reports belongs to some other
+# workflow. A breaking change waits for a maintainer, who runs this
+# workflow with bump=major.
 #
 # On a schedule run there are no inputs, so bump is auto and dry_run
 # is false. A dry run stops after writing the job summary, creates

@@ -17,9 +17,10 @@
 #             the ones after it
 #   bump      major, minor or patch
 #   commits   how many non-merge commits lie between base and <to-ref>
-#   new       how many non-merge commits lie between previous and <to-ref>, or
-#             the same number as commits when previous is not an ancestor of
-#             <to-ref> (a backport tag on another branch)
+#   new       how many non-merge commits lie between <to-ref> and the highest
+#             release tag that is its ancestor, final or not. A backport tag
+#             on another branch is never that tag, so a prerelease that waits
+#             for approval on <to-ref> still counts as released
 #
 # A release tag is exactly vMAJOR.MINOR.PATCH. Release candidates such as
 # v4.5.0-rc1 are never a previous or a base. A tag stays in use after its
@@ -42,8 +43,8 @@
 #
 # Exit status:
 #   0  a release can be cut
-#   3  nothing to release: in auto mode no commit landed since previous, so a
-#      prerelease that waits for approval is not cut again; with an explicit
+#   3  nothing to release: in auto mode no commit landed since the newest
+#      release tag reachable from <to-ref>, so a prerelease that waits for approval is not cut again; with an explicit
 #      --bump, no commit lies between base and <to-ref>
 #   4  auto mode found a breaking change; bump and version are still printed
 #      so the caller can say what a maintainer should cut
@@ -114,14 +115,15 @@ fi
 
 previous="${tags[${#tags[@]} - 1]}"
 base=""
+reached=""
 for ((i = ${#tags[@]} - 1; i >= 0; i--)); do
+  git merge-base --is-ancestor "${tags[$i]}" "$to_ref" || continue
+  [ -n "$reached" ] || reached="${tags[$i]}"
   if [ -n "$final_tags_file" ] && ! grep -qxF -- "${tags[$i]}" "$final_tags_file"; then
     continue
   fi
-  if git merge-base --is-ancestor "${tags[$i]}" "$to_ref"; then
-    base="${tags[$i]}"
-    break
-  fi
+  base="${tags[$i]}"
+  break
 done
 if [ -z "$base" ]; then
   if [ -n "$final_tags_file" ]; then
@@ -133,11 +135,7 @@ if [ -z "$base" ]; then
 fi
 
 mapfile -t shas < <(git rev-list --no-merges "$base..$to_ref")
-if git merge-base --is-ancestor "$previous" "$to_ref"; then
-  new="$(git rev-list --no-merges --count "$previous..$to_ref")"
-else
-  new="${#shas[@]}"
-fi
+new="$(git rev-list --no-merges --count "$reached..$to_ref")"
 
 [ -z "$notes_file" ] || : >"$notes_file"
 auto_bump="patch"
