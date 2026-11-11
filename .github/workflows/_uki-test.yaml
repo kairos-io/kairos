@@ -215,7 +215,7 @@ jobs:
         # it downloads the UKI ISO artifact from GitHub Actions
         # storage and pulls no container images.
         if: inputs.test == 'install-upgrade'
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -304,7 +304,7 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD/build":/result \
             -v "$RUNNER_TEMP/test-keys":/keys \
-            quay.io/kairos/auroraboot:v0.29.0 --debug build-uki \
+            quay.io/kairos/auroraboot:v0.30.0 --debug build-uki \
               --output-dir /result --output-type container \
               --public-keys /keys \
               --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \

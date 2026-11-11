@@ -249,6 +249,13 @@ func UnlockAllEncryptedPartitions(logger sdkLogger.KairosLogger) error {
 	}
 
 	timeout := passphraseFallbackTimeout(kcryptConfig)
+	if timeout == 0 && recoveryKeyAmong(partitions) {
+		// A recovery key was enrolled to be asked for when the TPM
+		// refuses. On Trusted Boot the configuration that would turn the
+		// fallback on lives in the encrypted OEM, unreadable now, so the
+		// header's recovery key token turns it on.
+		timeout = DefaultPassphraseFallbackTimeout
+	}
 	if timeout == 0 {
 		return err
 	}

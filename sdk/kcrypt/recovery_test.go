@@ -91,7 +91,7 @@ func TestUnlockByPromptKeepsAskingOnANormalBoot(t *testing.T) {
 			t.Fatalf("prompt %q offers a way out on a normal boot", p)
 		}
 	}
-	if f.prompts[0] != "Enter the passphrase for "+constants.PersistentLUKSLabel+" (/dev/disk1):" {
+	if want := promptFor(nil).ask; f.prompts[0] != want {
 		t.Fatalf("normal boot prompt changed: %q", f.prompts[0])
 	}
 }
