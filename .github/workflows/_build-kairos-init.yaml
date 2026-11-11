@@ -86,7 +86,19 @@ jobs:
           go-version-file: go.mod
 
       - name: Download Go modules
-        uses: ./.github/actions/go-mod-download
+        # Retried inline rather than through a local action: these workflows
+        # also run from workflow_dispatch on a caller-chosen ref, and CodeQL
+        # flags running an action out of that checkout as cache poisoning.
+        # One dropped zip from proxy.golang.org otherwise reds the job with a
+        # message that reads like broken code. See kairos-io/kairos#5502.
+        working-directory: .
+        run: |
+          for attempt in 1 2 3; do
+            go mod download && exit 0
+            echo "go mod download failed on attempt ${attempt}"
+            [ "${attempt}" -lt 3 ] && sleep "$((attempt * 10))"
+          done
+          exit 1
 
       - name: Download default multi-call kairos artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
