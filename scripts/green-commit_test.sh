@@ -15,36 +15,25 @@ trap 'rm -rf "$tmp"' EXIT
 out=""
 status=0
 
-# commits <sha>...: writes commits.json, newest first.
-commits() {
-  local sha
-  printf '[' >"$tmp/commits.json"
-  local sep=""
-  for sha in "$@"; do
-    printf '%s{"sha":"%s","commit":{"message":"msg %s"}}' "$sep" "$sha" "$sha" >>"$tmp/commits.json"
-    sep=","
-  done
-  printf ']' >>"$tmp/commits.json"
-}
-
-# runs <sha:workflow:status:conclusion:url>...: writes runs.json.
+# runs <sha:time:status:conclusion>...: writes runs.json in the given order.
+# The url is https://x/<sha>.
 runs() {
   local spec sep=""
-  local sha wf st con url
+  local sha at st con
   printf '[' >"$tmp/runs.json"
   for spec in "$@"; do
-    IFS=: read -r sha wf st con url <<<"$spec"
-    printf '%s{"workflowName":"%s","headSha":"%s","status":"%s","conclusion":"%s","url":"https://x/%s"}' \
-      "$sep" "$wf" "$sha" "$st" "$con" "${url:-$sha-$wf}" >>"$tmp/runs.json"
+    IFS=: read -r sha at st con <<<"$spec"
+    printf '%s{"headSha":"%s","createdAt":"2026-11-%sT06:00:00Z","status":"%s","conclusion":"%s","url":"https://x/%s"}' \
+      "$sep" "$sha" "$at" "$st" "$con" "$sha" >>"$tmp/runs.json"
     sep=","
   done
   printf ']' >>"$tmp/runs.json"
 }
 
-# pick: runs the script on the fixtures, filling $out and $status.
+# pick <file>: runs the script on a file, filling $out and $status.
 pick() {
   status=0
-  out="$("$SCRIPT" "$tmp/commits.json" "$tmp/runs.json" 2>/dev/null)" || status=$?
+  out="$("$SCRIPT" "$1" 2>/dev/null)" || status=$?
 }
 
 # check <case> <want status> <key=value>...: the last run had that status and printed those lines.
@@ -66,81 +55,74 @@ check() {
   passed=$((passed + 1))
 }
 
-commits c5 c4 c3 c2 c1
+# check_no_stdout <case>: the last run printed nothing on stdout.
+check_no_stdout() {
+  if [ -n "$out" ]; then
+    echo "FAIL: $1: stdout not empty" >&2
+    failed=$((failed + 1))
+  fi
+}
 
-runs c5:master:completed:success c5:CodeQL:completed:success
-pick
-check "newest green" 0 state=green sha=c5
+R="$tmp/runs.json"
 
-runs c5:master:in_progress: c4:master:completed:success
-pick
-check "newest still running" 0 state=green sha=c4
+runs c3:09:completed:success c2:08:completed:success
+pick "$R"
+check "newest success" 0 state=green sha=c3
 
-runs c5:master:completed:cancelled c4:master:completed:success
-pick
-check "cancelled gate" 0 state=green sha=c4
+runs c3:09:completed:failure c2:08:completed:success
+pick "$R"
+check "newest failure, older success" 2 state=red sha=c3 conclusion=failure url=https://x/c3
 
-runs c5:CodeQL:completed:success c4:master:completed:success
-pick
-check "docs-only commit has no gate run" 0 state=green sha=c4
+runs c3:09:completed:cancelled c2:08:completed:success
+pick "$R"
+check "newest cancelled" 0 state=green sha=c2
 
-runs c5:master:completed:success c5:CodeQL:completed:failure c4:master:completed:success
-pick
-check "other workflow red" 2 state=red sha=c5 since=c5 workflow=CodeQL url=https://x/c5-CodeQL
+runs c3:09:in_progress: c2:08:completed:failure
+pick "$R"
+check "newest in progress" 2 state=red sha=c2 conclusion=failure
 
-runs c5:master:completed:success c5:zizmor:queued: c4:master:completed:success c4:zizmor:completed:success
-pick
-check "other workflow still running" 0 state=green sha=c4
+runs c3:09:completed:skipped c2:08:completed:success
+pick "$R"
+check "newest skipped" 0 state=green sha=c2
 
-runs c5:master:completed:failure c4:master:completed:failure c2:master:completed:success
-pick
-check "red streak" 2 state=red sha=c5 since=c4 workflow=master url=https://x/c5-master
+runs c3:09:completed:timed_out
+pick "$R"
+check "timed_out is red" 2 state=red sha=c3 conclusion=timed_out url=https://x/c3
 
-runs c5:master:completed:timed_out
-pick
-check "timed_out is red" 2 state=red sha=c5
+runs c1:07:completed:success c2:08:completed:failure c3:09:completed:success
+pick "$R"
+check "oldest first input" 0 state=green sha=c3
 
-runs c5:master:completed:success "c5:Scorecard analysis workflow:completed:neutral" "c5:Build Examples:completed:skipped"
-pick
-check "skipped and neutral are green" 0 state=green sha=c5
+echo '[]' >"$R"
+pick "$R"
+check "empty array" 3 state=none
 
-runs c5:master:in_progress: c4:master:in_progress: c3:master:queued: c2:master:waiting: c1:CodeQL:completed:success
-pick
-check "nothing decided" 3 state=none
+runs c3:09:completed:cancelled c2:08:in_progress:
+pick "$R"
+check "nothing finished" 3 state=none
 
-runs c5:master:completed:failure c5:CodeQL:completed:failure c4:master:completed:success
-pick
-check "first red run on sha" 2 state=red sha=c5 workflow=master
-
-runs c5:master:completed:startup_failure c4:master:completed:action_required c3:master:completed:success
-pick
-check "startup_failure and action_required are red" 2 state=red sha=c5 since=c4
-
-runs c5:master:completed:failure c5:CodeQL:in_progress: c4:master:completed:success
-pick
-check "red while another runs" 2 state=red sha=c5 since=c5 workflow=master
-
-runs c5:master:completed:success c5:CodeQL:completed:failure c5:zizmor:queued: c4:master:completed:success
-pick
-check "red streak walk skips unfinished commit" 2 state=red sha=c5
-
-echo '[]' >"$tmp/commits.json"
-echo '[]' >"$tmp/runs.json"
-pick
-check "empty inputs" 3 state=none
-
-runs c5:master:completed:success
-rm -f "$tmp/missing.json"
-status=0
-out="$("$SCRIPT" "$tmp/missing.json" "$tmp/runs.json" 2>/dev/null)" || status=$?
-check "missing file" 1
-[ -z "$out" ] || { echo "FAIL: missing file: stdout not empty" >&2; failed=$((failed + 1)); }
+runs c3:09:completed:cancelled c2:08:completed:cancelled
+pick "$R"
+check "only cancelled" 3 state=none
 
 echo '{bad' >"$tmp/bad.json"
+pick "$tmp/bad.json"
+check "not json" 1
+check_no_stdout "not json"
+
+echo '{"headSha":"c1"}' >"$tmp/object.json"
+pick "$tmp/object.json"
+check "json object" 1
+check_no_stdout "json object"
+
+pick "$tmp/missing.json"
+check "missing file" 1
+check_no_stdout "missing file"
+
 status=0
-out="$("$SCRIPT" "$tmp/bad.json" "$tmp/runs.json" 2>/dev/null)" || status=$?
-check "malformed json" 1
-[ -z "$out" ] || { echo "FAIL: malformed json: stdout not empty" >&2; failed=$((failed + 1)); }
+out="$("$SCRIPT" 2>/dev/null)" || status=$?
+check "no argument" 1
+check_no_stdout "no argument"
 
 echo "green-commit: $passed passed, $failed failed"
 [ "$failed" -eq 0 ]

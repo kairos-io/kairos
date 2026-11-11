@@ -1,67 +1,46 @@
 #!/usr/bin/env bash
 #
-# Picks the newest master commit whose CI has a finished verdict.
+# Decides whether master is green from its master.yaml push runs alone.
 #
-# Usage: green-commit.sh <commits.json> <runs.json>
+# Usage: green-commit.sh <runs.json>
 #
-# commits.json is the GitHub "list commits" array, newest first. runs.json is
-# `gh run list --json workflowName,headSha,status,conclusion,url` output for
-# push runs on master.
+# runs.json is `gh run list --workflow master.yaml --branch master
+# --event push --json headSha,status,conclusion,url,createdAt` output.
 #
-# A commit is red as soon as any completed run on it, of any workflow
-# including `master`, has a red conclusion, even while other runs on it are
-# still going. A commit is green when its `master` run has completed without
-# being cancelled, every run on it has completed, and none is red. Any other
-# commit has no verdict. The newest commit with a verdict decides. If it is
-# red, older commits are walked while they are red or have no verdict, so
-# `since` names the oldest commit of the streak.
+# The runs are sorted by createdAt, newest first. Runs that have not
+# completed and runs that were cancelled or skipped have no verdict and are
+# ignored. The first run left decides. Older runs are never consulted once
+# that run is red, so the script never falls back to an older green commit.
 #
-# Exit 1 on bad arguments, a missing file or invalid JSON.
+# Exit 1 on a missing argument, an unreadable file or input that is not a
+# JSON array, with the reason on stderr.
 #
 # Prints key=value lines:
-#   green: state=green sha=<sha>                          exit 0
-#   red:   state=red sha= since= workflow= url=           exit 2
-#   none:  state=none                                     exit 3
+#   green: state=green sha=<sha>                              exit 0
+#   red:   state=red sha=<sha> conclusion=<conclusion> url=   exit 2
+#   none:  state=none                                         exit 3
 
 set -euo pipefail
 
-if [ "$#" -ne 2 ]; then
-  echo "usage: ${0##*/} <commits.json> <runs.json>" >&2
+if [ "$#" -ne 1 ]; then
+  echo "usage: ${0##*/} <runs.json>" >&2
   exit 1
 fi
 
-if ! result="$(jq -n -r --slurpfile commits "$1" --slurpfile runs "$2" '
-  ["failure", "timed_out", "startup_failure", "action_required"] as $red
-  | ($runs[0]) as $all
-  | [ $commits[0][]
-      | .sha as $sha
-      | [ $all[] | select(.headSha == $sha) ] as $r
-      | [ $r[] | select(.status == "completed" and (.conclusion as $c | $red | index($c))) ] as $reds
-      | {
-          sha: $sha,
-          verdict: (
-            ($reds | length > 0)
-            or (
-              ([ $r[] | select(.workflowName == "master" and .status == "completed" and .conclusion != "cancelled") ] | length > 0)
-              and ([ $r[] | select(.status != "completed") ] | length == 0)
-            )
-          ),
-          reds: $reds
-        }
-    ] as $list
-  | ([ $list[] | select(.verdict) ] | first) as $first
-  | if $first == null then
+if ! result="$(jq -r '
+  if type != "array" then error("not an array") else . end
+  | [ .[]
+      | select(.status == "completed" and .conclusion != "cancelled" and .conclusion != "skipped") ]
+  | sort_by(.createdAt) | reverse | first
+  | if . == null then
       "state=none"
-    elif ($first.reds | length) == 0 then
-      "state=green\nsha=\($first.sha)"
+    elif .conclusion == "success" then
+      "state=green\nsha=\(.headSha)"
     else
-      ([ $list | to_entries[] | select(.value.verdict and (.value.reds | length) == 0) | .key ] | first // ($list | length)) as $stop
-      | [ $list[:$stop][] | select(.verdict and (.reds | length > 0)) ] as $streak
-      | $first.reds[0] as $run
-      | "state=red\nsha=\($first.sha)\nsince=\($streak[-1].sha)\nworkflow=\($run.workflowName)\nurl=\($run.url)"
+      "state=red\nsha=\(.headSha)\nconclusion=\(.conclusion)\nurl=\(.url)"
     end
-')"; then
-  echo "${0##*/}: cannot read or parse the input files" >&2
+' "$1" 2>/dev/null)"; then
+  echo "${0##*/}: cannot read $1 as a JSON array" >&2
   exit 1
 fi
 

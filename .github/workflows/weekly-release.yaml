@@ -114,37 +114,36 @@ jobs:
           EOF
           chmod +x "$RUNNER_TEMP/notify.sh"
 
-      - name: Fetch master commits and runs
+      - name: Fetch master.yaml runs
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
-          gh api "repos/$REPO/commits?sha=master&per_page=50" > "$RUNNER_TEMP/commits.json"
-          gh run list -R "$REPO" --branch master --event push --limit 500 \
-            --json workflowName,headSha,status,conclusion,url > "$RUNNER_TEMP/runs.json"
+          gh run list -R "$REPO" --workflow master.yaml --branch master --event push --limit 50 \
+            --json headSha,status,conclusion,url,createdAt > "$RUNNER_TEMP/runs.json"
 
-      - name: Pick the newest green commit
+      - name: Check that master is green
         id: green
         env:
           SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
         run: |
           set +e
-          out="$(scripts/green-commit.sh "$RUNNER_TEMP/commits.json" "$RUNNER_TEMP/runs.json")"
+          out="$(scripts/green-commit.sh "$RUNNER_TEMP/runs.json")"
           rc=$?
           set -e
           echo "$out" >> "$GITHUB_OUTPUT"
           get() { sed -n "s/^$1=//p" <<<"$out"; }
           case "$rc" in
             0)
-              echo "Newest green master commit: \`$(get sha)\`." >> "$GITHUB_STEP_SUMMARY"
+              echo "master.yaml passed on \`$(get sha)\`." >> "$GITHUB_STEP_SUMMARY"
               ;;
             2)
-              msg="Weekly release skipped: \`$(get workflow)\` is red on master since \`$(get since)\`, $(get url)"
+              msg="Weekly release skipped: master.yaml finished with $(get conclusion) on \`$(get sha)\`, $(get url)"
               echo "$msg" >> "$GITHUB_STEP_SUMMARY"
               "$RUNNER_TEMP/notify.sh" "$msg"
               ;;
             3)
-              msg="Weekly release skipped: no master commit in the last 50 has a finished CI run"
+              msg="Weekly release skipped: none of the last 50 master.yaml runs on master has finished."
               echo "$msg" >> "$GITHUB_STEP_SUMMARY"
               "$RUNNER_TEMP/notify.sh" "$msg"
               ;;
