@@ -31,17 +31,18 @@ name: release
 #     attached to the GH Release)
 #   - upload-release (binary tarballs attached to the GH Release)
 #   - promote (waits for a maintainer to approve the `release`
-#     environment, then marks the GH Release as a full release; if the
-#     tag is the highest vX.Y.Z in the repository it also copies
-#     kairos-init and kcrypt-challenger :<tag> to :latest and marks the
-#     GH Release as Latest; last, it starts release-notes-diff.yaml for
-#     the now final release)
+#     environment)
+#   - publish (marks the GH Release as a full release; if the tag is
+#     the highest vX.Y.Z in the repository it also copies kairos-init
+#     and kcrypt-challenger :<tag> to :latest and marks the GH Release
+#     as Latest; last, it starts release-notes-diff.yaml for the now
+#     final release)
 #
-# Until promote runs, the release stays a prerelease and :latest
+# Until publish runs, the release stays a prerelease and :latest
 # keeps pointing at the previous release. A rejected or never
 # approved run leaves the prerelease and its tag in place. A release
-# candidate (a tag with a hyphen, such as v4.4.0-rc1) skips promote,
-# so it never becomes Latest. A backport (v4.3.2 after v4.4.0) is
+# candidate (a tag with a hyphen, such as v4.4.0-rc1) skips promote
+# and publish, so it never becomes Latest. A backport (v4.3.2 after v4.4.0) is
 # promoted to a full release but leaves :latest and Latest on the
 # highest release.
 #
@@ -54,7 +55,7 @@ name: release
 # Tag scheme: OS images push directly with $FLAVOR_RELEASE-$VARIANT-
 # $ARCH-$MODEL$K8S-$VERSION$UKI (no $FLAVOR- prefix, matches v4.2.0's
 # shape). kairos-init and kcrypt-challenger get :<tag> from the build
-# and :latest from promote.
+# and :latest from publish.
 
 on:
   push:
@@ -512,31 +513,17 @@ jobs:
       contents: write
       id-token: write
 
-  # Publishes the release after a maintainer approves the `release`
-  # environment. Until then the GH Release is a prerelease and :latest
-  # points at the previous release. Release candidates (a hyphen in the
-  # tag, such as v4.4.0-rc1) skip this job and stay prereleases; the
-  # first step restates that rule as a regex, which a job-level `if:`
-  # cannot use.
-  #
-  # Only the highest vX.Y.Z tag in the repository (by `sort -V`) gets
-  # :latest and the Latest badge. Any other tag, such as a backport
-  # v4.3.2 cut after v4.4.0, becomes a full release with
-  # --latest=false and leaves :latest on the highest release. Tags are
-  # read through the API because this job has no checkout.
-  # `docker buildx imagetools create` copies the manifest by reference,
-  # so :latest has the same digest as :<tag>, as promote-images does in
-  # master.yaml.
+  # Waits for a maintainer to approve the `release` environment. Until
+  # then the GH Release is a prerelease and :latest points at the
+  # previous release. A rejected or expired approval fails this job and
+  # skips publish. Release candidates (a hyphen in the tag, such as
+  # v4.4.0-rc1) skip this job and stay prereleases; the step restates
+  # that rule as a regex, which a job-level `if:` cannot use.
   promote:
     needs: [upload-release]
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     environment: release
-    permissions:
-      contents: write  # gh release edit
-      # gh workflow run release-notes-diff.yaml. Its release trigger does
-      # not fire for a release edited with this job's GITHUB_TOKEN.
-      actions: write
     steps:
       - name: Require a vX.Y.Z tag
         env:
@@ -547,6 +534,36 @@ jobs:
             echo "::error::promote runs only on a vX.Y.Z tag, not $TAG"
             exit 1
           fi
+
+  # Publishes an approved release. Only the highest vX.Y.Z tag in the
+  # repository (by `sort -V`) gets :latest and the Latest badge. Any
+  # other tag, such as a backport v4.3.2 cut after v4.4.0, becomes a
+  # full release with --latest=false and leaves :latest on the highest
+  # release. Tags are read through the API because this job has no
+  # checkout. `docker buildx imagetools create` copies the manifest by
+  # reference, so :latest has the same digest as :<tag>, as
+  # promote-images does in master.yaml.
+  #
+  # Two approved tags would otherwise publish at the same time, and an
+  # older one that read the tag list before a newer tag existed could
+  # finish last and move :latest and Latest back to itself. The
+  # repository-wide group runs one publish at a time. It lives on this
+  # job and not on promote, which can hold a group for days while it
+  # waits for approval. GitHub keeps one pending job per group and
+  # cancels an older pending one, which takes three approvals within the
+  # few seconds a publish lasts.
+  publish:
+    needs: [promote]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-publish-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: write  # gh release edit
+      # gh workflow run release-notes-diff.yaml. Its release trigger does
+      # not fire for a release edited with this job's GITHUB_TOKEN.
+      actions: write
+    steps:
       - name: Find the highest release tag
         id: highest
         env:

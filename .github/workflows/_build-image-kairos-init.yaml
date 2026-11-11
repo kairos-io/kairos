@@ -6,7 +6,7 @@ name: Build kairos-init image
 #
 # On PR the caller typically pushes to ghcr.io/kairos-io/kairos with a
 # pr-<N> tag; on master to :master(-scratch); on release tags to
-# quay.io/kairos at :<tag> only (release.yaml's promote job moves
+# quay.io/kairos at :<tag> only (release.yaml's publish job moves
 # :latest after approval). `push=false` builds without pushing
 # (compile-verify).
 

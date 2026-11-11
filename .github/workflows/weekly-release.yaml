@@ -21,8 +21,8 @@ name: weekly-release
 #     release is building
 #
 # The release stays a prerelease until a maintainer approves the
-# promote job of its release.yaml run. That job also starts
-# release-notes-diff.yaml, which works only on a final release.
+# promote job of its release.yaml run. The publish job after it also
+# starts release-notes-diff.yaml, which works only on a final release.
 #
 # The release.yaml run is started with `gh workflow run` because a tag
 # created with the workflow's GITHUB_TOKEN does not trigger the

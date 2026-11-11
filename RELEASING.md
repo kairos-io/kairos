@@ -45,12 +45,13 @@ since the last release, only the job summary says so.
    "Review deployments", tick `release`, and approve. The reviewers are the
    maintainers team.
 
-`promote` then marks the release as a full release. If the tag is the highest
-`vX.Y.Z` tag in the repository, it also points `:latest` of `kairos-init` and
-`kcrypt-challenger` at the tag and marks the release as Latest. An older tag,
-such as a backport `v4.3.2` cut after `v4.4.0`, becomes a full release and
-leaves `:latest` and Latest alone. Last, `promote` starts
+The `publish` job then marks the release as a full release. If the tag is the
+highest `vX.Y.Z` tag in the repository, it also points `:latest` of
+`kairos-init` and `kcrypt-challenger` at the tag and marks the release as
+Latest. An older tag, such as a backport `v4.3.2` cut after `v4.4.0`, becomes a
+full release and leaves `:latest` and Latest alone. Last, `publish` starts
 `release-notes-diff.yaml`, so the release notes diff appears after approval.
+Two approved releases publish one after the other, never at the same time.
 
 ## Reject a release
 
@@ -144,8 +145,8 @@ version is chosen.
 - The `release` environment (Settings, Environments). Required reviewers: the
   maintainers team. Deployment branches and tags rule: tags matching `v*`. The
   `promote` job of `release.yaml` waits on it for approval. Without the
-  environment, or without required reviewers on it, `promote` runs as soon as
-  the build is done and every release becomes final with nobody approving it.
+  environment, or without required reviewers on it, `promote` and `publish`
+  run as soon as the build is done and every release becomes final with nobody approving it.
 - The repository secret `SLACK_RELEASE_WEBHOOK`, a Slack incoming webhook URL.
   `weekly-release` posts its messages there. Without it the messages appear
   only as warnings in the workflow run, and the release still works.
