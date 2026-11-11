@@ -155,6 +155,12 @@ next version is chosen.
   `promote` waits on it. Without the environment or its reviewers, `promote`
   and `publish` run as soon as the build is done and nobody approves the
   release.
-- The repository secret `SLACK_RELEASE_WEBHOOK`, a Slack incoming webhook URL.
-  Without it the messages appear only as warnings in the workflow run, and the
-  release still works.
+- The repository secret `SLACK_RELEASE_WEBHOOK`. It holds the URL of a
+  Workflow Builder webhook in the CNCF Slack. The Slack workflow belongs to
+  Dimitris Karakasilis, and its collaborators are Ettore Di Giacinto, Itxaka
+  Serrano Garcia, Mauro Morales and William Rizzo. Any of them can edit it in
+  Workflow Builder. Its trigger has one text variable, `text`, and its only
+  step sends `{{text}}` to the channel. A new workflow needs no app
+  installation, only its URL in the secret
+  (`gh secret set SLACK_RELEASE_WEBHOOK`). Without the secret the messages
+  appear only as warnings in the workflow run, and the release still works.
