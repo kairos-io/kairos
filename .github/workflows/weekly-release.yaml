@@ -227,35 +227,37 @@ jobs:
 
       - name: Check that the version was never released
         # A deleted tag leaves its images on quay.io, and building the
-        # same version again would overwrite them. kairos-init is public,
-        # so quay.io's tag API needs no login. It answers 200 with an
-        # empty `tags` list when the tag is absent. Any other answer,
-        # an outage or a rate limit included, fails the run, so the
-        # check never passes on an error.
+        # same version again would overwrite them. release.yaml pushes
+        # kairos-init and kcrypt-challenger independently, so a failed
+        # release can leave either one behind; the OS images are built
+        # from kairos-init and cannot exist without it. Both
+        # repositories are public, so quay.io's tag API needs no login.
+        # It answers 200 with an empty `tags` list when the tag is
+        # absent. Any other answer, an outage or a rate limit included,
+        # fails the run, so the check never passes on an error.
         if: steps.version.outputs.outcome == 'release'
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
         run: |
           set -euo pipefail
-          image="quay.io/kairos/kairos-init:$VERSION"
-          url="https://quay.io/api/v1/repository/kairos/kairos-init/tag/?specificTag=${VERSION}&onlyActiveTags=true"
-          if ! found=$(curl -fsS --retry 3 --retry-all-errors "$url" | jq -e '.tags | length'); then
-            msg="Weekly release stopped: could not ask quay.io whether $image exists. Run the workflow again later."
-            echo "$msg" >> "$GITHUB_STEP_SUMMARY"
-            "$RUNNER_TEMP/notify.sh" "$msg"
-            echo "::error::$msg"
+          stop() {
+            echo "$1" >> "$GITHUB_STEP_SUMMARY"
+            "$RUNNER_TEMP/notify.sh" "$1"
+            echo "::error::$1"
             exit 1
-          fi
-          if [[ "$found" == "0" ]]; then
-            echo "\`$image\` does not exist, so \`$VERSION\` is unused." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          msg="Weekly release stopped: $image already exists, so $VERSION was released before and its tag was deleted. Recreate the tag or release by hand."
-          echo "$msg" >> "$GITHUB_STEP_SUMMARY"
-          "$RUNNER_TEMP/notify.sh" "$msg"
-          echo "::error::$msg"
-          exit 1
+          }
+          for repo in kairos-init kcrypt-challenger; do
+            image="quay.io/kairos/$repo:$VERSION"
+            url="https://quay.io/api/v1/repository/kairos/$repo/tag/?specificTag=${VERSION}&onlyActiveTags=true"
+            if ! found=$(curl -fsS --retry 3 --retry-all-errors "$url" | jq -e '.tags | length'); then
+              stop "Weekly release stopped: could not ask quay.io whether $image exists. Run the workflow again later."
+            fi
+            if [[ "$found" != "0" ]]; then
+              stop "Weekly release stopped: $image already exists, so $VERSION was released before and its tag was deleted. Recreate the tag or release by hand."
+            fi
+          done
+          echo "Neither \`quay.io/kairos/kairos-init:$VERSION\` nor \`quay.io/kairos/kcrypt-challenger:$VERSION\` exists, so \`$VERSION\` is unused." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create the tag and the prerelease
         if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true
