@@ -228,15 +228,26 @@ jobs:
       - name: Check that the version was never released
         # A deleted tag leaves its images on quay.io, and building the
         # same version again would overwrite them. kairos-init is public,
-        # so docker manifest inspect needs no login; it fails when the
-        # image is absent.
+        # so quay.io's tag API needs no login. It answers 200 with an
+        # empty `tags` list when the tag is absent. Any other answer,
+        # an outage or a rate limit included, fails the run, so the
+        # check never passes on an error.
         if: steps.version.outputs.outcome == 'release'
         env:
           VERSION: ${{ steps.version.outputs.version }}
           SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
         run: |
+          set -euo pipefail
           image="quay.io/kairos/kairos-init:$VERSION"
-          if ! docker manifest inspect "$image" > /dev/null 2>&1; then
+          url="https://quay.io/api/v1/repository/kairos/kairos-init/tag/?specificTag=${VERSION}&onlyActiveTags=true"
+          if ! found=$(curl -fsS --retry 3 --retry-all-errors "$url" | jq -e '.tags | length'); then
+            msg="Weekly release stopped: could not ask quay.io whether $image exists. Run the workflow again later."
+            echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+            "$RUNNER_TEMP/notify.sh" "$msg"
+            echo "::error::$msg"
+            exit 1
+          fi
+          if [[ "$found" == "0" ]]; then
             echo "\`$image\` does not exist, so \`$VERSION\` is unused." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
