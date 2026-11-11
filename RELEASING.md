@@ -47,8 +47,12 @@ The `publish` job then marks the release as a full release. When the tag is
 the highest among the final releases plus itself, it also points `:latest` of
 `kairos-init` and `kcrypt-challenger` at the tag and marks the release as
 Latest. An older tag, such as a backport `v4.3.2` cut after `v4.4.0`, becomes a
-full release and leaves `:latest` and Latest alone. Publishing runs one
+full release and leaves `:latest` and Latest alone, provided its release branch
+carries this `release.yaml` (see "Release by hand"). Publishing runs one
 release at a time. Last, `publish` starts `release-notes-diff.yaml`.
+
+When several approvals land within seconds, GitHub may cancel a waiting
+`publish` job. Re-run that job from the release run.
 
 `upload-cloud-images.yaml` uploads the Latest release to the cloud providers.
 It runs every night and on demand, so the images appear up to a day after
@@ -63,13 +67,15 @@ approves it.
 The tag keeps its version, because its images already exist on quay.io. The
 next release counts up from it, and its notes list only the commits after the
 rejected tag. The next Monday run cuts a release when commits have landed
-since. To re-cut at the same commit with another bump:
+since. To re-cut with another bump:
 
 ```
 gh workflow run weekly-release.yaml -f bump=<patch|minor|major>
 ```
 
-An explicit `bump` cuts a release even when nothing landed since the tag.
+An explicit `bump` cuts a release even when nothing landed since the tag. It
+cuts at the newest green commit, which is the rejected one when nothing landed
+since.
 
 ## Release after a skipped Monday
 
@@ -126,9 +132,16 @@ git tag vX.Y.Z <commit>
 git push origin vX.Y.Z
 ```
 
-`release.yaml` creates the prerelease itself. Do not create the release in the
-GitHub UI as a full release, because GitHub marks it Latest before it is
-built.
+`release.yaml` creates the prerelease itself, with release notes of only
+"Release <tag>". Do not create the release in the GitHub UI as a full release,
+because GitHub marks it Latest before it is built. A tag pushed by hand also
+skips the quay.io reuse check that `weekly-release` runs, so make sure the
+version was never built before.
+
+A tag runs the `release.yaml` stored at its commit. A release branch cut before
+the approval step existed still has a `release.yaml` that pushes `:latest` at
+build time with no approval. Cherry-pick the current `release.yaml` onto the
+release branch before tagging a backport on it.
 
 The `guard` job of `release.yaml` accepts only `vX.Y.Z` and `vX.Y.Z-rcN` tags.
 A release candidate such as `v4.5.0-rc1` builds as a prerelease, skips
