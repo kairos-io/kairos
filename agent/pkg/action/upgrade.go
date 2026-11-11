@@ -316,7 +316,7 @@ func (u *UpgradeAction) remove(path string) error {
 // unmounting and renaming remain the host's responsibility (see
 // UpgradeAction.Run below).
 func (u *UpgradeAction) runFinalizeStep(upgradeImg *sdkImages.Image) error {
-	current, err := ReadKairosInitVersionFromFs(u.config.Fs, constants.KairosReleaseFile)
+	current, err := ReadKairosInitVersionFromFs(u.config.Fs, CurrentKairosReleaseFile(u.config.Fs))
 	if err != nil {
 		return fmt.Errorf("reading current KAIROS_INIT_VERSION: %w", err)
 	}

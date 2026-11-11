@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -266,9 +267,16 @@ func (a *Artifact) OSReleaseVariables(registryAndOrg, githubRepo, bugURL, homeUR
 		vars["KAIROS_SOFTWARE_VERSION_PREFIX"] = a.SoftwareVersionPrefix
 	}
 
+	// Sort the keys so the same input always gives the same output.
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	result := ""
-	for k, v := range vars {
-		result += fmt.Sprintf("%s=\"%s\"\n", k, v)
+	for _, k := range keys {
+		result += fmt.Sprintf("%s=\"%s\"\n", k, vars[k])
 	}
 
 	return result, nil

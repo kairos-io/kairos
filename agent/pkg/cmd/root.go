@@ -311,7 +311,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 	addSourceFlag(flags, &source)
 	flags.StringVar(&bootEntry, "boot-entry", "", "Specify a systemd-boot entry to upgrade (other than active/passive/recovery). The value should match the name of the '.efi' file.")
 	flags.BoolVar(&recovery, constants.BootRecovery, false, "Upgrade recovery")
-	flags.StringSliceVar(&excludePaths, "exclude-path", nil, "Paths to exclude from the upgrade process. Can be specified multiple times.")
+	flags.StringSliceVar(&excludePaths, "exclude-path", nil, "Path in the new image to leave out of the upgrade, from the image root, e.g. /var/lib/foo or etc/*.conf. A leading / is optional, an excluded directory drops its contents, and * and ? are globs that do not cross /. Can be specified multiple times.")
 	addAllowInsecureRegistriesFlag(flags, &insecure)
 	flags.BoolVar(&dryRun, "dry-run", false, "Resolve the upgrade and print a summary of what would be done, without changing the system")
 	flags.BoolVar(&diff, "diff", false, "Experimental. Apply only the changes from the running release, fetched from the source tag with .diff appended. Falls back to the full image")

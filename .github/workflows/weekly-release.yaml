@@ -1,0 +1,288 @@
+name: weekly-release
+
+# Cuts a release from the newest finished master.yaml run every Monday at
+# 06:00 UTC. A maintainer can also start it by hand, choosing the bump
+# and whether it is a dry run.
+#
+# What it does, in order:
+#   - reads the newest finished master.yaml push run on master
+#     (scripts/green-commit.sh); cancelled, skipped and in-progress runs
+#     are ignored, success releases its commit, and anything else skips
+#     the week, with no fallback to an older green commit
+#   - picks the next version from the commits since the newest vX.Y.Z tag
+#     the commit contains, whether that release is final, pending approval
+#     or rejected (scripts/release-version.sh); the version counts up from
+#     the highest tag anywhere in the repository
+#   - fails when quay.io/kairos/kairos-init or
+#     quay.io/kairos/kcrypt-challenger already has an image for that
+#     version, which means it was released before and its tag was deleted,
+#     and fails when quay.io cannot answer
+#   - creates the tag and a GitHub prerelease together with
+#     `gh release create --target`, so the tag is made through the API
+#     on exactly the chosen commit
+#   - starts release.yaml on the new tag, then posts to Slack that the
+#     release is building
+#
+# The release stays a prerelease until a maintainer approves the
+# promote job of its release.yaml run. The publish job after it gives
+# :latest and Latest to the highest release and starts
+# release-notes-diff.yaml. upload-cloud-images.yaml uploads the Latest
+# release on its nightly run.
+#
+# The release.yaml run is started with `gh workflow run` because a tag
+# created with the workflow's GITHUB_TOKEN does not trigger the
+# release.yaml push trigger: GitHub starts no workflow for events made
+# with that token, except workflow_dispatch.
+#
+# In auto mode the run skips and ends successfully when master.yaml did
+# not succeed (the CI-fixing bot, ci-doctor, opens fix pull requests for
+# failed runs on master, and a skip is not a CI fault), when no run has finished, and when no commit lies after
+# the newest release tag. A breaking change also skips and waits for a
+# maintainer, who runs this workflow with bump=major. An explicit bump
+# cuts even with no new commit, which re-cuts a rejected release at the
+# newest green commit, the rejected one when nothing landed since.
+#
+# On a schedule run there are no inputs, so bump is auto and dry_run
+# is false. A dry run stops after writing the job summary, creates
+# nothing and posts nothing to Slack: the notify helper writes its
+# text to the job summary and prints a notice instead.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump; auto reads the commit subjects"
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+        default: auto
+      dry_run:
+        description: "Pick the commit and version, create nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  # A schedule run has no inputs, so it is never a dry run.
+  DRY_RUN: ${{ inputs.dry_run || false }}
+
+# Two runs at once could pick the same version and race to create it.
+concurrency:
+  group: weekly-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      # gh release create makes the tag and the prerelease.
+      contents: write
+      # gh workflow run starts release.yaml.
+      actions: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Write the Slack notify helper
+        # Posts its argument to Slack, or prints it as a warning when the
+        # webhook secret is not set or the post fails, so a Slack outage
+        # never fails a run after the release was created. On a dry run it posts nothing and
+        # writes the text to the job summary and a notice instead.
+        run: |
+          cat > "$RUNNER_TEMP/notify.sh" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          if [ "${DRY_RUN:-false}" = true ]; then
+            echo "Dry run, not posted to Slack: $1" >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice::Dry run, not posted to Slack: $1"
+            exit 0
+          fi
+          if [ -z "${SLACK_RELEASE_WEBHOOK:-}" ]; then
+            echo "::warning::$1"
+            exit 0
+          fi
+          if ! curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg t "$1" '{text:$t}')" "$SLACK_RELEASE_WEBHOOK"; then
+            echo "::warning::Slack post failed: $1"
+          fi
+          EOF
+          chmod +x "$RUNNER_TEMP/notify.sh"
+
+      - name: Fetch master.yaml runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh run list -R "$REPO" --workflow master.yaml --branch master --event push --limit 50 \
+            --json headSha,status,conclusion,url,createdAt > "$RUNNER_TEMP/runs.json"
+
+      - name: Check that master is green
+        id: green
+        env:
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          set +e
+          out="$(scripts/green-commit.sh "$RUNNER_TEMP/runs.json")"
+          rc=$?
+          set -e
+          echo "$out" >> "$GITHUB_OUTPUT"
+          get() { sed -n "s/^$1=//p" <<<"$out"; }
+          case "$rc" in
+            0)
+              echo "master.yaml passed on \`$(get sha)\`." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            2)
+              msg="Weekly release skipped: master.yaml finished with $(get conclusion) on \`$(get sha)\`, $(get url)"
+              echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+              "$RUNNER_TEMP/notify.sh" "$msg"
+              ;;
+            3)
+              msg="Weekly release skipped: none of the last 50 master.yaml runs on master has finished."
+              echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+              "$RUNNER_TEMP/notify.sh" "$msg"
+              ;;
+            *)
+              echo "::error::green-commit.sh failed with exit status $rc"
+              exit 1
+              ;;
+          esac
+
+      - name: Pick the next version
+        id: version
+        if: steps.green.outputs.state == 'green'
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
+          SHA: ${{ steps.green.outputs.sha }}
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          set +e
+          out="$(scripts/release-version.sh --bump "$BUMP" --notes "$RUNNER_TEMP/notes.md" "$SHA")"
+          rc=$?
+          set -e
+          echo "$out" >> "$GITHUB_OUTPUT"
+          get() { sed -n "s/^$1=//p" <<<"$out"; }
+          case "$rc" in
+            0)
+              echo "outcome=release" >> "$GITHUB_OUTPUT"
+              ;;
+            3)
+              echo "outcome=nothing" >> "$GITHUB_OUTPUT"
+              echo "Nothing landed since \`$(get base)\`." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            4)
+              echo "outcome=breaking" >> "$GITHUB_OUTPUT"
+              msg="Weekly release skipped: master has a breaking change since \`$(get base)\`. A maintainer cuts \`$(get version)\` by running weekly-release with bump=major."
+              echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+              "$RUNNER_TEMP/notify.sh" "$msg"
+              ;;
+            *)
+              echo "::error::release-version.sh failed with exit status $rc"
+              exit 1
+              ;;
+          esac
+
+      - name: Write the job summary
+        if: steps.version.outputs.outcome == 'release'
+        env:
+          SHA: ${{ steps.green.outputs.sha }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          BASE: ${{ steps.version.outputs.base }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUMP: ${{ steps.version.outputs.bump }}
+          COMMITS: ${{ steps.version.outputs.commits }}
+        run: |
+          {
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`$SHA\` |"
+            echo "| Previous | \`$PREVIOUS\` |"
+            echo "| Base | \`$BASE\` |"
+            echo "| Version | \`$VERSION\` |"
+            echo "| Bump | $BUMP |"
+            echo "| Commits since base | $COMMITS |"
+            echo "| Dry run | $DRY_RUN |"
+            echo
+            cat "$RUNNER_TEMP/notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check that the version was never released
+        # A deleted tag leaves its images on quay.io, and building the
+        # same version again would overwrite them. release.yaml pushes
+        # kairos-init and kcrypt-challenger independently, so a failed
+        # release can leave either one behind; the OS images are built
+        # from kairos-init and cannot exist without it. Both
+        # repositories are public, so quay.io's tag API needs no login.
+        # It answers 200 with an empty `tags` list when the tag is
+        # absent. Any other answer, an outage, a rate limit or a body
+        # without a `tags` list included, fails the run, so the check never passes on an error.
+        if: steps.version.outputs.outcome == 'release'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          stop() {
+            echo "$1" >> "$GITHUB_STEP_SUMMARY"
+            "$RUNNER_TEMP/notify.sh" "$1"
+            echo "::error::$1"
+            exit 1
+          }
+          for repo in kairos-init kcrypt-challenger; do
+            image="quay.io/kairos/$repo:$VERSION"
+            url="https://quay.io/api/v1/repository/kairos/$repo/tag/?specificTag=${VERSION}&onlyActiveTags=true"
+            if ! found=$(curl -fsS --retry 3 --retry-all-errors "$url" | jq -e '.tags | if type == "array" then length else error("no tags array") end'); then
+              stop "Weekly release stopped: could not ask quay.io whether $image exists. Run the workflow again later."
+            fi
+            if [[ "$found" != "0" ]]; then
+              stop "Weekly release stopped: $image already exists, so $VERSION was released before and its tag was deleted. Recreate the tag or release by hand."
+            fi
+          done
+          echo "Neither \`quay.io/kairos/kairos-init:$VERSION\` nor \`quay.io/kairos/kcrypt-challenger:$VERSION\` exists, so \`$VERSION\` is unused." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create the tag and the prerelease
+        if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ steps.green.outputs.sha }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          VERSION: ${{ steps.version.outputs.version }}
+          BUMP: ${{ steps.version.outputs.bump }}
+        run: |
+          {
+            echo "Version bump: $BUMP (from $PREVIOUS)"
+            echo
+            cat "$RUNNER_TEMP/notes.md"
+          } > "$RUNNER_TEMP/body.md"
+          gh release create "$VERSION" -R "$REPO" --target "$SHA" --prerelease \
+            --title "$VERSION" --notes-file "$RUNNER_TEMP/body.md"
+
+      - name: Start the release workflow
+        if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh workflow run release.yaml -R "$REPO" --ref "$VERSION"
+
+      - name: Announce the prerelease
+        if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          msg="Kairos \`$VERSION\` is building as a prerelease. Approve the promote job of its release run to publish it."
+          echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/notify.sh" "$msg"

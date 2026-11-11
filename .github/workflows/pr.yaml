@@ -39,13 +39,10 @@ name: PR
 
 on:
   merge_group:
+  # No paths-ignore: these jobs are required checks on master, and a
+  # workflow that never starts never reports them, so a docs-only PR
+  # (#5871) could never enter the merge queue.
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - 'LICENSE'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/CODEOWNERS'
 
 permissions:
   contents: read
@@ -140,3 +137,67 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+
+  # Tests for the scripts weekly-release.yaml runs. They need only
+  # bash, git and jq, so they do not wait for any build.
+  release-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test the release version script
+        run: scripts/release-version_test.sh
+      - name: Test the green commit script
+        run: scripts/green-commit_test.sh
+
+  # Per-PR ISO size signal against the last green master run. It is an
+  # informational report and never gates the PR. This run builds no UKI
+  # ISO, so the UKI size gate lives in pr-full.yaml; the script's own
+  # test still runs here, on every PR.
+  size-diff:
+    name: iso-size-diff
+    needs: build-iso
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install xorriso and mtools
+        # The test builds small UKI ISOs and reads them back.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorriso mtools
+      - name: Test the size diff script
+        run: scripts/iso-size-diff_test.sh
+      - name: Download PR ISOs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: "kairos-hadron-*-amd64-generic.iso.zip"
+          path: candidate
+      - name: Download last master ISOs
+        # A hiccup finding or fetching the baseline should never fail the
+        # PR; the script falls back to a PR-only report when baseline is
+        # empty.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow master.yaml --branch master --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [[ -z "$run_id" ]]; then
+            echo "No successful master build found; reporting PR sizes only."
+            exit 0
+          fi
+          echo "Using master build $run_id as the size baseline."
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+            --pattern "kairos-hadron-*-amd64-generic.iso.zip" \
+            --dir baseline || echo "Baseline artifacts unavailable (expired?)."
+      - name: Compare ISO sizes
+        run: scripts/iso-size-diff.sh baseline candidate | tee -a "$GITHUB_STEP_SUMMARY"

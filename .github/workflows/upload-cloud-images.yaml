@@ -1,23 +1,14 @@
 name: Upload cloud images
 
-# Sequenced after the release workflow actually publishes the hadron tag
-# these jobs need, instead of racing the same tag push. See the commit
-# message for why (mauromorales/mission-control#174 has the evidence).
-#
-# zizmor flags workflow_run because it runs with secrets after a workflow
-# that untrusted code can start. Here that workflow is `release`, which
-# only a tag push starts, and only maintainers can push tags. The jobs
-# also skip unless that release run succeeded.
-#
-# Every job checks out the default branch, so the upload scripts are
-# always reviewed code. A workflow_run carries the release tag in
-# workflow_run.head_branch; the GCP and AWS jobs upload that tag, and
-# schedule and workflow_dispatch runs upload the latest tag instead.
+# The jobs run every night and on demand. Each job reads the tag of the
+# GitHub Latest release and uploads that version. A release becomes Latest
+# only after a maintainer approves it in release.yaml, so a release candidate
+# or an approved backport stays off Latest. Each job stops early when Latest
+# is already uploaded, so images appear up to a day after approval. On the
+# nightly schedule every job checks out the default branch, so the upload
+# scripts it runs are reviewed code; a manual run checks out the branch it was
+# started from.
 on:
-  workflow_run:  # zizmor: ignore[dangerous-triggers]
-    workflows: ["release"]
-    types:
-      - completed
   schedule:
     # Everyday at 2am
     - cron: '0 2 * * *'
@@ -34,12 +25,9 @@ jobs:
   upload-gcp:
     name: Upload to GCP
     runs-on: ubuntu-latest
-    # Only run for a workflow_run event when the release build actually
-    # succeeded -- a failed or skipped run means the hadron tag this job
-    # needs was never published. schedule/workflow_dispatch have no
-    # workflow_run context at all, so they are unaffected and always run.
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
+      # gh release view reads the Latest release.
+      contents: read
       id-token: write
     steps:
       - name: "Checkout code"
@@ -66,11 +54,12 @@ jobs:
         env:
           GCP_PROJECT: palette-kairos
           GCS_BUCKET: kairos-cloud-images
-          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -xe
 
-          latestTag="${RELEASE_TAG:-$(git describe --tags --abbrev=0)}"
+          latestTag="$(gh release view -R "$REPO" --json tagName --jq .tagName)"
           if [[ ! "$latestTag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "Not a release tag: $latestTag"
             exit 1
@@ -101,7 +90,7 @@ jobs:
           containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
-            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.29.0 \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.30.0 \
             --debug \
             --set "disable_http_server=true" \
             --set "container_image=docker:${containerImage}" \
@@ -135,9 +124,9 @@ jobs:
   upload-aws:
     name: Upload to AWS
     runs-on: ubuntu-latest
-    # See upload-gcp's identical guard above.
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
+      # gh release view reads the Latest release.
+      contents: read
       id-token: write
     steps:
       - name: "Checkout code"
@@ -158,11 +147,12 @@ jobs:
         env:
           AWS_S3_BUCKET: kairos-cloud-images
           AWS_REGION: eu-central-1
-          RELEASE_TAG: ${{ github.event.workflow_run.head_branch }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -e
 
-          latestTag="${RELEASE_TAG:-$(git describe --tags --abbrev=0)}"
+          latestTag="$(gh release view -R "$REPO" --json tagName --jq .tagName)"
           if [[ ! "$latestTag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
             echo "Not a release tag: $latestTag"
             exit 1
@@ -191,7 +181,7 @@ jobs:
           containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
-            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.29.0 \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.30.0 \
             --debug \
             --set "disable_http_server=true" \
             --set "container_image=docker:${containerImage}" \
@@ -204,15 +194,13 @@ jobs:
 
   upload-azure:
     permissions:
+      # gh release view reads the Latest release.
+      contents: read
       id-token: write
     name: Upload to Azure
     runs-on: ubuntu-latest
     # https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust?pivots=identity-wif-apps-methods-azp#github-actions
     environment: azure-push
-    # See upload-gcp's identical guard above. Azure's own version check only
-    # ever matches a stable (non-RC) tag, so this guard rarely changes its
-    # behavior in practice -- kept for consistency with the other two jobs.
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       shouldBuild: ${{ steps.checkPushed.outputs.shouldBuild }}
     steps:
@@ -231,10 +219,17 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Find latest stable version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
+          latestTag="$(gh release view -R "$REPO" --json tagName --jq .tagName)"
           # Azure only allows "stable" version strings. E.g. "v1.2.3" (not "v1.2.3-beta1")
-          latestTag=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
-          echo $latestTag > LATEST_TAG
+          if [[ ! "$latestTag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Not a release tag: $latestTag"
+            exit 1
+          fi
+          echo "$latestTag" > LATEST_TAG
 
       - name: Check if already pushed
         id: checkPushed
@@ -271,7 +266,7 @@ jobs:
             containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
             docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
               --privileged \
-              -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.29.0 \
+              -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.30.0 \
               --debug \
               --set "disable_http_server=true" \
               --set "container_image=docker:${containerImage}" \

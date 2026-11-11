@@ -40,11 +40,10 @@ spec:
           capabilities:
             drop:
               - "ALL"
-        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.13.0
+        image: ghcr.io/kube-rbac-proxy/kube-rbac-proxy:v0.23.1
         args:
         - "--secure-listen-address=0.0.0.0:8443"
         - "--upstream=http://127.0.0.1:8080/"
-        - "--logtostderr=true"
         - "--v=0"
         ports:
         - containerPort: 8443
