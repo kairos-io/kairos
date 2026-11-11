@@ -43,6 +43,7 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 		cloudInit = &v1mock.FakeCloudInitRunner{}
 		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
 		Expect(err).ToNot(HaveOccurred())
+		httpClient.Fs = fs
 
 		err := vfs.MkdirAll(fs, "/var/lib/kairos/extensions", 0755)
 		Expect(err).ToNot(HaveOccurred())
@@ -649,6 +650,10 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 				err = action.InstallExtension(config, "http://localhost:8080/valid.raw", "sysext")
 				Expect(err).ToNot(HaveOccurred(), memLog.String())
 				Expect(httpClient.WasGetCalledWith("http://localhost:8080/valid.raw")).To(BeTrue())
+				_, statErr := fs.Stat("/var/lib/kairos/extensions/valid.raw")
+				Expect(statErr).ToNot(HaveOccurred())
+				_, statErr = fs.Stat("/var/lib/kairos/extensions/.valid.raw.partial")
+				Expect(os.IsNotExist(statErr)).To(BeTrue())
 			})
 			It("should fail to install a missing extension", func() {
 				httpClient.Error = true
