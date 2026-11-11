@@ -21,23 +21,29 @@ var _ = Describe("RefuseIfTargetIsDowngrade", func() {
 		Entry("dirty build past the current tag", "v4.4.0", "v4.4.0-2-g8c24a223-dirty"),
 		Entry("commits past a release candidate", "v4.4.0-rc2", "v4.4.0-rc2-3-gabc1234"),
 		Entry("next tag after a between-tags build", "v4.4.0-7-gabc1234", "v4.4.1"),
-		// The Makefile's BINARY_VERSION form.
-		Entry("build-metadata build past the current tag", "v4.4.0", "v4.4.0+2.g8c24a223"),
-		Entry("more commits past the same tag, build-metadata form", "v4.4.0+2.g8c24a223", "v4.4.0+5.gabc1234-dirty"),
-		Entry("describe form to build-metadata form", "v4.4.0-2-g8c24a223", "v4.4.0+5.gabc1234"),
+		// The Makefile's BINARY_VERSION form (scripts/binary-version.sh).
+		Entry("dev build past the current tag", "v4.4.0", "v4.4.1-dev.2+g8c24a223"),
+		Entry("more commits past the same tag, dev form", "v4.4.1-dev.2+g8c24a223", "v4.4.1-dev.5+gabc1234.dirty"),
+		Entry("describe form to dev form", "v4.4.0-2-g8c24a223", "v4.4.1-dev.5+gabc1234"),
+		Entry("dev build to the next patch tag", "v4.4.1-dev.108+gfa680143", "v4.4.1"),
+		Entry("dev build to the next minor tag", "v4.4.1-dev.108+gfa680143", "v4.5.0"),
 		Entry("dirty tagged build", "v4.4.0", "v4.4.0+dirty"),
 	)
 
 	// A node already on a released agent runs that agent's gate, which
-	// compares with plain semver. The Makefile's BINARY_VERSION must pass it.
-	DescribeTable("plain semver ranks a BINARY_VERSION build no older than its tag",
-		func(tag, build string) {
-			Expect(semver.MustParse(build).LessThan(semver.MustParse(tag))).To(BeFalse())
+	// compares with plain semver. The Makefile's BINARY_VERSION must pass it
+	// and order builds between tags on its own.
+	DescribeTable("plain semver ranks BINARY_VERSION builds in build order",
+		func(older, newer string) {
+			Expect(semver.MustParse(older).LessThan(semver.MustParse(newer))).To(BeTrue())
 		},
-		Entry("commits past the tag", "v4.4.0", "v4.4.0+2.g8c24a223"),
-		Entry("dirty build past the tag", "v4.4.0", "v4.4.0+2.g8c24a223-dirty"),
-		Entry("dirty tagged build", "v4.4.0", "v4.4.0+dirty"),
-		Entry("commits past a release candidate", "v4.5.0-rc1", "v4.5.0-rc1+3.gabc1234"),
+		Entry("tag before a dev build", "v4.4.0", "v4.4.1-dev.108+gfa680143"),
+		Entry("fewer commits first", "v4.4.1-dev.50+gaaaaaaa", "v4.4.1-dev.108+gfa680143"),
+		Entry("commit count is numeric", "v4.4.1-dev.9+gaaaaaaa", "v4.4.1-dev.10+gfa680143"),
+		Entry("dev build before the next patch", "v4.4.1-dev.108+gfa680143", "v4.4.1"),
+		Entry("dev build before the next minor", "v4.4.1-dev.108+gfa680143", "v4.5.0"),
+		Entry("release candidate before its dev build", "v4.5.0-rc1", "v4.5.0-rc1.dev.3+gabc1234"),
+		Entry("release candidate dev build before the next candidate", "v4.5.0-rc1.dev.3+gabc1234", "v4.5.0-rc2"),
 	)
 
 	DescribeTable("refuses an older KAIROS_INIT_VERSION",
@@ -50,8 +56,8 @@ var _ = Describe("RefuseIfTargetIsDowngrade", func() {
 		Entry("the tag a between-tags build came from", "v4.4.0-2-g8c24a223", "v4.4.0"),
 		Entry("fewer commits past the same tag", "v4.4.0-5-gabc1234", "v4.4.0-2-g8c24a223"),
 		Entry("a build past an older tag", "v4.4.0", "v4.3.0-9-gabc1234"),
-		Entry("fewer commits past the same tag, build-metadata form", "v4.4.0+5.gabc1234", "v4.4.0+2.g8c24a223"),
-		Entry("the tag a build-metadata build came from", "v4.4.0+2.g8c24a223", "v4.4.0"),
+		Entry("fewer commits past the same tag, dev form", "v4.4.1-dev.5+gabc1234", "v4.4.1-dev.2+g8c24a223"),
+		Entry("the tag a dev build came from", "v4.4.1-dev.2+g8c24a223", "v4.4.0"),
 	)
 
 	It("refuses a version it cannot parse", func() {
