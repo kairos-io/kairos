@@ -71,6 +71,23 @@ gh workflow run weekly-release.yaml -f bump=<patch|minor|major>
 An explicit `bump` cuts a release even when nothing landed since the rejected
 tag.
 
+## Release after a skipped Monday
+
+When the Monday run skipped the week because `master` was red, fix `master`
+and wait until every workflow run on the fixing commit has finished:
+`master.yaml`, `codeql` and `osv-scanner`. A commit with runs still going has
+no result yet, so the workflow picks the newest older commit that has one,
+which is still red, and skips again. Then start the run by hand:
+
+```
+gh workflow run weekly-release.yaml
+```
+
+It picks the version and the commit the same way the Monday run does. The
+release contains everything since the last final release, the skipped week
+and the fix included, and is approved as usual. The next Monday run counts
+from this release, so it skips the week when nothing landed after it.
+
 ## Cut a minor or major release
 
 The weekly run chooses the bump from commit messages and stops at a breaking
