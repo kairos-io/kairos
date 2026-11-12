@@ -161,9 +161,12 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 				// So this works for "normal" devices that have the "expected" partitions (i.e. /dev/sda has /dev/sda1, /dev/sda2)
 				// And "weird" devices that have special subdevices like mmc or nvme
 				// i.e. /dev/mmcblk0 has /dev/mmcblk0p1, /dev/mmcblk0p2
-				device, err := partLabelDevice(configPart.Name)
+				// The link is system wide, so another disk carrying the same GPT
+				// names can own it. Only format it when it is on the target.
+				device, err := PartitionDevice(i.GetTarget(), configPart.Name)
 				if err != nil {
-					e.config.Logger.Errorf("Failed finding partition %s by partition label: %s", configPart.FilesystemLabel, err)
+					e.config.Logger.Errorf("Failed finding partition %s: %s", configPart.Name, err)
+					return err
 				}
 				err = partitioner.FormatDevice(e.config.Logger, e.config.Runner, device, fs, configPart.FilesystemLabel)
 				if err != nil {
@@ -183,8 +186,38 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 	return nil
 }
 
-var partLabelDevice = func(name string) (string, error) {
-	return filepath.EvalSymlinks(fmt.Sprintf("/dev/disk/by-partlabel/%s", name))
+// PartitionDevice is the lookup PartitionAndFormatDevice uses to find the
+// partition named name on disk after writing the partition table. It resolves
+// /dev/disk/by-partlabel/<name> and returns the device only when it is a
+// partition of disk. Replace it where the target is not a host block device,
+// such as an image file.
+var PartitionDevice = func(disk, name string) (string, error) {
+	device, err := filepath.EvalSymlinks(fmt.Sprintf("/dev/disk/by-partlabel/%s", name))
+	if err != nil {
+		return "", fmt.Errorf("looking up partition label %s: %w", name, err)
+	}
+	if err := checkPartitionOnDisk("/sys/class/block", device, disk); err != nil {
+		return "", fmt.Errorf("partition label %s: %w", name, err)
+	}
+	return device, nil
+}
+
+// checkPartitionOnDisk returns an error unless partition is a partition of
+// disk. sysClassBlock is the /sys/class/block directory, whose entry for a
+// partition links into the directory of the disk that holds it.
+func checkPartitionOnDisk(sysClassBlock, partition, disk string) error {
+	diskDevice, err := filepath.EvalSymlinks(disk)
+	if err != nil {
+		return fmt.Errorf("resolving install target %s: %w", disk, err)
+	}
+	sysPartition, err := filepath.EvalSymlinks(filepath.Join(sysClassBlock, filepath.Base(partition)))
+	if err != nil {
+		return fmt.Errorf("reading the sysfs entry of %s: %w", partition, err)
+	}
+	if owner := filepath.Base(filepath.Dir(sysPartition)); owner != filepath.Base(diskDevice) {
+		return fmt.Errorf("%s is on /dev/%s, not on the install target %s", partition, owner, disk)
+	}
+	return nil
 }
 
 // MountPartitions mounts configured partitions. Partitions with an unset mountpoint are not mounted.
