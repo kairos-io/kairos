@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -781,8 +782,43 @@ func HasValidHeader(data string) bool {
 	return false
 }
 
+// quoteDashedKeys turns a dotted path such as k3s-agent.enabled into
+// ."k3s-agent".enabled so gojq reads the dash as part of the key and not as
+// subtraction. Only bare segments made of [A-Za-z0-9_-] are quoted; a query
+// that holds any other jq syntax (pipes, parens, quotes, spaces, operators)
+// is returned unchanged.
+func quoteDashedKeys(s string) string {
+	if !strings.Contains(s, "-") {
+		return s
+	}
+	for _, r := range s {
+		if !isPlainKeyRune(r) && r != '.' && r != '[' && r != ']' && r != ':' {
+			return s
+		}
+	}
+
+	segments := strings.Split(s, ".")
+	for i, seg := range segments {
+		name, rest := seg, ""
+		if idx := strings.IndexByte(seg, '['); idx >= 0 {
+			name, rest = seg[:idx], seg[idx:]
+		}
+		if name == "" || !strings.Contains(name, "-") || strings.ContainsAny(name, "[]:") {
+			continue
+		}
+		segments[i] = strconv.Quote(name) + rest
+	}
+
+	return strings.Join(segments, ".")
+}
+
+func isPlainKeyRune(r rune) bool {
+	return r == '_' || r == '-' ||
+		(r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+}
+
 func (c Config) Query(s string) (res string, err error) {
-	s = fmt.Sprintf(".%s", s)
+	s = fmt.Sprintf(".%s", quoteDashedKeys(s))
 
 	var dat map[string]interface{}
 	var dat1 map[string]interface{}
