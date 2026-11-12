@@ -4,6 +4,20 @@ set -e
 set -o pipefail
 #set -x
 
+# The regions Kairos AMIs are published to: the upload region, eu-central-1,
+# and the regions it copies to. The AWS organization's service control policy
+# DenyNonAllowedRegions denies every other region to this account.
+AWS_PUBLISH_REGIONS=(
+  eu-central-1
+  eu-west-1
+  eu-west-2
+  us-east-1
+  us-east-2
+  us-west-2
+  ap-south-1
+  ap-south-2
+)
+
 # AWS wrapper without passing a region (AWS(N)o(R)egion)
 # Redefined here so that we can source this file alone if needed.
 # The other copy is in cleanup-old-images.sh script.
@@ -190,8 +204,7 @@ cleanupOldVersions() {
     echo "DEBUG: Version $i: ${highest4StableVersions[$i]}"
   done
 
-  mapfile -t regions < <(AWSNR ec2 describe-regions | jq -r '.Regions[].RegionName')
-  for reg in "${regions[@]}"; do
+  for reg in "${AWS_PUBLISH_REGIONS[@]}"; do
     cleanupOldVersionsRegion "$reg" "${highest4StableVersions[@]}"
   done
 
