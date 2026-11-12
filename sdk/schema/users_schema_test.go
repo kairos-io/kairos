@@ -82,6 +82,21 @@ name: "kairos"`
 		})
 	})
 
+	Context("With lock_passwd", func() {
+		It("accepts a boolean", func() {
+			config, err = NewConfigFromYAML("#cloud-config\nname: kairos\nlock_passwd: true", UserSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.IsValid()).To(BeTrue())
+		})
+
+		It("rejects a value that is not a boolean", func() {
+			config, err = NewConfigFromYAML("#cloud-config\nname: kairos\nlock_passwd: \"nope\"", UserSchema{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.IsValid()).To(BeFalse())
+			Expect(config.ValidationError.Error()).To(ContainSubstring("lock_passwd"))
+		})
+	})
+
 	Context("With all possible attributes", func() {
 		BeforeEach(func() {
 			yaml = `#cloud-config
