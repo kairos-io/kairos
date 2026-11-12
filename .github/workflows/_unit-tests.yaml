@@ -52,6 +52,34 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Download Go modules
+        # Retried inline rather than through a local action: these workflows
+        # also run from workflow_dispatch on a caller-chosen ref, and CodeQL
+        # flags running an action out of that checkout as cache poisoning.
+        # One dropped zip from proxy.golang.org otherwise reds the job with a
+        # message that reads like broken code. See kairos-io/kairos#5502.
+        working-directory: .
+        run: |
+          for attempt in 1 2 3; do
+            go mod download && exit 0
+            echo "go mod download failed on attempt ${attempt}"
+            [ "${attempt}" -lt 3 ] && sleep "$((attempt * 10))"
+          done
+          exit 1
+
+      # make test also descends into the nested module under
+      # .github/actions, which resolves its own dependencies.
+      - name: Download Go modules for the nested action module
+        # Same retry as the step above.
+        working-directory: .github/actions/ghcr-cleanup
+        run: |
+          for attempt in 1 2 3; do
+            go mod download && exit 0
+            echo "go mod download failed on attempt ${attempt}"
+            [ "${attempt}" -lt 3 ] && sleep "$((attempt * 10))"
+          done
+          exit 1
+
       - name: Unit tests
         env:
           # agent/pkg/github/releases_test.go probes the live GitHub API.
