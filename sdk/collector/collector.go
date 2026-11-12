@@ -90,6 +90,9 @@ type ConfigValues map[string]interface{}
 type Config struct {
 	Sources []string
 	Values  ConfigValues
+	// UnmergedConfigURLs lists the config_url values whose remote config
+	// could not be fetched or had no valid header, so Values lacks them.
+	UnmergedConfigURLs []string
 }
 
 // MergeConfigURL looks for the "config_url" key and if it's found
@@ -100,7 +103,8 @@ type Config struct {
 // config file in the chain because we replace values when we merge.
 // NOTE: a remote body without one of ValidFileHeaders, and a fetch that fails
 // after its retries, are both silently dropped: fetchRemoteConfig returns an
-// empty config and a nil error. Both are marked TODO there.
+// empty config and a nil error. Both are marked TODO there, and the URL is
+// recorded in UnmergedConfigURLs.
 func (c *Config) MergeConfigURL() error {
 	// If there is no config_url, just return (do nothing)
 	configURL := c.ConfigURL()
@@ -175,6 +179,7 @@ func (c *Config) MergeConfig(newConfig *Config) error {
 	finalConfig := Config{}
 	finalConfig.Sources = append(c.Sources, newConfig.Sources...)
 	finalConfig.Values = mergedValues.(ConfigValues)
+	finalConfig.UnmergedConfigURLs = append(c.UnmergedConfigURLs, newConfig.UnmergedConfigURLs...)
 
 	*c = finalConfig
 
@@ -739,6 +744,7 @@ func fetchRemoteConfig(url string) (*Config, error) {
 		// TODO: This keeps the old behaviour but IMHO we should return an error here
 		warnf("warning: could not fetch config_url %s after %d attempts: %s. Booting without it\n",
 			redactURL(url), configURLAttempts, redactErrURL(err, url))
+		result.UnmergedConfigURLs = []string{url}
 		return result, nil
 	}
 
@@ -746,6 +752,7 @@ func fetchRemoteConfig(url string) (*Config, error) {
 		// TODO: This keeps the old behaviour but IMHO we should return an error here
 		warnf("warning: ignoring config_url %s because it has no valid header. Booting without it\n",
 			redactURL(url))
+		result.UnmergedConfigURLs = []string{url}
 		return result, nil
 	}
 
