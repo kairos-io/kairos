@@ -14,6 +14,7 @@ package agentrun
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -202,18 +203,31 @@ func run(agentBin, cfgPath, source, finishAction string, onEvent func(ProgressEv
 		return err
 	}
 
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if stdoutTee != nil {
-			_, _ = stdoutTee.Write(line)
-			_, _ = stdoutTee.Write([]byte{'\n'})
+	// Lines are read whole, with no length cap. A capped bufio.Scanner stops
+	// at the first line over its limit, and then nothing reads the pipe: the
+	// events after it are lost, and an agent with more to write blocks on the
+	// full pipe so Wait never returns. The agent can print such a line, e.g.
+	// the whole config when it is run with debug logging.
+	reader := bufio.NewReader(stdout)
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		line = bytes.TrimSuffix(bytes.TrimSuffix(line, []byte{'\n'}), []byte{'\r'})
+		if len(line) > 0 || readErr == nil {
+			if stdoutTee != nil {
+				_, _ = stdoutTee.Write(line)
+				_, _ = stdoutTee.Write([]byte{'\n'})
+			}
+			if ev, ok := ParseLine(line); ok {
+				onEvent(ev)
+			} else if len(line) > 0 {
+				onLog(string(line))
+			}
 		}
-		if ev, ok := ParseLine(line); ok {
-			onEvent(ev)
-		} else if len(line) > 0 {
-			onLog(string(line))
+		if readErr != nil {
+			if readErr != io.EOF {
+				return errors.Join(readErr, cmd.Wait())
+			}
+			break
 		}
 	}
 	return cmd.Wait()
