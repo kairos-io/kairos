@@ -17,16 +17,6 @@ func (n *Role) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-func (n *Role) MarshalJSON() ([]byte, error) {
-	return []byte(*n), nil
-}
-
-func (n *Role) UnmarshalJSON(val []byte) error {
-	*n = Role(val)
-
-	return nil
-}
-
 const (
 	// RoleInit denotes a special `RoleControlPlane` that can run special tasks to initialize the cluster.  There will only ever be one node with this role in a cluster.
 	RoleInit = "init"
