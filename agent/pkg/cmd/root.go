@@ -1782,7 +1782,7 @@ func sysextConfextCommands(extType string) []*cobra.Command {
 				return fmt.Errorf("--catalog is only supported for sysext")
 			}
 			if catalogVersion != "" && extType != "sysext" {
-				return fmt.Errorf("--version requires --catalog")
+				return fmt.Errorf("--version is only supported for sysext")
 			}
 			requested := args[0]
 			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
