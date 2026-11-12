@@ -18,6 +18,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -41,12 +42,19 @@ func NewClient() *Client {
 	// download that is still making progress would be cut off. Connect, TLS
 	// and response headers are bounded by the transport, and the body by the
 	// stall timeout below.
-	idle := time.Second * constants.HTTPTimeout
-	client.HTTPClient = &http.Client{Transport: &stallTransport{
-		base:    newBaseTransport(idle),
-		timeout: idle,
-	}}
+	client.HTTPClient = NewStallClient(time.Second * constants.HTTPTimeout)
 	return &Client{client: client}
+}
+
+// NewStallClient returns an http.Client that gives up when connecting, the
+// TLS handshake or the response headers take longer than timeout, or when no
+// body bytes arrive for timeout. A slow transfer that keeps making progress is
+// never cut off.
+func NewStallClient(timeout time.Duration) *http.Client {
+	return &http.Client{Transport: &stallTransport{
+		base:    newBaseTransport(timeout),
+		timeout: timeout,
+	}}
 }
 
 func newBaseTransport(timeout time.Duration) *http.Transport {
@@ -64,13 +72,32 @@ type stallTransport struct {
 	timeout time.Duration
 }
 
+// StallError is what a request through a stall client fails with when the
+// server stopped sending. It is a net.Error whose Timeout reports true, so a
+// caller can retry it the way it retries any other network timeout.
+type StallError struct {
+	After time.Duration
+}
+
+func (e *StallError) Error() string {
+	return fmt.Sprintf("no data received for %s", e.After)
+}
+
+// Timeout reports true: a stall is a timeout.
+func (e *StallError) Timeout() bool { return true }
+
+// Temporary reports true: another attempt may get the data.
+func (e *StallError) Temporary() bool { return true }
+
 func (s *stallTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx, cancel := context.WithCancel(req.Context())
-	timer := time.AfterFunc(s.timeout, cancel)
+	// The transport fails a read cut short by a cancel with its cause, so
+	// a stall reaches the caller as a StallError rather than a bare cancel.
+	ctx, cancel := context.WithCancelCause(req.Context())
+	timer := time.AfterFunc(s.timeout, func() { cancel(&StallError{After: s.timeout}) })
 	resp, err := s.base.RoundTrip(req.Clone(ctx))
 	if err != nil {
 		timer.Stop()
-		cancel()
+		cancel(nil)
 		return nil, err
 	}
 	// Headers are in: the body stall window starts now, not at dial time.
@@ -83,7 +110,7 @@ type stallBody struct {
 	body    io.ReadCloser
 	timer   *time.Timer
 	timeout time.Duration
-	cancel  context.CancelFunc
+	cancel  context.CancelCauseFunc
 	once    sync.Once
 }
 
@@ -107,7 +134,7 @@ func (b *stallBody) Close() error {
 func (b *stallBody) stop() {
 	b.once.Do(func() {
 		b.timer.Stop()
-		b.cancel()
+		b.cancel(nil)
 	})
 }
 
