@@ -19,7 +19,7 @@ func Umount(path string) error {
 func Remount(opt, path string) error {
 	out, err := utils.SH(fmt.Sprintf("mount -o %s,remount %s", opt, path))
 	if err != nil {
-		return fmt.Errorf("failed umounting: %s: %w", out, err)
+		return fmt.Errorf("failed remounting: %s: %w", out, err)
 	}
 	return nil
 }
