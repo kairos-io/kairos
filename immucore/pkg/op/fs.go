@@ -53,9 +53,11 @@ func BaseOverlay(overlay schema.Overlay) (MountOperation, error) {
 		fsType := internalUtils.DiskFSType(internalUtils.ParseMount(overlay.BackingBase))
 		blockMount := mount.Mount{Type: fsType, Source: internalUtils.ParseMount(overlay.BackingBase)}
 		tmpFstab := internalUtils.MountToFstab(blockMount)
-		// TODO: Check if this is properly written to fstab, currently have no examples
 		tmpFstab.File = internalUtils.CleanSysrootForFstab(overlay.Base)
-		tmpFstab.MntOps["default"] = ""
+		// mount(8) knows "defaults", not "default". The line is not used at
+		// boot, since /run/overlay is mounted by then, but a remount or a
+		// restart of run-overlay.mount reads it.
+		tmpFstab.MntOps["defaults"] = ""
 
 		return MountOperation{
 			MountOption: blockMount,
