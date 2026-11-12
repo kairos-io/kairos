@@ -53,7 +53,8 @@ func PreflightResetFormats(cfg *sdkConfig.Config, persistent, oem *partitions.Pa
 // encrypted stops while nothing has been destroyed yet. formatOEM says
 // whether this reset also formats OEM. It refuses:
 //
-//   - A raw LUKS container. The reset must format the unlocked mapper
+//   - A raw LUKS container, unless it is a passphrase container that was
+//     left locked in recovery (see reset_wipe.go). The reset must format the unlocked mapper
 //     inside it, which keeps the container and its key (recovery unlocks
 //     persistent before the reset runs, so this is the normal case).
 //     Formatting the raw container would destroy it, and the re-encryption
@@ -97,8 +98,10 @@ func PreflightResetFormat(cfg *sdkConfig.Config, part *partitions.Partition, for
 		cfg.Logger.Warnf("reset preflight: could not determine the filesystem on %s (%s): %v", label, part.Path, err)
 	}
 	if fs == sdkConstants.LUKSFs {
-		return fmt.Errorf("reset preflight: %s resolves to the raw LUKS container %s, not its unlocked mapper; "+
-			"formatting it would destroy the container and its key. Unlock it (kairos-agent kcrypt unlock-all) and retry; nothing was formatted", label, part.Path)
+		// A passphrase container left locked in recovery is erased and
+		// created again with a new passphrase; any other one is refused.
+		// See reset_wipe.go.
+		return prepareLockedPassphraseWipe(cfg, part)
 	}
 
 	if !wantsEncrypted {

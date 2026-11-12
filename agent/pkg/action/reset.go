@@ -53,6 +53,27 @@ func NewResetAction(cfg *sdkConfig.Config, spec *v1.ResetSpec) *ResetAction {
 	return &ResetAction{cfg: cfg, spec: spec}
 }
 
+// reformatPartition unmounts part, erases it when it is a passphrase
+// container left locked in recovery (the preflight refused any other raw
+// container), formats it, and encrypts it again when the configuration lists
+// it as encrypted (explicitly, or through the UKI default). The format leaves
+// the partition plaintext and empty, so encrypting it now makes a reset end in
+// the same state an install ends in (kairos-io/kairos#4556). Fail closed: a
+// node whose configuration demands encryption must not come back from a reset
+// plaintext.
+func (r ResetAction) reformatPartition(e *elemental.Elemental, part *sdkPartitions.Partition) error {
+	if err := e.UnmountPartition(part); err != nil {
+		return err
+	}
+	if err := WipeLockedContainer(r.cfg, part); err != nil {
+		return err
+	}
+	if err := e.FormatPartition(part); err != nil {
+		return err
+	}
+	return ResetEncryptFn(r.cfg, part)
+}
+
 // Run will reset the cos system to by following several steps
 func (r ResetAction) Run() (err error) {
 	e := elemental.NewElemental(r.cfg)
@@ -89,6 +110,10 @@ func (r ResetAction) Run() (err error) {
 	// Check every partition this reset formats before formatting any of
 	// them, so a reset that cannot end in the state the configuration
 	// demands stops while nothing has been destroyed.
+	// A new passphrase typed for a recreated container is only needed
+	// until the containers exist. Push the removal first: the preflight can
+	// write the file for one partition and then fail on the next.
+	cleanup.Push(removeResetPassphraseFile)
 	err = PreflightResetFormats(r.cfg, r.spec.Partitions.Persistent, r.spec.Partitions.OEM, r.spec.FormatPersistent, r.spec.FormatOEM)
 	if err != nil {
 		return err
@@ -101,28 +126,19 @@ func (r ResetAction) Run() (err error) {
 			// The audit trail and the state file are the things on the
 			// persistent partition a reset is not meant to destroy, so carry
 			// them over the format.
-			restore := r.preservePersistent(persistent)
-
-			err = e.UnmountPartition(persistent)
-			if err != nil {
-				return err
-			}
-			err = e.FormatPartition(persistent)
-			if err != nil {
-				return err
+			// A locked container being recreated holds nothing the reset
+			// can read, so there is nothing to carry over.
+			restore := func() {}
+			if !isLockedContainer(persistent) {
+				restore = r.preservePersistent(persistent)
 			}
 
-			// The format above leaves persistent plaintext. When the
-			// configuration lists it as encrypted, encrypt it again now,
-			// while it is empty by construction, so a reset ends in the
-			// same state an install ends in (kairos-io/kairos#4556). Fail
-			// closed: a node whose configuration demands encryption must
-			// not come back from a reset plaintext. This must run before
-			// the audit trail is restored: encrypting LUKS-formats the
-			// partition, so anything written earlier is destroyed. After
-			// it the spec points at the unlocked mapper, which is where
-			// the restore lands.
-			err = ResetEncryptFn(r.cfg, persistent)
+			// The restore must run after the encryption in
+			// reformatPartition: encrypting LUKS-formats the partition, so
+			// anything written earlier is destroyed. After it the spec
+			// points at the unlocked mapper, which is where the restore
+			// lands.
+			err = r.reformatPartition(e, persistent)
 			if err != nil {
 				return err
 			}
@@ -135,23 +151,10 @@ func (r ResetAction) Run() (err error) {
 	if r.spec.FormatOEM {
 		oem := r.spec.Partitions.OEM
 		if oem != nil {
-			// Try to umount
-			err = e.UnmountPartition(oem)
-			if err != nil {
-				return err
-			}
-			err = e.FormatPartition(oem)
-			if err != nil {
-				return err
-			}
-
-			// Same as persistent above: the format leaves OEM plaintext
-			// and empty, so when the configuration lists it as encrypted
-			// (explicitly, or through the UKI default), encrypt it again
-			// now. On a node encrypted at install the format hit the
-			// unlocked mapper, the container survived, and this is a
-			// no-op.
-			err = ResetEncryptFn(r.cfg, oem)
+			// On a node encrypted at install the format hits the
+			// unlocked mapper, the container survives, and the
+			// encryption in reformatPartition is a no-op.
+			err = r.reformatPartition(e, oem)
 			if err != nil {
 				return err
 			}
