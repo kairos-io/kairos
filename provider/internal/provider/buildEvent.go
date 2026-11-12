@@ -310,22 +310,43 @@ func BuildEvent(e *pluggable.Event) pluggable.EventResponse {
 }
 
 // InfoEvent handles the info event for the provider. Called by kairos-init during the build process.
-// It returns the installed version of the provider if available.
+// It returns the installed version of the provider the caller asks about.
+//
+// The payload names that provider. An image can carry both k3s and k0s, because
+// kairos-init takes --provider more than once, and a broadcast gives one
+// response per plugin, so a plugin that handles both can report only one of
+// them per event. Answering with whichever binary happens to be checked last
+// hides the other one.
 func InfoEvent(e *pluggable.Event) pluggable.EventResponse {
 	l := loggerpkg.NewKairosLogger("provider-kairos-info", "info", true)
 	l.Logger.Info().Msg("Info event received")
 	l.Logger.Debug().Interface("event", e).Msg("Event details")
 
-	infoData := bus.ProviderInstalledVersionPayload{}
-
-	if k3s := utils.K3sBin(); k3s != "" {
-		infoData.Provider = K3s
-		infoData.Version = k3sVersion(l)
-
+	// A caller that asks about no provider in particular sends the JSON null
+	// that go-pluggable marshals a nil payload into. Decoding that leaves the
+	// payload zeroed, which reads the same as naming no provider.
+	requested := bus.ProviderPayload{}
+	if e != nil && e.Data != "" {
+		if err := json.Unmarshal([]byte(e.Data), &requested); err != nil {
+			l.Logger.Error().Err(err).Msg("Failed to unmarshal event data")
+			return pluggable.EventResponse{
+				State: bus.EventResponseError,
+				Data:  "",
+				Error: err.Error(),
+			}
+		}
 	}
-	if k0s := utils.K0sBin(); k0s != "" {
-		infoData.Provider = K0s
-		infoData.Version = k0sVersion(l)
+
+	// Nothing to report: either the provider asked about is not installed, or
+	// no supported provider is installed at all.
+	infoData, found := installedProvider(requested.Provider, supportedProviders(), l)
+	if !found {
+		l.Logger.Info().Str("requested", requested.Provider).Msg("No provider found, returning not applicable state")
+		return pluggable.EventResponse{
+			State: bus.EventResponseNotApplicable,
+			Data:  "",
+			Error: "",
+		}
 	}
 
 	// This is the returned data for the info event
@@ -338,15 +359,6 @@ func InfoEvent(e *pluggable.Event) pluggable.EventResponse {
 			Error: err.Error(),
 		}
 	}
-	// If no provider was found, we return an empty response with a not applicable state
-	if infoData.Provider == "" {
-		l.Logger.Info().Msg("No provider found, returning not applicable state")
-		return pluggable.EventResponse{
-			State: bus.EventResponseNotApplicable,
-			Data:  "",
-			Error: "",
-		}
-	}
 	data := pluggable.EventResponse{
 		State: bus.EventResponseSuccess,
 		Data:  string(jsondata),
@@ -357,6 +369,70 @@ func InfoEvent(e *pluggable.Event) pluggable.EventResponse {
 	l.Logger.Debug().Interface("response", data).Msg("Response details")
 
 	return data
+}
+
+// providerBinary is one provider this plugin can report on: where its binary
+// lives, if it is installed at all, and how to read its version.
+type providerBinary struct {
+	name    string
+	bin     func() string
+	version func(loggerpkg.KairosLogger) string
+}
+
+// supportedProviders lists the providers this plugin serves, in the order the
+// fallback below walks them.
+func supportedProviders() []providerBinary {
+	return []providerBinary{
+		{name: K0s, bin: utils.K0sBin, version: k0sVersion},
+		{name: K3s, bin: utils.K3sBin, version: k3sVersion},
+	}
+}
+
+// installedProvider reports the installed version of the provider named in
+// requested, or nothing when that provider is not installed. An empty version
+// is still an answer here: the caller asked about this provider and no other
+// one can stand in for it.
+//
+// With no provider named it falls back to the providers that are installed, so
+// that an image which was not built with --provider still reports the provider
+// binary it inherited. One of them has to be chosen, and the choice is made
+// here rather than left to the order the binaries happen to be probed in: a
+// provider whose version could be read wins, because kairos-init drops an
+// answer that carries no version and the image would then ship with no
+// software version at all while another provider on it had one. Input order
+// decides the rest.
+//
+// The second return value says whether anything was found.
+func installedProvider(requested string, supported []providerBinary, l loggerpkg.KairosLogger) (bus.ProviderInstalledVersionPayload, bool) {
+	installed := make([]bus.ProviderInstalledVersionPayload, 0, len(supported))
+	for _, p := range supported {
+		if requested != "" && requested != p.name {
+			continue
+		}
+		if p.bin() == "" {
+			continue
+		}
+		installed = append(installed, bus.ProviderInstalledVersionPayload{Provider: p.name, Version: p.version(l)})
+	}
+
+	if len(installed) == 0 {
+		return bus.ProviderInstalledVersionPayload{}, false
+	}
+	if len(installed) > 1 {
+		names := make([]string, 0, len(installed))
+		for _, c := range installed {
+			names = append(names, c.Provider)
+		}
+		l.Logger.Warn().Strs("installed", names).Msg("This image carries more than one provider and the event named none, so only one of them is reported")
+	}
+
+	for _, c := range installed {
+		if c.Version != "" {
+			return c, true
+		}
+	}
+
+	return installed[0], true
 }
 
 // k3sVersion retrieves the version of k3s installed on the system.

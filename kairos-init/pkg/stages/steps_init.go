@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
@@ -244,6 +246,17 @@ func getProviderInfo(logger logger.KairosLogger) (bus.ProviderInstalledVersionPa
 		return versionInfo, nil
 	}
 
+	// The bus broadcasts, so this handler runs once per installed plugin.
+	// Keep every answer apart instead of decoding them on top of each other:
+	// json.Unmarshal into an already populated struct only overwrites the keys
+	// the response carries, so a provider that reports no version would
+	// otherwise inherit the version of whichever provider answered before it,
+	// and a half decoded response would corrupt a good one.
+	reported := map[string]bus.ProviderInstalledVersionPayload{}
+	// The bus runs one handler goroutine per plugin and waits for all of them,
+	// so the writes below overlap.
+	var reportedMu sync.Mutex
+
 	manager.Response(bus.InitProviderInfo, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
 		logger.Logger.Debug().Str("at", p.Executable).Interface("resp", resp).Msg("Received info event from provider")
 		if resp.Errored() {
@@ -251,23 +264,105 @@ func getProviderInfo(logger logger.KairosLogger) (bus.ProviderInstalledVersionPa
 			return
 		}
 		if resp.State == bus.EventResponseNotApplicable {
-			logger.Logger.Info().Msg("Provider info event is non-applicable, skipping")
+			logger.Logger.Info().Str("at", p.Executable).Msg("Provider info event is non-applicable, skipping")
 			return
 		}
-		if err := json.Unmarshal([]byte(resp.Data), &versionInfo); err != nil {
+		info := bus.ProviderInstalledVersionPayload{}
+		if err := json.Unmarshal([]byte(resp.Data), &info); err != nil {
 			logger.Logger.Error().Msgf("Failed to unmarshal provider info event: %s", err)
 			return
 		}
+		if info.Provider == "" {
+			logger.Logger.Warn().Str("at", p.Executable).Msg("Provider info event named no provider, skipping")
+			return
+		}
+		reportedMu.Lock()
+		reported[info.Provider] = info
+		reportedMu.Unlock()
 		if resp.State == bus.EventResponseSuccess {
-			logger.Logger.Info().Msg("Provider info event succeeded")
+			logger.Logger.Info().Str("provider", info.Provider).Msg("Provider info event succeeded")
 		}
 	})
-	_, err := manager.Publish(bus.InitProviderInfo, nil)
-	if err != nil {
-		logger.Logger.Error().Msgf("Failed to publish provider info event: %s", err)
-		return versionInfo, err
+
+	for _, payload := range providerInfoRequests() {
+		if _, err := manager.Publish(bus.InitProviderInfo, payload); err != nil {
+			logger.Logger.Error().Msgf("Failed to publish provider info event: %s", err)
+			return versionInfo, err
+		}
 	}
-	return versionInfo, nil
+
+	return pickProviderInfo(reported, logger), nil
+}
+
+// providerInfoRequests returns one info event payload per configured provider,
+// the same way the install event is published once per provider. A broadcast
+// brings back one response per plugin, so a single untargeted event can only
+// ever report one provider even when the image carries several, and one plugin
+// serves both k3s and k0s. Naming the provider is what lets every one of them
+// answer.
+//
+// A build that configured no provider still asks once, with no provider named,
+// so that an image which inherited a provider binary keeps reporting it.
+func providerInfoRequests() []interface{} {
+	providers := config.DefaultConfig.Providers
+	if len(providers) == 0 {
+		return []interface{}{nil}
+	}
+
+	requests := make([]interface{}, 0, len(providers))
+	for _, provider := range providers {
+		requests = append(requests, bus.ProviderPayload{Provider: provider.Name})
+	}
+
+	return requests
+}
+
+// pickProviderInfo chooses the one provider that KAIROS_SOFTWARE_VERSION and
+// KAIROS_SOFTWARE_VERSION_PREFIX describe. That pair holds a single software
+// version, so an image built with more than one provider has to pick one, and
+// the pick has to come out the same on every build of the same image. Prefer
+// the first provider the caller asked for on the command line. Fall back to
+// the lowest name that answered, which is at least stable, rather than to the
+// last plugin the bus happened to reach, which is not.
+func pickProviderInfo(reported map[string]bus.ProviderInstalledVersionPayload, logger logger.KairosLogger) bus.ProviderInstalledVersionPayload {
+	if len(reported) == 0 {
+		return bus.ProviderInstalledVersionPayload{}
+	}
+
+	answered := make([]string, 0, len(reported))
+	for name := range reported {
+		answered = append(answered, name)
+	}
+	sort.Strings(answered)
+
+	if len(answered) == 1 {
+		return reported[answered[0]]
+	}
+
+	chosen := answered[0]
+	for _, configured := range config.DefaultConfig.Providers {
+		if name, ok := matchProviderName(configured.Name, answered); ok {
+			chosen = name
+			break
+		}
+	}
+	logger.Logger.Warn().
+		Strs("reported", answered).
+		Str("chosen", chosen).
+		Msg("More than one provider reported a version and kairos-release holds only one")
+	return reported[chosen]
+}
+
+// matchProviderName finds the provider that answered under the name the caller
+// configured. A provider is free to report itself under a different name than
+// the one passed to --provider, so a miss here is not an error.
+func matchProviderName(configured string, answered []string) (string, bool) {
+	for _, name := range answered {
+		if strings.EqualFold(configured, name) {
+			return name, true
+		}
+	}
+	return "", false
 }
 
 // GetWorkaroundsStage Returns the workarounds stage
