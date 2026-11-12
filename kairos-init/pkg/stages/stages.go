@@ -71,7 +71,12 @@ func RunInstallStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 		}...)
 	}
 	// Add extensions from disk
-	data.Stages["before-install"] = append(data.Stages["before-install"], GetStageExtensions("before-install", logger)...)
+	extensions, err := GetStageExtensions("before-install", logger)
+	if err != nil {
+		logger.Logger.Error().Msgf("Failed to get the before-install stage extensions: %s", err)
+		return data, err
+	}
+	data.Stages["before-install"] = append(data.Stages["before-install"], extensions...)
 
 	// Add packages install
 	installStage, err := GetInstallStage(sis, logger)
@@ -95,11 +100,21 @@ func RunInstallStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 	// Add the miscellaneous files
 	data.Stages["install"] = append(data.Stages["install"], GetKairosMiscellaneousFilesStage(sis, logger)...)
 	// Add extensions from disk
-	data.Stages["install"] = append(data.Stages["install"], GetStageExtensions("install", logger)...)
+	extensions, err = GetStageExtensions("install", logger)
+	if err != nil {
+		logger.Logger.Error().Msgf("Failed to get the install stage extensions: %s", err)
+		return data, err
+	}
+	data.Stages["install"] = append(data.Stages["install"], extensions...)
 	// Run things after we install packages and framework
 	data.Stages["after-install"] = []schema.Stage{}
 	// Add extensions from disk
-	data.Stages["after-install"] = append(data.Stages["after-install"], GetStageExtensions("after-install", logger)...)
+	extensions, err = GetStageExtensions("after-install", logger)
+	if err != nil {
+		logger.Logger.Error().Msgf("Failed to get the after-install stage extensions: %s", err)
+		return data, err
+	}
+	data.Stages["after-install"] = append(data.Stages["after-install"], extensions...)
 
 	if config.DefaultConfig.DryRun {
 		logger.Info("Dry-run: skipping execution of install stages and binary/config copies")
@@ -160,7 +175,12 @@ func RunInitStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 	data.Stages["before-init"] = []schema.Stage{}
 
 	// Add extensions from disk
-	data.Stages["before-init"] = append(data.Stages["before-init"], GetStageExtensions("before-init", logger)...)
+	extensions, err := GetStageExtensions("before-init", logger)
+	if err != nil {
+		logger.Logger.Error().Msgf("Failed to get the before-init stage extensions: %s", err)
+		return data, err
+	}
+	data.Stages["before-init"] = append(data.Stages["before-init"], extensions...)
 
 	data.Stages["init"] = []schema.Stage{}
 	data.Stages["init"] = append(data.Stages["init"], GetKairosReleaseStage(sis, logger)...)
@@ -194,13 +214,23 @@ func RunInitStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 	data.Stages["init"] = append(data.Stages["init"], GetCISHardeningStage(sis, logger)...)
 
 	// Add extensions from disk
-	data.Stages["init"] = append(data.Stages["init"], GetStageExtensions("init", logger)...)
+	extensions, err = GetStageExtensions("init", logger)
+	if err != nil {
+		logger.Logger.Error().Msgf("Failed to get the init stage extensions: %s", err)
+		return data, err
+	}
+	data.Stages["init"] = append(data.Stages["init"], extensions...)
 
 	// Run things after we init the system
 	data.Stages["after-init"] = []schema.Stage{}
 
 	// Add extensions from disk
-	data.Stages["after-init"] = append(data.Stages["after-init"], GetStageExtensions("after-init", logger)...)
+	extensions, err = GetStageExtensions("after-init", logger)
+	if err != nil {
+		logger.Logger.Error().Msgf("Failed to get the after-init stage extensions: %s", err)
+		return data, err
+	}
+	data.Stages["after-init"] = append(data.Stages["after-init"], extensions...)
 
 	if config.DefaultConfig.DryRun {
 		logger.Info("Dry-run: skipping execution of init stages")
