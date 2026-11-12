@@ -903,7 +903,7 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 	}
 }
 
-func newResetCmd() *cobra.Command {
+func newResetCmd(global *globalFlags) *cobra.Command {
 	var reboot, unattended, resetOem bool
 
 	cmd := &cobra.Command{
@@ -927,7 +927,7 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 			// The persistent partition is formatted by default during reset
 			// (pkg/config/spec.go NewResetSpec sets FormatPersistent: true),
 			// so there's no useful CLI knob to surface here.
-			return agent.Reset(reboot, unattended, resetOem, constants.GetUserConfigDirs()...)
+			return agent.Reset(reboot, unattended, resetOem, global.strictValidation, constants.GetUserConfigDirs()...)
 		},
 	}
 
@@ -1962,7 +1962,7 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		newManualInstallCmd(&global),
 		newInstallCmd(),
 		newRecoveryCmd(),
-		newResetCmd(),
+		newResetCmd(&global),
 		newValidateCmd(),
 		newPrintSchemaCmd(),
 		newRunStageCmd(&global),
