@@ -71,16 +71,18 @@ func main() {
 func run(args []string) int {
 	args = argv0Args(args)
 
+	root, reports := newRoot()
+
 	// Version query, in any of its forms: `kairos --version`, the symlink form
 	// `immucore --version`, and the explicit form `kairos agent --version`. The
 	// monorepo reports one version everywhere, injected at build time into
-	// internal/version.Version, so the sub-tool is never asked.
-	if (len(args) >= 2 && isVersionRequest(args[1])) || (len(args) >= 3 && isVersionRequest(args[2])) {
+	// internal/version.Version, so a sub-tool is only asked when it owns the
+	// query, see versionOwners.
+	if answersVersion(root, args) {
 		fmt.Println("kairos", version.Version)
 		return 0
 	}
 
-	root, reports := newRoot()
 	root.SetArgs(args[1:])
 	cmd, err := root.ExecuteC()
 	if err == nil {
@@ -117,6 +119,38 @@ func argv0Args(args []string) []string {
 		return args
 	}
 	return append([]string{"kairos", exe}, args[1:]...)
+}
+
+// versionOwners maps a sub-tool's canonical name to a predicate that says
+// which version-query arguments that sub-tool answers itself. Those reach the
+// sub-tool unchanged instead of being answered here. A sub-tool with no entry
+// has every version query answered by kairos, which is what keeps
+// `immucore version` from starting the boot flow.
+var versionOwners = map[string]func(arg string) bool{}
+
+// ownsVersion declares that the sub-tool name answers the version queries
+// owns accepts.
+func ownsVersion(name string, owns func(arg string) bool) {
+	versionOwners[name] = owns
+}
+
+// answersVersion reports whether args, shaped as `kairos [sub-tool] ...`, is a
+// version query kairos answers itself rather than handing to the sub-tool.
+func answersVersion(root *cobra.Command, args []string) bool {
+	if len(args) >= 2 && isVersionRequest(args[1]) {
+		return true
+	}
+	if len(args) < 3 || !isVersionRequest(args[2]) {
+		return false
+	}
+	for _, cmd := range root.Commands() {
+		if cmd.Name() != args[1] && !cmd.HasAlias(args[1]) {
+			continue
+		}
+		owns, ok := versionOwners[cmd.Name()]
+		return !ok || !owns(args[2])
+	}
+	return true
 }
 
 func isVersionRequest(arg string) bool {
