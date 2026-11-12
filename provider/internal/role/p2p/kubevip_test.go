@@ -14,6 +14,7 @@ import (
 	"github.com/kube-vip/kube-vip/pkg/kubevip"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 )
 
 var _ = Describe("generateKubeVIP image", func() {
@@ -128,6 +129,95 @@ var _ = Describe("downloadFromURL", func() {
 		case <-time.After(30 * time.Second):
 			Fail("downloadFromURL did not honor a request timeout within 30s")
 		}
+	})
+})
+
+var _ = Describe("kubevip block decoding", func() {
+	BeforeEach(func() {
+		// generateKubeVIP mutates package-level state, reset between specs.
+		initConfig = kubevip.Config{}
+		initLoadBalancer = kubevip.LoadBalancer{}
+	})
+
+	// The provider reads the kubevip block out of the user's cloud-config with
+	// yaml.Unmarshal, the same call bootstrap.go makes, so decode the document
+	// rather than building the struct by hand: the bug lives in the struct tags.
+	decode := func(doc string) *providerConfig.Config {
+		cfg := &providerConfig.Config{}
+		Expect(yaml.Unmarshal([]byte(doc), cfg)).To(Succeed())
+		return cfg
+	}
+
+	It("reads kube-vip's own keys written directly under kubevip", func() {
+		cfg := decode(`
+kubevip:
+  eip: 192.168.1.10
+  enableBGP: true
+  annotations: metal.equinix.com
+  prometheusHTTPServer: ":9100"
+`)
+
+		Expect(cfg.KubeVIP.EIP).To(Equal("192.168.1.10"))
+		Expect(cfg.KubeVIP.EnableBGP).To(BeTrue(), "kubevip.enableBGP must reach kube-vip's own config")
+		Expect(cfg.KubeVIP.Annotations).To(Equal("metal.equinix.com"))
+		Expect(cfg.KubeVIP.PrometheusHTTPServer).To(Equal(":9100"))
+	})
+
+	It("carries those keys into the generated manifest", func() {
+		cfg := decode(`
+kubevip:
+  eip: 192.168.1.10
+  enableBGP: true
+  prometheusHTTPServer: ":9100"
+`)
+
+		manifest, err := generateKubeVIP("pod", "eth0", "192.168.1.10", cfg)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(manifest).To(ContainSubstring("bgp_enable"))
+		Expect(manifest).To(ContainSubstring(":9100"))
+	})
+
+	// kube-vip exits with "multiple kube-vip modes detected" when more than
+	// one of these is on, leaving the node without its VIP.
+	enabledModes := func() []string {
+		var modes []string
+		if initConfig.EnableARP {
+			modes = append(modes, "ARP")
+		}
+		if initConfig.EnableBGP {
+			modes = append(modes, "BGP")
+		}
+		if initConfig.EnableWireguard {
+			modes = append(modes, "Wireguard")
+		}
+		if initConfig.EnableRoutingTable {
+			modes = append(modes, "RoutingTable")
+		}
+		return modes
+	}
+
+	It("runs kube-vip in BGP mode only when kubevip.enableBGP is set", func() {
+		cfg := decode("kubevip:\n  eip: 192.168.1.10\n  enableBGP: true\n")
+
+		manifest, err := generateKubeVIP("pod", "eth0", "192.168.1.10", cfg)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabledModes()).To(Equal([]string{"BGP"}))
+		Expect(manifest).To(MatchRegexp(`name: vip_arp\s+value: "false"`))
+	})
+
+	It("keeps ARP as the default mode", func() {
+		cfg := decode("kubevip:\n  eip: 192.168.1.10\n")
+
+		manifest, err := generateKubeVIP("pod", "eth0", "192.168.1.10", cfg)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabledModes()).To(Equal([]string{"ARP"}))
+		Expect(manifest).To(MatchRegexp(`name: vip_arp\s+value: "true"`))
+	})
+
+	It("keeps kubevip.interface pointing at the interface the provider reads", func() {
+		cfg := decode("kubevip:\n  eip: 192.168.1.10\n  interface: ens18\n")
+
+		Expect(cfg.KubeVIP.Interface).To(Equal("ens18"))
 	})
 })
 

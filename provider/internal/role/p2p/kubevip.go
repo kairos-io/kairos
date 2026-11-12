@@ -50,7 +50,9 @@ func generateKubeVIP(command string, iface, ip string, kConfig *providerConfig.C
 	initConfig.Interface = iface
 	initConfig.Address = ip
 	initConfig.EnableControlPlane = true
-	initConfig.EnableARP = true
+	// ARP is our default mode. kube-vip refuses to start with more than one
+	// mode, so it gives way when the user picked another one.
+	initConfig.EnableARP = !initConfig.EnableBGP && !initConfig.EnableWireguard && !initConfig.EnableRoutingTable
 	initConfig.EnableLeaderElection = true
 	initConfig.LoadBalancers = append(initConfig.LoadBalancers, initLoadBalancer)
 
