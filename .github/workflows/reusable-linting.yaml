@@ -108,11 +108,49 @@ jobs:
         # simulator has a `//go:build !cgo` fallback that typechecks
         # cleanly, so this only affects what golangci-lint parses,
         # not what any build job compiles.
+        #
+        # The output is tee'd into the job summary because the job
+        # log is not readable without write access to the repository,
+        # and the check run carries a single annotation, `Process
+        # completed with exit code 1`. The summary needs no token
+        # permission and is visible to anyone who can see the run, so
+        # a red lint now says what it found instead of only that it
+        # failed.
+        #
+        # The retry covers a failure that is not a lint finding at
+        # all. When proxy.golang.org drops a module zip mid-stream
+        # the package does not load, and golangci-lint reports that
+        # as a `typecheck` issue and exits 1, which reads exactly
+        # like broken code. Three of these landed on 2026-10-14
+        # across two repositories and three different modules. Only
+        # output that names the proxy is retried, so a real finding
+        # still fails on the first attempt.
         run: |
           VERSION=$(cat .golangci-version)
-          docker run -e CGO_ENABLED=0 -v "$PWD":/work -w /work \
-            "golangci/golangci-lint:${VERSION}" \
-            golangci-lint -v --timeout="${TIMEOUT}" run
+          LOG="${RUNNER_TEMP}/golangci-lint.log"
+          for attempt in 1 2 3; do
+            status=0
+            docker run -e CGO_ENABLED=0 -v "$PWD":/work -w /work \
+              "golangci/golangci-lint:${VERSION}" \
+              golangci-lint -v --timeout="${TIMEOUT}" run 2>&1 \
+              | tee "${LOG}" || status=$?
+            if [ "${status}" -eq 0 ]; then
+              break
+            fi
+            if ! grep -q 'proxy.golang.org' "${LOG}"; then
+              break
+            fi
+            echo "attempt ${attempt}: the Go module proxy dropped a download, retrying"
+            sleep 10
+          done
+          {
+            echo '### golangci-lint'
+            echo ''
+            echo '```'
+            grep -v '^level=' "${LOG}" | tail -n 200 || true
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+          exit "${status}"
 
   hadolint:
     runs-on: ubuntu-latest
