@@ -235,6 +235,16 @@ func checkUpgrade(source string) error {
 	return checkRoot()
 }
 
+// upgradeArgs accepts at most one positional, the source. Flags are only read
+// up to the first positional, so anything after the source would otherwise
+// be dropped without a word, --dry-run included.
+func upgradeArgs(cmd *cobra.Command, args []string) error {
+	if len(args) <= 1 {
+		return nil
+	}
+	return usageError(cmd, fmt.Sprintf("upgrade takes at most one source argument, got %d: %q; put flags such as --dry-run or --recovery before the source", len(args), args))
+}
+
 func newUpgradeCmd(global *globalFlags) *cobra.Command {
 	var (
 		image, source, bootEntry string
@@ -250,7 +260,7 @@ func newUpgradeCmd(global *globalFlags) *cobra.Command {
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
 
 To specify a version, pass it as argument using the --source flag. Passing just the Kairos version as the first argument is no longer supported. If you speficy a positional argument, it will be treated
-as a value for the --source flag.
+as a value for the --source flag. Flags go before it: anything after the positional argument is refused.
 
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
@@ -265,6 +275,7 @@ $ kairos upgrade list-releases
 See https://kairos.io/docs/upgrade/manual/ for documentation.
 
 `,
+		Args: upgradeArgs,
 		PreRunE: func(*cobra.Command, []string) error {
 			return checkUpgrade(source)
 		},
