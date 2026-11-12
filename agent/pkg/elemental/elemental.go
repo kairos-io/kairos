@@ -24,6 +24,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -785,11 +786,15 @@ func (e *Elemental) applyImageToTarget(img ggcrv1.Image, target string, excludes
 	return err
 }
 
-// CopyCloudConfig will check if there is a cloud init in the config and store it on the target
+// CopyCloudConfig will check if there is a cloud init in the config and store it on the target.
+// Files are named 9<index>_custom.yaml with the index zero-padded to the width
+// of the highest one, so they sort in list order and the last entry, the
+// launch cloud-config, is applied last. Up to ten entries keep 90..99.
 func (e *Elemental) CopyCloudConfig(cloudInit []string) (err error) {
 	e.config.Logger.Infof("List of cloud inits to copy: %+v\n", cloudInit)
+	width := len(strconv.Itoa(len(cloudInit) - 1))
 	for i, ci := range cloudInit {
-		customConfig := filepath.Join(cnst.OEMDir, fmt.Sprintf("9%d_custom.yaml", i))
+		customConfig := filepath.Join(cnst.OEMDir, fmt.Sprintf("9%0*d_custom.yaml", width, i))
 		e.config.Logger.Infof("Starting copying cloud config file %s to %s", ci, customConfig)
 		err = utils.GetSource(e.config, ci, customConfig)
 		if err != nil {

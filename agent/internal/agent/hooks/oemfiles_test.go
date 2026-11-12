@@ -172,6 +172,11 @@ func TestOemFileName(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "a launch cloud-config slot past ten entries is rejected too",
+			input:   "910_custom",
+			wantErr: true,
+		},
+		{
 			name:    "SSHHardening's own file is rejected",
 			input:   "10_ssh_hardening",
 			wantErr: true,
