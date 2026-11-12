@@ -239,7 +239,8 @@ func newUpgradeCmd(global *globalFlags) *cobra.Command {
 	var (
 		image, source, bootEntry string
 		recovery, insecure       bool
-		dryRun                   bool
+		dryRun, diff             bool
+		diffSource               string
 		excludePaths             []string
 	)
 
@@ -255,6 +256,8 @@ as a value for the --source flag.
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
 To pull from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate, pass the --allow-insecure-registries flag (or set "upgrade.allow-insecure-registries: true" in the cloud config).
+
+To fetch only what changed since the running release, pass the --diff flag (or set "upgrade.diff: true" in the cloud config). This is experimental. The diff is looked for at the tag of the source image with ".diff" appended, or wherever --diff-source (or "upgrade.diff-source") points. It is applied onto a copy of the booted image, and when there is no diff, it was made for another release, or it does not apply, the full image is used instead. Diff upgrades are not supported for the recovery system or on Trusted Boot.
 
 To check what an upgrade would do before running it, pass the --dry-run flag. It resolves the source (including the cloud config), the image size and where the transition image would be written, checks that the image manifest can be fetched from the registry, prints a summary and exits without changing the system.
 
@@ -298,7 +301,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			}
 
 			return agent.Upgrade(upgradeSource, global.strictValidation, constants.GetUserConfigDirs(),
-				upgradeEntry, insecure, dryRun, excludePaths...,
+				upgradeEntry, insecure, dryRun, diff, diffSource, excludePaths...,
 			)
 		},
 	}
@@ -311,6 +314,8 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 	flags.StringSliceVar(&excludePaths, "exclude-path", nil, "Path in the new image to leave out of the upgrade, from the image root, e.g. /var/lib/foo or etc/*.conf. A leading / is optional, an excluded directory drops its contents, and * and ? are globs that do not cross /. Can be specified multiple times.")
 	addAllowInsecureRegistriesFlag(flags, &insecure)
 	flags.BoolVar(&dryRun, "dry-run", false, "Resolve the upgrade and print a summary of what would be done, without changing the system")
+	flags.BoolVar(&diff, "diff", false, "Experimental. Apply only the changes from the running release, fetched from the source tag with .diff appended. Falls back to the full image")
+	flags.StringVar(&diffSource, "diff-source", "", "Experimental. The diff to apply, as an image source (oci:, ocifile:, dir:). Implies --diff")
 
 	cmd.AddCommand(newListReleasesCmd())
 	return cmd
@@ -1057,6 +1062,47 @@ func newPullImageCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&platform, "platform", fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH), "Platform/arch to pull image from")
+	return cmd
+}
+
+func newGenerateDiffCmd() *cobra.Command {
+	var output, push, platform, workDir string
+
+	cmd := &cobra.Command{
+		Use:   "generate-diff [--output FILE] [--push REF] BASE TARGET",
+		Short: "Experimental: generate the diff a diff upgrade applies",
+		Long: `
+Generate the diff that turns the BASE release into the TARGET release, for "upgrade --diff".
+
+BASE and TARGET are each an image reference (pulled from a registry, or from the local daemon), an image archive as docker save writes, a root filesystem tarball (.tar, .tar.gz or .tar.zst), or a directory. Prefix with oci:, ocifile: or dir: to force the kind. Run it as root, so ownership and extended attributes are kept.
+
+Both releases are unpacked under --work-dir, which needs room for two root filesystems.
+
+Pass --push to publish the diff to a registry, at the tag of the target with ".diff" appended, where "upgrade --diff" finds it. That tag is an image index holding one diff per base release, so the diffs to one release from several earlier ones live side by side, and a node pulls only the one for the release it runs. Publishing again from the same base replaces that base's diff. Otherwise the diff is written to --output as an image archive, which "upgrade --diff-source ocifile:FILE" applies directly.
+
+$ kairos-agent generate-diff --push quay.io/kairos/hadron:v1.2.0.diff quay.io/kairos/hadron:v1.1.0 quay.io/kairos/hadron:v1.2.0
+`,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 2 {
+				return usageError(cmd, "BASE and TARGET are required")
+			}
+			return nil
+		},
+		RunE: func(_ *cobra.Command, args []string) error {
+			out := output
+			if out == "" && push == "" {
+				out = "diff.tar"
+			}
+			cfg := agentConfig.NewConfig(agentConfig.WithPlatform(platform))
+			return agent.GenerateDiff(cfg, args[0], args[1], out, push, workDir)
+		},
+	}
+
+	flags := cmd.Flags()
+	flags.StringVar(&output, "output", "", "Write the diff to this image archive. Defaults to diff.tar when --push is not set")
+	flags.StringVar(&push, "push", "", "Add the diff to the image index at this reference, replacing any diff in it from the same base")
+	flags.StringVar(&platform, "platform", fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH), "Platform to pull image references for")
+	flags.StringVar(&workDir, "work-dir", os.TempDir(), "Directory to unpack both releases in")
 	return cmd
 }
 
@@ -1967,6 +2013,7 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		newPrintSchemaCmd(),
 		newRunStageCmd(&global),
 		newPullImageCmd(),
+		newGenerateDiffCmd(),
 		newVersionCmd(),
 		newVersioneerCmd(),
 		newBootentryCmd(),

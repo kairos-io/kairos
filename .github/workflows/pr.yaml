@@ -1,5 +1,10 @@
 name: PR
 
+# TEMPORARY, drop this commit before the pull request leaves draft. It
+# trims the PR pipeline to the build and the diff-upgrade suite, and the
+# other workflows that run on pull requests are deleted in the same
+# commit, so iterating on kairos-io/kairos#5574 does not start the rest.
+
 # The default PR pipeline: a small smoke run that needs no secrets and
 # no approval.
 #
@@ -49,12 +54,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unit-tests:
-    uses: ./.github/workflows/_unit-tests.yaml
-
-  lint:
-    uses: ./.github/workflows/_lint.yaml
-
   # The slim pipeline only builds and tests a non-FIPS amd64 ISO, so the
   # builds below skip arm64 and FIPS (pr-full.yaml keeps both).
   build-kairos:
@@ -68,15 +67,10 @@ jobs:
     with:
       matrix_scope: pr
 
-  build-kcrypt-challenger:
-    uses: ./.github/workflows/_build-kcrypt-challenger.yaml
-    with:
-      matrix_scope: pr
-
   # Builds the kairos-init image (amd64 only here) and uploads it as an OCI
   # layout instead of pushing it. The tag is only a local name.
   build-image-kairos-init:
-    needs: [build-kairos-init, unit-tests, lint]
+    needs: build-kairos-init
     uses: ./.github/workflows/_build-image-kairos-init.yaml
     permissions:
       contents: read
@@ -127,8 +121,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {test: 'install'}
-          - {test: 'acceptance'}
+          - {test: 'diff-upgrade'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     # reusable-qemu-test.yaml declares packages: write for its bundles

@@ -36,7 +36,9 @@ upgrade:
     - /data
   excluded-paths:
     - /var/cache
-  allow-insecure-registries: true`)
+  allow-insecure-registries: true
+  diff: true
+  diff-source: "oci:quay.io/kairos/opensuse:latest.diff"`)
 
 		Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
 	})
