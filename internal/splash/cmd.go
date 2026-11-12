@@ -33,6 +33,8 @@ func Main() int {
 		"draw a single frame and exit, for a smoke test on a built image")
 	noToggle := fs.Bool("no-toggle", false,
 		"do not read the console, so Escape does not switch to the kernel log")
+	clearOnExit := fs.Bool("clear-on-exit", false,
+		"clear the console on the way out, unless Escape left the kernel log on it")
 	cmdline := fs.String("cmdline", cmdlinePath,
 		"kernel command line to read the kairos.splash=0 kill switch from")
 	osRelease := fs.String("os-release", "/etc/os-release",
@@ -71,15 +73,16 @@ func Main() int {
 	}
 
 	opts := Options{
-		Out:       out,
-		Rows:      rows,
-		Cols:      cols,
-		IsTTY:     isTTY,
-		Branding:  branding,
-		Version:   ReadOSVersion(*osRelease),
-		Frame:     *frame,
-		Duration:  *duration,
-		MaxFrames: 0,
+		Out:         out,
+		Rows:        rows,
+		Cols:        cols,
+		IsTTY:       isTTY,
+		Branding:    branding,
+		Version:     ReadOSVersion(*osRelease),
+		Frame:       *frame,
+		Duration:    *duration,
+		MaxFrames:   0,
+		ClearOnExit: *clearOnExit,
 	}
 	if *once {
 		opts.MaxFrames = 1
