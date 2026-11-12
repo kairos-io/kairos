@@ -15,6 +15,11 @@ import (
 // anywhere on a line: a yip command, a systemd ExecStart or a shell script.
 var runStageInvocation = regexp.MustCompile(`kairos-agent run-stage(.*)$`)
 
+// shellSeparator ends a command inside a shell line, so the words after it
+// belong to the next command and not to run-stage, as in
+// `sh -c 'while true; do kairos-agent run-stage reconcile; sleep 3600; done'`.
+var shellSeparator = regexp.MustCompile(`;|&&|\|\|`)
+
 type runStageCall struct {
 	file string
 	line string
@@ -23,7 +28,7 @@ type runStageCall struct {
 
 // bundledRunStageCalls returns every `kairos-agent run-stage` call written in
 // the bundled cloud-configs, with its arguments split as the shell would for
-// these simple, unescaped command lines.
+// these simple, unescaped command lines, up to the end of that command.
 func bundledRunStageCalls() []runStageCall {
 	var calls []runStageCall
 	err := fs.WalkDir(bundled.EmbeddedConfigs, "cloudconfigs", func(path string, d fs.DirEntry, err error) error {
@@ -40,7 +45,8 @@ func bundledRunStageCalls() []runStageCall {
 				continue
 			}
 			args := []string{"run-stage"}
-			for _, field := range strings.Fields(match[1]) {
+			own := shellSeparator.Split(match[1], 2)[0]
+			for _, field := range strings.Fields(own) {
 				args = append(args, strings.Trim(field, `"'`))
 			}
 			calls = append(calls, runStageCall{file: path, line: strings.TrimSpace(line), args: args})
