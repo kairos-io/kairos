@@ -502,7 +502,7 @@ var _ = Describe("Hooks", func() {
 			Expect(err).Should(BeNil())
 			err = fsutils.MkdirAll(fs, "/usr/local/cloud-config", os.ModeDir|os.ModePerm)
 			Expect(err).Should(BeNil())
-			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "#cloud-config\n"}}
 
 			oemFiles := hook.OEMFiles{}
 			err = oemFiles.Run(*cfg, installSpec)
@@ -515,7 +515,7 @@ var _ = Describe("Hooks", func() {
 		})
 
 		It("errors when the spec has no OEM partition to write to", func() {
-			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "#cloud-config\n"}}
 
 			oemFiles := hook.OEMFiles{}
 			err = oemFiles.Run(*cfg, &implSpec.InstallSpec{})
@@ -524,8 +524,8 @@ var _ = Describe("Hooks", func() {
 
 		It("rejects a bad name before writing anything, leaving earlier entries unwritten", func() {
 			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
-				{Name: "good", Content: "hello"},
-				{Name: "../evil", Content: "hello"},
+				{Name: "good", Content: "#cloud-config\n"},
+				{Name: "../evil", Content: "#cloud-config\n"},
 			}
 
 			oemFiles := hook.OEMFiles{}
@@ -535,5 +535,27 @@ var _ = Describe("Hooks", func() {
 			_, err = fs.Stat(filepath.Join(cnst.OEMDir, "good.yaml"))
 			Expect(err).ShouldNot(BeNil())
 		})
+
+		DescribeTable("rejects content yip cannot load before writing anything",
+			func(content string) {
+				cfg.Install.OEMFiles = []sdkInstall.OEMFile{
+					{Name: "good", Content: "#cloud-config\nstages:\n  boot:\n  - name: ok\n"},
+					{Name: "bad", Content: content},
+				}
+
+				oemFiles := hook.OEMFiles{}
+				err = oemFiles.Run(*cfg, installSpec)
+				Expect(err).Should(HaveOccurred())
+				Expect(err.Error()).Should(ContainSubstring(`"bad"`))
+
+				_, err = fs.Stat(filepath.Join(cnst.OEMDir, "good.yaml"))
+				Expect(err).ShouldNot(BeNil())
+				_, err = fs.Stat(filepath.Join(cnst.OEMDir, "bad.yaml"))
+				Expect(err).ShouldNot(BeNil())
+			},
+			Entry("a plain string", "hello"),
+			Entry("a tab in the indentation", "#cloud-config\nstages:\n\tboot:\n\t- name: x\n"),
+			Entry("stages that are not a map", "stages: [1, 2]\n"),
+		)
 	})
 })
