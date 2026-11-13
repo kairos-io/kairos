@@ -67,6 +67,9 @@ func writeStateGrubenvWhenOemEncrypted(cfg *sdkConfig.Config, vars map[string]st
 		return fmt.Errorf("could not get the %s device by label: %w", cnst.StateLabel, err)
 	}
 	// Ensure STATE is mounted
+	if err := fsutils.MkdirAll(cfg.Fs, cnst.StateDir, cnst.DirPerm); err != nil {
+		return fmt.Errorf("could not create the %s mountpoint %s: %w", cnst.StateLabel, cnst.StateDir, err)
+	}
 	_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{})
 	// Remount as RW
 	remountErr := cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "rw"})

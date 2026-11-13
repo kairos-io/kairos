@@ -830,10 +830,15 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 						},
 					})
 					ghwTest.CreateDevices()
-					Expect(fsutils.MkdirAll(fs, cnst.StateDir, os.ModeDir|os.ModePerm)).To(Succeed())
-
-					err := SelectBootEntry(config, "kairos")
+					// As on a booted system: /run starts empty, nothing has created the
+					// STATE mountpoint
+					exists, err := fsutils.Exists(fs, cnst.StateDir)
 					Expect(err).ToNot(HaveOccurred())
+					Expect(exists).To(BeFalse())
+
+					err = SelectBootEntry(config, "kairos")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(fsutils.IsDir(fs, cnst.StateDir)).To(BeTrue())
 					Expect(memLog.String()).To(ContainSubstring("writing to STATE partition's grubenv"))
 					Expect(memLog.String()).To(ContainSubstring("Successfully set next_entry in STATE grubenv"))
 					variables, err := utils.ReadPersistentVariables(filepath.Join(cnst.StateDir, cnst.GrubEnv), config)
@@ -858,7 +863,8 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 						},
 					})
 					ghwTest.CreateDevices()
-					// No StateDir in the fs, so writing the grubenv fails
+					// The grubenv path is a directory, so writing the grubenv fails
+					Expect(fsutils.MkdirAll(fs, filepath.Join(cnst.StateDir, cnst.GrubEnv), os.ModeDir|os.ModePerm)).To(Succeed())
 
 					err := SelectBootEntry(config, "kairos")
 					Expect(err).To(HaveOccurred())
@@ -880,7 +886,8 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 						},
 					})
 					ghwTest.CreateDevices()
-					// No StateDir in the fs, so writing the grubenv fails
+					// The grubenv path is a directory, so writing the grubenv fails
+					Expect(fsutils.MkdirAll(fs, filepath.Join(cnst.StateDir, cnst.GrubEnv), os.ModeDir|os.ModePerm)).To(Succeed())
 
 					Expect(SelectBootEntry(config, "kairos")).ToNot(Succeed())
 
