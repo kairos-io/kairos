@@ -368,7 +368,7 @@ func (e *TPMWithPCREncryptor) unlockPartition(partitionLabel string) error {
 		// forever and kcrypt.passphrase_fallback never got its turn.
 		out, err := utils.SH(fmt.Sprintf("/usr/lib/systemd/systemd-cryptsetup attach %s %s - tpm2-device=auto,headless=1", info.Name, info.Path))
 		if err != nil {
-			err = fmt.Errorf("TPM unlock failed: %w (output: %s)", err, out)
+			err = tpmAttachError(e.logger, partitionLabel, out, err)
 			e.logger.Logger.Warn().
 				Str("partition", partitionLabel).
 				Err(err).
@@ -393,6 +393,18 @@ func (e *TPMWithPCREncryptor) unlockPartition(partitionLabel string) error {
 		return fmt.Errorf("failed after %d attempts: %w", unlockPartitionAttempts, err)
 	}
 	return nil
+}
+
+// tpmAttachError keeps the output of a failed systemd-cryptsetup attach out
+// of the error. That output is a page of token and TPM debug lines, and in
+// the error it filled the console above the passphrase prompt. It goes to
+// the debug log instead.
+func tpmAttachError(logger sdkLogger.KairosLogger, partitionLabel, out string, err error) error {
+	logger.Logger.Debug().
+		Str("partition", partitionLabel).
+		Str("output", out).
+		Msg("systemd-cryptsetup attach output")
+	return fmt.Errorf("TPM unlock failed: %w", err)
 }
 
 func (e *TPMWithPCREncryptor) Name() string {
