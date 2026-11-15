@@ -374,6 +374,8 @@ github.com/labstack/echo/v4 v4.16.3 h1:wAzM49wiBxHpZJQ621lminvdxbwfd1Cn6KwRThKV6
 github.com/labstack/echo/v4 v4.16.3/go.mod h1:V/EQaTVHYJH92QhbQe7kFQ4mjgcjxLQQUQtAN87zZdw=
 github.com/labstack/echo/v4 v4.16.4 h1:sQ9yq/FgkY7zWZKaRIvNJAQ1ybWVJrm+z37SWI8keRY=
 github.com/labstack/echo/v4 v4.16.4/go.mod h1:V/EQaTVHYJH92QhbQe7kFQ4mjgcjxLQQUQtAN87zZdw=
+github.com/labstack/echo/v4 v4.16.5 h1:RtdOgRS+2g6ytaEFo58p4v6ZX6aFNJyiQie1O/mlWxc=
+github.com/labstack/echo/v4 v4.16.5/go.mod h1:V/EQaTVHYJH92QhbQe7kFQ4mjgcjxLQQUQtAN87zZdw=
 github.com/labstack/gommon v0.5.0 h1:6VSQ2NOzsnEJ5W6+84E0RbcaDDmgB6NIAzWCczTEe6c=
 github.com/labstack/gommon v0.5.0/go.mod h1:Rzlg7HHy1maLfzBYGg9NZcVuz1sA68HHhLjhcEllYE0=
 github.com/landlock-lsm/go-landlock v0.0.0-20241013234402-fb3ad845df46 h1:JYrMzkOqdueJj9jaAYzA+u/ki98hOgdqmFBk2wFgy0c=
