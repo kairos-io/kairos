@@ -58,6 +58,20 @@ When several approvals land within seconds, GitHub may cancel a waiting
 It runs every night and on demand, so the images appear up to a day after
 approval.
 
+## Known advisories
+
+The `vulnerability-scan` job scans the shipped binaries. An advisory of high or
+critical severity, or one whose severity the scanner does not report, fails the
+job and stops the release before anything is published. Advisories of medium or
+low severity do not. When the scan finds any, the `notify-advisories` job posts
+them to Slack (`SLACK_RELEASE_WEBHOOK`) and adds a "Known advisories" section
+to the prerelease notes, so read both before you approve. The scan only knows
+that a vulnerable module is present, not whether Kairos calls the vulnerable
+code. Before approving, edit the prerelease notes to say whether Kairos is
+affected, if you know. For an urgent advisory, bump the component and cut a new
+version instead of approving this one. The pull request trigger of
+`release-scan.yml` still fails on any advisory.
+
 ## Reject a release
 
 Reject the `promote` deployment and leave the tag and the prerelease in place.

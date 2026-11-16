@@ -133,6 +133,70 @@ jobs:
   vulnerability-scan:
     needs: [guard]
     uses: ./.github/workflows/release-scan.yml
+    with:
+      # Advisories below high severity are reported by notify-advisories and
+      # decided on by the maintainer who approves `promote`.
+      block-on: high
+
+  # Tells the maintainers about the advisories the scan found but did not
+  # block on, before they approve the release: a Slack message and a security
+  # notice in the prerelease notes, which release-notes-diff.yaml keeps when it
+  # adds the changes at publish. It never fails the run, so a Slack outage
+  # cannot hold a release back.
+  notify-advisories:
+    needs: [create-release, vulnerability-scan]
+    if: ${{ needs.vulnerability-scan.outputs.findings != '' && needs.vulnerability-scan.outputs.findings != '[]' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write  # gh release edit
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      FINDINGS: ${{ needs.vulnerability-scan.outputs.findings }}
+    steps:
+      - name: Add the security notice to the release notes
+        run: |
+          set -euo pipefail
+          header="## Known advisories"
+          gh release view "$TAG" --repo "$REPO" --json body --jq '.body // ""' > body.md
+          if grep -Fq "$header" body.md; then
+            echo "Security notice already present in the release notes."
+            exit 0
+          fi
+          {
+            cat body.md
+            echo
+            echo "$header"
+            echo
+            echo "A vulnerability scan of the binaries in this release found the advisories below. They are of medium or low severity. The scan reports a vulnerable module that is present, and does not check whether Kairos calls the vulnerable code."
+            echo
+            echo "| advisory | module | severity |"
+            echo "|---|---|---|"
+            jq -r '.[] | "| [\(.id)](https://osv.dev/\(.id)) | `\(.module)` | \(.severity) |"' <<< "$FINDINGS"
+          } > new_body.md
+          gh release edit "$TAG" --repo "$REPO" --notes-file new_body.md
+
+      - name: Post to Slack
+        env:
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          text="$(
+            echo "Release ${TAG} has known advisories below high severity. It is built and waits for approval; a note in the release notes lists them."
+            jq -r '.[] | "- \(.id) in \(.module) (\(.severity))"' <<< "$FINDINGS"
+            echo "Run: ${RUN_URL}"
+          )"
+          if [ -z "${SLACK_RELEASE_WEBHOOK:-}" ]; then
+            echo "::warning::${text}"
+            exit 0
+          fi
+          if ! curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg t "$text" '{text:$t}')" "$SLACK_RELEASE_WEBHOOK"; then
+            echo "::warning::Slack post failed"
+          fi
 
   # Dynamic k3s/k0s matrix pre-steps: query the upstream GitHub API
   # for release tags and keep the latest patch of each of the top
