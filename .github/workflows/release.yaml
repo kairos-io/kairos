@@ -721,7 +721,7 @@ jobs:
       - build-iso-k0s
       - upload-release
       - publish
-    if: ${{ failure() }}
+    if: ${{ failure() && contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     permissions: {}
     steps:
