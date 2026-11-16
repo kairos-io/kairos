@@ -72,6 +72,13 @@ affected, if you know. For an urgent advisory, bump the component and cut a new
 version instead of approving this one. The pull request trigger of
 `release-scan.yml` still fails on any advisory.
 
+## Failed release
+
+When a job of `release.yaml` fails, `notify-release-failure` posts the tag and a
+link to the run to Slack. A rejected or expired approval of `promote` does not
+trigger it. Fix the cause and re-run the failed jobs from the run, or cut a new
+version.
+
 ## Reject a release
 
 Reject the `promote` deployment and leave the tag and the prerelease in place.

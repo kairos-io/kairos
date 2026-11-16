@@ -180,6 +180,8 @@ jobs:
           gh release edit "$TAG" --repo "$REPO" --notes-file new_body.md
 
       - name: Post to Slack
+        # Runs when the step above failed, so one lost channel does not lose both.
+        if: ${{ !cancelled() }}
         env:
           SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
         run: |
@@ -587,8 +589,10 @@ jobs:
   # v4.4.0-rc1) skip this job and stay prereleases. The guard job and
   # the `if:` below together admit only a vX.Y.Z tag here.
   promote:
-    needs: [upload-release]
-    if: ${{ !contains(github.ref_name, '-') }}
+    # Waits for notify-advisories so the notice exists before anyone approves.
+    # A skipped or failed notification does not hold the release back.
+    needs: [upload-release, notify-advisories]
+    if: ${{ !cancelled() && needs.upload-release.result == 'success' && !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     environment: release
     steps:
@@ -690,3 +694,49 @@ jobs:
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: gh workflow run release-notes-diff.yaml --repo "$REPO" --ref master -f tag="$TAG"
+
+  # Tells Slack when the release run failed, so a broken release does not go
+  # unnoticed. It watches every job except promote: a rejected or expired
+  # approval fails promote on purpose and skips publish, and that is not a
+  # build failure. It never fails the run itself.
+  notify-release-failure:
+    needs:
+      - guard
+      - create-release
+      - unit-tests
+      - lint
+      - vulnerability-scan
+      - notify-advisories
+      - get-k3s-versions
+      - get-k0s-versions
+      - build-kairos
+      - build-kairos-init
+      - build-image-kairos-init
+      - build-kcrypt-challenger
+      - build-image-kcrypt-challenger
+      - build-iso
+      - build-iso-arm
+      - build-iso-k3s
+      - build-iso-k3s-arm
+      - build-iso-k0s
+      - upload-release
+      - publish
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Post to Slack
+        env:
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          text="Release ${TAG} failed. Run: ${RUN_URL}"
+          if [ -z "${SLACK_RELEASE_WEBHOOK:-}" ]; then
+            echo "::warning::${text}"
+            exit 0
+          fi
+          if ! curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg t "$text" '{text:$t}')" "$SLACK_RELEASE_WEBHOOK"; then
+            echo "::warning::Slack post failed"
+          fi

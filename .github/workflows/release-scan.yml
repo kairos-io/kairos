@@ -168,7 +168,7 @@ jobs:
               echo
               echo "| advisory | module | severity | blocking |"
               echo "|---|---|---|---|"
-              jq -r '.[] | "| `\(.id)` | `\(.module)` | \(.severity) | \(if .blocking then "yes" else "no" end) |"' findings.json
+              jq -r --arg block_on "${BLOCK_ON}" '.[] | "| `\(.id)` | `\(.module)` | \(.severity) | \(if $block_on == "high" and (.blocking | not) then "no" else "yes" end) |"' findings.json
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
           # One line, so no delimiter is needed in the output file.
