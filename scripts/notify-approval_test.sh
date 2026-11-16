@@ -54,7 +54,7 @@ else
 fi
 
 # Without a webhook nothing is posted and the text becomes a warning.
-SLACK_RELEASE_WEBHOOK= notify v4.5.2 https://gh/run/1
+SLACK_RELEASE_WEBHOOK='' notify v4.5.2 https://gh/run/1
 if [ "$status" = 0 ] && [ ! -e "$tmp/args" ] && [[ "$out" == "::warning::"*"v4.5.2"* ]]; then
   ok "warns when the webhook is not set"
 else
