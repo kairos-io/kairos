@@ -33,50 +33,86 @@ jobs:
 
       - name: Check for CVEs in standard k3s/k0s images
         id: cve-check
+        # The release run for a final tag has taken up to ~37 minutes.
+        timeout-minutes: 70
         run: |
           tag="${CURRENT_TAG}"
 
-          # Find workflow runs for this tag from both release workflows
-          workflow_runs=$(gh api "repos/${{ github.repository }}/actions/runs?event=push&per_page=100" \
-            --jq "[.workflow_runs[] | select(.head_branch == \"$tag\" and (.name | test(\"Release (AMD64|ARM)\")))]")
+          # Find the release run for this tag. Ask the release workflow for
+          # its own runs and let the API filter by ref: the repository wide
+          # run list is paged across every workflow and reaches back only a
+          # few days, and the "Release AMD64" and "Release ARM" workflows it
+          # used to match were retired with the pre-monorepo pipelines.
+          # A tag push arrives here as head_branch, so branch= selects it.
+          #
+          # The tag push and the release publish start this workflow and the
+          # release run in the same second, and the k3s/k0s jobs that carry
+          # the scan annotations are only created minutes later. Wait for the
+          # release run to complete before reading them. A tag with no
+          # release run (e.g. a manual dispatch for an old tag) gives up
+          # after a few minutes and checks code scanning alerts only.
+          now=$(date +%s)
+          no_run_deadline=$((now + 5 * 60))
+          deadline=$((now + 60 * 60))
+          while :; do
+            workflow_runs=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yaml/runs?event=push&branch=${tag}&per_page=100" \
+              --jq '[.workflow_runs[]]')
+            now=$(date +%s)
+            if [ -z "$workflow_runs" ] || [ "$workflow_runs" = "[]" ]; then
+              [ "$now" -ge "$no_run_deadline" ] && break
+              echo "No release run for tag $tag yet, retrying"
+              sleep 30
+              continue
+            fi
+            pending=$(echo "$workflow_runs" | jq '[.[] | select(.status != "completed")] | length')
+            [ "$pending" = "0" ] && break
+            if [ "$now" -ge "$deadline" ]; then
+              echo "::warning::Release run for $tag still running after 60 minutes, reading the jobs finished so far"
+              break
+            fi
+            echo "Waiting for $pending release run(s) for tag $tag to complete"
+            sleep 60
+          done
 
           if [ -z "$workflow_runs" ] || [ "$workflow_runs" = "[]" ]; then
-            echo "No matching workflow runs found for tag $tag"
-            echo "has_cve=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "No release run found for tag $tag, checking code scanning alerts only"
           fi
 
           cve_warning=""
           has_k3s_cve=false
           has_k0s_cve=false
 
-          # Check each workflow run for failed or successful jobs with CVE indicators
-          for run_id in $(echo "$workflow_runs" | jq -r '.[].id'); do
-            jobs=$(gh api "repos/${{ github.repository }}/actions/runs/${run_id}/jobs?per_page=100" --jq '.jobs')
+          # The release run is the only source for the per job annotations.
+          if [ -n "$workflow_runs" ] && [ "$workflow_runs" != "[]" ]; then
+            # Check each workflow run for failed or successful jobs with CVE indicators
+            for run_id in $(echo "$workflow_runs" | jq -r '.[].id'); do
+              jobs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" --jq '.jobs')
 
-            # Check for standard k3s jobs with security issues (jobs that have grype/trivy and are standard)
-            k3s_jobs=$(echo "$jobs" | jq -r '[.[] | select(.name | test("standard.*k3s"; "i"))]')
-            k0s_jobs=$(echo "$jobs" | jq -r '[.[] | select(.name | test("standard.*k0s"; "i"))]')
+              # Check for standard k3s jobs with security issues (jobs that have grype/trivy and are standard)
+              k3s_jobs=$(echo "$jobs" | jq -r '[.[] | select(.name | test("standard.*k3s"; "i"))]')
+              k0s_jobs=$(echo "$jobs" | jq -r '[.[] | select(.name | test("standard.*k0s"; "i"))]')
 
-            # For report-only mode, we need to check the job logs or annotations for CVE findings
-            # Since we changed to report-only, jobs will succeed but may have CVE warnings in annotations
-            for job_id in $(echo "$k3s_jobs" | jq -r '.[].id // empty'); do
-              annotations=$(gh api "repos/${{ github.repository }}/check-runs/${job_id}/annotations" 2>/dev/null || echo "[]")
-              if echo "$annotations" | jq -e '.[] | select(.annotation_level == "warning" and (.message | test("CVE|vulnerability|critical|high"; "i")))' > /dev/null 2>&1; then
-                has_k3s_cve=true
-              fi
+              # For report-only mode, we need to check the job logs or annotations for CVE findings
+              # Since we changed to report-only, jobs will succeed but may have CVE warnings in annotations
+              for job_id in $(echo "$k3s_jobs" | jq -r '.[].id // empty'); do
+                annotations=$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" 2>/dev/null || echo "[]")
+                if echo "$annotations" | jq -e '.[] | select(.annotation_level == "warning" and (.message | test("CVE|vulnerability|critical|high"; "i")))' > /dev/null 2>&1; then
+                  has_k3s_cve=true
+                fi
+              done
+
+              for job_id in $(echo "$k0s_jobs" | jq -r '.[].id // empty'); do
+                annotations=$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${job_id}/annotations" 2>/dev/null || echo "[]")
+                if echo "$annotations" | jq -e '.[] | select(.annotation_level == "warning" and (.message | test("CVE|vulnerability|critical|high"; "i")))' > /dev/null 2>&1; then
+                  has_k0s_cve=true
+                fi
+              done
             done
-
-            for job_id in $(echo "$k0s_jobs" | jq -r '.[].id // empty'); do
-              annotations=$(gh api "repos/${{ github.repository }}/check-runs/${job_id}/annotations" 2>/dev/null || echo "[]")
-              if echo "$annotations" | jq -e '.[] | select(.annotation_level == "warning" and (.message | test("CVE|vulnerability|critical|high"; "i")))' > /dev/null 2>&1; then
-                has_k0s_cve=true
-              fi
-            done
-          done
+          fi
 
           # Also check code scanning alerts for this ref
-          alerts=$(gh api "repos/${{ github.repository }}/code-scanning/alerts?ref=refs/tags/${tag}&per_page=100" 2>/dev/null || echo "[]")
+          alerts=$(gh api "repos/${GITHUB_REPOSITORY}/code-scanning/alerts?ref=refs/tags/${tag}&per_page=100" 2>/dev/null || echo "[]")
 
           if [ "$alerts" != "[]" ] && [ -n "$alerts" ]; then
             # Check for k3s related CVEs
