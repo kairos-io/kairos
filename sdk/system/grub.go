@@ -1,7 +1,9 @@
 package system
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/sdk/mounts"
 	"github.com/kairos-io/kairos/v4/sdk/state"
@@ -34,12 +36,23 @@ func setGRUBOptions(opts map[string]string) error {
 		return err
 	}
 
+	editenv := utils.FindCommand("grub2-editenv", []string{"grub2-editenv", "grub-editenv"})
+	return setGRUBEnv(opts, func(k, v string) (string, error) {
+		return utils.SH(fmt.Sprintf(`%s %s/grubenv set "%s=%s"`, editenv, mountPath, k, v))
+	})
+}
+
+// setGRUBEnv writes each option with set. It tries every option and returns
+// all failures, so a failed write fails the changeset instead of only being
+// printed, and one bad key does not hide the others.
+func setGRUBEnv(opts map[string]string, set func(k, v string) (string, error)) error {
+	var errs []error
 	for k, v := range opts {
-		out, err := utils.SH(fmt.Sprintf(`%s /tmp/oem/grubenv set "%s=%s"`, utils.FindCommand("grub2-editenv", []string{"grub2-editenv", "grub-editenv"}), k, v))
+		out, err := set(k, v)
 		if err != nil {
-			fmt.Printf("could not set boot option: %s\n", out+err.Error())
+			errs = append(errs, fmt.Errorf("could not set boot option %q: %w: %s", k, err, strings.TrimSpace(out)))
 		}
 	}
 
-	return nil
+	return errors.Join(errs...)
 }
