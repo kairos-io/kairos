@@ -120,6 +120,18 @@ ignore = true
 effectiveUntil = 2026-11-19
 reason = "upstream-fix-pending: labstack/echo/v4 v4.15.4, fixed in v4.16.1 (GHSA-9969-6676-49h5, GHSA-cxf3-9h37-7rr8, GHSA-f48p-c9v4-h7xv, GHSA-h7wr-284f-5qvc). Only in the prebuilt edgevpn v0.35.5 binary; edgevpn master has not taken the bump yet."
 
+# The prebuilt edgevpn v0.35.5 also links go.opentelemetry.io/otel/trace
+# v1.42.0. The binaries built here carry v1.47.0 (go.mod). edgevpn does not
+# link otel/sdk, where the attribute length limit lives. Drop this with the
+# section above once an edgevpn release carries otel v1.47.0 or later.
+[[PackageOverrides]]
+name = "go.opentelemetry.io/otel/trace"
+ecosystem = "Go"
+version = "1.42.0"
+ignore = true
+effectiveUntil = 2026-11-30
+reason = "upstream-fix-pending: go.opentelemetry.io/otel/trace v1.42.0, fixed in v1.47.0 (GHSA-q7gw-24fr-5p69). Only in the prebuilt edgevpn v0.35.5 binary, which does not link otel/sdk; edgevpn has not taken the bump yet."
+
 # ---------------------------------------------------------------------------
 # major-upgrade-required -- fixed only in a new major version.
 # ---------------------------------------------------------------------------
