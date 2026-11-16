@@ -133,6 +133,72 @@ jobs:
   vulnerability-scan:
     needs: [guard]
     uses: ./.github/workflows/release-scan.yml
+    with:
+      # Advisories below high severity are reported by notify-advisories and
+      # decided on by the maintainer who approves `promote`.
+      block-on: high
+
+  # Tells the maintainers about the advisories the scan found but did not
+  # block on, before they approve the release: a Slack message and a security
+  # notice in the prerelease notes, which release-notes-diff.yaml keeps when it
+  # adds the changes at publish. It never fails the run, so a Slack outage
+  # cannot hold a release back.
+  notify-advisories:
+    needs: [create-release, vulnerability-scan]
+    if: ${{ needs.vulnerability-scan.outputs.findings != '' && needs.vulnerability-scan.outputs.findings != '[]' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: write  # gh release edit
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      FINDINGS: ${{ needs.vulnerability-scan.outputs.findings }}
+    steps:
+      - name: Add the security notice to the release notes
+        run: |
+          set -euo pipefail
+          header="## Known advisories"
+          gh release view "$TAG" --repo "$REPO" --json body --jq '.body // ""' > body.md
+          if grep -Fq "$header" body.md; then
+            echo "Security notice already present in the release notes."
+            exit 0
+          fi
+          {
+            cat body.md
+            echo
+            echo "$header"
+            echo
+            echo "A vulnerability scan of the binaries in this release found the advisories below. They are of medium or low severity. The scan reports a vulnerable module that is present, and does not check whether Kairos calls the vulnerable code."
+            echo
+            echo "| advisory | module | severity |"
+            echo "|---|---|---|"
+            jq -r '.[] | "| [\(.id)](https://osv.dev/\(.id)) | `\(.module)` | \(.severity) |"' <<< "$FINDINGS"
+          } > new_body.md
+          gh release edit "$TAG" --repo "$REPO" --notes-file new_body.md
+
+      - name: Post to Slack
+        # Runs when the step above failed, so one lost channel does not lose both.
+        if: ${{ !cancelled() }}
+        env:
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          text="$(
+            echo "Release ${TAG} has known advisories below high severity. It is built and waits for approval; a note in the release notes lists them."
+            jq -r '.[] | "- \(.id) in \(.module) (\(.severity))"' <<< "$FINDINGS"
+            echo "Run: ${RUN_URL}"
+          )"
+          if [ -z "${SLACK_RELEASE_WEBHOOK:-}" ]; then
+            echo "::warning::${text}"
+            exit 0
+          fi
+          if ! curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg t "$text" '{text:$t}')" "$SLACK_RELEASE_WEBHOOK"; then
+            echo "::warning::Slack post failed"
+          fi
 
   # Dynamic k3s/k0s matrix pre-steps: query the upstream GitHub API
   # for release tags and keep the latest patch of each of the top
@@ -516,6 +582,29 @@ jobs:
       contents: write
       id-token: write
 
+  # Tells the maintainers on Slack that the release is built and waits for
+  # approval. It runs next to promote and not before it, so a failed post
+  # never keeps the release from reaching approval. It waits for
+  # notify-advisories so the advisory message comes first. Release candidates
+  # skip it, like promote.
+  notify-approval:
+    needs: [upload-release, notify-advisories]
+    if: ${{ !cancelled() && needs.upload-release.result == 'success' && !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Post to Slack
+        env:
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/notify-approval.sh "$TAG" "$RUN_URL"
+
   # Waits for a maintainer to approve the `release` environment. Until
   # then the GH Release is a prerelease and :latest points at the
   # previous release. A rejected or expired approval fails this job and
@@ -523,8 +612,10 @@ jobs:
   # v4.4.0-rc1) skip this job and stay prereleases. The guard job and
   # the `if:` below together admit only a vX.Y.Z tag here.
   promote:
-    needs: [upload-release]
-    if: ${{ !contains(github.ref_name, '-') }}
+    # Waits for notify-advisories so the notice exists before anyone approves.
+    # A skipped or failed notification does not hold the release back.
+    needs: [upload-release, notify-advisories]
+    if: ${{ !cancelled() && needs.upload-release.result == 'success' && !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     environment: release
     steps:
@@ -626,3 +717,49 @@ jobs:
           TAG: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: gh workflow run release-notes-diff.yaml --repo "$REPO" --ref master -f tag="$TAG"
+
+  # Tells Slack when the release run failed, so a broken release does not go
+  # unnoticed. It watches every job except promote: a rejected or expired
+  # approval fails promote on purpose and skips publish, and that is not a
+  # build failure. It never fails the run itself.
+  notify-release-failure:
+    needs:
+      - guard
+      - create-release
+      - unit-tests
+      - lint
+      - vulnerability-scan
+      - notify-advisories
+      - get-k3s-versions
+      - get-k0s-versions
+      - build-kairos
+      - build-kairos-init
+      - build-image-kairos-init
+      - build-kcrypt-challenger
+      - build-image-kcrypt-challenger
+      - build-iso
+      - build-iso-arm
+      - build-iso-k3s
+      - build-iso-k3s-arm
+      - build-iso-k0s
+      - upload-release
+      - publish
+    if: ${{ failure() && contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Post to Slack
+        env:
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          text="Release ${TAG} failed. Run: ${RUN_URL}"
+          if [ -z "${SLACK_RELEASE_WEBHOOK:-}" ]; then
+            echo "::warning::${text}"
+            exit 0
+          fi
+          if ! curl -fsS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg t "$text" '{text:$t}')" "$SLACK_RELEASE_WEBHOOK"; then
+            echo "::warning::Slack post failed"
+          fi

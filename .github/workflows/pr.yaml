@@ -145,7 +145,7 @@ jobs:
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
 
-  # Tests for the scripts weekly-release.yaml runs. They need only
+  # Tests for the scripts the release workflows run. They need only
   # bash, git and jq, so they do not wait for any build.
   release-scripts:
     runs-on: ubuntu-latest
@@ -158,6 +158,10 @@ jobs:
         run: scripts/release-version_test.sh
       - name: Test the green commit script
         run: scripts/green-commit_test.sh
+      - name: Test the advisory severity script
+        run: scripts/osv-findings_test.sh
+      - name: Test the approval notification script
+        run: scripts/notify-approval_test.sh
 
   # Per-PR ISO size signal against the last green master run. It is an
   # informational report and never gates the PR. This run builds no UKI
