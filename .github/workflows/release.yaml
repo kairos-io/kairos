@@ -582,6 +582,29 @@ jobs:
       contents: write
       id-token: write
 
+  # Tells the maintainers on Slack that the release is built and waits for
+  # approval. It runs next to promote and not before it, so a failed post
+  # never keeps the release from reaching approval. It waits for
+  # notify-advisories so the advisory message comes first. Release candidates
+  # skip it, like promote.
+  notify-approval:
+    needs: [upload-release, notify-advisories]
+    if: ${{ !cancelled() && needs.upload-release.result == 'success' && !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Post to Slack
+        env:
+          SLACK_RELEASE_WEBHOOK: ${{ secrets.SLACK_RELEASE_WEBHOOK }}
+          TAG: ${{ github.ref_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/notify-approval.sh "$TAG" "$RUN_URL"
+
   # Waits for a maintainer to approve the `release` environment. Until
   # then the GH Release is a prerelease and :latest points at the
   # previous release. A rejected or expired approval fails this job and

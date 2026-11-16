@@ -38,10 +38,11 @@ release until a maintainer approves the new one.
 
 ## Approve a release
 
-1. Open the `release` run of the new tag under Actions.
-2. When the build jobs are done, the `promote` job waits for approval. Click
-   "Review deployments", tick `release`, and approve. The reviewers are the
-   maintainers team.
+1. Open the `release` run of the new tag under Actions. When the build is
+   done, `release.yaml` posts to Slack that the release waits for approval and
+   links to the run.
+2. The `promote` job waits for approval. Click "Review deployments", tick
+   `release`, and approve. The reviewers are the maintainers team.
 
 The `publish` job then marks the release as a full release. When the tag is
 the highest among the final releases plus itself, it also points `:latest` of
