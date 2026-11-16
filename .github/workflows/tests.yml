@@ -328,7 +328,7 @@ jobs:
           export RAW_IMAGE=$(find $PWD/build -name *.raw)
           go run github.com/onsi/ginkgo/v2/ginkgo run --label-filter "raw-bootable" -v --fail-fast -r ./e2e
   test-bootable-raw-efi-boot-active:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: build-image
     strategy:
       fail-fast: false
@@ -350,7 +350,7 @@ jobs:
           fetch-depth: 0
       - name: Install deps
         run: |
-          sudo apt-get update && sudo apt-get install -y ovmf libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev libpcsclite-dev
+          sudo apt-get update && sudo apt-get install -y ovmf libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev libpcsclite-dev
       - name: Grant access to /dev/kvm
         run: |
           echo "KERNEL==\"kvm\", GROUP=\"$(id -gn)\", MODE=\"0660\", OPTIONS+=\"static_node=kvm\"" | sudo tee /etc/udev/rules.d/99-kvm-access.rules

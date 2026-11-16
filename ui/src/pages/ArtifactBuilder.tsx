@@ -267,7 +267,7 @@ const UBUNTU_VERSION = "26.04";
 // renovate: datasource=docker depName=fedora
 const FEDORA_VERSION = "44";
 // renovate: datasource=docker depName=opensuse/leap
-const OPENSUSE_LEAP_VERSION = "15.6";
+const OPENSUSE_LEAP_VERSION = "16.1";
 // renovate: datasource=docker depName=debian
 const DEBIAN_VERSION = "13";
 // renovate: datasource=docker depName=alpine
@@ -403,7 +403,7 @@ const TEMPLATES: BuildTemplate[] = [
     },
   },
   {
-    name: "Fedora 40",
+    name: `Fedora ${FEDORA_VERSION}`,
     description: "Fedora base, auto-kairosified, ISO",
     values: {
       baseImage: `fedora:${FEDORA_VERSION}`,
@@ -415,7 +415,7 @@ const TEMPLATES: BuildTemplate[] = [
     },
   },
   {
-    name: "openSUSE Leap 15.6",
+    name: `openSUSE Leap ${OPENSUSE_LEAP_VERSION}`,
     description: "openSUSE Leap base, auto-kairosified, ISO",
     values: {
       baseImage: `opensuse/leap:${OPENSUSE_LEAP_VERSION}`,
