@@ -446,7 +446,9 @@ func (a *batchAdvance) gone(row *store.BatchNode) bool {
 // A running row times out only when its node is also gone, because a node
 // that still sends heartbeats can be busy with a long command. Its command is
 // canceled if it was never delivered; a delivered one is left to report on
-// its own if the node comes back.
+// its own if the node comes back. Once the batch is stopped, a running row
+// times out at its deadline even while its node sends heartbeats, so a
+// command that never reports does not hold the node forever.
 //
 // A rebooting row times out at its deadline, and the upgrade or reset of its
 // node is marked failed. The node's recorded reboot stays in place, so
@@ -467,6 +469,8 @@ func (a *batchAdvance) timeOut(tx *gorm.DB) error {
 			if row.CommandID != nil {
 				commandIDs = append(commandIDs, *row.CommandID)
 			}
+		case row.State == store.BatchNodeRunning && a.batch.Phase == store.BatchStopped:
+			a.settle(row, store.BatchNodeTimedOut, "did not finish its command after the batch stopped")
 		case row.State == store.BatchNodeRebooting:
 			a.settle(row, store.BatchNodeTimedOut, message)
 			nodeIDs = append(nodeIDs, row.NodeID)
@@ -522,8 +526,9 @@ func (a *batchAdvance) stopOnFailure(tx *gorm.DB) error {
 // stop moves the batch to stopped. It cancels the waiting rows, and the
 // running rows whose command was never delivered along with that command, so
 // no node starts the command after the batch stopped. Rows whose command
-// reached the agent, and rebooting rows, keep going and settle on their own.
-// The rows it changes are written by save.
+// reached the agent, and rebooting rows, keep going and settle on their own;
+// a running row gets at least the batch's timeout from now to report before
+// timeOut settles it. The rows it changes are written by save.
 func (a *batchAdvance) stop(tx *gorm.DB, reason string, byNodeID *string) error {
 	b := a.batch
 	if err := tx.Model(&store.CommandBatch{}).Where("id = ?", b.ID).Updates(map[string]any{
@@ -550,10 +555,15 @@ func (a *batchAdvance) stop(tx *gorm.DB, reason string, byNodeID *string) error 
 	if err != nil {
 		return err
 	}
+	grace := a.now.Add(a.rebootTimeout())
 	for _, row := range a.rows {
 		undelivered := row.State == store.BatchNodeRunning && row.CommandID != nil && canceled[*row.CommandID]
-		if row.State == store.BatchNodeWaiting || undelivered {
+		switch {
+		case row.State == store.BatchNodeWaiting || undelivered:
 			a.settle(row, store.BatchNodeCanceled, batchStoppedMessage)
+		case row.State == store.BatchNodeRunning && (row.Deadline == nil || row.Deadline.Before(grace)):
+			row.Deadline = &grace
+			a.changed[row] = true
 		}
 	}
 	return nil
