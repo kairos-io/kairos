@@ -325,6 +325,21 @@ func TestStartForceFlagIsDeprecatedNoOp(t *testing.T) {
 	}
 }
 
+func TestSysextEnableDisableBootStateFlagUsage(t *testing.T) {
+	for _, verb := range []string{"Enable", "Disable"} {
+		command := findCommand(t, "sysext", strings.ToLower(verb))
+		for _, name := range []string{"recovery", "common"} {
+			flag := command.Flags().Lookup(name)
+			if flag == nil {
+				t.Fatalf("sysext %s has no --%s flag", command.Name(), name)
+			}
+			if !strings.HasPrefix(flag.Usage, verb) || strings.Contains(flag.Usage, "List") {
+				t.Fatalf("sysext %s --%s usage = %q, want it to start with %q", command.Name(), name, flag.Usage, verb)
+			}
+		}
+	}
+}
+
 // interactive-install must still install unattended by default: the whole
 // point of the command reading install.auto is that an ISO booted with an
 // autoinstall datasource does not stop at a TUI with nobody there to answer

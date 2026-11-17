@@ -1712,8 +1712,8 @@ func sysextConfextCommands(extType string) []*cobra.Command {
 	enableFlags.add(enable.Flags(),
 		"Enable the system extension for the active boot entry",
 		"Enable the system extension for the passive boot entry",
-		"List the system extensions for the recovery boot entry",
-		"List the system extensions for the common boot entry (applies to all boot states)")
+		"Enable the system extension for the recovery boot entry",
+		"Enable the system extension for the common boot entry (applies to all boot states)")
 	enable.Flags().BoolVar(&enableNow, "now", false, "Enable the system extension now and reload systemd-sysext")
 
 	var disableFlags bootStateFlags
@@ -1759,8 +1759,8 @@ func sysextConfextCommands(extType string) []*cobra.Command {
 	disableFlags.add(disable.Flags(),
 		"Disable the system extension for the active boot entry",
 		"Disable the system extension for the passive boot entry",
-		"List the system extensions for the recovery boot entry",
-		"List the system extensions for the common boot entry (applies to all boot states)")
+		"Disable the system extension for the recovery boot entry",
+		"Disable the system extension for the common boot entry (applies to all boot states)")
 	disable.Flags().BoolVar(&disableNow, "now", false, "Disable the system extension now and reload systemd-sysext")
 
 	var (
