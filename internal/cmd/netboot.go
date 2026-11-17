@@ -10,9 +10,12 @@ import (
 )
 
 var NetBootCmd = cli.Command{
-	Name:      "netboot",
-	Aliases:   []string{"nb"},
-	Usage:     "Extract artifacts for netboot from a given ISO",
+	Name:    "netboot",
+	Aliases: []string{"nb"},
+	Usage:   "Extract artifacts for netboot from a given ISO",
+	Description: `Extracts the squashfs, kernel and initrd from the ISO, plus the livecd grub
+config as <prefix>-grub.cfg when the ISO has one. Pass that file to start-pixie
+with --grub-cfg to netboot with the same kernel cmdline as the ISO.`,
 	ArgsUsage: "<iso-file> <output-dir> <output-artifact-prefix>",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{

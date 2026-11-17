@@ -231,7 +231,13 @@ func (m *Manager) Start(artifactsDir, artifactID string) error {
 		cloudConfig = cfgPath
 	}
 
-	return m.StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kernel)
+	// The build leaves the livecd grub config next to the three artifacts
+	// above, and the netboot cmdline is taken from it so a netbooted node
+	// boots with the ISO's options. Optional, like the cloud-config: an ISO
+	// without a grub config gets none extracted. See kairos-io/kairos#2573.
+	grubCfg := filepath.Join(netbootDir, "kairos-grub.cfg")
+
+	return m.StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kernel, grubCfg)
 }
 
 // StartWithPaths launches the netboot server from already-resolved file
@@ -240,7 +246,12 @@ func (m *Manager) Start(artifactsDir, artifactID string) error {
 // real artifact store ID. Exported so a caller with its own paths in hand
 // (deployer/steps.go's StepStartNetboot, via WithManager/FromContext) can
 // still register with this Manager's shared state -- see WithManager's doc.
-func (m *Manager) StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kernel string) error {
+//
+// grubCfg is the livecd grub config the netboot cmdline is taken from. It is
+// optional, and a path that is not on disk is dropped rather than passed on:
+// StepStartNetboot hands over its expected location unconditionally, and
+// ExtractNetboot deletes that file when the ISO carries no grub config.
+func (m *Manager) StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kernel, grubCfg string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -248,9 +259,11 @@ func (m *Manager) StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kern
 		return ErrAlreadyRunning
 	}
 
-	// AuroraBoot start-pixie args: <cloud-config> <squashfs> <address> <port> <initrd> <kernel>
-	// cloud-config may be empty if the artifact was built with none attached.
-	cmd := exec.Command("auroraboot", "start-pixie", cloudConfig, squashfs, m.address, m.port, initrd, kernel)
+	if grubCfg != "" && !fileExists(grubCfg) {
+		grubCfg = ""
+	}
+
+	cmd := exec.Command("auroraboot", startPixieArgs(cloudConfig, squashfs, m.address, m.port, initrd, kernel, grubCfg)...)
 	// A fresh session starts with a clean log: the previous run's output (if
 	// any) is no longer relevant to debugging this one.
 	m.logBuf.Reset()
@@ -328,4 +341,24 @@ func (m *Manager) GetLogs() string {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// startPixieArgs builds the argv for the `auroraboot start-pixie` subprocess:
+//
+//	start-pixie [--grub-cfg <path>] <cloud-config> <squashfs> <address> <port> <initrd> <kernel>
+//
+// cloud-config may be empty, and keeps its position when it is, so the
+// squashfs does not slide into its slot.
+//
+// --grub-cfg goes before the positional arguments, not after. urfave/cli v2
+// stops parsing flags at the first positional, so a flag appended at the end
+// is accepted and silently ignored, and the netboot cmdline then loses the
+// ISO's options without saying so. See kairos-io/kairos#2573.
+func startPixieArgs(cloudConfig, squashfs, address, port, initrd, kernel, grubCfg string) []string {
+	args := []string{"start-pixie"}
+	if grubCfg != "" {
+		args = append(args, "--grub-cfg", grubCfg)
+	}
+
+	return append(args, cloudConfig, squashfs, address, port, initrd, kernel)
 }

@@ -269,7 +269,7 @@ var _ = Describe("netbootCmdline", func() {
 	squashfs := func() string { return filepath.Join(dir, "kairos.squashfs") }
 
 	It("appends the bundled extensions to the default cmdline", func() {
-		line, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{})
+		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).To(HavePrefix(`rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "` + squashfs() + `" }}`))
@@ -280,7 +280,7 @@ var _ = Describe("netbootCmdline", func() {
 	// A configured cmdline replaces the default boot options; it does not mean
 	// the extensions this build bundled should be dropped.
 	It("appends them to a configured cmdline too", func() {
-		line, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{Cmdline: "console=ttyS0 quiet"})
+		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{Cmdline: "console=ttyS0 quiet"})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).To(ContainSubstring("console=ttyS0 quiet"))
@@ -290,7 +290,7 @@ var _ = Describe("netbootCmdline", func() {
 	It("leaves the cmdline untouched when nothing is bundled", func() {
 		empty := GinkgoT().TempDir()
 
-		line, err := netbootCmdline(filepath.Join(empty, "kairos.squashfs"), "/config.yaml", schema.NetBoot{})
+		line, err := netbootCmdline(filepath.Join(empty, "kairos.squashfs"), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).NotTo(ContainSubstring("kairos.extensions"))
@@ -303,7 +303,7 @@ var _ = Describe("netbootCmdline", func() {
 		Expect(os.WriteFile(filepath.Join(dir, "extensions.yaml"),
 			[]byte(declaration("/run/initramfs/live/100%.sysext.raw")), 0o644)).To(Succeed())
 
-		line, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{})
+		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).To(HaveSuffix(`kairos.extensions={{ ID "` + filepath.Join(dir, "100%.sysext.raw") + `" }}`))
@@ -313,7 +313,7 @@ var _ = Describe("netbootCmdline", func() {
 	It("fails rather than serving a tree that contradicts its declaration", func() {
 		Expect(os.Remove(filepath.Join(dir, "work.sysext.raw"))).To(Succeed())
 
-		_, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{})
+		_, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("work.sysext.raw"))
 	})
@@ -322,7 +322,7 @@ var _ = Describe("netbootCmdline", func() {
 	// 52_installer.yaml writes no installer unit and nothing else on a
 	// netbooted node runs the install. See kairos-io/kairos#5373.
 	It("asks for the installer", func() {
-		line, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{})
+		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).To(ContainSubstring(" install-mode-interactive "))
@@ -335,7 +335,7 @@ var _ = Describe("netbootCmdline", func() {
 	// install-mode-interactive, so the assertion is space-delimited the same
 	// way the kairos stage guard is.
 	It("does not ask for the unattended installer", func() {
-		line, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{})
+		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).ToNot(MatchRegexp(`(^| )install-mode( |$)`))
@@ -345,7 +345,7 @@ var _ = Describe("netbootCmdline", func() {
 	// moved into immucore (kairos-io/kairos#5464), and starts nothing now. The
 	// pairing flow it stood for is offered by the interactive installer.
 	It("does not carry the legacy pairing keyword", func() {
-		line, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{})
+		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).NotTo(ContainSubstring("nodepair.enable"))
@@ -355,7 +355,7 @@ var _ = Describe("netbootCmdline", func() {
 	// writes /run/cos/live_mode when it says LiveCD. The install keyword on
 	// its own would not be enough.
 	It("still marks the boot as a netboot", func() {
-		line, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{})
+		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).To(ContainSubstring(" netboot "))
@@ -365,7 +365,7 @@ var _ = Describe("netbootCmdline", func() {
 	// install itself, so the default boot options must not survive underneath
 	// it. The bundled extensions are a separate matter and are still appended.
 	It("drops the installer keyword when a cmdline is configured", func() {
-		line, err := netbootCmdline(squashfs(), "/config.yaml", schema.NetBoot{Cmdline: "kairos.ram console=ttyS0"})
+		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{Cmdline: "kairos.ram console=ttyS0"})
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(line).To(ContainSubstring("kairos.ram console=ttyS0"))

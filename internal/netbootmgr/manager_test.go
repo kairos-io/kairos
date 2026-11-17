@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWithManagerRoundTrips(t *testing.T) {
@@ -255,6 +256,7 @@ func TestStartWithPathsSharesStateWithStart(t *testing.T) {
 		filepath.Join(netbootDir, "kairos.squashfs"),
 		filepath.Join(netbootDir, "kairos-initrd"),
 		filepath.Join(netbootDir, "kairos-kernel"),
+		"", // no livecd grub config
 	)
 	if err != nil {
 		t.Fatalf("StartWithPaths: %v", err)
@@ -272,7 +274,142 @@ func TestStartWithPathsSharesStateWithStart(t *testing.T) {
 	// Same guard Start has: a second start while one is already running is
 	// rejected, not queued or silently collided with -- this is the bug that
 	// prompted StartWithPaths to exist, reproduced directly.
-	if err := m.StartWithPaths(artifactID, "", "x", "y", "z"); !errors.Is(err, ErrAlreadyRunning) {
+	if err := m.StartWithPaths(artifactID, "", "x", "y", "z", ""); !errors.Is(err, ErrAlreadyRunning) {
 		t.Errorf("StartWithPaths while already running: got %v, want ErrAlreadyRunning", err)
 	}
+}
+
+// TestStartPixieArgsPutsGrubCfgBeforeThePositionals is the QA finding on
+// kairos-io/kairos#2573: urfave/cli v2 stops parsing flags at the first
+// positional argument, so a --grub-cfg appended after them is accepted and
+// ignored. The netboot cmdline then silently loses the ISO's options.
+func TestStartPixieArgsPutsGrubCfgBeforeThePositionals(t *testing.T) {
+	args := startPixieArgs("config.yaml", "kairos.squashfs", "0.0.0.0", "8090", "kairos-initrd", "kairos-kernel", "kairos-grub.cfg")
+
+	want := []string{
+		"start-pixie",
+		"--grub-cfg", "kairos-grub.cfg",
+		"config.yaml", "kairos.squashfs", "0.0.0.0", "8090", "kairos-initrd", "kairos-kernel",
+	}
+	if len(args) != len(want) {
+		t.Fatalf("args = %q, want %q", args, want)
+	}
+	for i := range want {
+		if args[i] != want[i] {
+			t.Fatalf("args = %q, want %q", args, want)
+		}
+	}
+}
+
+func TestStartPixieArgsOmitsGrubCfgWhenThereIsNone(t *testing.T) {
+	args := startPixieArgs("", "kairos.squashfs", "0.0.0.0", "8090", "kairos-initrd", "kairos-kernel", "")
+
+	for _, a := range args {
+		if a == "--grub-cfg" {
+			t.Fatalf("args = %q, want no --grub-cfg when the path is empty", args)
+		}
+	}
+	// The empty cloud-config still has to hold its position, or squashfs
+	// lands in the cloud-config slot.
+	if args[1] != "" || args[2] != "kairos.squashfs" {
+		t.Errorf("args = %q, want an empty cloud-config in position 1", args)
+	}
+}
+
+// TestStartPassesTheExtractedGrubCfg covers the web UI path of the #2573 QA
+// failure: the build writes netboot/kairos-grub.cfg, but the netboot server
+// was started without --grub-cfg, so a dashboard netboot still booted the
+// hardcoded cmdline.
+func TestStartPassesTheExtractedGrubCfg(t *testing.T) {
+	recorded := stubAurorabootRecordingArgs(t)
+	artifactsDir, artifactID := fakeNetbootArtifacts(t)
+	grubCfg := filepath.Join(artifactsDir, artifactID, "netboot", "kairos-grub.cfg")
+	if err := os.WriteFile(grubCfg, []byte("menuentry {}"), 0644); err != nil {
+		t.Fatalf("write grub cfg: %v", err)
+	}
+
+	m := NewManager("", nil)
+	if err := m.Start(artifactsDir, artifactID); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = m.Stop() }()
+
+	got := readRecordedArgs(t, recorded)
+	if !strings.Contains(got, "--grub-cfg "+grubCfg) {
+		t.Errorf("start-pixie args = %q, want --grub-cfg %s", got, grubCfg)
+	}
+}
+
+func TestStartOmitsGrubCfgWhenTheIsoHadNone(t *testing.T) {
+	recorded := stubAurorabootRecordingArgs(t)
+	artifactsDir, artifactID := fakeNetbootArtifacts(t)
+
+	m := NewManager("", nil)
+	if err := m.Start(artifactsDir, artifactID); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer func() { _ = m.Stop() }()
+
+	got := readRecordedArgs(t, recorded)
+	if strings.Contains(got, "--grub-cfg") {
+		t.Errorf("start-pixie args = %q, want no --grub-cfg when the ISO had no grub config", got)
+	}
+}
+
+// TestStartWithPathsDropsAGrubCfgThatIsNotThere keeps the deployer honest:
+// StepStartNetboot hands over netbootGrubCfgFile() unconditionally, and
+// ExtractNetboot deletes that file when the ISO has no grub config.
+func TestStartWithPathsDropsAGrubCfgThatIsNotThere(t *testing.T) {
+	recorded := stubAurorabootRecordingArgs(t)
+	artifactsDir, artifactID := fakeNetbootArtifacts(t)
+	netbootDir := filepath.Join(artifactsDir, artifactID, "netboot")
+
+	m := NewManager("", nil)
+	err := m.StartWithPaths(
+		artifactID,
+		"",
+		filepath.Join(netbootDir, "kairos.squashfs"),
+		filepath.Join(netbootDir, "kairos-initrd"),
+		filepath.Join(netbootDir, "kairos-kernel"),
+		filepath.Join(netbootDir, "kairos-grub.cfg"),
+	)
+	if err != nil {
+		t.Fatalf("StartWithPaths: %v", err)
+	}
+	defer func() { _ = m.Stop() }()
+
+	got := readRecordedArgs(t, recorded)
+	if strings.Contains(got, "--grub-cfg") {
+		t.Errorf("start-pixie args = %q, want no --grub-cfg for a path that does not exist", got)
+	}
+}
+
+// stubAurorabootRecordingArgs is stubAuroraboot plus a record of the argv it
+// was called with, so a test can assert what reached the subprocess rather
+// than only what the arg builder returned.
+func stubAurorabootRecordingArgs(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	recorded := filepath.Join(dir, "args")
+	stub := filepath.Join(dir, "auroraboot")
+	script := "#!/bin/sh\nprintf '%s ' \"$@\" > " + recorded + "\nsleep 60\n"
+	if err := os.WriteFile(stub, []byte(script), 0755); err != nil {
+		t.Fatalf("write stub: %v", err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return recorded
+}
+
+// readRecordedArgs waits for the stub to have written its argv. The Manager
+// returns as soon as cmd.Start succeeds, so the child may not have run yet.
+func readRecordedArgs(t *testing.T, path string) string {
+	t.Helper()
+	for i := 0; i < 200; i++ {
+		if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
+			return string(b)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("stub never recorded its arguments at %s", path)
+	return ""
 }
