@@ -988,10 +988,15 @@ func (b *Builder) Cancel(_ context.Context, id string) error {
 
 	bs.cancel()
 
-	if bs.status.Phase == builder.BuildPending || bs.status.Phase == builder.BuildBuilding {
-		bs.status.Phase = builder.BuildError
-		bs.status.Message = "cancelled"
+	// A finished build stays in b.builds. Its phase and its row are final,
+	// so a cancel that races completion must not turn a Ready artifact into
+	// an Error one that "Clear failed" would then delete.
+	if bs.status.Phase != builder.BuildPending && bs.status.Phase != builder.BuildBuilding {
+		return nil
 	}
+
+	bs.status.Phase = builder.BuildError
+	bs.status.Message = "cancelled"
 
 	// Update DB if store is available.
 	if b.store != nil {

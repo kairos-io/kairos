@@ -208,3 +208,39 @@ var _ = Describe("AuroraBoot Builder record persistence of catalog extensions", 
 		Expect(rec.ExtensionsCatalogs).To(Equal([]string{"https://example.com/releases.json"}))
 	})
 })
+
+var _ = Describe("AuroraBoot Builder Cancel of a finished build", func() {
+	// A finished build stays in the builder's map, so a cancel that races
+	// completion, or any API call to cancel, used to flip its stored row to
+	// Error. "Clear failed" then deleted the good artifact
+	// (kairos-io/kairos#5873).
+	It("leaves a Ready row alone", func() {
+		s := newRecStore()
+		b := auroraboot.New(GinkgoT().TempDir(), noopDeploy, s).WithKairosifyFunc(noopKairosify)
+
+		_, err := b.Build(context.Background(), builder.BuildOptions{
+			ID:        "ready-1",
+			BaseImage: "quay.io/kairos/hadron:latest",
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(func() string {
+			r, err := s.GetByID(context.Background(), "ready-1")
+			if err != nil {
+				return ""
+			}
+			return r.Phase
+		}, 10*time.Second).Should(Equal(store.ArtifactReady))
+
+		Expect(b.Cancel(context.Background(), "ready-1")).To(Succeed())
+
+		rec, err := s.GetByID(context.Background(), "ready-1")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rec.Phase).To(Equal(store.ArtifactReady))
+		Expect(rec.Message).NotTo(Equal("cancelled"))
+
+		st, err := b.Status(context.Background(), "ready-1")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(st.Phase).To(Equal(builder.BuildReady))
+	})
+})
