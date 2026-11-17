@@ -6,8 +6,8 @@
 # parsing.
 [[IgnoredVulns]]
 id = "GO-2026-5298"
-ignoreUntil = 2026-11-17
-reason = "Transitive go-attestation; OSV lists no patched release (Fixed in N/A) as of 2026-08-17. TPM attestation parsing in upstream deps only. Re-evaluate before expiry."
+ignoreUntil = 2027-02-17
+reason = "Transitive go-attestation; OSV lists no patched release (Fixed in N/A) as of 2026-11-17. TPM attestation parsing in upstream deps only. Re-evaluate before expiry."
 
 # golang.org/x/crypto/openpgp is unmaintained by design, so OSV will never list a
 # patched release. Only dropping the openpgp dependency clears this, which is an
