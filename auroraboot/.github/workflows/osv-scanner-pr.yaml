@@ -1,0 +1,47 @@
+name: OSV-Scanner PR Scan
+
+# Change "main" to your default branch if you use a different name, i.e. "master"
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  merge_group:
+    branches: [main]
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  # Require writing security events to upload SARIF file to security tab
+  security-events: write
+  # Only need to read contents and actions
+  contents: read
+  actions: read
+
+jobs:
+  # A pull request is scanned against its own base, so the check only goes red
+  # for an advisory the pull request itself introduces. An advisory published
+  # against code already on main is in both scans and cancels out.
+  scan-pr:
+    if: ${{ github.event_name == 'pull_request' }}
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@v2.7.1"
+    with:
+      # Apply ignores (e.g. unfixed Moby client CVEs) to all scanned manifests under ./
+      scan-args: |-
+        --config=./osv-scanner.toml
+        -r
+        ./
+
+  # main, the merge queue and the weekly run carry the whole baseline, so an
+  # advisory published against merged code surfaces here rather than on the
+  # next unrelated pull request. The diff scan cannot serve the merge queue:
+  # it reads GITHUB_BASE_REF, which GitHub sets for pull_request only.
+  scan-baseline:
+    if: ${{ github.event_name != 'pull_request' }}
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.7.1"
+    with:
+      # Apply ignores (e.g. unfixed Moby client CVEs) to all scanned manifests under ./
+      scan-args: |-
+        --config=./osv-scanner.toml
+        -r
+        ./

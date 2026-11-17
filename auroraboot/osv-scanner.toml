@@ -1,0 +1,39 @@
+# OSV-Scanner configuration (see https://google.github.io/osv-scanner/configuration/)
+
+# Transitive via kairos-agent/sdk and sbctl (TPM attestation). OSV still lists
+# "Fixed in N/A" for every go-attestation release, including the current v0.6.4,
+# so a version bump cannot clear this. AuroraBoot does not expose attestation
+# parsing.
+[[IgnoredVulns]]
+id = "GO-2026-5298"
+ignoreUntil = 2027-02-17
+reason = "Transitive go-attestation; OSV lists no patched release (Fixed in N/A) as of 2026-11-17. TPM attestation parsing in upstream deps only. Re-evaluate before expiry."
+
+# Echo v4 trusts X-Forwarded-For / X-Real-IP in RealIP() when Echo#IPExtractor
+# is unset. The fix is only in echo v5 (5.1.0), there is no v4 release with it.
+# Not reachable: pkg/server sets Echo#IPExtractor to the TCP peer, or to
+# X-Forwarded-For from --trusted-proxy ranges only, so RealIP() never takes a
+# client supplied header (kairos-io/kairos#5763). Short expiry on purpose.
+[[IgnoredVulns]]
+id = "GHSA-246p-cpwv-v3jq"
+ignoreUntil = 2026-11-28
+reason = "Echo v4 RealIP trusts X-Forwarded-For when no IPExtractor is set; fixed only in echo v5. AuroraBoot sets Echo#IPExtractor (kairos-io/kairos#5763), so it is not reachable."
+
+# Echo's reverse proxy middleware forwards a client supplied X-Real-IP
+# upstream. Fixed only in echo v5 (5.4.0). AuroraBoot does not use
+# middleware.Proxy or ProxyWithConfig, so the vulnerable code is not reached.
+[[IgnoredVulns]]
+id = "GHSA-99jh-6h7p-pp36"
+ignoreUntil = 2026-11-28
+reason = "Echo v4 proxy middleware forwards client X-Real-IP; fixed only in echo v5. AuroraBoot does not use middleware.Proxy, so it is not reachable. Re-evaluate before expiry."
+
+# minimatch globparts amplification DoS. Every release below 11.0.1 is
+# affected, but eslint, @eslint/config-array and @typescript-eslint pin it
+# to ^10, so no update they accept clears it. It is a dev dependency of the
+# UI lint toolchain only (ui/package-lock.json, "dev": true): the globs come
+# from our own eslint config, not from users, and it is not in the built UI.
+# Drop this once eslint accepts minimatch 11.
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-11-30
+reason = "minimatch below 11.0.1 globparts DoS; eslint and typescript-eslint pin ^10, so no compatible fix. Dev-only lint dependency with repo-controlled globs, not shipped. Re-evaluate before expiry."

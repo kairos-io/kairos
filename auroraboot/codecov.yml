@@ -1,0 +1,18 @@
+# Codecov's out-of-the-box `project` status compares against the base commit
+# with a 0% threshold, so a pull request fails it for a coverage drop of
+# -0.01%. Most of AuroraBoot is code a unit test cannot reach: privileged
+# port binds, loop devices, container builds, real QEMU boots. A normal
+# change therefore lands a handful of uncoverable lines and turns the check
+# red without regressing anything, which is why 7 of the last 16 pull
+# requests to report a `project` status failed it on drops between 0.01% and
+# 0.13%.
+#
+# `patch` keeps its defaults: coverage of the diff itself is the number that
+# says something about the change, and it already passes on those same pull
+# requests.
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%

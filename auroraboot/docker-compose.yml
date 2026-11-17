@@ -1,0 +1,16 @@
+services:
+  auroraboot:
+    build: .
+    command: ["web", "--data-dir", "/data", "--listen", ":8080"]
+    ports:
+      - "${PORT:-9099}:8080"
+    volumes:
+      - auroraboot-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - AURORABOOT_URL=${AURORABOOT_URL:-}
+      - AURORABOOT_ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - AURORABOOT_REG_TOKEN=${REGISTRATION_TOKEN:-}
+
+volumes:
+  auroraboot-data:
