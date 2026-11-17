@@ -1,0 +1,41 @@
+#!/bin/sh
+# Run a command that reads the network, and try again if it fails.
+#
+# Every fetch in the image build used to run once. One Fedora mirror that
+# answers 404 for a few minutes, or one zip that proxy.golang.org drops
+# mid-stream, ended the whole build, and nothing re-ran it: the red stayed on
+# the branch until somebody pushed again. See kairos-io/kairos#5565.
+#
+# The retry is deliberately small. It is there for a request that fails and
+# would succeed a moment later, not to paper over a package that is really
+# missing: a command that is wrong still fails, just later.
+#
+# RETRY_ATTEMPTS and RETRY_DELAY are read from the environment so a stage can
+# tune them without editing every call site. The delay doubles after each
+# failed attempt.
+set -eu
+
+attempts="${RETRY_ATTEMPTS:-3}"
+delay="${RETRY_DELAY:-15}"
+
+if [ "$#" -eq 0 ]; then
+  echo "retry: no command given" >&2
+  exit 2
+fi
+
+attempt=1
+while :; do
+  status=0
+  "$@" || status=$?
+  if [ "$status" -eq 0 ]; then
+    exit 0
+  fi
+  if [ "$attempt" -ge "$attempts" ]; then
+    echo "retry: '$*' failed $attempt time(s), giving up" >&2
+    exit "$status"
+  fi
+  echo "retry: '$*' failed (attempt $attempt of $attempts), waiting ${delay}s" >&2
+  sleep "$delay"
+  attempt=$((attempt + 1))
+  delay=$((delay * 2))
+done
