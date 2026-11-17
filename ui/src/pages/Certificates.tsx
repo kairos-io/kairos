@@ -100,8 +100,8 @@ export function Certificates() {
       await generateSecureBootKeys(name);
       setName("");
       fetchKeySets();
-    } catch {
-      // ignore
+    } catch (err) {
+      toast(`Generate failed: ${(err as Error).message}`, "error");
     } finally {
       setGenerating(false);
     }
@@ -114,8 +114,8 @@ export function Certificates() {
         try {
           await deleteSecureBootKeySet(id);
           fetchKeySets();
-        } catch {
-          // ignore
+        } catch (err) {
+          toast(`Remove failed: ${(err as Error).message}`, "error");
         }
       },
     });
