@@ -53,7 +53,7 @@ type KairosifyFunc func(ctx context.Context, image string, opts builder.BuildOpt
 // echoed to logSink before we return so the log pane surfaces them, not
 // only the artifact record's message field.
 func DefaultDeployerFunc(ctx context.Context, config schema.Config, artifact schema.ReleaseArtifact, outputDir string, logSink io.Writer) error {
-	d := deployer.NewDeployer(config, artifact, herd.EnableInit)
+	d := NewDeployer(config, artifact)
 	if logSink != nil {
 		d.Log = teeKairosLogger(d.Log, logSink)
 	}
@@ -73,6 +73,16 @@ func DefaultDeployerFunc(ctx context.Context, config schema.Config, artifact sch
 		return fmt.Errorf("deployer errors: %w", err)
 	}
 	return nil
+}
+
+// NewDeployer creates the deployer a web build runs. CollectOrphans makes Run
+// wait for background steps such as start-netboot, so an error they return
+// (netbootmgr.ErrAlreadyRunning while an earlier build is still served)
+// reaches CollectErrors instead of racing it. Web builds never start the
+// long-running HTTP server, and the netboot manager returns once pixiecore
+// is spawned, so waiting does not block the build.
+func NewDeployer(config schema.Config, artifact schema.ReleaseArtifact) *deployer.Deployer {
+	return deployer.NewDeployer(config, artifact, herd.EnableInit, herd.CollectOrphans)
 }
 
 // DefaultUKIBuildFunc calls pkg/uki.Build for real.
