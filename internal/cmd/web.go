@@ -252,9 +252,23 @@ func runWeb(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("KAIROS_INIT_IMAGE: %w", err)
 		}
-		artifactBuilder = local.
+		localBuilder := local.
 			WithLogBroadcaster(wsHub.UI).
 			WithNetbootManager(netbootManager)
+		artifactBuilder = localBuilder
+		// A local build runs in a goroutine that outlives the request, so
+		// without this the process can exit while one is still writing into
+		// artifactsDir, leaving a half-written tree and an artifact row stuck
+		// in Building. Cancel every in-flight build and join its goroutine,
+		// which gives each one time to record its terminal phase and flush
+		// its logs. Bounded so a wedged build cannot hold the shutdown open.
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := localBuilder.Shutdown(shutdownCtx); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: in-flight builds did not stop within 30s: %v\n", err)
+			}
+		}()
 		systemInfo = handlers.APISystemBuilder{
 			Backend:           "local",
 			DownloadSupported: true,

@@ -108,6 +108,11 @@ type Builder struct {
 type buildState struct {
 	status builder.BuildStatus
 	cancel context.CancelFunc
+	// done is closed when the build goroutine has returned. Cancel() only
+	// signals the context, so the goroutine can still be writing into the
+	// output directory after it returns; anything that tears that directory
+	// down has to wait for this instead.
+	done chan struct{}
 }
 
 // dbLogWriter buffers log output and periodically flushes to the artifact
@@ -267,6 +272,7 @@ func (b *Builder) Build(ctx context.Context, opts builder.BuildOptions) (*builde
 			Phase: builder.BuildPending,
 		},
 		cancel: cancel,
+		done:   make(chan struct{}),
 	}
 
 	b.mu.Lock()
@@ -328,6 +334,9 @@ func (b *Builder) Build(ctx context.Context, opts builder.BuildOptions) (*builde
 		}
 		if err := b.store.Create(ctx, rec); err != nil {
 			cancel()
+			// No goroutine will ever run for this build, so release
+			// anything already waiting on it.
+			close(bs.done)
 			return nil, fmt.Errorf("persisting artifact record: %w", err)
 		}
 	}
@@ -341,6 +350,9 @@ func (b *Builder) Build(ctx context.Context, opts builder.BuildOptions) (*builde
 }
 
 func (b *Builder) run(ctx context.Context, bs *buildState, opts builder.BuildOptions, outputDir string) {
+	// Every return below leaves outputDir untouched from here on.
+	defer close(bs.done)
+
 	b.setPhase(bs, builder.BuildBuilding, "")
 
 	// Update DB phase.
@@ -1031,6 +1043,43 @@ func (b *Builder) Cancel(_ context.Context, id string) error {
 	// Update DB if store is available.
 	if b.store != nil {
 		_ = b.updateDBPhase(context.Background(), id, store.ArtifactError, "cancelled")
+	}
+
+	return nil
+}
+
+// Shutdown cancels every build this builder started and blocks until each of
+// their goroutines has returned, or until ctx is done, in which case it
+// returns ctx.Err(). A builder with nothing in flight returns immediately.
+//
+// Build returns as soon as the artifact row is persisted, and Cancel only
+// signals the build context, so a goroutine can still be writing into
+// <baseDir>/<id> after both have returned. Anything that tears that directory
+// down, or that needs the build's terminal row and its flushed logs to be in
+// the store, has to join here first. runWeb defers it so a stopping server
+// does not exit with an artifact tree half written, and the specs that hand
+// the builder a Ginkgo TempDir defer it so the TempDir cleanup does not race
+// those writes.
+func (b *Builder) Shutdown(ctx context.Context) error {
+	b.mu.Lock()
+	ids := make([]string, 0, len(b.builds))
+	states := make([]*buildState, 0, len(b.builds))
+	for id, bs := range b.builds {
+		ids = append(ids, id)
+		states = append(states, bs)
+	}
+	b.mu.Unlock()
+
+	for _, id := range ids {
+		_ = b.Cancel(ctx, id)
+	}
+
+	for _, bs := range states {
+		select {
+		case <-bs.done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	return nil
