@@ -30,10 +30,10 @@ FROM golang:1.27 AS builder
 ARG VERSION=v0.0.0
 WORKDIR /work
 COPY scripts/retry /usr/local/bin/retry
-ADD go.mod .
-ADD go.sum .
+COPY go.mod .
+COPY go.sum .
 RUN retry go mod download
-ADD . .
+COPY . .
 # UI is pre-built and included in the build context
 COPY --from=swagger /app/docs ./docs
 ENV VERSION=$VERSION

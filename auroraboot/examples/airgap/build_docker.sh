@@ -15,10 +15,10 @@ popd
 
 docker pull $IMAGE
 
-docker run -v $PWD/config.yaml:/config.yaml \
-             -v $PWD/build:/tmp/auroraboot \
+docker run -v "$PWD"/config.yaml:/config.yaml \
+             -v "$PWD"/build:/tmp/auroraboot \
              -v /var/run/docker.sock:/var/run/docker.sock \
-             -v $PWD/data:/tmp/data \
+             -v "$PWD"/data:/tmp/data \
              --rm -ti quay.io/kairos/auroraboot:v0.2.0 \
              --set "disable_http_server=true" \
              --set "disable_netboot=true" \
