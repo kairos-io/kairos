@@ -38,10 +38,11 @@ release until a maintainer approves the new one.
 
 ## Approve a release
 
-1. Open the `release` run of the new tag under Actions.
-2. When the build jobs are done, the `promote` job waits for approval. Click
-   "Review deployments", tick `release`, and approve. The reviewers are the
-   maintainers team.
+1. Open the `release` run of the new tag under Actions. When the build is
+   done, `release.yaml` posts to Slack that the release waits for approval and
+   links to the run.
+2. The `promote` job waits for approval. Click "Review deployments", tick
+   `release`, and approve. The reviewers are the maintainers team.
 
 The `publish` job then marks the release as a full release. When the tag is
 the highest among the final releases plus itself, it also points `:latest` of
@@ -57,6 +58,27 @@ When several approvals land within seconds, GitHub may cancel a waiting
 `upload-cloud-images.yaml` uploads the Latest release to the cloud providers.
 It runs every night and on demand, so the images appear up to a day after
 approval.
+
+## Known advisories
+
+The `vulnerability-scan` job scans the shipped binaries. An advisory of high or
+critical severity, or one whose severity the scanner does not report, fails the
+job and stops the release before anything is published. Advisories of medium or
+low severity do not. When the scan finds any, the `notify-advisories` job posts
+them to Slack (`SLACK_RELEASE_WEBHOOK`) and adds a "Known advisories" section
+to the prerelease notes, so read both before you approve. The scan only knows
+that a vulnerable module is present, not whether Kairos calls the vulnerable
+code. Before approving, edit the prerelease notes to say whether Kairos is
+affected, if you know. For an urgent advisory, bump the component and cut a new
+version instead of approving this one. The pull request trigger of
+`release-scan.yml` still fails on any advisory.
+
+## Failed release
+
+When a job of `release.yaml` fails, `notify-release-failure` posts the tag and a
+link to the run to Slack. A rejected or expired approval of `promote` does not
+trigger it. Fix the cause and re-run the failed jobs from the run, or cut a new
+version.
 
 ## Reject a release
 
