@@ -364,6 +364,10 @@ func (b *Builder) run(ctx context.Context, bs *buildState, opts builder.BuildOpt
 		}
 		img, err := b.dockerBuild(ctx, opts, outputDir, logWriter)
 		if err != nil {
+			if ctx.Err() != nil {
+				// Cancel already recorded the build as cancelled.
+				return
+			}
 			msg := fmt.Sprintf("docker build failed: %v", err)
 			b.setPhase(bs, builder.BuildError, msg)
 			if b.store != nil {
@@ -392,6 +396,10 @@ func (b *Builder) run(ctx context.Context, bs *buildState, opts builder.BuildOpt
 		containerImage, err = b.ensureKairosified(ctx, containerImage, opts, outputDir, logWriter)
 	}
 	if err != nil {
+		if ctx.Err() != nil {
+			// Cancel already recorded the build as cancelled.
+			return
+		}
 		msg := fmt.Sprintf("kairosify failed: %v", err)
 		b.setPhase(bs, builder.BuildError, msg)
 		if b.store != nil {
@@ -430,6 +438,10 @@ func (b *Builder) run(ctx context.Context, bs *buildState, opts builder.BuildOpt
 	}
 	config, artifact, err := b.assembleConfig(opts, containerImage, outputDir)
 	if err != nil {
+		if ctx.Err() != nil {
+			// Cancel already recorded the build as cancelled.
+			return
+		}
 		msg := fmt.Sprintf("auroraboot failed: %v", err)
 		b.setPhase(bs, builder.BuildError, msg)
 		if b.store != nil {
@@ -448,6 +460,10 @@ func (b *Builder) run(ctx context.Context, bs *buildState, opts builder.BuildOpt
 		ctx = netbootmgr.WithManager(ctx, b.netbootManager)
 	}
 	if err := b.deployFunc(ctx, config, artifact, outputDir, sink); err != nil {
+		if ctx.Err() != nil {
+			// Cancel already recorded the build as cancelled.
+			return
+		}
 		msg := fmt.Sprintf("auroraboot failed: %v", err)
 		b.setPhase(bs, builder.BuildError, msg)
 		if b.store != nil {
@@ -524,6 +540,10 @@ func (b *Builder) run(ctx context.Context, bs *buildState, opts builder.BuildOpt
 			logWriter.Flush()
 		}
 		if err := b.buildUKI(ctx, opts, containerImage, outputDir, logWriter); err != nil {
+			if ctx.Err() != nil {
+				// Cancel already recorded the build as cancelled.
+				return
+			}
 			msg := fmt.Sprintf("UKI build failed: %v", err)
 			if logWriter != nil {
 				fmt.Fprintf(logWriter, "%s\n", msg)
