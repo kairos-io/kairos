@@ -41,6 +41,13 @@
       "groupName": "frontend dependencies"
     },
     {
+      "description": "typescript-eslint caps its typescript peer dependency at <6.1.0, so TypeScript 6 and 7 cannot be installed next to it and `npm run lint` fails outright. Hold typescript on 5.x until typescript-eslint publishes a release that admits it. See #674 and typescript-eslint/typescript-eslint#10940.",
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<6"
+    },
+    {
       "matchDepNames": [
         "github.com/urfave/cli/v3"
       ],
