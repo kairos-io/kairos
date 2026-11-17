@@ -64,6 +64,31 @@ func TestProfileValidationMatrix(t *testing.T) {
 			wantErr: "allowlist",
 		},
 		{
+			name:    "set MediaType outside the enum",
+			yaml:    "name: x\ntuneInsertParams:\n  set:\n    MediaType: Bogus\n",
+			wantErr: "MediaType Bogus is not one of CD, DVD",
+		},
+		{
+			name:    "set TransferProtocolType outside the enum",
+			yaml:    "name: x\ntuneInsertParams:\n  set:\n    TransferProtocolType: GOPHER\n",
+			wantErr: "TransferProtocolType GOPHER is not one of",
+		},
+		{
+			name:    "set Inserted to a string",
+			yaml:    "name: x\ntuneInsertParams:\n  set:\n    Inserted: \"no\"\n",
+			wantErr: "Inserted no is not a boolean",
+		},
+		{
+			name:    "set WriteProtected to a number",
+			yaml:    "name: x\ntuneInsertParams:\n  set:\n    WriteProtected: 0\n",
+			wantErr: "WriteProtected 0 is not a boolean",
+		},
+		{
+			name:    "set MediaType to a number",
+			yaml:    "name: x\ntuneInsertParams:\n  set:\n    MediaType: 42\n",
+			wantErr: "MediaType 42 is not one of",
+		},
+		{
 			name:    "bad mediaType enum",
 			yaml:    "name: x\nmediaType: Tape\n",
 			wantErr: "not one of CD, DVD",
@@ -169,4 +194,62 @@ func TestCompileResetTypeRules(t *testing.T) {
 	if got := q2.resetType(ResetView{PowerState: "On", Default: "GracefulRestart"}); got != schemas.ResetType("GracefulRestart") {
 		t.Fatalf("non-matching rule = %q, want the default GracefulRestart", got)
 	}
+}
+
+// TestTuneInsertParamsClearAndSetReachTheRequest compiles a tuneInsertParams
+// profile and applies its patch to spec-default InsertMedia parameters: every
+// allowlisted field named in clear must be dropped from the request, and every
+// set value must land as given.
+func TestTuneInsertParamsClearAndSetReachTheRequest(t *testing.T) {
+	newParams := func() *schemas.VirtualMediaInsertMediaParameters {
+		proto := schemas.TransferProtocolType("HTTP")
+		inserted, wp := true, true
+		return &schemas.VirtualMediaInsertMediaParameters{
+			Image:                "http://example/img.iso",
+			MediaType:            schemas.CDVirtualMediaType,
+			TransferProtocolType: &proto,
+			Inserted:             &inserted,
+			WriteProtected:       &wp,
+		}
+	}
+	apply := func(t *testing.T, yaml string) *schemas.VirtualMediaInsertMediaParameters {
+		t.Helper()
+		q, err := LoadProfile([]byte(yaml))
+		if err != nil {
+			t.Fatalf("loading profile: %v", err)
+		}
+		p := newParams()
+		applyInsertPatch(p, q.tuneInsertParams(insertParamsView(p)))
+		return p
+	}
+
+	t.Run("clear drops every allowlisted field", func(t *testing.T) {
+		p := apply(t, "name: x\ntuneInsertParams:\n  clear: [MediaType, TransferProtocolType, Inserted, WriteProtected]\n")
+		if p.MediaType != "" || p.TransferProtocolType != nil || p.Inserted != nil || p.WriteProtected != nil {
+			t.Fatalf("clear left fields behind: %+v", p)
+		}
+		if p.Image != "http://example/img.iso" {
+			t.Fatalf("clear touched the image URL: %q", p.Image)
+		}
+	})
+
+	t.Run("set lands every value", func(t *testing.T) {
+		p := apply(t, "name: x\ntuneInsertParams:\n  set: { MediaType: USBStick, TransferProtocolType: HTTPS, Inserted: false, WriteProtected: false }\n")
+		if p.MediaType != schemas.USBStickVirtualMediaType {
+			t.Fatalf("MediaType = %q, want USBStick", p.MediaType)
+		}
+		if p.TransferProtocolType == nil || *p.TransferProtocolType != "HTTPS" {
+			t.Fatalf("TransferProtocolType = %v, want HTTPS", p.TransferProtocolType)
+		}
+		if p.Inserted == nil || *p.Inserted || p.WriteProtected == nil || *p.WriteProtected {
+			t.Fatalf("booleans not set to false: Inserted=%v WriteProtected=%v", p.Inserted, p.WriteProtected)
+		}
+	})
+
+	t.Run("clear wins over set", func(t *testing.T) {
+		p := apply(t, "name: x\ntuneInsertParams:\n  clear: [WriteProtected]\n  set: { WriteProtected: false }\n")
+		if p.WriteProtected != nil {
+			t.Fatalf("WriteProtected = %v, want it dropped", *p.WriteProtected)
+		}
+	})
 }

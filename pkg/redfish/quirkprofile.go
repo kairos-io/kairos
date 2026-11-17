@@ -89,6 +89,12 @@ var (
 		"USBStick": schemas.USBStickVirtualMediaType,
 		"Floppy":   schemas.FloppyVirtualMediaType,
 	}
+	// allowedTransferProtocols is the Redfish VirtualMedia TransferProtocolType
+	// enum, the values InsertMedia accepts.
+	allowedTransferProtocols = map[string]bool{
+		"CIFS": true, "FTP": true, "SFTP": true, "HTTP": true, "HTTPS": true,
+		"NFS": true, "SCP": true, "TFTP": true, "OEM": true,
+	}
 	allowedPowerStates = map[string]bool{"On": true, "Off": true, "*": true}
 	// insertParamAllowlist is the ONLY set of InsertMedia fields a profile may
 	// patch. Image is deliberately absent and is rejected with a specific error.
@@ -179,16 +185,44 @@ func validateMediaSearchEntry(entry string) error {
 }
 
 // validateTuneInsertParams enforces the field allowlist on both clear and set,
-// rejecting Image (any casing) with a specific, actionable error.
+// rejecting Image (any casing) with a specific, actionable error, and checks each
+// set value against the field's type and enum so nothing invalid reaches the BMC
+// and nothing is silently dropped at compile time.
 func validateTuneInsertParams(t *ProfileTuneInsertParams) error {
 	for _, field := range t.Clear {
 		if err := checkInsertParamField(field); err != nil {
 			return fmt.Errorf("tuneInsertParams.clear: %w", err)
 		}
 	}
-	for field := range t.Set {
+	for field, val := range t.Set {
 		if err := checkInsertParamField(field); err != nil {
 			return fmt.Errorf("tuneInsertParams.set: %w", err)
+		}
+		if err := checkInsertParamValue(field, val); err != nil {
+			return fmt.Errorf("tuneInsertParams.set: %w", err)
+		}
+	}
+	return nil
+}
+
+// checkInsertParamValue checks a set value for an allowlisted field: MediaType and
+// TransferProtocolType must be one of their enums, Inserted and WriteProtected
+// must be booleans.
+func checkInsertParamValue(field string, val any) error {
+	switch field {
+	case "MediaType":
+		s, ok := val.(string)
+		if _, known := allowedMediaTypes[s]; !ok || !known {
+			return fmt.Errorf("MediaType %v is not one of CD, DVD, USBStick, Floppy", val)
+		}
+	case "TransferProtocolType":
+		s, ok := val.(string)
+		if !ok || !allowedTransferProtocols[s] {
+			return fmt.Errorf("TransferProtocolType %v is not one of CIFS, FTP, SFTP, HTTP, HTTPS, NFS, SCP, TFTP, OEM", val)
+		}
+	case "Inserted", "WriteProtected":
+		if _, ok := val.(bool); !ok {
+			return fmt.Errorf("%s %v is not a boolean (true or false)", field, val)
 		}
 	}
 	return nil
@@ -302,17 +336,21 @@ func compileResetType(rules []ProfileResetRule) func(ResetView) schemas.ResetTyp
 }
 
 // compileTuneInsertParams builds the sparse-patch closure from the validated
-// clear/set maps. The allowlist was enforced at validation, so this only needs to
-// translate field names to the InsertParamsPatch.
+// clear/set maps. The allowlist, value types and enums were enforced at
+// validation, so this only needs to translate field names to the InsertParamsPatch.
 func compileTuneInsertParams(t *ProfileTuneInsertParams) func(InsertParamsView) InsertParamsPatch {
 	return func(InsertParamsView) InsertParamsPatch {
 		var patch InsertParamsPatch
 		for _, field := range t.Clear {
 			switch field {
+			case "MediaType":
+				patch.ClearMediaType = true
 			case "TransferProtocolType":
 				patch.ClearTransferProtocolType = true
-			case "MediaType":
-				patch.SetMediaType = ""
+			case "Inserted":
+				patch.ClearInserted = true
+			case "WriteProtected":
+				patch.ClearWriteProtected = true
 			}
 		}
 		for field, val := range t.Set {

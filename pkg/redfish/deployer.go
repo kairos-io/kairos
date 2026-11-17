@@ -903,10 +903,13 @@ func insertParamsView(p *schemas.VirtualMediaInsertMediaParameters) InsertParams
 
 // applyInsertPatch applies a tuneInsertParams hook's sparse patch to the
 // InsertMedia parameters. Only the allowlisted fields are reachable; the image URL
-// is never touched. Clear takes precedence over Set for TransferProtocolType so a
-// profile can unconditionally drop it.
+// is never touched. Clear takes precedence over Set for every field so a profile
+// can unconditionally drop one.
 func applyInsertPatch(p *schemas.VirtualMediaInsertMediaParameters, patch InsertParamsPatch) {
-	if patch.SetMediaType != "" {
+	switch {
+	case patch.ClearMediaType:
+		p.MediaType = ""
+	case patch.SetMediaType != "":
 		p.MediaType = schemas.VirtualMediaType(patch.SetMediaType)
 	}
 	switch {
@@ -916,11 +919,17 @@ func applyInsertPatch(p *schemas.VirtualMediaInsertMediaParameters, patch Insert
 		t := schemas.TransferProtocolType(patch.SetTransferProtocolType)
 		p.TransferProtocolType = &t
 	}
-	if patch.SetInsertedSet {
+	switch {
+	case patch.ClearInserted:
+		p.Inserted = nil
+	case patch.SetInsertedSet:
 		v := patch.SetInserted
 		p.Inserted = &v
 	}
-	if patch.SetWriteProtectedSet {
+	switch {
+	case patch.ClearWriteProtected:
+		p.WriteProtected = nil
+	case patch.SetWriteProtectedSet:
 		v := patch.SetWriteProtected
 		p.WriteProtected = &v
 	}

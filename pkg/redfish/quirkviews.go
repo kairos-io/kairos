@@ -82,6 +82,8 @@ type InsertParamsView struct {
 // to the spec-default parameters. Fields NOT named are left untouched; the image
 // URL is structurally absent and can never be patched.
 type InsertParamsPatch struct {
+	// ClearMediaType drops the MediaType so it is omitted from the request.
+	ClearMediaType bool
 	// SetMediaType, when non-empty, overrides the MediaType.
 	SetMediaType string
 	// ClearTransferProtocolType drops the TransferProtocolType (some firmware
@@ -89,6 +91,10 @@ type InsertParamsPatch struct {
 	ClearTransferProtocolType bool
 	// SetTransferProtocolType, when non-empty, overrides the TransferProtocolType.
 	SetTransferProtocolType string
+	// ClearInserted / ClearWriteProtected drop the respective booleans so they are
+	// omitted from the request.
+	ClearInserted       bool
+	ClearWriteProtected bool
 	// SetInserted / SetWriteProtected override the respective booleans when their
 	// "...Set" flag is true (so a patch can set false explicitly).
 	SetInserted          bool

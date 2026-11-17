@@ -87,8 +87,12 @@ Field reference:
   is **re-validated by the core** against the BMC's advertised allowable values — a
   rule can prefer, but never force, an unsupported type. Omit for the core default.
 - **`tuneInsertParams`** (optional) — a sparse patch over the InsertMedia
-  parameters. `clear` drops fields, `set` sets them. **The allowlist is exactly
-  `MediaType`, `TransferProtocolType`, `Inserted`, `WriteProtected`.**
+  parameters. `clear` drops fields from the request, `set` sets them; a field in
+  both is dropped. **The allowlist is exactly `MediaType`, `TransferProtocolType`,
+  `Inserted`, `WriteProtected`.** `set` values are checked at load: `MediaType` is
+  one of `CD`, `DVD`, `USBStick`, `Floppy`; `TransferProtocolType` is one of `CIFS`,
+  `FTP`, `SFTP`, `HTTP`, `HTTPS`, `NFS`, `SCP`, `TFTP`, `OEM`; `Inserted` and
+  `WriteProtected` are booleans.
 - **`validatedFirmware`** (string, optional) — see §6.
 
 ### The safety boundary (what a profile can never do)
