@@ -176,6 +176,9 @@ func (c *Config) AllowInsecureRegistriesBool() bool {
 // starts, so we fail fast with a clear message instead of deep inside a build
 // step.
 func (c Config) Validate() error {
+	if err := c.Disk.validateBIOS(); err != nil {
+		return err
+	}
 	// Partition-image output skips the final merge into a single .raw disk, so
 	// the gce/vhd conversions (which operate on that merged disk) have nothing
 	// to convert. Reject the combination up front.
@@ -188,6 +191,24 @@ func (c Config) Validate() error {
 		}
 	}
 	return c.validateBootActive()
+}
+
+// validateBIOS rejects disk.bios next to an EFI-family output. Both raw-disk
+// builds run in parallel and write the same kairos-<name>.raw, so one would
+// corrupt the other.
+func (d Disk) validateBIOS() error {
+	if !d.BIOS {
+		return nil
+	}
+	for _, o := range []struct {
+		key string
+		set bool
+	}{{"efi", d.EFI}, {"partitions", d.Partitions}, {"gce", d.GCE}, {"vhd", d.VHD}, {"maas", d.MAAS}} {
+		if o.set {
+			return fmt.Errorf("disk.bios cannot be combined with disk.%s: both raw disks are built at the same time into the same file", o.key)
+		}
+	}
+	return nil
 }
 
 // StateSlotsCount returns disk.state_slots as a number, 0 when unset.

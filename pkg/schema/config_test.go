@@ -176,6 +176,27 @@ var _ = Describe("Config Validate", func() {
 		Expect(err.Error()).To(ContainSubstring("vhd"))
 	})
 
+	It("passes for a plain BIOS raw disk build", func() {
+		cfg.Disk.BIOS = true
+		Expect(cfg.Validate()).To(Succeed())
+	})
+
+	DescribeTable("rejects bios combined with an EFI-family output",
+		func(set func(*schema.Config), option string) {
+			cfg.Disk.BIOS = true
+			set(&cfg)
+			err := cfg.Validate()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("disk.bios"))
+			Expect(err.Error()).To(ContainSubstring("disk." + option))
+		},
+		Entry("efi", func(c *schema.Config) { c.Disk.EFI = true }, "efi"),
+		Entry("partitions", func(c *schema.Config) { c.Disk.Partitions = true }, "partitions"),
+		Entry("gce", func(c *schema.Config) { c.Disk.GCE = true }, "gce"),
+		Entry("vhd", func(c *schema.Config) { c.Disk.VHD = true }, "vhd"),
+		Entry("maas", func(c *schema.Config) { c.Disk.MAAS = true }, "maas"),
+	)
+
 	It("passes for boot-active combined with efi, gce and vhd", func() {
 		cfg.Disk.BootActive = true
 		cfg.Disk.EFI = true

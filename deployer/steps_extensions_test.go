@@ -105,7 +105,17 @@ func diskBuild(t *testing.T) schema.Config {
 	return schema.Config{
 		State: t.TempDir(),
 		ISO:   schema.ISO{Extensions: []extensions.Request{extensionRequest()}},
-		Disk:  schema.Disk{EFI: true, BIOS: true, GCE: true, VHD: true, MAAS: true},
+		Disk:  schema.Disk{EFI: true, GCE: true, VHD: true, MAAS: true},
+	}
+}
+
+// biosDiskBuild is the raw-disk shape disk.bios takes on its own, since it
+// cannot be combined with disk.efi or the outputs cut from it.
+func biosDiskBuild(t *testing.T) schema.Config {
+	return schema.Config{
+		State: t.TempDir(),
+		ISO:   schema.ISO{Extensions: []extensions.Request{extensionRequest()}},
+		Disk:  schema.Disk{BIOS: true},
 	}
 }
 
@@ -136,6 +146,7 @@ func TestEachBuildShapeEnablesItsArtifactLeg(t *testing.T) {
 	}{
 		{"an iso build runs the iso leg", isoBuild(t), legISO, legRawDisk},
 		{"a disk build runs the raw-disk leg", diskBuild(t), legRawDisk, legISO},
+		{"a bios disk build runs the raw-disk leg", biosDiskBuild(t), legRawDisk, legISO},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			seen := map[artifactLeg]bool{}
@@ -216,7 +227,6 @@ func TestTheStepsThatTakeAnExtensionPayloadReceiveTheBuildSpec(t *testing.T) {
 	c := schema.Config{
 		State: t.TempDir(),
 		ISO:   schema.ISO{Extensions: []extensions.Request{{Name: extensions.FileScheme + filepath.Join(t.TempDir(), absent)}}},
-		Disk:  schema.Disk{EFI: true, BIOS: true},
 	}
 
 	// Every op that is handed a DiskExtensions or an schema.ISO carrying the
@@ -225,6 +235,10 @@ func TestTheStepsThatTakeAnExtensionPayloadReceiveTheBuildSpec(t *testing.T) {
 	// payload of their own.
 	for _, name := range []string{constants.OpGenISO, constants.OpGenEFIRawDisk, constants.OpGenBIOSRawDisk} {
 		t.Run(name, func(t *testing.T) {
+			// disk.efi and disk.bios cannot be combined, so each raw-disk op
+			// gets a config that enables only its own disk.
+			c := c
+			c.Disk = schema.Disk{EFI: name != constants.OpGenBIOSRawDisk, BIOS: name == constants.OpGenBIOSRawDisk}
 			d := NewDeployer(c, schema.ReleaseArtifact{ContainerImage: "quay.io/kairos/fixture:latest"})
 			if err := RegisterAll(d); err != nil {
 				t.Fatalf("RegisterAll: %v", err)
