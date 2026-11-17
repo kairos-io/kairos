@@ -127,7 +127,7 @@ func StartPixiecore(cloudConfigFile, address, netbootPort string, squashFSfileGe
 		}
 		internal.Log.Logger.Info().Str("cmdline", line).Msg("Netbooting")
 
-		return netboot.Server(kernelFile, line, address, netbootPort, initrdFile, true)
+		return netboot.Server(ctx, kernelFile, line, address, netbootPort, initrdFile, true)
 	}
 }
 
