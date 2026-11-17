@@ -118,8 +118,12 @@ RUN retry dnf -y update && \
     retry dnf -y install dnf-plugins-core && \
     retry dnf in -y bc binutils curl dosfstools e2fsprogs erofs-utils gdisk genisoimage \
               grub2 jq kpartx lvm2 llvm mtools openssl parted rsync squashfs-tools \
-              sudo udev util-linux xorriso zstd && \
-    retry dnf install -y \
+              sudo udev util-linux xorriso zstd
+
+# The EFI packages are optional, so only their install may fail. Keep it in a
+# RUN of its own: a trailing || true on the step above would also hide a failed
+# update or base install. See kairos-io/kairos#5823.
+RUN retry dnf install -y \
         systemd-boot-unsigned \
         grub2-efi-riscv64 \
         grub2-efi-riscv64-modules || true
