@@ -27,6 +27,9 @@ type Deployer struct {
 	// by build-iso so that State only receives the finished artifacts. When
 	// empty, those files keep their State based layout.
 	WorkDir string
+	// generatedISO is the ISO the GenISO step of this run wrote, empty
+	// until it has written one.
+	generatedISO string
 }
 
 func NewDeployer(c schema.Config, a schema.ReleaseArtifact, opts ...herd.GraphOption) *Deployer {

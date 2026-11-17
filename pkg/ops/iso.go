@@ -65,6 +65,8 @@ type BuildISOAction struct {
 	cfg  *BuildConfig
 	spec *LiveISO
 	e    *elemental.Elemental
+	// outputFile is the ISO burnISO wrote, set once it succeeds.
+	outputFile string
 }
 
 type BuildISOActionOption func(a *BuildISOAction)
@@ -146,7 +148,8 @@ func isoBaseName(i schema.ISO, rootfs string) string {
 
 // GenISO generates an ISO from a rootfs, and stores results in dst.
 // The cloud config to embed is read from the path cloudConfigFunc returns.
-func GenISO(srcFunc, dstFunc, cloudConfigFunc valueGetOnCall, i schema.ISO, targetArch string, insecure bool) func(ctx context.Context) error {
+// When isoWritten is not nil it is called with the path of the ISO written.
+func GenISO(srcFunc, dstFunc, cloudConfigFunc valueGetOnCall, i schema.ISO, targetArch string, insecure bool, isoWritten func(string)) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
 		dst := dstFunc()
 		src := srcFunc()
@@ -210,8 +213,12 @@ func GenISO(srcFunc, dstFunc, cloudConfigFunc valueGetOnCall, i schema.ISO, targ
 		err = buildISO.ISORun()
 		if err != nil {
 			internal.Log.Logger.Error().Msgf("Failed generating iso '%s' from '%s'. Error: %s", i.Name, src, err.Error())
+			return err
 		}
-		return err
+		if isoWritten != nil {
+			isoWritten(buildISO.outputFile)
+		}
+		return nil
 	}
 }
 
@@ -920,7 +927,7 @@ func (b BuildISOAction) copyGrub(tempdir, rootdir string) error {
 	return err
 }
 
-func (b BuildISOAction) burnISO(root string) error {
+func (b *BuildISOAction) burnISO(root string) error {
 	cmd := "xorriso"
 	var outputFile string
 	var isoFileName string
@@ -968,6 +975,7 @@ func (b BuildISOAction) burnISO(root string) error {
 		return fmt.Errorf("cannot write checksum file: %w", err)
 	}
 
+	b.outputFile = outputFile
 	return nil
 }
 

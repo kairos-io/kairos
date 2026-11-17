@@ -27,6 +27,30 @@ func isUnder(path, dir string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
+// kairos#5776: GenISO names its output after the image, never kairos.iso, so
+// getIsoFile fell back to the first *.iso in the state dir and netboot
+// extraction and cloud-config injection read an older ISO left there.
+func TestRunIsoFilePrefersTheGeneratedISO(t *testing.T) {
+	state := t.TempDir()
+	old := filepath.Join(state, "kairos-quay.io-kairos-ubuntu-v4.0.0.iso")
+	fresh := filepath.Join(state, "kairos-quay.io-kairos-ubuntu-v4.1.0.iso")
+	for _, f := range []string{old, fresh} {
+		if err := os.WriteFile(f, []byte(f), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	d := &Deployer{Config: schema.Config{State: state}}
+	if got := d.runIsoFile(); got != old {
+		t.Fatalf("precondition: with no generated ISO runIsoFile() = %s, want the scan result %s", got, old)
+	}
+
+	d.generatedISO = fresh
+	if got := d.runIsoFile(); got != fresh {
+		t.Errorf("runIsoFile() = %s, want the ISO this run generated %s", got, fresh)
+	}
+}
+
 // TestTmpRootFsNotUnderStateDir is a regression test for
 // https://github.com/kairos-io/kairos/issues/3922.
 //

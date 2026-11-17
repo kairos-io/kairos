@@ -132,7 +132,7 @@ func (d *Deployer) StepGenISO() error {
 			netbootRequested := !d.Config.DisableNetboot
 			return isoRequested || netbootRequested
 		}),
-		herd.WithDeps(constants.OpDumpSource, constants.OpCopyCloudConfig, constants.OpPrepareDirs), herd.WithCallback(ops.GenISO(d.tmpRootFs, d.destination, d.cloudConfigPath, d.Config.ISO, d.Config.Arch, d.Config.AllowInsecureRegistriesBool())))
+		herd.WithDeps(constants.OpDumpSource, constants.OpCopyCloudConfig, constants.OpPrepareDirs), herd.WithCallback(ops.GenISO(d.tmpRootFs, d.destination, d.cloudConfigPath, d.Config.ISO, d.Config.Arch, d.Config.AllowInsecureRegistriesBool(), func(p string) { d.generatedISO = p })))
 }
 
 func (d *Deployer) StepDownloadISO() error {
@@ -151,7 +151,7 @@ func (d *Deployer) StepExtractNetboot() error {
 		herd.EnableIf(func() bool { return !d.Config.DisableNetboot && !d.rawDiskIsSet() }),
 		herd.ConditionalOption(func() bool { return d.isoOption() }, herd.WithDeps(constants.OpDownloadISO)),
 		herd.ConditionalOption(func() bool { return d.fromImage() }, herd.WithDeps(constants.OpGenISO)),
-		herd.WithDeps(constants.OpGenISO), herd.WithCallback(ops.ExtractNetboot(d.getIsoFile, d.dstNetboot, d.netbootPrefix())))
+		herd.WithDeps(constants.OpGenISO), herd.WithCallback(ops.ExtractNetboot(d.runIsoFile, d.dstNetboot, d.netbootPrefix())))
 }
 
 // StepGenRawDisk Generate the raw disk image.
@@ -218,7 +218,7 @@ func (d *Deployer) StepInjectCC() error {
 		herd.WithDeps(constants.OpCopyCloudConfig),
 		herd.ConditionalOption(d.isoOption, herd.WithDeps(constants.OpDownloadISO)),
 		herd.ConditionalOption(d.fromImage, herd.WithDeps(constants.OpGenISO)),
-		herd.WithCallback(ops.InjectISO(d.destination, d.getIsoFile, d.Config.ISO)))
+		herd.WithCallback(ops.InjectISO(d.destination, d.runIsoFile, d.Config.ISO)))
 }
 
 func (d *Deployer) StepStartHTTPServer() error {
@@ -327,6 +327,17 @@ func (d *Deployer) getIsoFile() string {
 	}
 	d.Log.Logger.Info().Str("isoFile", defaultIsoPath).Msg("No ISO file found, falling back to default ISO name")
 	return defaultIsoPath
+}
+
+// runIsoFile returns the ISO this run produced: the one GenISO wrote when it
+// built one, otherwise the download destination getIsoFile resolves to.
+// GenISO names its output after the image (and optionally the date), so a
+// directory scan can pick an older ISO left in the state dir instead.
+func (d *Deployer) runIsoFile() string {
+	if d.generatedISO != "" {
+		return d.generatedISO
+	}
+	return d.getIsoFile()
 }
 
 func (d *Deployer) dstNetboot() string {

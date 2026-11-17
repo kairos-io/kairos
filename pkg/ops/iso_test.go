@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
@@ -501,6 +502,41 @@ var _ = Describe("writeCdGrubEfiCfg", Label("iso"), func() {
 	})
 })
 
+// kairos#5776: the deployer used to find the generated ISO by scanning the
+// state dir, which picks an older ISO there. burnISO records the exact file it
+// wrote so GenISO can hand that path back.
+var _ = Describe("burnISO", Label("iso"), func() {
+	DescribeTable("records the ISO it wrote",
+		func(date bool, want string) {
+			fs, cleanup, err := vfst.NewTestFS(map[string]interface{}{"/out/kairos-old.iso": "old", "/iso": &vfst.Dir{Perm: 0o755}})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(cleanup)
+
+			runner := mocks.NewFakeRunner()
+			runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
+				for i, a := range args {
+					if a == "-outdev" {
+						return nil, fs.WriteFile(args[i+1], []byte("new"), 0o644)
+					}
+				}
+				return nil, nil
+			}
+			b := &BuildISOAction{
+				cfg:  &BuildConfig{Config: sdkConfig.Config{Fs: fs, Runner: runner, Logger: logger.NewNullLogger()}, Name: "kairos-new", OutDir: "/out", Date: date},
+				spec: &LiveISO{Label: "COS_LIVE"},
+			}
+
+			Expect(b.burnISO("/iso")).To(Succeed())
+			Expect(b.outputFile).To(MatchRegexp(want))
+			got, err := fs.ReadFile(b.outputFile)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(got)).To(Equal("new"))
+		},
+		Entry("without a date", false, `^/out/kairos-new\.iso$`),
+		Entry("with a date", true, `^/out/kairos-new\.[0-9]{8}\.iso$`),
+	)
+})
+
 var _ = Describe("cleanupGrubName", Label("iso"), func() {
 	DescribeTable("strips signature suffixes",
 		func(in, want string) {
@@ -552,7 +588,7 @@ var _ = Describe("GenISO", func() {
 			func() string { return src },
 			func() string { return dst },
 			func() string { return ccPath },
-			iso, "amd64", false,
+			iso, "amd64", false, nil,
 		)(context.Background())
 
 		Expect(err).To(MatchError(ContainSubstring("stop here")))
