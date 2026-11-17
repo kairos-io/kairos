@@ -760,6 +760,27 @@ var _ = Describe("WebSocket Handler", func() {
 			Expect(err.Error()).To(ContainSubstring("not connected"))
 		})
 
+		It("closes the agent socket on Disconnect and drops the node", func() {
+			conn, _, err := dialWS(server, "/api/v1/ws?token="+apiKey)
+			Expect(err).NotTo(HaveOccurred())
+			defer conn.Close()
+
+			Eventually(func() bool {
+				return hub.IsOnline(nodeID)
+			}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
+
+			Expect(hub.Disconnect(nodeID)).To(BeTrue())
+			Expect(hub.IsOnline(nodeID)).To(BeFalse())
+			Expect(hub.SendCommand(nodeID, commandData{ID: "cmd-x", Command: "reset"})).NotTo(Succeed())
+
+			// The agent sees the socket close instead of staying connected.
+			_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+			_, _, err = conn.ReadMessage()
+			Expect(websocket.IsCloseError(err, websocket.ClosePolicyViolation)).To(BeTrue(), "got %v", err)
+
+			Expect(hub.Disconnect(nodeID)).To(BeFalse())
+		})
+
 		It("should track online count correctly", func() {
 			Expect(hub.OnlineCount()).To(Equal(0))
 

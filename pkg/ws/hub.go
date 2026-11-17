@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -53,6 +54,24 @@ func (h *Hub) Unregister(nodeID string, wc *wsConn) bool {
 		return false
 	}
 	delete(h.connections, nodeID)
+	return true
+}
+
+// Disconnect drops the node's connection from the hub and closes it, so a
+// deleted node can no longer receive commands on a socket it opened while its
+// API key was still valid. The agent read loop then exits on its own. It
+// reports whether the node had a connection.
+func (h *Hub) Disconnect(nodeID string) bool {
+	h.mu.Lock()
+	conn, ok := h.connections[nodeID]
+	delete(h.connections, nodeID)
+	h.mu.Unlock()
+	if !ok || conn == nil {
+		return false
+	}
+	msg := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "node deleted")
+	_ = conn.writeControl(websocket.CloseMessage, msg, time.Now().Add(time.Second))
+	_ = conn.Close()
 	return true
 }
 

@@ -373,6 +373,11 @@ func (h *NodeHandler) Delete(c echo.Context) error {
 	if h.metrics != nil {
 		h.metrics.Forget(nodeID)
 	}
+	// Deleting a node also revokes its API key, so close any socket it already
+	// has open instead of letting it keep receiving commands (kairos-io/kairos#5785).
+	if h.hub != nil {
+		h.hub.Disconnect(nodeID)
+	}
 	// The deleted node's batch rows settle as canceled and free their slots.
 	if h.batches != nil {
 		h.batches.Tick(c.Request().Context())

@@ -8,11 +8,13 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gorilla/websocket"
 	"github.com/kairos-io/AuroraBoot/pkg/auth"
 	"github.com/kairos-io/AuroraBoot/pkg/handlers"
 	"github.com/kairos-io/AuroraBoot/pkg/store"
@@ -250,6 +252,37 @@ var _ = Describe("NodeHandler", func() {
 			err := handler.Delete(c)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(rec.Code).To(Equal(http.StatusNoContent))
+		})
+
+		It("closes the deleted node's agent socket", func() {
+			ns.nodes = []*store.ManagedNode{
+				{ID: "node-1"},
+			}
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+				if err != nil {
+					return
+				}
+				hub.Register("node-1", conn)
+			}))
+			defer srv.Close()
+			agent, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(srv.URL, "http"), nil)
+			Expect(err).NotTo(HaveOccurred())
+			defer agent.Close()
+			Eventually(func() bool { return hub.IsOnline("node-1") }, 5*time.Second, 50*time.Millisecond).Should(BeTrue())
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/nodes/node-1", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.SetParamNames("nodeID")
+			c.SetParamValues("node-1")
+			Expect(handler.Delete(c)).To(Succeed())
+			Expect(rec.Code).To(Equal(http.StatusNoContent))
+
+			Expect(hub.IsOnline("node-1")).To(BeFalse())
+			_ = agent.SetReadDeadline(time.Now().Add(5 * time.Second))
+			_, _, err = agent.ReadMessage()
+			Expect(websocket.IsCloseError(err, websocket.ClosePolicyViolation)).To(BeTrue(), "got %v", err)
 		})
 	})
 
