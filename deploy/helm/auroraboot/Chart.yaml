@@ -2,8 +2,8 @@ apiVersion: v2
 name: auroraboot
 description: AuroraBoot web UI wired to the kairos-operator as its build backend.
 type: application
-version: 0.28.0
-appVersion: "v0.28.0"
+version: 0.30.0
+appVersion: "v0.30.0"
 home: https://kairos.io
 sources:
   - https://github.com/kairos-io/AuroraBoot
