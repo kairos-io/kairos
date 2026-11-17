@@ -2,6 +2,7 @@ package ops
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -24,6 +25,12 @@ const downloadAttempts = 3
 // downloadRetryBaseDelay is a var, not a const, so tests can shrink the
 // backoff instead of waiting on it in real time.
 var downloadRetryBaseDelay = 2 * time.Second
+
+// afterDownloadAttempt runs after each downloadOnce call when set. Only tests
+// set it, to cancel ctx inside the window where download() has an attempt's
+// error in hand and has not yet checked ctx -- a window too narrow to hit
+// reliably from the outside.
+var afterDownloadAttempt func()
 
 // noListingFS wraps an http.FileSystem to suppress directory listings. Opening a
 // directory returns os.ErrNotExist, so http.FileServer still serves files by
@@ -101,10 +108,24 @@ func download(ctx context.Context, url, dst string) (string, error) {
 	var err error
 	for attempt := 1; attempt <= downloadAttempts; attempt++ {
 		dstFile, err = downloadOnce(ctx, url, dst)
+		if afterDownloadAttempt != nil {
+			afterDownloadAttempt()
+		}
 		if err == nil {
 			return dstFile, nil
 		}
-		if ctx.Err() != nil || attempt == downloadAttempts {
+		if ctx.Err() != nil {
+			// Report the cancellation itself, not whatever the interrupted
+			// attempt happened to fail with -- a caller checking
+			// errors.Is(err, context.Canceled) must see it. The attempt's own
+			// error stays in the message, and is not re-wrapped when
+			// downloadOnce already noticed the cancellation.
+			if !errors.Is(err, ctx.Err()) {
+				err = fmt.Errorf("download canceled (last error: %v): %w", err, ctx.Err())
+			}
+			return dstFile, err
+		}
+		if attempt == downloadAttempts {
 			return dstFile, err
 		}
 		internal.Log.Logger.Warn().Err(err).Str("artifact", url).Int("attempt", attempt).Msg("download failed, retrying")
@@ -126,7 +147,13 @@ func downloadOnce(ctx context.Context, url, dst string) (string, error) {
 	client := grab.NewClient()
 	// https://github.com/cavaliergopher/grab/issues/104
 	client.UserAgent = UserAgent
-	req, _ := grab.NewRequest(dst, url)
+	// grab.NewRequest returns a nil Request when net/http cannot parse the
+	// URL. The URL is built from the user's repository, release version and
+	// flavor, so an unusable one has to be reported, not dereferenced.
+	req, err := grab.NewRequest(dst, url)
+	if err != nil {
+		return dst, fmt.Errorf("cannot download %q: %w", url, err)
+	}
 
 	// start download
 	// Without ctx on the request, cancelling only ends the progress loop
@@ -155,7 +182,10 @@ Loop:
 		select {
 		case <-ctx.Done():
 			defer os.RemoveAll(dstFile)
-			return dst, fmt.Errorf("context canceled")
+			// Return ctx.Err() rather than a fabricated "context canceled":
+			// the caller has to be able to tell a cancellation from a
+			// deadline, and download() adds the message context.
+			return dst, ctx.Err()
 		case <-t.C:
 			internal.Log.Printf("%s: transferred %v / %v bytes (%.2f%%)",
 				url,
