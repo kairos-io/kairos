@@ -1,6 +1,8 @@
 package e2e_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/onsi/gomega/types"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -126,10 +128,36 @@ func withOutput(what, out string, err error) error {
 	return fmt.Errorf("%s: %w", what, err)
 }
 
+// pullTimeout caps a single `docker pull`. Healthy runs of this suite finish
+// the whole raw-disk spec, pull included, in about five minutes, so this only
+// fires on a stalled registry connection. Without it a pull that never returns
+// holds the serial spec slot until ginkgo's 2h suite budget runs out and every
+// spec after it is dropped (kairos-io/kairos#4655).
+const pullTimeout = 10 * time.Minute
+
+// runWithTimeout runs a command with its combined output captured and kills it
+// once d elapses, so a stalled child costs one spec instead of the suite.
+func runWithTimeout(d time.Duration, name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
+
+	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
+	// The killed child reports "signal: killed", never context.DeadlineExceeded,
+	// so the deadline has to be read off the context itself.
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		cmdline := strings.Join(append([]string{name}, args...), " ")
+		return string(out), fmt.Errorf("%s timed out after %s", cmdline, d)
+	}
+	return string(out), err
+}
+
+// PullImage pulls image, invoking docker directly rather than through
+// utils.SH: SH wraps the command in `sh -c`, so cancelling it would kill the
+// shell and leave docker running. The error carries the pull output, so a
+// failure reads as more than "exit status 1" (#810).
 func PullImage(image string) (string, error) {
-	runCmd := fmt.Sprintf(`docker pull %s`, image)
-	out, err := utils.SH(runCmd)
-	return out, withOutput(runCmd, out, err)
+	out, err := runWithTimeout(pullTimeout, "docker", "pull", image)
+	return out, withOutput(fmt.Sprintf("docker pull %s", image), out, err)
 }
 
 func WriteConfig(config, dir string) error {
