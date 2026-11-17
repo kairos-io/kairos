@@ -37,3 +37,14 @@ reason = "Echo v4 RealIP trusts X-Forwarded-For; fixed only in echo v5. Reachabl
 id = "GHSA-99jh-6h7p-pp36"
 ignoreUntil = 2026-11-28
 reason = "Echo v4 proxy middleware forwards client X-Real-IP; fixed only in echo v5. AuroraBoot does not use middleware.Proxy, so it is not reachable. Re-evaluate before expiry."
+
+# minimatch globparts amplification DoS. Every release below 11.0.1 is
+# affected, but eslint, @eslint/config-array and @typescript-eslint pin it
+# to ^10, so no update they accept clears it. It is a dev dependency of the
+# UI lint toolchain only (ui/package-lock.json, "dev": true): the globs come
+# from our own eslint config, not from users, and it is not in the built UI.
+# Drop this once eslint accepts minimatch 11.
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-11-30
+reason = "minimatch below 11.0.1 globparts DoS; eslint and typescript-eslint pin ^10, so no compatible fix. Dev-only lint dependency with repo-controlled globs, not shipped. Re-evaluate before expiry."
