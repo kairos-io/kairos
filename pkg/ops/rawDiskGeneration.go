@@ -720,7 +720,19 @@ func (r *RawImage) Build() error {
 		internal.Log.Logger.Error().Err(err).Msg("failed to create disk image")
 		return err
 	}
-	info, err := r.config.Fs.Stat(filepath.Join(r.Output, outputName))
+	if err = r.finishDiskImage(filepath.Join(r.Output, outputName)); err != nil {
+		return err
+	}
+	internal.Log.Logger.Info().Str("target", filepath.Join(r.Output, outputName)).Msg("Assembled final disk image")
+
+	return nil
+}
+
+// finishDiskImage grows the assembled image to FinalSize and runs the board
+// specific FinalizeImage step. A failure here, such as a missing bootloader
+// blob, fails the build instead of leaving an image that cannot boot.
+func (r *RawImage) finishDiskImage(image string) error {
+	info, err := r.config.Fs.Stat(image)
 	if err != nil {
 		internal.Log.Logger.Error().Err(err).Msg("failed to stat final image")
 		return err
@@ -728,7 +740,7 @@ func (r *RawImage) Build() error {
 	// truncate the image to desired size
 	if r.FinalSize > 0 && uint64(info.Size()) < r.FinalSize*1024*1024 {
 		internal.Log.Logger.Info().Int64("size", info.Size()).Msg("Truncating final image")
-		err = os.Truncate(filepath.Join(r.Output, outputName), int64(r.FinalSize*1024*1024))
+		err = os.Truncate(image, int64(r.FinalSize*1024*1024))
 		if err != nil {
 			internal.Log.Logger.Error().Err(err).Msg("failed to truncate final image")
 			return err
@@ -737,10 +749,7 @@ func (r *RawImage) Build() error {
 	}
 
 	// Do some final adjustments for boards
-	err = r.FinalizeImage(filepath.Join(r.Output, outputName))
-	internal.Log.Logger.Info().Str("target", filepath.Join(r.Output, outputName)).Msg("Assembled final disk image")
-
-	return nil
+	return r.FinalizeImage(image)
 }
 
 // emitPartitionImages copies the already-built partition images out of the temp
