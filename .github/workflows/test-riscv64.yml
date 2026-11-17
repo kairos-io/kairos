@@ -5,7 +5,21 @@ on:
   pull_request:
     branches:
       - main
+  # Without a run on main this job has no known-good baseline: a flake can
+  # only ever surface as somebody else's red pull request.
+  push:
+    branches:
+      - main
   workflow_dispatch:
+
+# The riscv64 runner pool is small and this job averages 54 minutes, so a
+# second push to the same branch must not leave the first one running. Runs on
+# main are not cancelled once started, but GitHub keeps only one pending run per
+# group: during a merge train the running commit and the newest one get a
+# baseline, and the commits merged in between do not.
+concurrency:
+  group: test-riscv64-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -38,6 +52,11 @@ jobs:
   build-linux-riscv64:
     runs-on: 'ubuntu-24.04-riscv'
     needs: build-ui
+    # No successful run of this job has ever passed 75 minutes, but it declares
+    # no timeout, so a stall runs into the 6 hour limit GitHub applies instead.
+    # A third of the recent runs ended that way, each holding one of the few
+    # riscv64 runners for five more hours than a healthy run needs.
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -64,14 +83,88 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libpcsclite-dev
 
       - name: Build binary
+        # Same reasoning as the test step below: a healthy run of this step
+        # takes 21 to 25 minutes, so 45 bounds a stall without ever cutting a
+        # good build short.
+        timeout-minutes: 45
         run: |
-          go build -tags ui -v -o auroraboot .
+          # go build -v names each package as it starts it, but when the
+          # toolchain is killed rather than failing it writes no diagnostic at
+          # all: on 2026-10-21 runs 39561127549 and 39568879746 both exited 1
+          # after ~19 minutes, on different branches, with the last line being
+          # the package name and nothing after it. Report what the kernel and
+          # the runner have to say so the next red is readable. The exit status
+          # is preserved, so this reports a failure, it does not swallow one.
+          go build -tags ui -v -o auroraboot . || {
+            status=$?
+            echo "::error::go build exited ${status} without a compiler diagnostic. Runner state follows; a silent kill here is usually the OOM killer."
+            echo "--- memory"; free -m || true
+            echo "--- disk"; df -h . "${HOME}" || true
+            echo "--- kernel log"
+            # Piping dmesg straight into tail would hide its own failure
+            # behind tail's exit status, so the fallback would never print.
+            if sudo dmesg -T >/tmp/dmesg.txt 2>/dev/null; then
+              tail -40 /tmp/dmesg.txt
+            else
+              echo "dmesg unavailable on this runner"
+            fi
+            exit "${status}"
+          }
 
       - name: Run tests
+        # Every stall this job has had since 2026-10-13 happened in this step,
+        # and none of them left anything to read. A healthy run takes 9 to 11
+        # minutes.
+        #
+        # The step timeout below is a backstop, not the bound. On run
+        # 39597587527 this step started at 13:23:23Z under a 30 minute cap and
+        # was still marked started when the 90 minute job cap ended the job at
+        # 14:31:22Z: a step timeout is applied by the runner process, so it
+        # cannot fire once the runner itself stops reporting. Only the
+        # job-level timeout-minutes, which the Actions service applies, survives
+        # that. A job ended that way is reported as cancelled, and a cancelled
+        # job uploads no step logs at all, which is why a week of six hour
+        # stalls has produced nothing to read.
+        #
+        # So bound the command as well. The hang this job can name is a hung
+        # test: go test -timeout 20m fires first and panics with the stuck
+        # test's stack. The 25 minute timeout is for a stall outside any test
+        # binary, mostly the compile; it makes the step exit 124 instead of
+        # sitting until the job cap. Its SIGQUIT dump is only the go command's
+        # own stacks (a stuck compile shows as gcToolchain.gc waiting in
+        # runOut, with no package path), and a test binary's dump is lost in
+        # the go command's buffer, so when this bound fires the log ends at
+        # the last package printed, which is not necessarily the stuck one.
+        # tee plus the upload below keeps whatever was printed when the job is
+        # cancelled while the runner is still alive. When the runner machine
+        # itself stops (runs 39821215231, 40509213545, 40528062754: this step
+        # was still marked started 66 to 70 minutes in) nothing more runs, no
+        # log is uploaded, and only the job cap bounds it.
+        timeout-minutes: 30
         run: |
+          # The default shell here is bash -e, without pipefail, so without this
+          # the pipeline would report tee's exit status and a timed-out or
+          # failing go test would read as a pass.
+          set -o pipefail
           # Skip e2e and integration tests - they require Docker images or have timing
-          # issues on slower riscv64 runners
-          go test -tags ui -v $(go list ./... | grep -v -E '/(e2e|integration)')
+          # issues on slower riscv64 runners. Listed on its own line so a failing
+          # go list fails the step: inline, it expands to nothing and go test
+          # tests only the root package and passes.
+          pkgs=$(go list ./... | grep -v -E '/(e2e|integration)')
+          timeout --signal=QUIT --kill-after=2m 25m \
+            go test -tags ui -v -timeout 20m ${pkgs} \
+            2>&1 | tee /tmp/riscv64-tests.log
+
+      - name: Upload test log
+        # Runs on cancellation too, so the test output the step above printed
+        # outlives a cancelled job, as long as the runner can still run a step.
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: riscv64-test-log
+          path: /tmp/riscv64-tests.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Show binary info
         run: |
