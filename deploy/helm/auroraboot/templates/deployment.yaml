@@ -21,7 +21,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- if .Values.registrationToken.value }}
         checksum/registration-secret: {{ include "auroraboot.registrationToken" . | sha256sum }}
+        {{- end }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -72,15 +74,19 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          {{- if or .Values.registrationToken.value .Values.env }}
           env:
+            {{- if .Values.registrationToken.value }}
             - name: AURORABOOT_REG_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "auroraboot.registrationSecretName" . }}
                   key: token
+            {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- end }}
           volumeMounts:
             - name: data
               mountPath: /var/lib/auroraboot

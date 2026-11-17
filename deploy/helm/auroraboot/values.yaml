@@ -65,9 +65,11 @@ rbac:
   create: true
 
 registrationToken:
-  # When empty, the chart generates a random token on first install and
-  # reuses it on upgrades via helm's lookup function so agents don't
-  # need to be re-enrolled.
+  # When set, the chart stores it in a Secret and AuroraBoot uses it as
+  # the token. When empty, AuroraBoot generates the token on first start
+  # and keeps it on the data volume, so it survives restarts, upgrades
+  # and GitOps renders (helm template). Enable persistence to keep it
+  # across pod rescheduling.
   value: ""
 
 resources: {}

@@ -50,6 +50,7 @@ AuroraBoot is installed. A few things to check before it becomes reachable.
    registered. This chart does not install the operator.
 
 5. Registration token
+{{- if .Values.registrationToken.value }}
 
    Node enrollments use the token stored in secret
    {{ include "auroraboot.registrationSecretName" . }}. Fetch it with:
@@ -57,3 +58,11 @@ AuroraBoot is installed. A few things to check before it becomes reachable.
      kubectl -n {{ .Release.Namespace }} get secret \
        {{ include "auroraboot.registrationSecretName" . }} \
        -o jsonpath='{.data.token}' | base64 -d
+{{- else }}
+
+   AuroraBoot generated the node enrollment token and keeps it on its
+   data volume. Read it in the web UI settings, or with:
+
+     kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "auroraboot.fullname" . }} -- \
+       cat /var/lib/auroraboot/secrets/registration-token
+{{- end }}

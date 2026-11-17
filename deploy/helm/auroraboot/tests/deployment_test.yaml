@@ -139,9 +139,11 @@ tests:
             name: data
             emptyDir: {}
 
-  - it: exposes the registration token as env from the generated secret
+  - it: exposes the registration token as env from the chart secret
     set:
       host: auroraboot.example.com
+      registrationToken:
+        value: my-static-token
     release:
       name: ab
     asserts:
@@ -167,9 +169,34 @@ tests:
   - it: hashes the registration token into a pod-template annotation so rotations roll pods
     set:
       host: auroraboot.example.com
+      registrationToken:
+        value: my-static-token
     asserts:
-      - exists:
+      - equal:
           path: spec.template.metadata.annotations["checksum/registration-secret"]
+          value: 8d5ddbca14ddffe341bb5ffe68c236f901c586647c67299393ba93785ddb90fb
+
+  - it: leaves the registration token to the server when registrationToken.value is empty
+    set:
+      host: auroraboot.example.com
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/registration-secret"]
+
+  - it: keeps user env when registrationToken.value is empty
+    set:
+      host: auroraboot.example.com
+      env:
+        - name: FOO
+          value: bar
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: FOO
+              value: bar
 
   - it: disables host networking and netboot privileges by default
     set:

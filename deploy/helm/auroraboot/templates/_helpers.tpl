@@ -104,20 +104,17 @@ callers who want to override can set builder.uploadURL explicitly.
 {{- end -}}
 
 {{/*
-Resolves the registration token that ends up in the Secret. Both the
-Secret template and the Deployment's checksum annotation use this,
-so a token change ripples through the pod annotation and forces a
-rolling restart on the next helm upgrade.
+The registration token that ends up in the Secret. Both the Secret
+template and the Deployment's checksum annotation use this, so a token
+change ripples through the pod annotation and forces a rolling restart
+on the next helm upgrade.
+
+Only registrationToken.value is used. When it is empty the chart renders
+no Secret and AuroraBoot generates the token itself and keeps it on the
+data volume. The chart does not generate one: helm template (Argo CD,
+Flux) cannot lookup the live Secret, so a chart-side random token would
+change on every render and overwrite the token the server saved.
 */}}
 {{- define "auroraboot.registrationToken" -}}
-{{- if .Values.registrationToken.value -}}
 {{- .Values.registrationToken.value -}}
-{{- else -}}
-{{- $existing := lookup "v1" "Secret" .Release.Namespace (include "auroraboot.registrationSecretName" .) -}}
-{{- if and $existing $existing.data (hasKey $existing.data "token") -}}
-{{- index $existing.data "token" | b64dec -}}
-{{- else -}}
-{{- randAlphaNum 48 -}}
-{{- end -}}
-{{- end -}}
 {{- end -}}
