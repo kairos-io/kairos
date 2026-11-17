@@ -105,10 +105,19 @@ leave a token brute-force no free instant allowance.
 
 If a whole rack of nodes registers at once from behind a single NAT egress IP,
 they share one per-IP registration bucket; raise `--register-rate-limit` or
-disable rate limiting for that deployment. The per-IP key is the client address
-as the server sees it (honouring `X-Forwarded-For` behind a trusted proxy), so
-it's a flood speed-bump rather than a hard boundary — the registration token
-remains the actual access control.
+disable rate limiting for that deployment. The rate limit is a flood
+speed-bump rather than a hard boundary — the registration token remains the
+actual access control.
+
+The per-IP key is the TCP peer address. `X-Forwarded-For` and `X-Real-IP` are
+ignored unless the request comes from a trusted proxy:
+
+- `--trusted-proxy <ip|cidr>` / `AURORABOOT_TRUSTED_PROXY` — a reverse proxy
+  whose `X-Forwarded-For` is believed, repeatable (for example
+  `--trusted-proxy 10.0.0.0/8`)
+
+Set it when AuroraBoot runs behind a proxy or ingress, otherwise every node
+shares the proxy's address and its registration bucket.
 
 ### Hadron builds
 

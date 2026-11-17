@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -92,6 +93,10 @@ type Config struct {
 	NodeRateLimitBurst     int     // per-node instantaneous allowance
 	RegisterRateLimitRPS   float64 // per-IP requests/sec for registration
 	RegisterRateLimitBurst int     // per-IP instantaneous allowance
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is believed
+	// when working out a request's client IP (registration rate limit key, node
+	// remote IP). Empty means the TCP peer address is always the client IP.
+	TrustedProxies []*net.IPNet
 	// ResetTimeout bounds the pending/in-progress automatic-reset lifecycle.
 	// Zero uses handlers.DefaultResetTimeout; a negative value disables expiration.
 	ResetTimeout time.Duration
@@ -147,6 +152,7 @@ func redactToken(requestURI string) string {
 func New(cfg Config) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
+	e.IPExtractor = clientIPExtractor(cfg.TrustedProxies)
 
 	// Use a request logger whose URI is run through redactToken before it is
 	// written. The agent WebSocket takes the node API key as a ?token= query

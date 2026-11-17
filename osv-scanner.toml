@@ -19,16 +19,13 @@ reason = "golang.org/x/crypto/openpgp is unmaintained upstream; OSV lists no pat
 
 # Echo v4 trusts X-Forwarded-For / X-Real-IP in RealIP() when Echo#IPExtractor
 # is unset. The fix is only in echo v5 (5.1.0), there is no v4 release with it.
-# This one is reachable: RegistrationRateLimiter in pkg/auth/ratelimit.go keys
-# on c.RealIP() and the server sets no IPExtractor, so a client can rotate
-# X-Forwarded-For to get a fresh bucket. ratelimit.go already documents the
-# limiter as a speed bump and the registration token as the access control.
-# The fix in AuroraBoot is setting an IPExtractor that only trusts configured
-# proxies, kairos-io/kairos#5763. Short expiry on purpose.
+# Not reachable: pkg/server sets Echo#IPExtractor to the TCP peer, or to
+# X-Forwarded-For from --trusted-proxy ranges only, so RealIP() never takes a
+# client supplied header (kairos-io/kairos#5763). Short expiry on purpose.
 [[IgnoredVulns]]
 id = "GHSA-246p-cpwv-v3jq"
 ignoreUntil = 2026-11-28
-reason = "Echo v4 RealIP trusts X-Forwarded-For; fixed only in echo v5. Reachable through RegistrationRateLimiter, which is a speed bump, not the access control. Fix by setting Echo#IPExtractor, tracked in kairos-io/kairos#5763."
+reason = "Echo v4 RealIP trusts X-Forwarded-For when no IPExtractor is set; fixed only in echo v5. AuroraBoot sets Echo#IPExtractor (kairos-io/kairos#5763), so it is not reachable."
 
 # Echo's reverse proxy middleware forwards a client supplied X-Real-IP
 # upstream. Fixed only in echo v5 (5.4.0). AuroraBoot does not use

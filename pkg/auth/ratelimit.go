@@ -73,13 +73,11 @@ func NodeRateLimiter(rps float64, burst int) echo.MiddlewareFunc {
 // are throttled too — otherwise the token check would run (and cost work) on
 // every brute-force attempt before the limiter ever saw it.
 //
-// The key is echo's RealIP, which honours X-Forwarded-For / X-Real-IP. Behind a
-// trusted proxy that overwrites those headers this is the real client IP; a
-// directly-exposed server with no such proxy sees the TCP peer. Because a client
-// that can set its own X-Forwarded-For could rotate the key to evade this limit,
-// the limiter is a flood speed-bump, not the access control — the registration
-// token is. Operators who need a hard per-client boundary should front the server
-// with a proxy that rewrites the forwarding headers.
+// The key is echo's RealIP, so it is whatever the server's IPExtractor says:
+// the TCP peer by default, or the X-Forwarded-For client when the request comes
+// through a configured trusted proxy. A client cannot pick its own key, but many
+// nodes behind one NAT share it, so the limiter is a flood speed-bump, not the
+// access control — the registration token is.
 //
 // A non-positive rps disables limiting (the middleware passes through).
 func RegistrationRateLimiter(rps float64, burst int) echo.MiddlewareFunc {
