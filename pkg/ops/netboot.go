@@ -170,17 +170,27 @@ func StartPixiecore(cloudConfigFile, address, netbootPort string, squashFSfileGe
 // merge rewrites the option list, while the kairos.extensions value is a list
 // of pixiecore {{ ID }} templates this build minted and nothing else may
 // reorder or deduplicate.
+//
+// An empty cloudConfigFile means no config is served, so the line carries no
+// config_url at all. Pixiecore would otherwise mint a URL for an empty path
+// that it then fails to serve, and every node would retry it on each config
+// load.
 func netbootCmdline(squashFSfile, cloudConfigFile string, grubCfgFileGet valueGetOnCall, nb schema.NetBoot) (string, error) {
 	// The two served paths are expanded on their own, before anything else is
 	// joined on. Everything appended afterwards is operator-supplied or
 	// ISO-supplied text, and a % in it would otherwise be read as a format
 	// verb: fmt replaces it with %!(NOVERB) and a stray verb can swallow the
 	// option that follows it.
+	configURL := ""
+	if cloudConfigFile != "" {
+		configURL = fmt.Sprintf(` config_url={{ ID "%s" }}`, cloudConfigFile)
+	}
+
 	var line string
 	if nb.Cmdline != "" {
-		line = fmt.Sprintf(`root=live:{{ ID "%s" }} config_url={{ ID "%s" }}`, squashFSfile, cloudConfigFile) + " " + nb.Cmdline
+		line = fmt.Sprintf(`root=live:{{ ID "%s" }}`, squashFSfile) + configURL + " " + nb.Cmdline
 	} else {
-		line = fmt.Sprintf(`rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "%s" }} netboot install-mode-interactive config_url={{ ID "%s" }} console=tty1 console=ttyS0 console=tty0`, squashFSfile, cloudConfigFile)
+		line = fmt.Sprintf(`rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "%s" }} netboot install-mode-interactive`, squashFSfile) + configURL + " console=tty1 console=ttyS0 console=tty0"
 
 		// Without an explicit override, take the options the ISO itself boots
 		// with instead of leaving this list to drift away from it.

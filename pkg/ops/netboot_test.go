@@ -287,6 +287,24 @@ var _ = Describe("netbootCmdline", func() {
 		Expect(line).To(HaveSuffix(`kairos.extensions={{ ID "` + filepath.Join(dir, "work.sysext.raw") + `" }}`))
 	})
 
+	// start-pixie and the netboot manager pass "" when there is no config to
+	// serve; a config_url for it would point every node at a missing file.
+	It("leaves config_url out of the default cmdline when no config is served", func() {
+		line, err := netbootCmdline(squashfs(), "", nil, schema.NetBoot{})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(line).NotTo(ContainSubstring("config_url"))
+		Expect(line).To(ContainSubstring("netboot install-mode-interactive console=tty1"))
+	})
+
+	It("leaves config_url out of a configured cmdline when no config is served", func() {
+		line, err := netbootCmdline(squashfs(), "", nil, schema.NetBoot{Cmdline: "console=ttyS0 quiet"})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(line).NotTo(ContainSubstring("config_url"))
+		Expect(line).To(HavePrefix(`root=live:{{ ID "` + squashfs() + `" }} console=ttyS0 quiet`))
+	})
+
 	It("leaves the cmdline untouched when nothing is bundled", func() {
 		empty := GinkgoT().TempDir()
 
