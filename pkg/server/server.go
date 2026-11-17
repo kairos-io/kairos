@@ -425,7 +425,8 @@ func New(cfg Config) *echo.Echo {
 	// a node key must not reach them. They are served to an admin (session cookie
 	// or bearer) or to a signed link from POST /artifacts/:id/download-link that
 	// names exactly this file and has not expired.
-	e.GET("/api/v1/artifacts/:id/download/*", artifactHandler.Download, auth.DownloadMiddleware(adminAuth, linkSigner))
+	e.GET("/api/v1/artifacts/:id/download/*", artifactHandler.Download,
+		unescapePathParams, auth.DownloadMiddleware(adminAuth, linkSigner))
 	// The container image is the one artifact a node downloads (to satisfy an
 	// "upgrade from built artifact" command), so it is admin OR a node that such a
 	// command actually assigned this artifact to — never an arbitrary artifact.
@@ -440,7 +441,7 @@ func New(cfg Config) *echo.Echo {
 	// node key stays header-only.
 	if extensionHandler != nil {
 		e.GET("/api/v1/extensions/:id/download/:filename", extensionHandler.Download,
-			auth.ExtensionDownloadMiddleware(adminAuth, cfg.NodeStore, cfg.ExtensionStore))
+			unescapePathParams, auth.ExtensionDownloadMiddleware(adminAuth, cfg.NodeStore, cfg.ExtensionStore))
 	}
 
 	// Artifact upload — per-build UploadToken bearer (minted at Create time,

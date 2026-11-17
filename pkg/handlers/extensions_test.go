@@ -570,6 +570,17 @@ var _ = Describe("ExtensionHandler.Download", func() {
 		Expect(rec.Code).To(Equal(http.StatusBadRequest))
 	})
 
+	It("rejects a NUL byte in the filename", func() {
+		// An escaped "%00" in the URL decodes to a NUL byte in the param.
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/extensions/e-1/download/tailscale-agent.sysext.raw%00", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetParamNames("id", "filename")
+		c.SetParamValues("e-1", "tailscale-agent.sysext.raw\x00")
+		Expect(handler.Download(c)).To(Succeed())
+		Expect(rec.Code).To(Equal(http.StatusBadRequest))
+	})
+
 	It("returns 404 when the file is on disk but the extension record is gone", func() {
 		Expect(es.Delete(context.Background(), "e-1")).To(Succeed())
 		rec := do("e-1", "tailscale-agent.sysext.raw")

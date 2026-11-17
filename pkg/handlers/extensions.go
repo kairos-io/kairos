@@ -476,12 +476,14 @@ func (h *ExtensionHandler) ListNodesForExtension(c echo.Context) error {
 	return c.JSON(http.StatusOK, rows)
 }
 
-// isSafePathSegment rejects empty, `.`/`..`, or `/`-containing segments.
+// isSafePathSegment rejects empty, `.`/`..`, `/`-containing, or NUL-containing
+// segments. A NUL byte can arrive as an escaped "%00" and would make os.Open fail
+// with an error other than "not exist".
 func isSafePathSegment(s string) bool {
 	if s == "" || s == "." || s == ".." {
 		return false
 	}
-	if strings.ContainsAny(s, "/\\") {
+	if strings.ContainsAny(s, "/\\\x00") {
 		return false
 	}
 	if strings.Contains(s, "..") {
