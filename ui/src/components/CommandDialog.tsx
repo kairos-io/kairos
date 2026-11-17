@@ -39,7 +39,7 @@ import {
 
 export type { CommandKey };
 
-interface CommandDef {
+export interface CommandDef {
   key: CommandKey;
   label: string;
   // What the user will see on the primary button ("Send upgrade", etc).
@@ -50,7 +50,7 @@ interface CommandDef {
   tone: "orange" | "blue" | "amber" | "red";
 }
 
-const COMMANDS: CommandDef[] = [
+export const COMMANDS: CommandDef[] = [
   {
     key: "upgrade",
     label: "Upgrade",
@@ -651,7 +651,7 @@ export function CommandDialog({
                   className="font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Written to /oem/99_auroraboot_remote.yaml. Reboot the node to apply.
+                  Written to /oem/99_phonehome_remote.yaml. Reboot the node to apply.
                 </p>
               </div>
             )}
