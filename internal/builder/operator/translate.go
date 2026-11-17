@@ -25,6 +25,17 @@ func translateBuildOptions(id string, opts builder.BuildOptions) (buildv1alpha2.
 		return buildv1alpha2.OSArtifactSpec{}, fmt.Errorf("%w: source.arch must be 'amd64' or 'arm64', got %q", builder.ErrInvalidBuildOptions, arch)
 	}
 
+	// kairos-operator's ArtifactSpec has no MAAS output and no way to add
+	// catalog extensions, so a request for either would finish without
+	// them. Reject it instead. A catalog list with no extensions resolves
+	// nothing on either backend, so it is left alone.
+	if opts.Outputs.MAAS {
+		return buildv1alpha2.OSArtifactSpec{}, fmt.Errorf("%w: outputs.maas is not supported by the operator backend", builder.ErrInvalidBuildOptions)
+	}
+	if len(opts.Extensions) > 0 {
+		return buildv1alpha2.OSArtifactSpec{}, fmt.Errorf("%w: extensions are not supported by the operator backend", builder.ErrInvalidBuildOptions)
+	}
+
 	// A caller may pass the base image via the legacy flat field
 	// (opts.BaseImage) or the grouped shape (opts.Source.BaseImage). Both are
 	// valid; treat them as one so validation and translation cannot disagree.

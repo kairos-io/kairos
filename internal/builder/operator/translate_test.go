@@ -300,6 +300,36 @@ var _ = Describe("translateBuildOptions", func() {
 			wantErr: builder.ErrInvalidBuildOptions,
 		},
 		{
+			name: "MAAS output rejected",
+			opts: builder.BuildOptions{
+				BaseImage: "quay.io/kairos/ubuntu:v3.6.0",
+				Outputs:   builder.OutputOptions{MAAS: true},
+			},
+			wantErr: builder.ErrInvalidBuildOptions,
+		},
+		{
+			name: "extensions rejected",
+			opts: builder.BuildOptions{
+				BaseImage:          "quay.io/kairos/ubuntu:v3.6.0",
+				Outputs:            builder.OutputOptions{ISO: true},
+				Extensions:         []string{"k3s"},
+				ExtensionsCatalogs: []string{"https://example.com/releases.json"},
+			},
+			wantErr: builder.ErrInvalidBuildOptions,
+		},
+		{
+			name: "catalogs without extensions still build",
+			opts: builder.BuildOptions{
+				BaseImage:          "quay.io/kairos/ubuntu:v3.6.0",
+				Outputs:            builder.OutputOptions{ISO: true},
+				ExtensionsCatalogs: []string{"https://example.com/releases.json"},
+			},
+			want: buildv1alpha2.OSArtifactSpec{
+				Image:     buildv1alpha2.ImageSpec{Ref: "quay.io/kairos/ubuntu:v3.6.0"},
+				Artifacts: &buildv1alpha2.ArtifactSpec{ISO: true},
+			},
+		},
+		{
 			name: "FIPS on pre-built ref is invalid",
 			opts: builder.BuildOptions{
 				BaseImage: "quay.io/kairos/ubuntu:v3.6.0",

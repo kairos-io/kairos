@@ -125,7 +125,7 @@ func (b *Builder) WithLogBroadcaster(lb builder.LogBroadcaster) *Builder {
 //
 // AuroraBoot BuildOptions with no operator equivalent surface as
 // ErrInvalidBuildOptions from translateBuildOptions (invalid arch, FIPS or
-// TrustedBoot on a pre-built ref). Fields that the operator cannot consume at
+// TrustedBoot on a pre-built ref, outputs.maas, extensions). Fields that the operator cannot consume at
 // all (OverlayRootfs, BuildContextDir, Signing.*, Source.Variant,
 // Source.AllowInsecureRegistries, Provisioning.*, KairosInitImage) are silently
 // ignored today; they belong on the local backend and should be rejected by
