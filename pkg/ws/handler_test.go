@@ -222,6 +222,57 @@ var _ = Describe("WebSocket Handler", func() {
 			}, 10*time.Second, 100*time.Millisecond).Should(Equal(store.PhaseOffline))
 		})
 
+		// kairos-io/kairos#5784: an agent that reconnects before its old socket
+		// times out must stay registered and Online when the old socket closes.
+		It("keeps a reconnected agent online when its old socket closes", func() {
+			oldConn, _, err := dialWS(server, "/api/v1/ws?token="+apiKey)
+			Expect(err).NotTo(HaveOccurred())
+			Eventually(func() bool {
+				return hub.IsOnline(nodeID)
+			}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
+
+			newConn, _, err := dialWS(server, "/api/v1/ws?token="+apiKey)
+			Expect(err).NotTo(HaveOccurred())
+			defer newConn.Close()
+			// The new socket's handler registers before its read loop starts, so
+			// once it has applied a heartbeat it owns the hub entry.
+			Expect(sendMsg(newConn, "heartbeat", heartbeatData{AgentVersion: "reconnected"})).To(Succeed())
+			Eventually(func() string {
+				node, _ := nodes.GetByID(bg, nodeID)
+				if node == nil {
+					return ""
+				}
+				return node.AgentVersion
+			}, 10*time.Second, 100*time.Millisecond).Should(Equal("reconnected"))
+
+			oldConn.Close()
+
+			Consistently(func() string {
+				node, _ := nodes.GetByID(bg, nodeID)
+				if node == nil || !hub.IsOnline(nodeID) {
+					return "unregistered"
+				}
+				return node.Phase
+			}, 2*time.Second, 100*time.Millisecond).Should(Equal(store.PhaseOnline))
+
+			Expect(hub.SendCommand(nodeID, commandData{ID: "cmd-after", Command: "exec"})).To(Succeed())
+			msg, err := readMsg(newConn)
+			Expect(err).NotTo(HaveOccurred())
+			var cd commandData
+			Expect(json.Unmarshal(msg.Data, &cd)).To(Succeed())
+			Expect(cd.ID).To(Equal("cmd-after"))
+
+			newConn.Close()
+			Eventually(func() string {
+				node, _ := nodes.GetByID(bg, nodeID)
+				if node == nil {
+					return ""
+				}
+				return node.Phase
+			}, 10*time.Second, 100*time.Millisecond).Should(Equal(store.PhaseOffline))
+			Expect(hub.IsOnline(nodeID)).To(BeFalse())
+		})
+
 		It("should handle heartbeat and update node info", func() {
 			conn, _, err := dialWS(server, "/api/v1/ws?token="+apiKey)
 			Expect(err).NotTo(HaveOccurred())

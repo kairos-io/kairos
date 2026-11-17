@@ -41,11 +41,19 @@ func (h *Hub) Register(nodeID string, conn *websocket.Conn) *wsConn {
 	return wc
 }
 
-// Unregister removes the WebSocket connection for the given node ID.
-func (h *Hub) Unregister(nodeID string) {
+// Unregister removes the WebSocket connection for the given node ID, but only
+// while wc is still the one registered for it. An agent that reconnects before
+// its old socket times out registers a new connection over the old one; the old
+// socket's teardown must then leave the live connection in place. It reports
+// whether wc was removed, which is false once a newer connection replaced it.
+func (h *Hub) Unregister(nodeID string, wc *wsConn) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if cur, ok := h.connections[nodeID]; !ok || cur != wc {
+		return false
+	}
 	delete(h.connections, nodeID)
+	return true
 }
 
 // SendCommand sends a command message to the specified node via WebSocket.

@@ -201,7 +201,11 @@ func (h *AgentHandler) HandleAgentWS(c echo.Context) error {
 	}
 
 	defer func() {
-		h.Hub.Unregister(node.ID)
+		// A newer connection from the same node replaced this one: the node is
+		// still online on it, so neither drop its hub entry nor mark it offline.
+		if !h.Hub.Unregister(node.ID, wc) {
+			return
+		}
 		// context.Background() is correct here: the HTTP request context is
 		// already done when the WS connection tears down, but we still need
 		// to persist the offline phase change.
