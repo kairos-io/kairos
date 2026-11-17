@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/cavaliergopher/grab/v3"
@@ -130,14 +129,27 @@ func downloadOnce(ctx context.Context, url, dst string) (string, error) {
 	req, _ := grab.NewRequest(dst, url)
 
 	// start download
+	// Without ctx on the request, cancelling only ends the progress loop
+	// below: grab keeps writing the file in the background.
+	req = req.WithContext(ctx)
 	internal.Log.Logger.Info().Msgf("Downloading %v...", req.URL())
 	resp := client.Do(req)
-	internal.Log.Logger.Printf("%s:  %v", url, resp.HTTPResponse.Status)
+	// A cancel or connect error before the response headers leaves
+	// HTTPResponse nil; the loop below then reports resp.Err().
+	if resp.HTTPResponse != nil {
+		internal.Log.Logger.Printf("%s:  %v", url, resp.HTTPResponse.Status)
+	}
 
 	// start UI loop
 	t := time.NewTicker(500 * time.Millisecond)
 	defer t.Stop()
-	dstFile := filepath.Join(dst, resp.Filename)
+	// resp.Filename is already the full path grab writes to (dst itself, or
+	// dst joined with the remote name when dst is a directory). Joining it
+	// with dst again pointed the cleanups below at a path that never exists,
+	// so a failed or canceled download left its partial file behind. The file
+	// is created inside client.Do, so removing it here cannot race its
+	// creation.
+	dstFile := resp.Filename
 Loop:
 	for {
 		select {
