@@ -49,3 +49,19 @@ export function hasBootIssue(node: Node): boolean {
   const s = (node.bootState ?? "").toLowerCase();
   return s === "recovery" || s === "passive";
 }
+
+// ociImage is the OCI reference of the image the node is running, assembled
+// from the repository and tag the agent reports out of /etc/kairos-release
+// (KAIROS_IMAGE_REPO and KAIROS_IMAGE_LABEL, written by sdk/versioneer).
+// Returns "" when no repository was reported, because a tag on its own names
+// no image.
+export function ociImage(node: Node): string {
+  const repo = node.osRelease?.KAIROS_IMAGE_REPO?.trim() ?? "";
+  if (!repo) return "";
+  const tag = node.osRelease?.KAIROS_IMAGE_LABEL?.trim() ?? "";
+  // A repository pinned by digest, or one that already carries the tag, names
+  // the image on its own. Comparing against the whole ":<tag>" suffix keeps a
+  // registry port such as "registry:5000/kairos/ubuntu" from reading as a tag.
+  if (!tag || repo.includes("@") || repo.endsWith(`:${tag}`)) return repo;
+  return `${repo}:${tag}`;
+}

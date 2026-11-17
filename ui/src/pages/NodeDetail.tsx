@@ -56,7 +56,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/useToast";
 import { timeAgo } from "@/lib/time";
-import { cpuCount, imageVersion, memGiB } from "@/lib/nodeInfo";
+import { cpuCount, imageVersion, memGiB, ociImage } from "@/lib/nodeInfo";
 import { phaseTone, type Tone } from "@/lib/phase";
 import { cn } from "@/lib/utils";
 import { sustainedHighCpu } from "@/lib/metrics";
@@ -258,6 +258,7 @@ export function NodeDetail() {
   breadcrumb.push({ label: n.hostname });
 
   const image = imageVersion(n);
+  const oci = ociImage(n);
   const boot = (n.bootState ?? "").toLowerCase();
   const bTone = bootTone(boot);
   const cpus = cpuCount(n);
@@ -351,7 +352,15 @@ export function NodeDetail() {
           label="Image Version"
           icon={Layers}
           value={<span className="block truncate font-mono text-lg">{image || "—"}</span>}
-          sub={image ? undefined : "Not reported"}
+          sub={
+            oci ? (
+              <span className="block truncate font-mono" title={oci}>
+                {oci}
+              </span>
+            ) : image ? undefined : (
+              "Not reported"
+            )
+          }
         />
         <StatTile
           label="Kairos Version"
