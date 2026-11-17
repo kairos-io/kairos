@@ -42,6 +42,12 @@ type fakeBMC struct {
 	// served so the Basic-auth deploy path can be exercised.
 	noSessionService bool
 
+	// serviceRootFailAfter, when non-zero, serves that many ServiceRoot GETs and
+	// answers 503 to every later one, so a ServiceRoot read that happens after
+	// Connect (gofish reads it once while connecting) can be made to fail.
+	serviceRootFailAfter int
+	serviceRootServed    int
+
 	// systemIDs is the set of ComputerSystem Ids the Systems collection exposes.
 	// Defaults to a single "sys-xyz" member (matching the original single-system
 	// fake). Set more than one to exercise the fail-safe system selector. Each Id
@@ -136,6 +142,18 @@ func (f *fakeBMC) record(r *http.Request) {
 	f.requests = append(f.requests, recordedRequest{Method: r.Method, Path: r.URL.Path, AuthType: authType})
 }
 
+// serviceRootExhausted counts a ServiceRoot GET and reports whether it is past
+// serviceRootFailAfter and must fail.
+func (f *fakeBMC) serviceRootExhausted() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.serviceRootFailAfter == 0 {
+		return false
+	}
+	f.serviceRootServed++
+	return f.serviceRootServed > f.serviceRootFailAfter
+}
+
 // sawAuthType reports whether any recorded request to a path with the given
 // prefix carried the given auth type ("Basic"/"Bearer"/"Token").
 func (f *fakeBMC) sawAuthType(authType, pathPrefix string) bool {
@@ -208,6 +226,10 @@ func (f *fakeBMC) handle(w http.ResponseWriter, r *http.Request) {
 
 	switch {
 	case r.URL.Path == "/redfish/v1/" || r.URL.Path == "/redfish/v1":
+		if f.serviceRootExhausted() {
+			http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+			return
+		}
 		f.writeJSON(w, f.serviceRoot())
 
 	// A session-less BMC (sushy-style) has no SessionService: the create path 404s.

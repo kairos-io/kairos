@@ -169,6 +169,65 @@ var _ = Describe("Deployer.Probe", Label("redfish", "probe"), func() {
 		Expect(report.AuthModeUsed).To(Equal("basic"))
 	})
 
+	It("reads the SessionService from the ServiceRoot under explicit basic auth", func() {
+		d = redfish.NewDeployer(redfish.Config{
+			Endpoint:  bmc.URL(),
+			Username:  testUser,
+			Password:  testPassword,
+			VerifySSL: false,
+			Timeout:   30 * time.Second,
+			AuthMode:  redfish.AuthModeBasic,
+		})
+		Expect(d.Connect(ctx)).To(Succeed())
+		defer func() { _ = d.Close() }()
+
+		report, err := d.Probe(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(report.HasSessionService).To(BeTrue())
+		Expect(report.AuthModeUsed).To(Equal("basic"))
+	})
+
+	It("reports no SessionService under explicit basic auth when the BMC has none", func() {
+		bmc.noSessionService = true
+		d = redfish.NewDeployer(redfish.Config{
+			Endpoint:  bmc.URL(),
+			Username:  testUser,
+			Password:  testPassword,
+			VerifySSL: false,
+			Timeout:   30 * time.Second,
+			AuthMode:  redfish.AuthModeBasic,
+		})
+		Expect(d.Connect(ctx)).To(Succeed())
+		defer func() { _ = d.Close() }()
+
+		report, err := d.Probe(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(report.HasSessionService).To(BeFalse())
+		Expect(report.AuthModeUsed).To(Equal("basic"))
+	})
+
+	It("still probes under explicit basic auth when the ServiceRoot read fails", func() {
+		// gofish reads the ServiceRoot once while connecting; fail the second
+		// read, the one Probe makes to look for a SessionService.
+		bmc.serviceRootFailAfter = 1
+		d = redfish.NewDeployer(redfish.Config{
+			Endpoint:  bmc.URL(),
+			Username:  testUser,
+			Password:  testPassword,
+			VerifySSL: false,
+			Timeout:   30 * time.Second,
+			AuthMode:  redfish.AuthModeBasic,
+		})
+		Expect(d.Connect(ctx)).To(Succeed())
+		defer func() { _ = d.Close() }()
+
+		report, err := d.Probe(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(report.HasSessionService).To(BeFalse())
+		Expect(report.AuthModeUsed).To(Equal("basic"))
+		Expect(report.SystemIDs).NotTo(BeEmpty())
+	})
+
 	Describe("StarterProfile round-trips through ParseProfile", func() {
 		It("produces a valid profile WITHOUT mediaSearch for System-hosted media", func() {
 			bmc.biosVersion = "U30 v2.44"
