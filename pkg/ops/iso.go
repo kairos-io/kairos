@@ -306,33 +306,40 @@ func InjectISO(dstFunc, isoFunc valueGetOnCall, i schema.ISO) func(ctx context.C
 			}
 		}
 
-		// Check if we actually have a cloud config and its not empty so we dont do extra work for nothing
-		if _, err := os.Stat(filepath.Join(dst, "config.yaml")); err == nil {
-			f, err := os.ReadFile(filepath.Join(dst, "config.yaml"))
-			if err == nil && f != nil && len(f) > 0 {
-				// No os.Chdir here: every path below (isoFile, tmp, and the
-				// config.yaml source) is already absolute, and xorriso is given
-				// absolute -indev/-outdev/-map paths. Builds run as concurrent
-				// goroutines in `web` mode, where a process-global chdir would
-				// corrupt sibling builds — so we must not mutate the cwd.
-				internal.Log.Logger.Info().Msgf("Adding cloud config file to '%s'", isoFile)
-				err = copy.Copy(filepath.Join(dst, "config.yaml"), filepath.Join(tmp, "config.yaml"))
-				if err != nil {
-					return err
-				}
-				out, err := sdkutils.SH(fmt.Sprintf("xorriso -indev %s -outdev %s -map %s / -boot_image any replay", isoFile, isoFile, tmp))
-				internal.Log.Print(out)
-				if err != nil {
-					return err
-				}
-
-				internal.Log.Logger.Info().Msgf("Wrote '%s' with injected cloud-config", isoFile)
-			} else {
-				internal.Log.Logger.Warn().Msgf("No cloud config file found in '%s', skipping injection", filepath.Join(dst, "config.yaml"))
+		// Stage the cloud config only when it exists and is not empty: the
+		// deployer always writes config.yaml, as a 0-byte file when no
+		// cloud_config is set.
+		hasConfig := false
+		configFile := filepath.Join(dst, "config.yaml")
+		if f, readErr := os.ReadFile(configFile); readErr == nil && len(f) > 0 {
+			internal.Log.Logger.Info().Msgf("Adding cloud config file to '%s'", isoFile)
+			if err := copy.Copy(configFile, filepath.Join(tmp, "config.yaml")); err != nil {
+				return err
 			}
+			hasConfig = true
+		} else {
+			internal.Log.Logger.Warn().Msgf("No cloud config file found in '%s', skipping cloud config injection", configFile)
 		}
 
-		return err
+		// An overlay must be injected even without a cloud config
+		// (kairos-io/kairos#5778).
+		if !hasConfig && i.OverlayISO == "" {
+			return nil
+		}
+
+		// No os.Chdir here: every path below (isoFile, tmp, and the
+		// config.yaml source) is already absolute, and xorriso is given
+		// absolute -indev/-outdev/-map paths. Builds run as concurrent
+		// goroutines in `web` mode, where a process-global chdir would
+		// corrupt sibling builds, so we must not mutate the cwd.
+		out, err := sdkutils.SH(fmt.Sprintf("xorriso -indev %s -outdev %s -map %s / -boot_image any replay", isoFile, isoFile, tmp))
+		internal.Log.Print(out)
+		if err != nil {
+			return err
+		}
+
+		internal.Log.Logger.Info().Msgf("Wrote '%s' with injected data", isoFile)
+		return nil
 	}
 }
 

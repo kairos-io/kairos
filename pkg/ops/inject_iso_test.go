@@ -149,4 +149,58 @@ var _ = Describe("InjectISO", Label("iso"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(afterWD).To(Equal(beforeWD), "InjectISO must not change the process cwd even on failure")
 	})
+	// kairos-io/kairos#5778: on the release-ISO path InjectISO is the only step
+	// that applies iso.overlay_iso, and the deployer writes a 0-byte
+	// config.yaml when no cloud_config is set. The overlay must still land.
+	DescribeTable("injects the overlay without a cloud config",
+		func(writeConfig bool) {
+			if _, err := exec.LookPath("xorriso"); err != nil {
+				Skip("xorriso not installed")
+			}
+
+			dst := GinkgoT().TempDir()
+			if writeConfig {
+				Expect(os.WriteFile(filepath.Join(dst, "config.yaml"), nil, 0o644)).To(Succeed())
+			}
+
+			overlay := GinkgoT().TempDir()
+			Expect(os.WriteFile(filepath.Join(overlay, "overlay-marker.txt"), []byte("x"), 0o644)).To(Succeed())
+
+			payload := GinkgoT().TempDir()
+			Expect(os.WriteFile(filepath.Join(payload, "placeholder"), []byte("x"), 0o644)).To(Succeed())
+			isoFile := filepath.Join(GinkgoT().TempDir(), "source.iso")
+			out, err := exec.Command("xorriso", "-as", "mkisofs", "-o", isoFile, payload).CombinedOutput()
+			Expect(err).NotTo(HaveOccurred(), string(out))
+
+			fn := InjectISO(
+				func() string { return dst },
+				func() string { return isoFile },
+				schema.ISO{OverlayISO: overlay},
+			)
+			Expect(fn(context.Background())).To(Succeed())
+
+			lsOut, lsErr := exec.Command("xorriso", "-indev", isoFile, "-find", "/overlay-marker.txt").CombinedOutput()
+			Expect(lsErr).NotTo(HaveOccurred(), string(lsOut))
+			Expect(string(lsOut)).To(ContainSubstring("/overlay-marker.txt"))
+
+			rootOut, rootErr := exec.Command("xorriso", "-indev", isoFile, "-lsl", "/").CombinedOutput()
+			Expect(rootErr).NotTo(HaveOccurred(), string(rootOut))
+			Expect(string(rootOut)).NotTo(ContainSubstring("config.yaml"))
+		},
+		Entry("with an empty config.yaml", true),
+		Entry("with no config.yaml", false),
+	)
+
+	It("leaves the ISO untouched with neither an overlay nor a cloud config", func() {
+		dst := GinkgoT().TempDir()
+		Expect(os.WriteFile(filepath.Join(dst, "config.yaml"), nil, 0o644)).To(Succeed())
+
+		// A missing ISO proves xorriso is not run: it would fail on it.
+		fn := InjectISO(
+			func() string { return dst },
+			func() string { return filepath.Join(GinkgoT().TempDir(), "does-not-exist.iso") },
+			schema.ISO{},
+		)
+		Expect(fn(context.Background())).To(Succeed())
+	})
 })
