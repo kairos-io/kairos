@@ -91,6 +91,36 @@ cd /tmp/payload && find . -type f | sed 's|^\.||' | sort
 	return files
 }
 
+// listSysextNonRootPaths returns the paths inside a sysext .raw that are not
+// owned by root, the extension-release.d directory the build writes itself
+// included. It slices the erofs root partition out of the DDI the same way
+// listSysextPayload does; fsck.erofs restores uid and gid, so a stat on the
+// extracted tree reads the ownership the image carries.
+func listSysextNonRootPaths(aurora *Auroraboot, raw string) []string {
+	const script = `set -euo pipefail
+raw="$1"
+table=$(sfdisk --json "$raw")
+start=$(echo "$table" | jq -r '.partitiontable.partitions[] | select((.type|ascii_downcase)=="4f68bce3-e8cd-4db1-96e7-fbcaf984b709") | .start')
+size=$(echo "$table" | jq -r '.partitiontable.partitions[] | select((.type|ascii_downcase)=="4f68bce3-e8cd-4db1-96e7-fbcaf984b709") | .size')
+test -n "$start" && test -n "$size"
+dd if="$raw" of=/tmp/root.erofs bs=512 skip="$start" count="$size" status=none
+rm -rf /tmp/owners
+fsck.erofs --extract=/tmp/owners /tmp/root.erofs >/dev/null
+cd /tmp/owners && find . -mindepth 1 \( ! -uid 0 -o ! -gid 0 \) -printf '%p %U:%G\n' | sed 's|^\./|/|' | sort
+`
+	out, err := aurora.ContainerRun("bash", "-c", script, "bash", raw)
+	Expect(err).ToNot(HaveOccurred(), out)
+
+	var paths []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "/") {
+			paths = append(paths, line)
+		}
+	}
+	return paths
+}
+
 // These specs exercise the `auroraboot sysext` / `auroraboot confext`
 // subcommands that build a signed .raw system/config extension from the last
 // layer of a container image. They are the CLI half of the extensions
@@ -193,6 +223,28 @@ var _ = Describe("sysext/confext generation", Label("sysext", "e2e"), Serial, fu
 		Expect(files).To(ContainElement("/usr/local/bin/qa-usr"), files)
 		Expect(files).To(ContainElement("/opt/qa/qa-opt"), files)
 		Expect(files).To(ContainElement("/srv/qa/qa-srv"), files)
+	})
+
+	// systemd-repart copies the staging tree with the uid and gid it finds,
+	// and nothing in the build chowns anything, so the extension carries the
+	// uid that ran auroraboot. A node that merges one built under a uid it
+	// does not have reports every path in it to `find / -xdev -nouser` and
+	// fails CIS DIL 6.1.11 and 6.1.12 (kairos-io/kairos#5335). The build is
+	// refused outside root for that reason; this is the other half, that the
+	// root build really does pack root owned content, extension-release.d
+	// included.
+	It("packs the extension with root owned files", func() {
+		out, err := buildRaw(aurora, "sysext",
+			"--arch", "amd64",
+			"--output", resultDir,
+			"e2e-owners", srcImage,
+		)
+		Expect(err).ToNot(HaveOccurred(), out)
+
+		raw := filepath.Join(resultDir, "e2e-owners.sysext.raw")
+		Expect(raw).To(BeAnExistingFile())
+
+		Expect(listSysextNonRootPaths(aurora, raw)).To(BeEmpty())
 	})
 
 	It("keeps --with-opt working as a deprecated alias for --include-path=/opt", func() {

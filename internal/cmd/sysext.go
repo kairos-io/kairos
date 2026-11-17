@@ -94,6 +94,29 @@ func commonFlagsSysextConfext() []cli.Flag {
 	}
 }
 
+// checkPackingIdentity refuses a build that cannot produce a root owned
+// extension.
+//
+// The staging directory is filled by the layer extraction and by the
+// extension-release file this command writes, neither of which chowns
+// anything, and systemd-repart then copies that tree with the uid and gid it
+// finds: repart.d has no ownership directive, and giving the tree away needs
+// CAP_CHOWN. So a non-root build can only pack its own uid, and on a node that
+// merges the extension every path in it answers `find / -xdev -nouser` and
+// fails CIS DIL 6.1.11 and 6.1.12. The symptom appears on the installed
+// machine, long after the build reported success, so say it here instead.
+func checkPackingIdentity(buildType string, euid int) error {
+	if euid == 0 {
+		return nil
+	}
+	if buildType == "" {
+		buildType = "extension"
+	}
+	return fmt.Errorf(
+		"building a %s needs root: systemd-repart packs the staging tree with the uid and gid it finds, so running as uid %d would produce an extension whose files no Kairos node owns (CIS DIL 6.1.11 and 6.1.12 report every one of them). Run auroraboot as root: drop --user from the container run, unset securityContext.runAsUser in the Helm values, or run the host binary with sudo",
+		buildType, euid)
+}
+
 // supportedArches are the values --arch accepts, in the Go/OCI spelling the
 // flag takes and the image platform uses. Keep it as the single source for
 // both the flag validation and systemdArchitecture: the two used to be
@@ -137,6 +160,9 @@ func validateSysextConfextArgs(ctx *cli.Context) error {
 	}
 	if ctx.NArg() < 2 {
 		return fmt.Errorf("missing required arguments: <name> <container>")
+	}
+	if err := checkPackingIdentity(ctx.Command.Name, os.Geteuid()); err != nil {
+		return err
 	}
 	return nil
 }

@@ -283,7 +283,7 @@ auroraboot build-iso quay.io/kairos/ubuntu:24.04-core-amd64-generic-v3.6.0 \
 # Generate a SecureBoot key set
 auroraboot genkey my-keys --output ./keys
 
-# Generate a sysextension from a container image
+# Generate a sysextension from a container image (sysext and confext must run as root)
 auroraboot sysext my-ext quay.io/myorg/my-tool:latest
 
 # Redfish-driven deploy to a BMC
