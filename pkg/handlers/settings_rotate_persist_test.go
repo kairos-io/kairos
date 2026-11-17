@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -53,5 +54,28 @@ var _ = Describe("SettingsHandler.RotateRegistrationToken persistence", func() {
 		onDisk, err := os.ReadFile(path)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(string(onDisk)).To(Equal(resp["registrationToken"]))
+	})
+
+	It("keeps the file and the in-memory token equal under concurrent rotations", func() {
+		token := auth.NewRegistrationToken("initial-token")
+		path := filepath.Join(GinkgoT().TempDir(), "token")
+		handler := handlers.NewSettingsHandler(token, path)
+
+		for round := 0; round < 200; round++ {
+			var wg sync.WaitGroup
+			for i := 0; i < 8; i++ {
+				wg.Add(1)
+				go func() {
+					defer GinkgoRecover()
+					defer wg.Done()
+					rotate(handler)
+				}()
+			}
+			wg.Wait()
+
+			onDisk, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(onDisk)).To(Equal(token.Get()), "round %d", round)
+		}
 	})
 })

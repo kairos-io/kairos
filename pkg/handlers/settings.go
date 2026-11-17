@@ -33,6 +33,7 @@ const (
 // SettingsHandler handles settings-related REST endpoints.
 type SettingsHandler struct {
 	mu           sync.RWMutex
+	rotateMu     sync.Mutex              // serializes the token file write with the in-memory swap
 	regToken     *auth.RegistrationToken // shared with the registration middleware
 	regTokenFile string                  // path to persist the token so rotations survive restarts
 
@@ -108,6 +109,8 @@ func (h *SettingsHandler) GetRegistrationToken(c echo.Context) error {
 //	@Router			/api/v1/settings/registration-token/rotate [post]
 func (h *SettingsHandler) RotateRegistrationToken(c echo.Context) error {
 	token := uuid.New().String()
+	h.rotateMu.Lock()
+	defer h.rotateMu.Unlock()
 	if h.regTokenFile != "" {
 		if err := os.WriteFile(h.regTokenFile, []byte(token), 0600); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to save registration token"})
