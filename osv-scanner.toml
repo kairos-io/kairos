@@ -9,14 +9,6 @@ id = "GO-2026-5298"
 ignoreUntil = 2027-02-17
 reason = "Transitive go-attestation; OSV lists no patched release (Fixed in N/A) as of 2026-11-17. TPM attestation parsing in upstream deps only. Re-evaluate before expiry."
 
-# golang.org/x/crypto/openpgp is unmaintained by design, so OSV will never list a
-# patched release. Only dropping the openpgp dependency clears this, which is an
-# upstream change in our transitive deps, not something a bump here can do.
-[[IgnoredVulns]]
-id = "GO-2026-5932"
-ignoreUntil = 2026-11-17
-reason = "golang.org/x/crypto/openpgp is unmaintained upstream; OSV lists no patched release (Fixed in N/A). Now on x/crypto v0.56.0. Re-evaluate before expiry."
-
 # Echo v4 trusts X-Forwarded-For / X-Real-IP in RealIP() when Echo#IPExtractor
 # is unset. The fix is only in echo v5 (5.1.0), there is no v4 release with it.
 # Not reachable: pkg/server sets Echo#IPExtractor to the TCP peer, or to
