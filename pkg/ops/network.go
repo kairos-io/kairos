@@ -79,6 +79,13 @@ func DownloadArtifact(url string, isoFunc valueGetOnCall) func(ctx context.Conte
 	return func(ctx context.Context) error {
 		// https://github.com/kairos-io/kairos/releases/download/v1.5.0/kairos-alpine-ubuntu-v1.5.0.iso
 		dst := isoFunc()
+		// grab keeps an existing file whose size matches the remote one and
+		// resumes onto a shorter one, without checking it is the same
+		// artifact. A file left by an earlier run (another version or URL)
+		// would end up kept or spliced, so always start from an empty slot.
+		if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing existing %s before download: %w", dst, err)
+		}
 		_, err := download(ctx, url, dst)
 		if err == nil {
 			internal.Log.Logger.Info().Str("artifact", url).Str("destination", dst).Msg("Artifact downloaded successfully")

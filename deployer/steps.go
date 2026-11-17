@@ -139,7 +139,7 @@ func (d *Deployer) StepDownloadISO() error {
 	return d.Add(constants.OpDownloadISO,
 		herd.EnableIf(func() bool { return !d.rawDiskIsSet() && d.isoOption() }),
 		herd.WithDeps(constants.OpPrepareDirs),
-		herd.WithCallback(ops.DownloadArtifact(d.Artifact.ISOUrl(), d.getIsoFile))) // This is okay to call the getIsoFile function here as we want a destination for the ISO file
+		herd.WithCallback(ops.DownloadArtifact(d.Artifact.ISOUrl(), d.defaultIsoFile)))
 }
 
 // StepExtractNetboot Extract netboot artifacts from the ISO file
@@ -300,11 +300,18 @@ func (d *Deployer) destination() string {
 	return d.Config.State
 }
 
+// defaultIsoFile is where a downloaded release ISO is written. It is a fixed
+// name so the download never lands on an unrelated ISO that getIsoFile would
+// pick from the state dir, and getIsoFile finds it first afterwards.
+func (d *Deployer) defaultIsoFile() string {
+	return filepath.Join(d.destination(), "kairos.iso")
+}
+
 // getIsoFile returns the path to the ISO file.
 // It first checks for the default name in the destination directory,
 // and if not found, it searches for any ISO file in the destination directory.
 func (d *Deployer) getIsoFile() string {
-	defaultIsoPath := filepath.Join(d.destination(), "kairos.iso")
+	defaultIsoPath := d.defaultIsoFile()
 	// This is to look for the ISO file in the destination directory
 	if _, err := os.Stat(defaultIsoPath); err == nil {
 		d.Log.Logger.Info().Str("isoFile", defaultIsoPath).Msg("Found existing ISO file")

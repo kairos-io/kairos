@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/kairos-io/AuroraBoot/pkg/constants"
+	"github.com/kairos-io/AuroraBoot/pkg/ops"
 	"github.com/kairos-io/AuroraBoot/pkg/schema"
 	"github.com/spectrocloud-labs/herd"
 )
@@ -248,5 +251,37 @@ func TestWorkDirRemovedOnStepFailure(t *testing.T) {
 	}
 	if _, err := os.Stat(work); !os.IsNotExist(err) {
 		t.Fatalf("WorkDir must be removed after a failed step, stat err: %v", err)
+	}
+}
+
+// kairos#5775: the release ISO download used getIsoFile as its destination,
+// which picks any *.iso already in the state dir. An unrelated ISO there was
+// overwritten (or resumed onto) instead of the download landing at kairos.iso.
+func TestDownloadISOWritesTheDefaultISOName(t *testing.T) {
+	state := t.TempDir()
+	custom := filepath.Join(state, "my-custom-build.iso")
+	if err := os.WriteFile(custom, []byte("custom"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	payload := []byte("served release iso")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(payload)
+	}))
+	defer srv.Close()
+
+	d := &Deployer{Config: schema.Config{State: state}}
+	if err := ops.DownloadArtifact(srv.URL+"/release.iso", d.defaultIsoFile)(context.Background()); err != nil {
+		t.Fatalf("download: %v", err)
+	}
+
+	if got, _ := os.ReadFile(custom); string(got) != "custom" {
+		t.Errorf("unrelated ISO in the state dir was modified: %q", got)
+	}
+	want := filepath.Join(state, "kairos.iso")
+	if got, _ := os.ReadFile(want); string(got) != string(payload) {
+		t.Errorf("%s = %q, want the served artifact", want, got)
+	}
+	if got := d.getIsoFile(); got != want {
+		t.Errorf("getIsoFile() = %s after the download, want %s", got, want)
 	}
 }
