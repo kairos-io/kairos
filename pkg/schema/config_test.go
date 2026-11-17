@@ -241,4 +241,27 @@ var _ = Describe("Config Validate", func() {
 		Entry("state_slots zero", func(c *schema.Config) { c.Disk.BootActive = true; c.Disk.StateSlots = "0" }, "between 1 and 3"),
 		Entry("state_slots not a number", func(c *schema.Config) { c.Disk.BootActive = true; c.Disk.StateSlots = "one" }, "between 1 and 3"),
 	)
+
+	DescribeTable("disk sizes",
+		func(set func(*schema.Config), wantErr string) {
+			set(&cfg)
+			err := cfg.Validate()
+			if wantErr == "" {
+				Expect(err).ToNot(HaveOccurred())
+				return
+			}
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(wantErr))
+		},
+		Entry("sizes in megabytes", func(c *schema.Config) {
+			c.Disk.Size = "16000"
+			c.Disk.StateSize = "6000"
+			c.Disk.RecoveryImageSize = "3000"
+		}, ""),
+		Entry("size with a unit", func(c *schema.Config) { c.Disk.Size = "32G" }, `disk.size must be a whole number of megabytes, without a unit, got "32G"`),
+		Entry("state_size with a unit", func(c *schema.Config) { c.Disk.StateSize = "20GiB" }, "disk.state_size"),
+		Entry("recovery_image_size with a unit", func(c *schema.Config) { c.Disk.RecoveryImageSize = "4096MB" }, "disk.recovery_image_size"),
+		Entry("size with a trailing space", func(c *schema.Config) { c.Disk.Size = "16000 " }, "disk.size"),
+		Entry("negative state_size", func(c *schema.Config) { c.Disk.StateSize = "-1" }, "disk.state_size"),
+	)
 })

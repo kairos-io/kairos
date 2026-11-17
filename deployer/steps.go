@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/kairos-io/AuroraBoot/internal/netbootmgr"
@@ -460,30 +459,24 @@ func (d *Deployer) diskExtensions() ops.DiskExtensions {
 	}
 }
 
+// rawDiskSize returns disk.size in MB, 0 (automatic) when unset; Validate rejects invalid values first.
 func (d *Deployer) rawDiskSize() uint64 {
-	// parse the string into a uint64
-	// the size is in Mb
-	if d.Config.Disk.Size == "" {
-		return 0
-	}
-	sizeInt, err := strconv.ParseUint(d.Config.Disk.Size, 10, 64)
+	size, err := d.Config.Disk.SizeMB()
 	if err != nil {
-		d.Log.Logger.Error().Err(err).Str("arg", d.Config.Disk.Size).Msg("Failed to parse disk size, setting value to 0")
+		d.Log.Logger.Error().Err(err).Msg("Failed to parse disk size, sizing it automatically")
 		return 0
 	}
-	return sizeInt
+	return size
 }
 
+// rawDiskStateSize returns disk.state_size in MB, 0 (automatic) when unset; Validate rejects invalid values first.
 func (d *Deployer) rawDiskStateSize() int64 {
-	if d.Config.Disk.StateSize == "" {
-		return 0
-	}
-	sizeInt, err := strconv.ParseInt(d.Config.Disk.StateSize, 10, 64)
+	size, err := d.Config.Disk.StateSizeMB()
 	if err != nil {
-		d.Log.Logger.Error().Err(err).Str("arg", d.Config.Disk.StateSize).Msg("Failed to parse disk state size, setting value to 0")
+		d.Log.Logger.Error().Err(err).Msg("Failed to parse disk state size, sizing it automatically")
 		return 0
 	}
-	return sizeInt
+	return int64(size)
 }
 
 // rawDiskStateSlots returns disk.state_slots, 0 (the default) when unset or invalid; Validate rejects invalid values first.
@@ -496,14 +489,12 @@ func (d *Deployer) rawDiskStateSlots() int {
 	return slots
 }
 
+// rawDiskRecoveryImageSize returns disk.recovery_image_size in MB, 0 (automatic) when unset; Validate rejects invalid values first.
 func (d *Deployer) rawDiskRecoveryImageSize() int64 {
-	if d.Config.Disk.RecoveryImageSize == "" {
-		return 0
-	}
-	sizeInt, err := strconv.ParseInt(d.Config.Disk.RecoveryImageSize, 10, 64)
+	size, err := d.Config.Disk.RecoveryImageSizeMB()
 	if err != nil {
-		d.Log.Logger.Error().Err(err).Str("arg", d.Config.Disk.RecoveryImageSize).Msg("Failed to parse disk recovery image size, setting value to 0")
+		d.Log.Logger.Error().Err(err).Msg("Failed to parse disk recovery image size, sizing it automatically")
 		return 0
 	}
-	return sizeInt
+	return int64(size)
 }

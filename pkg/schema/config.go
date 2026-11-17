@@ -190,6 +190,9 @@ func (c Config) Validate() error {
 			return fmt.Errorf("disk.partitions cannot be combined with disk.vhd: partition-image output does not produce a merged disk to convert")
 		}
 	}
+	if err := c.Disk.validateSizes(); err != nil {
+		return err
+	}
 	return c.validateBootActive()
 }
 
@@ -209,6 +212,39 @@ func (d Disk) validateBIOS() error {
 		}
 	}
 	return nil
+}
+
+// SizeMB returns disk.size in megabytes, 0 (size it automatically) when unset.
+func (d Disk) SizeMB() (uint64, error) { return sizeMB("disk.size", d.Size) }
+
+// StateSizeMB returns disk.state_size in megabytes, 0 (size it automatically) when unset.
+func (d Disk) StateSizeMB() (uint64, error) { return sizeMB("disk.state_size", d.StateSize) }
+
+// RecoveryImageSizeMB returns disk.recovery_image_size in megabytes, 0 (size it automatically) when unset.
+func (d Disk) RecoveryImageSizeMB() (uint64, error) {
+	return sizeMB("disk.recovery_image_size", d.RecoveryImageSize)
+}
+
+func (d Disk) validateSizes() error {
+	for _, size := range []func() (uint64, error){d.SizeMB, d.StateSizeMB, d.RecoveryImageSizeMB} {
+		if _, err := size(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sizeMB parses a disk size given as a whole number of megabytes. A unit such as
+// 32G is rejected instead of read as 0, which would mean "size it automatically".
+func sizeMB(key, value string) (uint64, error) {
+	if value == "" {
+		return 0, nil
+	}
+	size, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a whole number of megabytes, without a unit, got %q", key, value)
+	}
+	return size, nil
 }
 
 // StateSlotsCount returns disk.state_slots as a number, 0 when unset.
