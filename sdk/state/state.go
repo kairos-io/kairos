@@ -386,6 +386,8 @@ func detectRuntimeState(r *Runtime) error {
 			}
 		}
 	}
+	r.Persistent = detectUnlockedLUKS(r.Persistent, constants.PersistentLabel)
+	r.OEM = detectUnlockedLUKS(r.OEM, constants.OEMLabel)
 	if !r.Persistent.Found {
 		r.Persistent = detectPartitionByLabelLsblk(constants.PersistentLabel)
 	}
@@ -495,6 +497,25 @@ func detectEncryptedPartitions(runtime *Runtime) {
 		}
 	}
 	runtime.EncryptedPartitions = results
+}
+
+// detectUnlockedLUKS swaps an unmounted LUKS container for the filesystem
+// unlocked from it, which is the one that is actually mounted. It looks the
+// filesystem up by its plain label first, then by the mapper named after the
+// partition. The container is kept when neither is found.
+func detectUnlockedLUKS(p PartitionState, label string) PartitionState {
+	if !p.Found || p.Mounted || p.Type != constants.LUKSFs {
+		return p
+	}
+	for _, path := range []string{
+		fmt.Sprintf("/dev/disk/by-label/%s", label),
+		fmt.Sprintf("/dev/mapper/%s", strings.TrimPrefix(p.Name, "/dev/")),
+	} {
+		if u := detectPartitionByLsblk(path); u.Found && u.Type != constants.LUKSFs {
+			return u
+		}
+	}
+	return p
 }
 
 // getEfiCertsCommonNames returns a simple list of the Common names of the certs
