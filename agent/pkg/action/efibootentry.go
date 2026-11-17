@@ -139,12 +139,12 @@ func readESPPartition(sysBlock, dev string) (espPartition, error) {
 	if err != nil {
 		return p, fmt.Errorf("%s has no sysfs entry: %w", dev, err)
 	}
-	num, err := readSysUint(filepath.Join(sysPart, "partition"))
+	num, err := readSysUint(filepath.Join(sysPart, "partition"), 32)
 	if err != nil {
 		return p, fmt.Errorf("%s is not a partition: %w", dev, err)
 	}
 	diskName := filepath.Base(filepath.Dir(sysPart))
-	lbs, err := readSysUint(filepath.Join(sysBlock, diskName, "queue", "logical_block_size"))
+	lbs, err := readSysUint(filepath.Join(sysBlock, diskName, "queue", "logical_block_size"), 32)
 	if err != nil || lbs == 0 {
 		lbs = 512
 	}
@@ -164,18 +164,19 @@ func readESPPartition(sysBlock, dev string) (espPartition, error) {
 
 	// sysfs counts in 512-byte sectors whatever the block size. The GPT is
 	// the source of truth; this only catches reading the wrong disk.
-	if start, err := readSysUint(filepath.Join(sysPart, "start")); err == nil && start*512 != p.startLBA*lbs {
+	if start, err := readSysUint(filepath.Join(sysPart, "start"), 64); err == nil && start*512 != p.startLBA*lbs {
 		return p, fmt.Errorf("%s: the GPT puts partition %d at LBA %d, the kernel at sector %d", p.disk, p.number, p.startLBA, start)
 	}
 	return p, nil
 }
 
-func readSysUint(path string) (uint64, error) {
+// readSysUint parses a sysfs integer, rejecting values wider than bitSize.
+func readSysUint(path string, bitSize int) (uint64, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
 	}
-	return strconv.ParseUint(strings.TrimSpace(string(b)), 10, 64)
+	return strconv.ParseUint(strings.TrimSpace(string(b)), 10, bitSize)
 }
 
 // readGPTEntry reads partition entry num (1-based) of the primary GPT.
