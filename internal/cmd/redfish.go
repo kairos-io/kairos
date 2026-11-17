@@ -248,7 +248,7 @@ var RedFishDeployCmd = cli.Command{
 				},
 				&cli.DurationFlag{
 					Name:  "timeout",
-					Usage: "Operation timeout",
+					Usage: "Overall operation timeout, counted from connecting to the BMC; a deploy whose task is still running when it runs out fails",
 					Value: 30 * time.Minute,
 				},
 			},

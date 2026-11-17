@@ -2,6 +2,7 @@ package redfish_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -559,6 +560,44 @@ var _ = Describe("Deployer", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("unknown Redfish TaskState"))
 			Expect(err.Error()).To(ContainSubstring("Frobnicating"))
+		})
+	})
+
+	Describe("Timeout", func() {
+		It("stops polling a task that never leaves Running once Config.Timeout runs out", func() {
+			bmc.taskStates = []string{"Running"}
+			d = redfish.NewDeployer(redfish.Config{
+				Endpoint:  bmc.URL(),
+				Username:  testUser,
+				Password:  testPassword,
+				VerifySSL: false,
+				Timeout:   time.Second,
+			})
+
+			Expect(d.Connect(ctx)).To(Succeed())
+
+			// ctx has no deadline: only Config.Timeout can end the poll. The
+			// outer bound keeps a regression from hanging the suite.
+			done := make(chan error, 1)
+			start := time.Now()
+			go func() {
+				_, err := d.Deploy(ctx, redfish.DeployRequest{
+					ImageURL:   testImageURL,
+					BootTarget: redfish.BootTargetCd,
+					BootMode:   redfish.BootModeUEFI,
+				})
+				done <- err
+			}()
+
+			var err error
+			Eventually(done, 10*time.Second).Should(Receive(&err))
+			Expect(err).To(MatchError(ContainSubstring("did not finish within the 1s timeout")))
+			Expect(errors.Is(err, context.DeadlineExceeded)).To(BeTrue())
+			Expect(time.Since(start)).To(BeNumerically("<", 3*time.Second))
+
+			// The session is still torn down after the deadline.
+			Expect(d.Close()).To(Succeed())
+			Expect(bmc.sawRequest(http.MethodDelete, bmc.sessionLocation)).To(BeTrue())
 		})
 	})
 

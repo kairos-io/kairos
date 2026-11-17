@@ -70,6 +70,12 @@ type Deployer struct {
 	// client is the live gofish connection. It is private by design: gofish types
 	// must not leak into pkg/hardware or the CLI (decision D1 guardrail).
 	client *gofish.APIClient
+
+	// deadline is when the timeout, counted from Connect, runs out. The gofish
+	// client is bound to a context with this deadline, and Deploy stops polling at
+	// it. cancel releases that context; Close calls it.
+	deadline time.Time
+	cancel   context.CancelFunc
 }
 
 // Config holds the connection parameters for a Deployer.
@@ -136,15 +142,20 @@ func NewDeployer(cfg Config) *Deployer {
 //   - AuthModeAuto (default): the ServiceRoot is pre-checked; session auth is used
 //     when a SessionService is advertised, otherwise it falls back to Basic auth.
 //
-// The supplied context bounds the connection setup. An unknown AuthMode is
-// rejected here.
+// The supplied context bounds the connection setup. Config.Timeout starts
+// counting here: every Redfish request on the connection, and Deploy's task poll,
+// fail once it has run out. An unknown AuthMode is rejected here.
 func (d *Deployer) Connect(ctx context.Context) error {
 	if d.client != nil {
 		return errors.New("already connected")
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, d.timeout)
+	deadline, _ := ctx.Deadline()
+
 	basicAuth, err := d.resolveBasicAuth(ctx)
 	if err != nil {
+		cancel()
 		return err
 	}
 
@@ -170,11 +181,14 @@ func (d *Deployer) Connect(ctx context.Context) error {
 
 	client, err := gofish.ConnectContext(ctx, cfg)
 	if err != nil {
+		cancel()
 		// gofish error strings can echo the endpoint but never the credentials;
 		// scrub defensively in case a future version changes that.
 		return fmt.Errorf("connecting to Redfish service: %w", d.scrub(err))
 	}
 	d.client = client
+	d.deadline = deadline
+	d.cancel = cancel
 	d.usedBasicAuth = basicAuth
 	return nil
 }
@@ -282,9 +296,14 @@ func (d *Deployer) Close() error {
 	// Only tear down a session when one was actually established. Under Basic auth
 	// gofish created no session, so Logout would have nothing to DELETE.
 	if !d.usedBasicAuth {
+		// Logout swaps in a fresh context when the bound one has expired, so a
+		// timed-out deploy still deletes its session.
 		d.client.Logout()
 	}
+	d.cancel()
 	d.client = nil
+	d.cancel = nil
+	d.deadline = time.Time{}
 	d.usedBasicAuth = false
 	return nil
 }
@@ -329,11 +348,14 @@ func (d *Deployer) Inspect(ctx context.Context) (*SystemInfo, error) {
 // Deploy performs the full virtual-media deployment flow against the discovered
 // system: InsertMedia (URL-pull) -> one-time boot override -> Reset (with an
 // explicit ResetType) -> Task poll to terminal. It honours context cancellation
-// between and during steps.
+// between and during steps, and gives up once Config.Timeout, counted from
+// Connect, has run out.
 func (d *Deployer) Deploy(ctx context.Context, req DeployRequest) (*DeployResult, error) {
 	if d.client == nil {
 		return nil, errors.New("not connected: call Connect first")
 	}
+	ctx, cancel := context.WithDeadline(ctx, d.deadline)
+	defer cancel()
 	if strings.TrimSpace(req.ImageURL) == "" {
 		return nil, errors.New("DeployRequest.ImageURL is required (InsertMedia is URL-pull)")
 	}
@@ -395,6 +417,9 @@ func (d *Deployer) Deploy(ctx context.Context, req DeployRequest) (*DeployResult
 	if taskURI != "" {
 		report("polling task", 80)
 		state, msgs, err := d.pollTask(ctx, taskURI, report)
+		if err != nil && time.Now().After(d.deadline) {
+			return nil, fmt.Errorf("deployment task did not finish within the %s timeout: %w", d.timeout, d.scrub(err))
+		}
 		if err != nil {
 			return nil, fmt.Errorf("polling deployment task: %w", d.scrub(err))
 		}
