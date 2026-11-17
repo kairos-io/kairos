@@ -1060,6 +1060,7 @@ func (h *ArtifactHandler) ClearFailed(c echo.Context) error {
 					fmt.Fprintf(os.Stderr, "clear-failed: builder.Cancel(%q) failed: %v\n", r.ID, cancelErr)
 				}
 				os.RemoveAll(filepath.Join(h.artifactsDir, r.ID))
+				removeBuildImages(r.ID)
 				h.removeOverlay(records, r.OverlayID, failed)
 			}
 		}
@@ -1112,6 +1113,7 @@ func (h *ArtifactHandler) Delete(c echo.Context) error {
 	if rec.ContainerImage != "" {
 		exec.Command("docker", "rmi", "-f", rec.ContainerImage).Run()
 	}
+	removeBuildImages(id)
 	removeExportLeftovers(id)
 
 	// Delete DB record.
@@ -1527,6 +1529,15 @@ func removeExportLeftovers(id string) {
 	cid, flatImage := exportDockerNames(id)
 	dockerCleanup("rm", "-f", cid)
 	dockerCleanup("rmi", "-f", flatImage)
+}
+
+// removeBuildImages removes, best effort, the images a local build of the
+// artifact tags. They are named by build id, so a build that failed before
+// recording its ContainerImage still has them removed.
+func removeBuildImages(id string) {
+	for _, image := range builder.LocalBuildImages(id) {
+		dockerCleanup("rmi", "-f", image)
+	}
 }
 
 // dockerCleanup runs a best-effort docker cleanup command. It takes no context

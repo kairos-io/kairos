@@ -778,7 +778,7 @@ RUN /kairos-init -l debug -s install %s && \
 		return "", fmt.Errorf("writing kairosify Dockerfile: %w", err)
 	}
 
-	tag := fmt.Sprintf("auroraboot-kairos:%s", opts.ID)
+	tag := builder.KairosifiedImage(opts.ID)
 	args := []string{"build"}
 	args = append(args, dockerBuildPlatformArgs(opts)...)
 	args = append(args, "-t", tag, "-f", dockerfilePath, outputDir)
@@ -912,7 +912,7 @@ func (b *Builder) dockerBuild(ctx context.Context, opts builder.BuildOptions, ou
 		return "", fmt.Errorf("writing Dockerfile: %w", err)
 	}
 
-	tag := fmt.Sprintf("auroraboot-build:%s", opts.ID)
+	tag := builder.DockerfileImage(opts.ID)
 
 	buildContext := opts.BuildContextDir
 	if buildContext == "" {
