@@ -31,8 +31,8 @@ import (
 //                          disable/remove + compound upgrade + node_extensions
 //                          tracking). Needs a Kairos image whose kairos-agent
 //                          carries the `extension` phone-home command; supply
-//                          it via EXTENSIONS_AGENT_IMAGE. Skipped otherwise so
-//                          CI stays green until the agent is released.
+//                          it via EXTENSIONS_AGENT_IMAGE (CI pins a released
+//                          image). Skipped when it is not set.
 //
 // The web container is started with --privileged (seccomp unconfined) because
 // the Fedora-base mkfs.erofs used by `systemd-repart --make-ddi=sysext` is
@@ -581,7 +581,7 @@ func startNodeAgent(image string) {
 		"--network", "host", "--privileged",
 		"-v", agentOemDir + ":/oem",
 		"-v", agentNodeDir + ":/var/lib/kairos",
-		"--entrypoint", "/usr/sbin/kairos-agent",
+		"--entrypoint", "/usr/bin/kairos-agent",
 		image, "phone-home",
 	}
 	out, err := exec.Command("docker", args...).CombinedOutput()

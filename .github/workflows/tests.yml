@@ -187,8 +187,11 @@ jobs:
         # /tmp is a RAM-backed tmpfs capped at half the memory on 26.04
         # runners, too small for the raw and GCE disks the specs stage there.
         # TMPDIR moves os.MkdirTemp onto the runner's disk.
+        # EXTENSIONS_AGENT_IMAGE turns on the extensions agent-flow tier. The
+        # `extension` phone-home command shipped in Kairos v4.4.0.
         env:
           TMPDIR: ${{ runner.temp }}
+          EXTENSIONS_AGENT_IMAGE: quay.io/kairos/hadron:v0.6.3-core-amd64-generic-v4.4.0
         run: |
           go run github.com/onsi/ginkgo/v2/ginkgo -v -r -p --covermode=atomic --coverprofile=coverage.out --timeout=2h --label-filter "e2e" ./e2e
       - name: Codecov
