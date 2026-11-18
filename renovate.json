@@ -140,13 +140,10 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/.github/workflows/.*.ya?ml/",
-        "/internal/testartifacts/.*\\.go$/"
+        "/^internal/testartifacts/.*\\.go$/"
       ],
       "matchStrings": [
-        "quay.io/kairos/auroraboot:(?<currentValue>[a-zA-Z0-9_.-]+)",
-        "AuroraBootVersion = \\\"(?<currentValue>[a-zA-Z0-9_.-]+)\\\"",
-        "auroraboot_version:\\s*[\\\"']?(?<currentValue>[a-zA-Z0-9_.-]+)[\\\"']?"
+        "AuroraBootVersion = \\\"(?<currentValue>[a-zA-Z0-9_.-]+)\\\""
       ],
       "depNameTemplate": "quay.io/kairos/auroraboot",
       "datasourceTemplate": "docker"

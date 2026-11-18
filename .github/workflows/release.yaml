@@ -264,6 +264,19 @@ jobs:
            ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> "$GITHUB_OUTPUT"
 
+  # AuroraBoot builds from this commit and builds every ISO below, so a change
+  # in auroraboot/ or sdk/ is exercised by the boot tests of the same run.
+  build-image-auroraboot:
+    needs: [guard]
+    uses: ./.github/workflows/_build-image-auroraboot.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      oci_artifact: auroraboot-image
+      arm64: true
+      version: ${{ github.ref_name }}
+
   # kairos-init pipe: gates build-iso + tests.
   #
   # matrix_scope: full -- master.yaml calls these same two reusable
@@ -330,7 +343,7 @@ jobs:
   # released UKI would prove nothing about who built it. Users build
   # trusted boot images with keys they control.
   build-iso:
-    needs: [create-release, build-image-kairos-init, vulnerability-scan]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -347,6 +360,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
+      auroraboot_artifact: auroraboot-image
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
@@ -370,7 +384,7 @@ jobs:
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   build-iso-arm:
-    needs: [create-release, build-image-kairos-init, vulnerability-scan]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -411,6 +425,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
+      auroraboot_artifact: auroraboot-image
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
@@ -446,7 +461,7 @@ jobs:
   # pushed to quay with tag layout `v0.5.1-standard-amd64-generic-
   # <k3s|k0s>-<k8s-version>-<version>` (matches v4.2.0).
   build-iso-k3s:
-    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k3s-versions]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k3s-versions, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -461,6 +476,7 @@ jobs:
     with:
       name: 'amd64-standard-k3s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
+      auroraboot_artifact: auroraboot-image
       arch: 'amd64'
       base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
       model: 'generic'
@@ -485,7 +501,7 @@ jobs:
   # and standard-arm64-rpi4 for each of the top-3 k3s minors. k0s was
   # amd64-only in v4.2.0 -- no arm64 k0s counterpart here.
   build-iso-k3s-arm:
-    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k3s-versions]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k3s-versions, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -501,6 +517,7 @@ jobs:
     with:
       name: 'arm64-standard-${{ matrix.model }}-k3s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
+      auroraboot_artifact: auroraboot-image
       arch: 'arm64'
       base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
       model: ${{ matrix.model }}
@@ -526,7 +543,7 @@ jobs:
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
   build-iso-k0s:
-    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k0s-versions]
+    needs: [create-release, build-image-kairos-init, vulnerability-scan, get-k0s-versions, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -541,6 +558,7 @@ jobs:
     with:
       name: 'amd64-standard-k0s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
+      auroraboot_artifact: auroraboot-image
       arch: 'amd64'
       base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'
       model: 'generic'

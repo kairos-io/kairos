@@ -55,14 +55,14 @@ jobs:
   lint:
     uses: ./.github/workflows/_lint.yaml
 
-  # The AuroraBoot jobs run only when the change can affect AuroraBoot. They are
-  # not among the required checks, and a skipped job reports as skipped.
+  # The AuroraBoot tests run only when the change can affect AuroraBoot. They
+  # are not among the required checks, and a skipped job reports as skipped.
   changes:
     uses: ./.github/workflows/_changes.yaml
 
+  # Every ISO in this pipeline is built by this image, so it is built whether or
+  # not AuroraBoot changed.
   build-image-auroraboot:
-    needs: changes
-    if: needs.changes.outputs.auroraboot == 'true'
     uses: ./.github/workflows/_build-image-auroraboot.yaml
     permissions:
       contents: read
@@ -77,7 +77,7 @@ jobs:
     permissions:
       contents: read
     with:
-      image_artifact: auroraboot-image
+      image_artifact: auroraboot-image-amd64
 
   # The slim pipeline only builds and tests a non-FIPS amd64 ISO, so the
   # builds below skip arm64 and FIPS (pr-full.yaml keeps both).
@@ -117,7 +117,7 @@ jobs:
   # pushes. `kairos-init-local` is the build context name the
   # kairos-init OCI layout is bound to; nothing is pulled by that name.
   build-iso:
-    needs: build-image-kairos-init
+    needs: [build-image-kairos-init, build-image-auroraboot]
     name: build-iso / amd64-core
     uses: ./.github/workflows/_build-iso.yaml
     # _build-iso.yaml declares these, and a caller has to cover what its
@@ -132,6 +132,7 @@ jobs:
     with:
       name: amd64-core
       kairos_init_image: kairos-init-local
+      auroraboot_artifact: auroraboot-image
       kairos_init_artifact: kairos-init-oci
       arch: amd64
       base_image: 'ghcr.io/kairos-io/hadron:v0.6.3'

@@ -123,8 +123,9 @@ jobs:
       push: true
       registry_login: ghcr
 
-  # AuroraBoot builds from this commit. The tests run on every push to master
-  # and not only on AuroraBoot changes, so master keeps a baseline for them.
+  # AuroraBoot builds from this commit and builds every ISO below. Its tests run
+  # on every push to master and not only on AuroraBoot changes, so master keeps a
+  # baseline for them.
   build-image-auroraboot:
     uses: ./.github/workflows/_build-image-auroraboot.yaml
     permissions:
@@ -132,6 +133,7 @@ jobs:
       packages: write
     with:
       oci_artifact: auroraboot-image
+      arm64: true
 
   auroraboot-tests:
     needs: build-image-auroraboot
@@ -139,7 +141,7 @@ jobs:
     permissions:
       contents: read
     with:
-      image_artifact: auroraboot-image
+      image_artifact: auroraboot-image-amd64
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
@@ -148,7 +150,7 @@ jobs:
   # promote-images below waits on build-iso-arm too so a broken
   # arm build still keeps :master-scratch from advancing to :master.
   build-iso:
-    needs: build-image-kairos-init
+    needs: [build-image-kairos-init, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -180,6 +182,7 @@ jobs:
       name: ${{ matrix.name }}
       # Consume the scratch kairos-init that build-image-kairos-init just published.
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
+      auroraboot_artifact: auroraboot-image
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
@@ -197,7 +200,7 @@ jobs:
       release: false
 
   build-iso-arm:
-    needs: build-image-kairos-init
+    needs: [build-image-kairos-init, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -236,6 +239,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
+      auroraboot_artifact: auroraboot-image
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
@@ -476,7 +480,7 @@ jobs:
       kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:master-scratch
 
   test-uki:
-    needs: build-iso
+    needs: [build-iso, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -497,6 +501,7 @@ jobs:
       # Mirrors the kubernetes_distro of the build-iso UKI cell each test
       # consumes: amd64-standard-uki is k3s, amd64-core-uki is neither.
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      auroraboot_artifact: auroraboot-image
       base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.6.3'
       arch: 'amd64'
       model: 'generic'

@@ -144,6 +144,17 @@ jobs:
       ref: ${{ github.event.pull_request.head.sha }}
       caller-vetted-ref: true
 
+  # AuroraBoot builds from this commit and builds every ISO below, so a change
+  # in auroraboot/ or sdk/ is exercised by the boot tests of the same run.
+  build-image-auroraboot:
+    uses: ./.github/workflows/_build-image-auroraboot.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      oci_artifact: auroraboot-image
+      arm64: true
+
   # The kairos-init pipe (multi-call kairos -> kairos-init -> image ->
   # iso -> qemu). This is the critical path for the qemu suites below.
   build-kairos:
@@ -239,7 +250,7 @@ jobs:
   # still fails the whole PR, but qemu proceeds in parallel.
 
   build-iso:
-    needs: build-image-kairos-init
+    needs: [build-image-kairos-init, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -291,6 +302,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
+      auroraboot_artifact: auroraboot-image
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
@@ -315,7 +327,7 @@ jobs:
       caller-vetted-ref: true
 
   build-iso-arm:
-    needs: build-image-kairos-init
+    needs: [build-image-kairos-init, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -363,6 +375,7 @@ jobs:
     with:
       name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
+      auroraboot_artifact: auroraboot-image
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
@@ -644,7 +657,7 @@ jobs:
   # _uki-test.yaml since their shape diverges from the regular
   # reusable-qemu-test.yaml.
   test-uki:
-    needs: build-iso
+    needs: [build-iso, build-image-auroraboot]
     strategy:
       fail-fast: false
       matrix:
@@ -665,6 +678,7 @@ jobs:
       # Mirrors the kubernetes_distro of the build-iso UKI cell each test
       # consumes: amd64-standard-uki is k3s, amd64-core-uki is neither.
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      auroraboot_artifact: auroraboot-image
       base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.6.3'
       arch: 'amd64'
       model: 'generic'

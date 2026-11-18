@@ -16,9 +16,9 @@ on:
   workflow_call:
     inputs:
       image_artifact:
-        description: 'Name of the workflow artifact that holds the AuroraBoot image archive'
+        description: 'Name of the workflow artifact that holds the amd64 AuroraBoot image archive'
         type: string
-        default: auroraboot-image
+        default: auroraboot-image-amd64
     secrets:
       CODECOV_TOKEN:
         description: 'Codecov upload token; the upload is skipped when it is missing'
