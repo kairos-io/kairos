@@ -769,6 +769,76 @@ func TestUpgradeRegistersDryRunFlag(t *testing.T) {
 	}
 }
 
+// executeUpgrade runs `kairos-agent args` through the whole command tree with
+// the actions of upgrade and list-releases swapped for recorders, and returns
+// the path and positionals of the action that ran, if any, and the error.
+func executeUpgrade(t *testing.T, args ...string) ([]string, []string, error) {
+	t.Helper()
+	root := NewCommand()
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	var ranPath, ranArgs []string
+	for _, path := range [][]string{{"upgrade"}, listReleases} {
+		command, _, err := root.Find(path)
+		if err != nil || command.Name() != path[len(path)-1] {
+			t.Fatalf("command %q not found: %v", strings.Join(path, " "), err)
+		}
+		command.PreRunE = nil
+		command.RunE = func(c *cobra.Command, positional []string) error {
+			ranPath = strings.Fields(c.CommandPath())[1:]
+			ranArgs = positional
+			return nil
+		}
+	}
+	root.SetArgs(args)
+	err := root.Execute()
+	return ranPath, ranArgs, err
+}
+
+// Flags are read only up to the first positional, so `upgrade IMAGE --dry-run`
+// used to run a real upgrade from IMAGE with --dry-run dropped on the floor.
+func TestUpgradeRefusesArgumentsAfterTheSource(t *testing.T) {
+	for _, args := range [][]string{
+		{"upgrade", "oci:quay.io/kairos/foo:v1", "--dry-run"},
+		{"upgrade", "oci:quay.io/kairos/foo:v1", "--recovery"},
+		{"upgrade", "oci:quay.io/kairos/foo:v1", "oci:quay.io/kairos/bar:v2"},
+	} {
+		ranPath, _, err := executeUpgrade(t, args...)
+		if ranPath != nil {
+			t.Fatalf("%q ran %q, want it refused before any action", args, ranPath)
+		}
+		if err == nil || !strings.Contains(err.Error(), "at most one source argument") || !strings.Contains(err.Error(), args[2]) {
+			t.Fatalf("%q = %v, want an error naming the extra argument %q", args, err, args[2])
+		}
+	}
+}
+
+func TestUpgradeAcceptsFlagsFirstAndASingleSource(t *testing.T) {
+	for _, tc := range []struct {
+		args     []string
+		wantPath []string
+		wantArgs []string
+	}{
+		{args: []string{"upgrade"}, wantPath: []string{"upgrade"}, wantArgs: []string{}},
+		{args: []string{"upgrade", "oci:quay.io/kairos/foo:v1"}, wantPath: []string{"upgrade"}, wantArgs: []string{"oci:quay.io/kairos/foo:v1"}},
+		{args: []string{"upgrade", "--dry-run", "oci:quay.io/kairos/foo:v1"}, wantPath: []string{"upgrade"}, wantArgs: []string{"oci:quay.io/kairos/foo:v1"}},
+		{args: []string{"upgrade", "--dry-run", "--source", "oci:quay.io/kairos/foo:v1"}, wantPath: []string{"upgrade"}, wantArgs: []string{}},
+		{args: []string{"upgrade", "list-releases"}, wantPath: listReleases, wantArgs: []string{}},
+		{args: []string{"upgrade", "list-releases", "--output", "json"}, wantPath: listReleases, wantArgs: []string{}},
+	} {
+		ranPath, ranArgs, err := executeUpgrade(t, tc.args...)
+		if err != nil {
+			t.Fatalf("%q = %v, want it accepted", tc.args, err)
+		}
+		if strings.Join(ranPath, " ") != strings.Join(tc.wantPath, " ") {
+			t.Fatalf("%q ran %q, want %q", tc.args, ranPath, tc.wantPath)
+		}
+		if strings.Join(ranArgs, " ") != strings.Join(tc.wantArgs, " ") {
+			t.Fatalf("%q ran with positionals %q, want %q", tc.args, ranArgs, tc.wantArgs)
+		}
+	}
+}
+
 func TestReleaseCollectorKeepsEveryProvidersReleases(t *testing.T) {
 	rc := &releaseCollector{}
 	rc.collect(`["v3.5.0","v3.4.2"]`)
