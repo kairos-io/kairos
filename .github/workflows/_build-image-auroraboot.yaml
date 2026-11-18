@@ -1,0 +1,201 @@
+name: Build AuroraBoot image
+
+# Reusable step: the AuroraBoot container image, built from the source of the
+# commit being tested. It has two modes that can be combined.
+#
+# - oci_artifact: build linux/amd64, save it as a docker archive and upload it
+#   as a workflow artifact with that name. A pull request has no registry it
+#   can push to, so the AuroraBoot tests and the ISO builds load the image from
+#   the artifact. The image is tagged auroraboot:ci inside the archive.
+# - push: build linux/amd64 and linux/arm64 each on a runner of its own
+#   architecture, push them as <tag>-amd64 and <tag>-arm64, and join them under
+#   <tag> (and the optional extra tag). The compile includes cgo and is slow
+#   under QEMU, which is why the two architectures do not share a runner.
+#
+# The image is built with the repository root as the named build context
+# "kairos", because auroraboot/go.mod replaces the root module with ../.
+
+on:
+  workflow_call:
+    inputs:
+      oci_artifact:
+        description: 'Name of the workflow artifact that receives the amd64 image archive; empty skips it'
+        type: string
+        default: ''
+
+      push:
+        description: 'true to push a multi-arch image to the registry'
+        type: boolean
+        default: false
+
+      image_registry:
+        description: 'Container image registry prefix, e.g. quay.io/kairos. Needed when push is true'
+        type: string
+        default: ''
+
+      image_tag:
+        description: 'Primary image tag. Needed when push is true'
+        type: string
+        default: ''
+
+      image_extra_tag:
+        description: 'Optional second image tag, empty otherwise'
+        type: string
+        default: ''
+
+      version:
+        description: 'Version compiled into the binary; empty leaves the Dockerfile default'
+        type: string
+        default: ''
+
+      registry_login:
+        description: '"ghcr" | "quay" (needed when push is true)'
+        type: string
+        default: ''
+
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref)'
+        type: string
+        default: ''
+    secrets:
+      QUAY_USERNAME:
+        description: 'quay.io user, needed only when pushing to quay.io'
+        required: false
+      QUAY_PASSWORD:
+        description: 'quay.io password, needed only when pushing to quay.io'
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    if: inputs.oci_artifact != ''
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Prefer IPv4
+        uses: ./.github/actions/prefer-ipv4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver-opts: network=host
+
+      - name: Build the amd64 image archive
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: auroraboot
+          build-contexts: kairos=.
+          file: auroraboot/Dockerfile
+          platforms: linux/amd64
+          build-args: ${{ inputs.version != '' && format('VERSION={0}', inputs.version) || '' }}
+          tags: auroraboot:ci
+          outputs: type=docker,dest=${{ runner.temp }}/auroraboot-image.tar
+
+      - name: Upload the image archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: ${{ inputs.oci_artifact }}
+          path: ${{ runner.temp }}/auroraboot-image.tar
+          retention-days: 1
+
+  push:
+    if: inputs.push
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - {arch: amd64, runner: ubuntu-26.04}
+          - {arch: arm64, runner: ubuntu-26.04-arm}
+    name: push / ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Prefer IPv4
+        uses: ./.github/actions/prefer-ipv4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver-opts: network=host
+
+      - name: Login to ghcr.io
+        if: inputs.registry_login == 'ghcr'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to quay.io
+        if: inputs.registry_login == 'quay'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build and push the ${{ matrix.arch }} image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: auroraboot
+          build-contexts: kairos=.
+          file: auroraboot/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          build-args: ${{ inputs.version != '' && format('VERSION={0}', inputs.version) || '' }}
+          provenance: false
+          push: true
+          tags: ${{ inputs.image_registry }}/auroraboot:${{ inputs.image_tag }}-${{ matrix.arch }}
+
+  manifest:
+    needs: push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - name: Login to ghcr.io
+        if: inputs.registry_login == 'ghcr'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to quay.io
+        if: inputs.registry_login == 'quay'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Join the per-architecture images into one manifest
+        env:
+          REGISTRY: ${{ inputs.image_registry }}
+          TAG: ${{ inputs.image_tag }}
+          EXTRA_TAG: ${{ inputs.image_extra_tag }}
+        run: |
+          set -euo pipefail
+          args=(-t "$REGISTRY/auroraboot:$TAG")
+          [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/auroraboot:$EXTRA_TAG")
+          docker buildx imagetools create "${args[@]}" \
+            "$REGISTRY/auroraboot:$TAG-amd64" \
+            "$REGISTRY/auroraboot:$TAG-arm64"

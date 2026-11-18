@@ -55,6 +55,30 @@ jobs:
   lint:
     uses: ./.github/workflows/_lint.yaml
 
+  # The AuroraBoot jobs run only when the change can affect AuroraBoot. They are
+  # not among the required checks, and a skipped job reports as skipped.
+  changes:
+    uses: ./.github/workflows/_changes.yaml
+
+  build-image-auroraboot:
+    needs: changes
+    if: needs.changes.outputs.auroraboot == 'true'
+    uses: ./.github/workflows/_build-image-auroraboot.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      oci_artifact: auroraboot-image
+
+  auroraboot-tests:
+    needs: [changes, build-image-auroraboot]
+    if: needs.changes.outputs.auroraboot == 'true'
+    uses: ./.github/workflows/_auroraboot-tests.yaml
+    permissions:
+      contents: read
+    with:
+      image_artifact: auroraboot-image
+
   # The slim pipeline only builds and tests a non-FIPS amd64 ISO, so the
   # builds below skip arm64 and FIPS (pr-full.yaml keeps both).
   build-kairos:

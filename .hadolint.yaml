@@ -19,4 +19,9 @@ override:
     - DL3003
     # Do not use --platform= with FROM. https://github.com/hadolint/hadolint/wiki/DL3029  
     - DL3029
+    # warning: `COPY --from` should reference a previously defined `FROM` alias
+    # Reason: auroraboot/Dockerfile copies the root module from the named build
+    # context "kairos" (docker buildx build --build-context kairos=<root>), which
+    # is not a stage.
+    - DL3022
 failure-threshold: warning

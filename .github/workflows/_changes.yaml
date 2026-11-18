@@ -1,0 +1,54 @@
+name: Detect changes
+
+# Reusable step: says which parts of the repository a pull request or merge
+# queue entry touches, so that jobs that only matter for one part can skip the
+# rest. It never skips the jobs that are required checks: a skipped job of a
+# reusable workflow does not report the check names a branch rule waits for.
+#
+# auroraboot: the AuroraBoot module changed, or something it builds against did.
+# That is auroraboot/ itself, the root packages it imports (sdk/, agent/pkg/ and
+# internal/version/, see `go list -deps` in auroraboot/), the root go.mod and
+# go.sum, and the workflows and actions that run its tests.
+
+on:
+  workflow_call:
+    outputs:
+      auroraboot:
+        description: '"true" when the AuroraBoot jobs have to run'
+        value: ${{ jobs.changes.outputs.auroraboot }}
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      auroraboot: ${{ steps.filter.outputs.auroraboot }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: List the changed files
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+        run: |
+          set -euo pipefail
+          auroraboot='^(auroraboot/|sdk/|agent/pkg/|internal/version/|go\.(mod|sum)$|\.github/(actions/(prefer-ipv4|find-ovmf-firmware)/|workflows/(_auroraboot-tests|_build-image-auroraboot|_changes)\.yaml$))'
+          if [ -z "$BASE_SHA" ]; then
+            echo "No base commit for this event, running everything."
+            echo "auroraboot=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only "$BASE_SHA" HEAD)
+          echo "Changed files:"
+          printf '%s\n' "$files"
+          if printf '%s\n' "$files" | grep -Eq "$auroraboot"; then
+            echo "auroraboot=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "auroraboot=false" >> "$GITHUB_OUTPUT"
+          fi

@@ -123,6 +123,26 @@ jobs:
       push: true
       registry_login: ghcr
 
+  # AuroraBoot builds from this commit. The tests run on every push to master
+  # and not only on AuroraBoot changes, so master keeps a baseline for them.
+  build-image-auroraboot:
+    uses: ./.github/workflows/_build-image-auroraboot.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      oci_artifact: auroraboot-image
+
+  auroraboot-tests:
+    needs: build-image-auroraboot
+    uses: ./.github/workflows/_auroraboot-tests.yaml
+    permissions:
+      contents: read
+    with:
+      image_artifact: auroraboot-image
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
   # ISO matrix split so test-* unblock as soon as the amd64
   # cells they consume are ready. See pr-full.yaml for the rationale.
   # promote-images below waits on build-iso-arm too so a broken
