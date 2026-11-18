@@ -165,5 +165,55 @@ users:
 					"merged files with no passwd or group entry")
 			})
 		})
+
+		// kairos-io/kairos#6146: enable used to write an absolute link target.
+		// The initramfs mounts the root filesystem at /sysroot, where that
+		// target does not resolve, so immucore skipped the extension and the
+		// only trace was a warning in the boot journal. Re-enabling the
+		// extension the install already merged exercises the same code path a
+		// runtime "sysext install" plus "sysext enable" uses, without needing
+		// a second image.
+		It("merges an extension enabled on the running node after reboot", func() {
+			_ = testInstall(`#cloud-config
+users:
+- name: "kairos"
+  passwd: "kairos"
+  groups:
+    - "admin"
+`, vm)
+
+			activeLink := "/var/lib/kairos/extensions/active/" + liveMediaExtension
+
+			By("dropping the link the install wrote and enabling the extension again", func() {
+				out, err := vm.Sudo("rm " + activeLink)
+				Expect(err).ToNot(HaveOccurred(), out)
+				out, err = vm.Sudo("kairos-agent sysext enable --active work")
+				Expect(err).ToNot(HaveOccurred(), out)
+			})
+
+			By("checking the link target is relative", func() {
+				out, err := vm.Sudo("readlink " + activeLink)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(Equal("../" + liveMediaExtension))
+			})
+
+			By("rebooting", func() {
+				vm.Sudo("sync")
+				vm.Reboot()
+				vm.EventuallyConnects(1200)
+			})
+
+			By("running a command the extension provides", func() {
+				Eventually(func() string {
+					out, _ := vm.Sudo(mergedExtensionCommand)
+					return out
+				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring(mergedExtensionOutput))
+			})
+
+			By("finding no validation warning in the initramfs journal", func() {
+				out, _ := vm.Sudo("journalctl -b -t immucore | grep 'does not pass validation'")
+				Expect(strings.TrimSpace(out)).To(BeEmpty())
+			})
+		})
 	})
 })
