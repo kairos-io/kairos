@@ -145,6 +145,23 @@ jobs:
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
+  # The release binaries and the multi-arch image are built on every push to
+  # master as well, so a break in them shows up here and not on a Monday.
+  build-auroraboot:
+    uses: ./.github/workflows/_build-auroraboot.yaml
+
+  push-image-auroraboot:
+    needs: [unit-tests, lint]
+    uses: ./.github/workflows/_build-image-auroraboot.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      push: true
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: master-scratch
+      registry_login: ghcr
+
   # ISO matrix split so test-* unblock as soon as the amd64
   # cells they consume are ready. See pr-full.yaml for the rationale.
   # promote-images below waits on build-iso-arm too so a broken
@@ -517,7 +534,7 @@ jobs:
     # qemu suites + arm build gate the kairos-init side; the
     # kcrypt-challenger image is on a parallel pipe and must also be
     # pushed to :master-scratch before this job can promote it.
-    needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger]
+    needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger, build-auroraboot, push-image-auroraboot, auroraboot-tests]
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -528,10 +545,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Promote kairos-init and kcrypt-challenger scratch -> :master
+      - name: Promote kairos-init, kcrypt-challenger and auroraboot scratch -> :master
         run: |
           set -euo pipefail
-          for img in kairos-init kcrypt-challenger; do
+          for img in kairos-init kcrypt-challenger auroraboot; do
             src="ghcr.io/kairos-io/kairos/${img}:master-scratch"
             dst="ghcr.io/kairos-io/kairos/${img}:master"
             echo "Promoting $src -> $dst"

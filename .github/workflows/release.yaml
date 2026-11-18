@@ -334,6 +334,60 @@ jobs:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
+  # AuroraBoot is released with Kairos, under the same version: the binaries
+  # join the GitHub release, the image goes to quay.io and the chart is pushed
+  # at the version without the leading v.
+  build-auroraboot:
+    needs: [guard]
+    uses: ./.github/workflows/_build-auroraboot.yaml
+    with:
+      version: ${{ github.ref_name }}
+
+  push-image-auroraboot:
+    needs: [unit-tests, lint]
+    uses: ./.github/workflows/_build-image-auroraboot.yaml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      push: true
+      image_registry: quay.io/kairos
+      image_tag: ${{ github.ref_name }}
+      version: ${{ github.ref_name }}
+      registry_login: quay
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+
+  release-helm-chart:
+    needs: [push-image-auroraboot]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Helm
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e  # v5
+        with:
+          version: v4.3.2
+      - name: Log in to ghcr.io
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GH_TOKEN" | helm registry login ghcr.io -u "$GH_ACTOR" --password-stdin
+      - name: Package and push the chart at the release version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          helm package auroraboot/deploy/helm/auroraboot \
+            --version "${TAG#v}" --app-version "$TAG" --destination .
+          helm push "auroraboot-${TAG#v}.tgz" oci://ghcr.io/kairos-io/charts
+
   # Only the Hadron core cell here. amd64-standard (unpinned k3s),
   # amd64-core-fips, the UKI cells, and amd64-core-ubuntu-20.04 all
   # exist in master.yaml/pr-full.yaml to feed qemu tests and are omitted
@@ -595,6 +649,9 @@ jobs:
       - build-kcrypt-challenger
       - build-image-kairos-init
       - build-image-kcrypt-challenger
+      - build-auroraboot
+      - push-image-auroraboot
+      - release-helm-chart
     uses: ./.github/workflows/_upload-release.yaml
     permissions:
       contents: write
@@ -701,13 +758,13 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Point kairos-init and kcrypt-challenger :latest at the tag
+      - name: Point kairos-init, kcrypt-challenger and auroraboot :latest at the tag
         if: steps.highest.outputs.is_highest == 'true'
         env:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          for img in kairos-init kcrypt-challenger; do
+          for img in kairos-init kcrypt-challenger auroraboot; do
             src="quay.io/kairos/${img}:${TAG}"
             dst="quay.io/kairos/${img}:latest"
             echo "Promoting $src -> $dst"
@@ -755,6 +812,9 @@ jobs:
       - build-image-kairos-init
       - build-kcrypt-challenger
       - build-image-kcrypt-challenger
+      - build-auroraboot
+      - push-image-auroraboot
+      - release-helm-chart
       - build-iso
       - build-iso-arm
       - build-iso-k3s
