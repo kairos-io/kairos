@@ -1063,6 +1063,15 @@ var _ = Describe("GetSourceSize", Label("GetSourceSize"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sizeAfter).To(Equal(int64(400 + 100)))
 	})
+	It("Keeps counting the siblings after an excluded entry that is not a directory", func() {
+		Expect(os.Symlink("var/tmp", filepath.Join(tempDir, "tmp"))).To(Succeed())
+		Expect(os.Mkdir(filepath.Join(tempDir, "usr"), os.ModePerm)).To(Succeed())
+		Expect(createFileOfSizeInMB(filepath.Join(tempDir, "usr", "what.txt"), 200)).To(Succeed())
+
+		sizeAfter, err := config.GetSourceSize(conf, imageSource)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sizeAfter).To(Equal(int64(400 + 100)))
+	})
 	It("calculates size for ocifile sources with 2x multiplier", func() {
 		// Create a test OCI tar file
 		ociTarFile := filepath.Join(tempDir, "test-image.tar")
