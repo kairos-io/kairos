@@ -1027,11 +1027,11 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 			} else if isExcludedSourcePath(source.Value(), path) {
 				// Skip what the copy skips. Under kubernetes the source is / and the host mounts are bound into it,
 				// where /sys can even hold entries that cannot be read.
-				config.Logger.Logger.Debug().Str("path", path).Msg("Skipping dir as it is excluded from the copy")
 				if d != nil && !d.IsDir() {
 					// SkipDir on a file would also skip its remaining siblings.
 					return nil
 				}
+				config.Logger.Logger.Debug().Str("path", path).Msg("Skipping dir as it is excluded from the copy")
 				return fs.SkipDir
 			} else {
 				v := getSize(config.Fs, &size, filesVisited, path, d, err)
