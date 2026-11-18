@@ -87,6 +87,32 @@ var _ = Describe("Recovery hosts file", func() {
 		Expect(string(data)).To(Equal(content))
 	})
 
+	It("seeds a loopback line when only a longer 127.0.0.1x address is present", func() {
+		Expect(os.WriteFile(hosts, []byte("127.0.0.10 other\n"), 0o644)).To(Succeed())
+		runRecoveryHosts(root, true)
+		data, err := os.ReadFile(hosts)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(data)).To(MatchRegexp(`(?m)^127\.0\.0\.1\s+localhost$`))
+		Expect(string(data)).To(ContainSubstring("127.0.0.10 other\n"))
+	})
+
+	It("starts the seed on its own line when the file has no trailing newline", func() {
+		Expect(os.WriteFile(hosts, []byte("192.0.2.1 other"), 0o644)).To(Succeed())
+		runRecoveryHosts(root, true)
+		data, err := os.ReadFile(hosts)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(data)).To(HavePrefix("192.0.2.1 other\n127.0.0.1 localhost\n"))
+	})
+
+	It("keeps an indented 127.0.0.1 line", func() {
+		content := "  127.0.0.1 localhost\n"
+		Expect(os.WriteFile(hosts, []byte(content), 0o644)).To(Succeed())
+		runRecoveryHosts(root, true)
+		data, err := os.ReadFile(hosts)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(data)).To(Equal(content))
+	})
+
 	It("does nothing outside recovery mode", func() {
 		Expect(os.WriteFile(hosts, nil, 0o644)).To(Succeed())
 		runRecoveryHosts(root, false)

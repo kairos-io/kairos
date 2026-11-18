@@ -49,9 +49,9 @@ stages:
     # there is none, so an image with an empty /etc/hosts would leave recovery
     # unable to resolve its own name. This has to come before that stage.
     - name: "Seed the recovery hosts file"
-      if: '[ -f "/run/cos/recovery_mode" ] && ! grep -q "^127\.0\.0\.1" /etc/hosts 2>/dev/null'
+      if: '[ -f "/run/cos/recovery_mode" ] && ! grep -Eq "^[[:space:]]*127\.0\.0\.1([[:space:]]|$)" /etc/hosts 2>/dev/null'
       commands:
-        - printf '127.0.0.1 localhost\n::1       localhost\n' >> /etc/hosts
+        - '[ -s /etc/hosts ] && [ -n "$(tail -c1 /etc/hosts)" ] && echo >> /etc/hosts; printf "127.0.0.1 localhost\n::1       localhost\n" >> /etc/hosts'
     - name: "Recovery"
       if: '[ -f "/run/cos/recovery_mode" ]'
       hostname: "cos-recovery"
