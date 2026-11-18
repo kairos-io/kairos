@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/auth"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/auth"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	"github.com/labstack/echo/v4"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

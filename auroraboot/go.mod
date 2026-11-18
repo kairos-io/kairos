@@ -1,4 +1,4 @@
-module github.com/kairos-io/AuroraBoot
+module github.com/kairos-io/kairos/auroraboot
 
 go 1.27.4
 
@@ -266,3 +266,5 @@ require (
 )
 
 tool github.com/swaggo/swag/cmd/swag
+
+replace github.com/kairos-io/kairos/v4 => ../

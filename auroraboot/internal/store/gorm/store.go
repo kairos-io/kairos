@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/kairos-io/AuroraBoot/internal/secrets"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/internal/secrets"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

@@ -3,7 +3,7 @@ package builder_test
 import (
 	"context"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

@@ -15,9 +15,9 @@ import (
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
-	"github.com/kairos-io/AuroraBoot/pkg/extensions"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/extensions"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 	sdkutils "github.com/kairos-io/kairos/v4/sdk/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

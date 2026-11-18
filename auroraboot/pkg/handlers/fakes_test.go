@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // fakeNodeStore implements store.NodeStore for testing.

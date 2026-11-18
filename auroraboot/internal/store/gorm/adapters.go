@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // NodeStoreAdapter adapts Store to the store.NodeStore interface.

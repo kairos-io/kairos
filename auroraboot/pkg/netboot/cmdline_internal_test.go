@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
 )
 
 // netbootBase is the cmdline StartPixiecore serves when the user set no

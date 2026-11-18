@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
 )
 
 var _ = Describe("WithKairosInitImage", func() {

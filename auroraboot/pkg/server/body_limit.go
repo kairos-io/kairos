@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/kairos-io/AuroraBoot/pkg/handlers"
+	"github.com/kairos-io/kairos/auroraboot/pkg/handlers"
 	"github.com/labstack/echo/v4"
 )
 

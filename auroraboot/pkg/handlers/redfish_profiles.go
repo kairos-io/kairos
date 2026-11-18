@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/kairos-io/AuroraBoot/pkg/redfish"
+	"github.com/kairos-io/kairos/auroraboot/pkg/redfish"
 	"github.com/labstack/echo/v4"
 )
 

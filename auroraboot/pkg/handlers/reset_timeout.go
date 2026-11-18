@@ -3,7 +3,7 @@ package handlers
 import (
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // resetAnchor returns the timestamp the reset timeout is measured from: the

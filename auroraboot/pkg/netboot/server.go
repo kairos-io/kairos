@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/internal"
+	"github.com/kairos-io/kairos/auroraboot/internal"
 	"github.com/kairos-io/netboot/booters"
 	"github.com/kairos-io/netboot/server"
 	"github.com/kairos-io/netboot/types"

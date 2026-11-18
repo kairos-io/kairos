@@ -1,8 +1,8 @@
 package schema_test
 
 import (
-	"github.com/kairos-io/AuroraBoot/pkg/extensions"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/extensions"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	. "github.com/onsi/ginkgo/v2"
