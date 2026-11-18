@@ -180,6 +180,15 @@ func GetExtension(cfg *sdkConfig.Config, name, bootState, extType string) (Exten
 	return Extension{}, fmt.Errorf("extension %s not found", name)
 }
 
+// resolved returns target as seen from the directory of link, which is how
+// the kernel reads a relative symlink target.
+func resolved(target, link string) string {
+	if filepath.IsAbs(target) {
+		return target
+	}
+	return filepath.Join(filepath.Dir(link), target)
+}
+
 // ensureSymlink makes link a symlink to target. A symlink that already
 // resolves to target is kept and reported as not created; anything else at
 // link (a dangling or stale symlink, or a plain file) is replaced.
@@ -187,7 +196,7 @@ func ensureSymlink(cfg *sdkConfig.Config, target, link string) (bool, error) {
 	if li, err := cfg.Fs.Lstat(link); err == nil {
 		if li.Mode()&os.ModeSymlink != 0 {
 			linked, lerr := cfg.Fs.Stat(link)
-			wanted, terr := cfg.Fs.Stat(target)
+			wanted, terr := cfg.Fs.Stat(resolved(target, link))
 			if lerr == nil && terr == nil && os.SameFile(linked, wanted) {
 				return false, nil
 			}
@@ -224,7 +233,14 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 
 	// Link the extension into the target dir, keeping a link that already
 	// points at it. With now it still merges an already enabled extension.
-	created, err := ensureSymlink(cfg, extension.Location, filepath.Join(targetDir, extension.Name))
+	// The link is relative because the initramfs mounts the root filesystem
+	// at /sysroot, where an absolute target does not resolve and immucore
+	// would skip the extension.
+	relTarget, err := filepath.Rel(targetDir, extension.Location)
+	if err != nil {
+		return fmt.Errorf("failed to compute link target for %s: %w", extension.Name, err)
+	}
+	created, err := ensureSymlink(cfg, relTarget, filepath.Join(targetDir, extension.Name))
 	if err != nil {
 		return fmt.Errorf("failed to create symlink for %s: %w", extension.Name, err)
 	}
