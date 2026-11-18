@@ -44,6 +44,14 @@ stages:
         - sed -i -e 's/tty1.*//g' /etc/inittab
         - echo "tty1::respawn:/usr/bin/kairos-agent recovery tty1" >> /etc/inittab
   boot:
+    # 31_hosts.yaml seeds /etc/hosts for a normal boot only. The hostname
+    # plugin below rewrites an existing 127.0.0.1 line and does nothing when
+    # there is none, so an image with an empty /etc/hosts would leave recovery
+    # unable to resolve its own name. This has to come before that stage.
+    - name: "Seed the recovery hosts file"
+      if: '[ -f "/run/cos/recovery_mode" ] && ! grep -q "^127\.0\.0\.1" /etc/hosts 2>/dev/null'
+      commands:
+        - printf '127.0.0.1 localhost\n::1       localhost\n' >> /etc/hosts
     - name: "Recovery"
       if: '[ -f "/run/cos/recovery_mode" ]'
       hostname: "cos-recovery"
