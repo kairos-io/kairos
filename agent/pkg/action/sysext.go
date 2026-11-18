@@ -180,24 +180,17 @@ func GetExtension(cfg *sdkConfig.Config, name, bootState, extType string) (Exten
 	return Extension{}, fmt.Errorf("extension %s not found", name)
 }
 
-// resolved returns target as seen from the directory of link, which is how
-// the kernel reads a relative symlink target.
-func resolved(target, link string) string {
-	if filepath.IsAbs(target) {
-		return target
-	}
-	return filepath.Join(filepath.Dir(link), target)
-}
-
 // ensureSymlink makes link a symlink to target. A symlink that already
-// resolves to target is kept and reported as not created; anything else at
-// link (a dangling or stale symlink, or a plain file) is replaced.
+// holds exactly target and resolves is kept and reported as not created;
+// anything else at link (a dangling or stale symlink, a link to the same
+// image written in another form such as an absolute path, or a plain file)
+// is replaced.
 func ensureSymlink(cfg *sdkConfig.Config, target, link string) (bool, error) {
 	if li, err := cfg.Fs.Lstat(link); err == nil {
 		if li.Mode()&os.ModeSymlink != 0 {
-			linked, lerr := cfg.Fs.Stat(link)
-			wanted, terr := cfg.Fs.Stat(resolved(target, link))
-			if lerr == nil && terr == nil && os.SameFile(linked, wanted) {
+			stored, rerr := cfg.Fs.Readlink(link)
+			_, serr := cfg.Fs.Stat(link)
+			if rerr == nil && serr == nil && stored == target {
 				return false, nil
 			}
 		}
