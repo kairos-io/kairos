@@ -1,6 +1,6 @@
 <!--
 Use this template for a Redfish vendor quirk-profile contribution.
-See docs/CONTRIBUTING-vendor-profiles.md for the full guide.
+See auroraboot/docs/CONTRIBUTING-vendor-profiles.md for the full guide.
 -->
 
 ## Vendor quirk profile

@@ -273,6 +273,11 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
 
 ## This repository, specifically
 
+- `auroraboot/` is its own Go module, `github.com/kairos-io/kairos/auroraboot`,
+  and a `replace` points it at the root module. A green root `go test ./...`
+  says nothing about it. Run `make -C auroraboot test`, which builds the UI
+  bundle that the Go packages embed, and `make -C auroraboot vet-tagged` for the
+  build-tagged trees.
 - `go build ./...` and `go test ./...` fail on a fresh clone with
   `pattern binaries/edgevpn: no matching files found`. `kairos-init/pkg/bundled`
   embeds binaries that are built rather than committed. Run `make test` and

@@ -103,9 +103,20 @@ reason = "upstream-fix-pending: labstack/echo/v4 v4.15.4, fixed in v4.16.1 (GHSA
 [[IgnoredVulns]]
 id = "GHSA-246p-cpwv-v3jq"
 ignoreUntil = 2026-12-03
-reason = "major-upgrade-required: labstack/echo/v4 RealIP() trusts client X-Forwarded-For/X-Real-IP when no IPExtractor is set; fixed only in echo v5.1.0. In the bundle via provider-kairos (echo/v4 v4.16.1). Tracking: kairos-io/kairos#5763."
+reason = "major-upgrade-required: labstack/echo/v4 RealIP() trusts client X-Forwarded-For/X-Real-IP when no IPExtractor is set; fixed only in echo v5.1.0. In the bundle via provider-kairos (echo/v4 v4.16.1). Tracking: kairos-io/kairos#5763. AuroraBoot (auroraboot/) is not affected: pkg/server sets Echo#IPExtractor to the TCP peer, or to X-Forwarded-For from --trusted-proxy ranges only."
 
 [[IgnoredVulns]]
 id = "GHSA-99jh-6h7p-pp36"
 ignoreUntil = 2026-12-03
-reason = "major-upgrade-required: labstack/echo/v4 middleware.Proxy issue, fixed only in echo v5.4.0. In the bundle via provider-kairos (echo/v4 v4.16.1). Tracking: kairos-io/kairos#5763."
+reason = "major-upgrade-required: labstack/echo/v4 middleware.Proxy issue, fixed only in echo v5.4.0. In the bundle via provider-kairos (echo/v4 v4.16.1). Tracking: kairos-io/kairos#5763. AuroraBoot (auroraboot/) does not use middleware.Proxy or ProxyWithConfig, so it does not reach the vulnerable code."
+
+# minimatch globparts amplification DoS in auroraboot/ui. Every release below
+# 11.0.1 is affected, but eslint, @eslint/config-array and @typescript-eslint
+# pin it to ^10, so no update they accept clears it. It is a dev dependency of
+# the UI lint toolchain only (auroraboot/ui/package-lock.json, "dev": true):
+# the globs come from our own eslint config, not from users, and it is not in
+# the built UI. Drop this once eslint accepts minimatch 11.
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2026-11-30
+reason = "major-upgrade-required: minimatch below 11.0.1 globparts DoS; eslint and typescript-eslint pin ^10, so no compatible fix. Dev-only lint dependency of auroraboot/ui with repo-controlled globs, not shipped. Re-evaluate before expiry."
