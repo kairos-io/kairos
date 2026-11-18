@@ -23,7 +23,11 @@ published.
 4. It creates the tag and a GitHub prerelease on the commit, starts
    `release.yaml` on the tag and posts to Slack that the release is building.
    `release.yaml` builds every image, pushes it to quay.io and attaches the
-   artifacts to the prerelease.
+   artifacts to the prerelease. The `kairos-init` and `kcrypt-challenger`
+   images get an SBOM at build time, and `_attest-image.yaml` then signs them
+   with cosign and attests their build provenance. `upload-release` waits for
+   that, so a release whose images could not be signed never reaches the
+   approval step.
 
 The run ends successfully without a release when `master.yaml` did not
 succeed, when no run has finished, when no commit landed since the newest

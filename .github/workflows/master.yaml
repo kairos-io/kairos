@@ -123,6 +123,35 @@ jobs:
       push: true
       registry_login: ghcr
 
+  # Sign and attest both images by digest in their own jobs, so the
+  # build jobs never hold an OIDC token. promote-images waits for both,
+  # so :master only moves to a signed image.
+  attest-image-kairos-init:
+    needs: build-image-kairos-init
+    uses: ./.github/workflows/_attest-image.yaml
+    permissions:
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      packages: write
+    with:
+      image: ghcr.io/kairos-io/kairos/kairos-init
+      digest: ${{ needs.build-image-kairos-init.outputs.digest }}
+      registry_login: ghcr
+
+  attest-image-kcrypt-challenger:
+    needs: build-image-kcrypt-challenger
+    uses: ./.github/workflows/_attest-image.yaml
+    permissions:
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      packages: write
+    with:
+      image: ghcr.io/kairos-io/kairos/kcrypt-challenger
+      digest: ${{ needs.build-image-kcrypt-challenger.outputs.digest }}
+      registry_login: ghcr
+
   # ISO matrix split so test-* unblock as soon as the amd64
   # cells they consume are ready. See pr-full.yaml for the rationale.
   # promote-images below waits on build-iso-arm too so a broken
@@ -492,7 +521,15 @@ jobs:
     # qemu suites + arm build gate the kairos-init side; the
     # kcrypt-challenger image is on a parallel pipe and must also be
     # pushed to :master-scratch before this job can promote it.
-    needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger]
+    needs:
+      - test-core
+      - test-standard
+      - test-standard-encryption
+      - test-uki
+      - build-iso-arm
+      - build-image-kcrypt-challenger
+      - attest-image-kairos-init
+      - attest-image-kcrypt-challenger
     runs-on: ubuntu-latest
     permissions:
       packages: write
