@@ -1055,7 +1055,10 @@ var _ = Describe("GetSourceSize", Label("GetSourceSize"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sizeAfter).To(Equal(sizeBefore))
 	})
-	It("Counts dirs that only share a prefix with an excluded dir", func() {
+	It("Counts a dir whose name only starts with the name of an excluded dir", func() {
+		// The excluded names are matched as whole path elements. /sysroot starts with /sys
+		// but is a different dir that belongs to the system, so it must be counted.
+		// A plain string prefix check would skip it and undersize the image.
 		Expect(os.Mkdir(filepath.Join(tempDir, "sysroot"), os.ModePerm)).ToNot(HaveOccurred())
 		Expect(createFileOfSizeInMB(filepath.Join(tempDir, "sysroot", "what.txt"), 200)).ToNot(HaveOccurred())
 
