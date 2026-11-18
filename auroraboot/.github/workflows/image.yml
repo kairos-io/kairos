@@ -1,0 +1,263 @@
+---
+name: 'Release images'
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: false # we never want to cancel a running job on release
+jobs:
+  build-ui:
+    # Only riscv64 needs this (Node under QEMU crashed there before,
+    # kairos-io/AuroraBoot#514). amd64/arm64 build their own UI inline via
+    # Dockerfile's js stage.
+    runs-on: 'ubuntu-26.04'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+      - name: Build UI
+        working-directory: ui
+        run: |
+          npm ci
+          npm run build
+      - name: Upload UI artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-dist
+          path: internal/ui/dist
+          retention-days: 3 # was 1; see #545
+  build-linux-amd64:
+    runs-on: 'ubuntu-26.04'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver-opts: network=host
+      - uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          provenance: false
+          platforms: linux/amd64
+          push: true
+          tags: quay.io/kairos/auroraboot:${{ github.ref_name }}-amd64
+  build-linux-arm64:
+    runs-on: 'ubuntu-26.04-arm'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver-opts: network=host
+      - uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          provenance: false
+          platforms: linux/arm64
+          push: true
+          tags: quay.io/kairos/auroraboot:${{ github.ref_name }}-arm64
+  build-linux-riscv64:
+    # Reverts #545's disable; same runner, unchanged. See commit message
+    # for why (the runner wasn't actually the problem).
+    runs-on: 'ubuntu-24.04-riscv'
+    needs: build-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Download UI artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ui-dist
+          path: internal/ui/dist
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver-opts: network=host
+      - uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile.riscv64
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          provenance: false
+          platforms: linux/riscv64
+          push: true
+          tags: quay.io/kairos/auroraboot:${{ github.ref_name }}-riscv64
+  build:
+    needs:
+      - build-linux-amd64
+      - build-linux-arm64
+      - build-linux-riscv64
+    # riscv64 must not block the amd64/arm64 release (#545); included in
+    # the manifest only if it succeeded this run.
+    if: always() && needs.build-linux-amd64.result == 'success' && needs.build-linux-arm64.result == 'success'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - uses: docker/metadata-action@v6
+        id: metadata
+        with:
+          images: quay.io/kairos/auroraboot
+          # `latest` and the floating minor tag must only move for a real
+          # release, so both are gated on the tag carrying no prerelease
+          # suffix. Without the gate the default `latest=auto` promotes
+          # `latest` on any tag push, prereleases included.
+          flavor: |
+            latest=${{ !contains(github.ref_name, '-') }}
+          # `type=ref,event=tag` keeps the exact tag (`v0.27.0`), which is
+          # what the default rules already published and what the helm
+          # chart's appVersion and the per-arch tags use. The semver line
+          # adds the floating `v0.27`, so a user can track patches within
+          # a minor line.
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern=v{{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') }}
+      - name: Determine manifest sources
+        id: sources
+        run: |
+          {
+            echo "value<<SOURCES_EOF"
+            echo "quay.io/kairos/auroraboot:${{ github.ref_name }}-amd64"
+            echo "quay.io/kairos/auroraboot:${{ github.ref_name }}-arm64"
+            if [ "${{ needs.build-linux-riscv64.result }}" = "success" ]; then
+              echo "quay.io/kairos/auroraboot:${{ github.ref_name }}-riscv64"
+            fi
+            echo "SOURCES_EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: int128/docker-manifest-create-action@v2
+        id: build
+        with:
+          index-annotations: ${{ steps.metadata.outputs.labels }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          sources: ${{ steps.sources.outputs.value }}
+  release-helm-chart:
+    needs:
+      - build
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Derive versions from tag
+        id: ver
+        # chart_version must be pure SemVer (no v prefix); app_version matches
+        # the image tag published to quay, which keeps the v.
+        run: |
+          {
+            echo "chart_version=${GITHUB_REF_NAME#v}"
+            echo "app_version=${GITHUB_REF_NAME}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Set up Helm
+        uses: azure/setup-helm@v5
+        with:
+          version: v4.3.2
+      - name: Log in to ghcr.io
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Package chart with tag version
+        run: |
+          helm package deploy/helm/auroraboot \
+            --version "${{ steps.ver.outputs.chart_version }}" \
+            --app-version "${{ steps.ver.outputs.app_version }}" \
+            --destination .
+      - name: Push chart to ghcr.io
+        run: helm push "auroraboot-${{ steps.ver.outputs.chart_version }}.tgz" oci://ghcr.io/kairos-io/charts
+  bump-chart-version:
+    needs:
+      - release-helm-chart
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      # The DCO app gates this repository and compares the sign-off to the
+      # commit's own author, so author, committer and the Signed-off-by
+      # trailer must all name this one identity.
+      BOT_IDENTITY: "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Derive versions from tag
+        id: ver
+        # chart_version must be pure SemVer (no v prefix); app_version matches
+        # the image tag published to quay, which keeps the v.
+        run: |
+          {
+            echo "chart_version=${GITHUB_REF_NAME#v}"
+            echo "app_version=${GITHUB_REF_NAME}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      - name: Bump Chart.yaml
+        run: |
+          yq -i '.version = strenv(CHART_VERSION) | .appVersion = strenv(APP_VERSION)' \
+            deploy/helm/auroraboot/Chart.yaml
+        env:
+          CHART_VERSION: ${{ steps.ver.outputs.chart_version }}
+          APP_VERSION: ${{ steps.ver.outputs.app_version }}
+      - name: Open PR
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: chore/chart-bump-${{ steps.ver.outputs.chart_version }}
+          base: main
+          # The action defaults author to github.actor, which on a tag push is
+          # whoever cut the release, so a generated tree gets credited to a
+          # maintainer who never wrote it.
+          author: ${{ env.BOT_IDENTITY }}
+          committer: ${{ env.BOT_IDENTITY }}
+          commit-message: |
+            chore(chart): bump to ${{ steps.ver.outputs.chart_version }}
+
+            Signed-off-by: ${{ env.BOT_IDENTITY }}
+          title: "chore(chart): bump to ${{ steps.ver.outputs.chart_version }}"
+          body: |
+            Syncs `deploy/helm/auroraboot/Chart.yaml` to the just-released
+            tag `${{ github.ref_name }}` so `helm install` from a fresh
+            checkout of `main` targets the released image by default.
+
+            Chart artifact for this version is already published at
+            `oci://ghcr.io/kairos-io/charts/auroraboot:${{ steps.ver.outputs.chart_version }}`.
+          labels: chart, automation

@@ -1,0 +1,210 @@
+package ops
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/cavaliergopher/grab/v3"
+	"github.com/kairos-io/AuroraBoot/internal"
+)
+
+const UserAgent = "AuroraBoot"
+
+// downloadAttempts and downloadRetryBaseDelay: grab makes exactly one
+// HTTP attempt per call and returns whatever error it hit, including a
+// transient one (e.g. an HTTP/2 "stream error: ... PROTOCOL_ERROR"
+// from the peer mid-transfer). A multi-GB release asset has plenty of
+// opportunity to hit one of those, so a single failed attempt should
+// not be the whole download's answer.
+const downloadAttempts = 3
+
+// downloadRetryBaseDelay is a var, not a const, so tests can shrink the
+// backoff instead of waiting on it in real time.
+var downloadRetryBaseDelay = 2 * time.Second
+
+// afterDownloadAttempt runs after each downloadOnce call when set. Only tests
+// set it, to cancel ctx inside the window where download() has an attempt's
+// error in hand and has not yet checked ctx -- a window too narrow to hit
+// reliably from the outside.
+var afterDownloadAttempt func()
+
+// noListingFS wraps an http.FileSystem to suppress directory listings. Opening a
+// directory returns os.ErrNotExist, so http.FileServer still serves files by
+// their exact path but renders no browsable index — a request for a directory
+// (including "/") 404s instead of leaking the whole artifact directory's
+// contents to anyone who can reach the server on 0.0.0.0.
+type noListingFS struct{ fs http.FileSystem }
+
+func (n noListingFS) Open(name string) (http.File, error) {
+	f, err := n.fs.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if info.IsDir() {
+		_ = f.Close()
+		return nil, os.ErrNotExist
+	}
+	return f, nil
+}
+
+// ServeArtifacts serve local artifacts as standard http server
+func ServeArtifacts(listenAddr string, dirFunc valueGetOnCall) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		dir := dirFunc()
+		fs := http.FileServer(noListingFS{http.Dir(dir)})
+		// Use a private mux instead of http.DefaultServeMux: registering "/" on
+		// the global mux panics ("multiple registrations for /") if this runs
+		// more than once in a process and leaks the handler across servers.
+		mux := http.NewServeMux()
+		mux.Handle("/", fs)
+		serverOne := &http.Server{
+			Addr:    listenAddr,
+			Handler: mux,
+		}
+		go func() {
+			<-ctx.Done()
+			serverOne.Shutdown(context.Background())
+		}()
+		internal.WarnUnauthenticatedServe(listenAddr, "artifact HTTP server")
+		internal.Log.Logger.Info().Msgf("Listening on %v...", listenAddr)
+		return serverOne.ListenAndServe()
+	}
+}
+
+// DownloadArtifact downloads artifacts remotely (e.g. http(s), ...)
+func DownloadArtifact(url string, isoFunc valueGetOnCall) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		// https://github.com/kairos-io/kairos/releases/download/v1.5.0/kairos-alpine-ubuntu-v1.5.0.iso
+		dst := isoFunc()
+		// grab keeps an existing file whose size matches the remote one and
+		// resumes onto a shorter one, without checking it is the same
+		// artifact. A file left by an earlier run (another version or URL)
+		// would end up kept or spliced, so always start from an empty slot.
+		if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing existing %s before download: %w", dst, err)
+		}
+		_, err := download(ctx, url, dst)
+		if err == nil {
+			internal.Log.Logger.Info().Str("artifact", url).Str("destination", dst).Msg("Artifact downloaded successfully")
+		}
+		return err
+	}
+}
+
+// download retries downloadOnce on failure, up to downloadAttempts times.
+// It does not retry after ctx is canceled -- that is a caller decision to
+// stop, not a transient failure to recover from.
+func download(ctx context.Context, url, dst string) (string, error) {
+	var dstFile string
+	var err error
+	for attempt := 1; attempt <= downloadAttempts; attempt++ {
+		dstFile, err = downloadOnce(ctx, url, dst)
+		if afterDownloadAttempt != nil {
+			afterDownloadAttempt()
+		}
+		if err == nil {
+			return dstFile, nil
+		}
+		if ctx.Err() != nil {
+			// Report the cancellation itself, not whatever the interrupted
+			// attempt happened to fail with -- a caller checking
+			// errors.Is(err, context.Canceled) must see it. The attempt's own
+			// error stays in the message, and is not re-wrapped when
+			// downloadOnce already noticed the cancellation.
+			if !errors.Is(err, ctx.Err()) {
+				err = fmt.Errorf("download canceled (last error: %v): %w", err, ctx.Err())
+			}
+			return dstFile, err
+		}
+		if attempt == downloadAttempts {
+			return dstFile, err
+		}
+		internal.Log.Logger.Warn().Err(err).Str("artifact", url).Int("attempt", attempt).Msg("download failed, retrying")
+		delay := downloadRetryBaseDelay * time.Duration(attempt)
+		select {
+		case <-ctx.Done():
+			// Report the cancellation itself, not the transient error that
+			// prompted this backoff -- a caller checking for ctx.Err() must
+			// see it, not whatever downloadOnce last failed with.
+			return dstFile, ctx.Err()
+		case <-time.After(delay):
+		}
+	}
+	return dstFile, err
+}
+
+func downloadOnce(ctx context.Context, url, dst string) (string, error) {
+	// create client
+	client := grab.NewClient()
+	// https://github.com/cavaliergopher/grab/issues/104
+	client.UserAgent = UserAgent
+	// grab.NewRequest returns a nil Request when net/http cannot parse the
+	// URL. The URL is built from the user's repository, release version and
+	// flavor, so an unusable one has to be reported, not dereferenced.
+	req, err := grab.NewRequest(dst, url)
+	if err != nil {
+		return dst, fmt.Errorf("cannot download %q: %w", url, err)
+	}
+
+	// start download
+	// Without ctx on the request, cancelling only ends the progress loop
+	// below: grab keeps writing the file in the background.
+	req = req.WithContext(ctx)
+	internal.Log.Logger.Info().Msgf("Downloading %v...", req.URL())
+	resp := client.Do(req)
+	// A cancel or connect error before the response headers leaves
+	// HTTPResponse nil; the loop below then reports resp.Err().
+	if resp.HTTPResponse != nil {
+		internal.Log.Logger.Printf("%s:  %v", url, resp.HTTPResponse.Status)
+	}
+
+	// start UI loop
+	t := time.NewTicker(500 * time.Millisecond)
+	defer t.Stop()
+	// resp.Filename is already the full path grab writes to (dst itself, or
+	// dst joined with the remote name when dst is a directory). Joining it
+	// with dst again pointed the cleanups below at a path that never exists,
+	// so a failed or canceled download left its partial file behind. The file
+	// is created inside client.Do, so removing it here cannot race its
+	// creation.
+	dstFile := resp.Filename
+Loop:
+	for {
+		select {
+		case <-ctx.Done():
+			defer os.RemoveAll(dstFile)
+			// Return ctx.Err() rather than a fabricated "context canceled":
+			// the caller has to be able to tell a cancellation from a
+			// deadline, and download() adds the message context.
+			return dst, ctx.Err()
+		case <-t.C:
+			internal.Log.Printf("%s: transferred %v / %v bytes (%.2f%%)",
+				url,
+				resp.BytesComplete(),
+				resp.Size(),
+				100*resp.Progress())
+
+		case <-resp.Done:
+			// download is complete
+			fmt.Printf("transferred %v / %v bytes (%.2f%%)    \n", resp.BytesComplete(), resp.Size(), 100*resp.Progress())
+			break Loop
+		}
+	}
+
+	// check for errors
+	if err := resp.Err(); err != nil {
+		defer os.RemoveAll(dstFile)
+		return dstFile, err
+	}
+
+	return dstFile, nil
+}

@@ -1,0 +1,67 @@
+---
+version: 2
+
+project_name: auroraboot
+
+before:
+  hooks:
+    - npm --prefix ui ci
+    - npm --prefix ui run build
+
+# cgo is required: sbctl pulls in go-piv (links libpcsclite) and the
+# server uses go-sqlite3. The binary is linux-only because of yip and the
+# kairos agent, so there is no darwin build.
+builds:
+  - id: auroraboot-amd64
+    main: .
+    binary: auroraboot
+    # The before hooks build the UI into internal/ui/dist; the ui tag embeds it.
+    tags:
+      - ui
+    env:
+      - CGO_ENABLED=1
+      - CC=gcc
+    ldflags:
+      - -s -w -X main.version={{ .Tag }}
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - id: auroraboot-arm64
+    main: .
+    binary: auroraboot
+    # The before hooks build the UI into internal/ui/dist; the ui tag embeds it.
+    tags:
+      - ui
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+      - PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
+    ldflags:
+      - -s -w -X main.version={{ .Tag }}
+    goos:
+      - linux
+    goarch:
+      - arm64
+
+archives:
+  - id: default
+    ids:
+      - auroraboot-amd64
+      - auroraboot-arm64
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+
+release:
+  prerelease: auto
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

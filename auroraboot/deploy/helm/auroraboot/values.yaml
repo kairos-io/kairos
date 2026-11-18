@@ -1,0 +1,96 @@
+# The externally reachable hostname for the AuroraBoot web UI. Required.
+# DNS for this name must resolve to the ingress controller's external
+# IP (LoadBalancer address, MetalLB VIP, or a node's port), not the
+# cluster API server IP.
+host: ""
+
+image:
+  repository: quay.io/kairos/auroraboot
+  # If empty, the chart uses appVersion from Chart.yaml.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+replicaCount: 1
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  tls:
+    # When true, adds a tls block to the Ingress. If issuerName is set,
+    # a cert-manager annotation is added and a secret name is generated.
+    # If existingSecret is set, that secret is referenced verbatim.
+    enabled: false
+    issuerName: ""
+    issuerKind: ClusterIssuer
+    existingSecret: ""
+
+builder:
+  # 'operator' delegates artifact builds to the kairos-operator via
+  # OSArtifact CRs. 'local' runs the build inside this pod (needs
+  # docker-in-docker; not the intended mode for in-cluster use).
+  kind: operator
+  # Namespace where OSArtifact CRs are created and their exporter pods
+  # run. Empty means the release namespace.
+  namespace: ""
+  # URL exporter pods PUT built artifacts to. Empty defaults to the
+  # release Service's cluster-internal DNS name so uploads never
+  # traverse the ingress. Override only when the exporter pods can't
+  # reach the release Service (e.g. cross-cluster setups).
+  uploadURL: ""
+
+persistence:
+  # A single PVC mounted at /var/lib/auroraboot holds the SQLite store,
+  # keys, secrets, and built artifacts.
+  enabled: true
+  size: 20Gi
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+rbac:
+  # Chart-managed Role + RoleBinding in builder.namespace granting the
+  # SA access to OSArtifacts, secrets, pods, pod logs, and jobs.
+  create: true
+
+registrationToken:
+  # When set, the chart stores it in a Secret and AuroraBoot uses it as
+  # the token. When empty, AuroraBoot generates the token on first start
+  # and keeps it on the data volume, so it survives restarts, upgrades
+  # and GitOps renders (helm template). Enable persistence to keep it
+  # across pod rescheduling.
+  value: ""
+
+resources: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+netboot:
+  enabled: false
+
+hostNetwork:
+  enabled: false
+  dnsPolicy: ClusterFirstWithHostNet
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podLabels: {}
+
+env: []
+
+extraArgs: []

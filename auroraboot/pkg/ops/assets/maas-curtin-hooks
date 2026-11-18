@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Kairos MAAS curtin hook.
+
+Runs in the MAAS ephemeral environment after the Kairos raw image is written to
+disk. curtin selects the curtin-landing partition as the target because it is
+the partition that contains /curtin. This hook deliberately does NOT install or
+modify the kernel, GRUB, EFI, or fstab: the Kairos image is already bootable.
+
+It hands MAAS's per-machine network config and the MAAS datasource credentials
+to COS_OEM (mounted by label), where Kairos cloud-config and the yip MAAS
+datasource provider consume them on first boot.
+
+curtin and yaml imports are kept inside main() so the pure functions below can
+be imported and unit-tested without curtin installed.
+"""
+
+
+def extract_datasource(curtin_cfg):
+    """Return the MAAS datasource '#cloud-config' content string from a curtin
+    config dict, or None. MAAS places it at
+    cloudconfig['maas-cloud-config']['content'] (a YAML doc containing a
+    'datasource: MAAS:' block)."""
+    cloudconfig = (curtin_cfg or {}).get("cloudconfig") or {}
+    frag = cloudconfig.get("maas-cloud-config")
+    if isinstance(frag, dict):
+        content = frag.get("content") or ""
+        if "datasource:" in content and "MAAS:" in content:
+            return content
+    # Fallback: scan any fragment for a datasource/MAAS block in case MAAS
+    # renames the key.
+    for value in cloudconfig.values():
+        content = value.get("content") if isinstance(value, dict) else None
+        if content and "datasource:" in content and "MAAS:" in content:
+            return content
+    return None
+
+
+def translate_network(netcfg):
+    """Translate a curtin/MAAS network config dict (v1 or v2) into a Kairos
+    cloud-config dict that writes systemd-networkd files in the initramfs stage.
+    Returns None when there is nothing to translate."""
+    files = _networkd_files(netcfg or {})
+    if not files:
+        return None
+    return {"name": "MAAS network", "stages": {"initramfs": [{"files": files}]}}
+
+
+def _networkd_files(netcfg):
+    netcfg = netcfg or {}
+    # MAAS/curtin and cloud-init wrap the config in a top-level "network:" key
+    # (e.g. {"network": {"version": 2, "ethernets": {...}}}). Unwrap it so both
+    # the wrapped real-world shape and a bare config are handled.
+    if isinstance(netcfg.get("network"), dict):
+        netcfg = netcfg["network"]
+    files = []
+    if netcfg.get("version") == 2:
+        ethernets = netcfg.get("ethernets") or {}
+        for idx, (name, e) in enumerate(sorted(ethernets.items())):
+            ns = e.get("nameservers") or {}
+            files.append(_networkd_file(
+                idx, name, bool(e.get("dhcp4")), e.get("addresses"),
+                _v2_gateway(e), ns.get("addresses"), ns.get("search")))
+    else:
+        for idx, item in enumerate(netcfg.get("config") or []):
+            if item.get("type") != "physical":
+                continue
+            subnet = (item.get("subnets") or [{}])[0]
+            dhcp = str(subnet.get("type", "")).startswith("dhcp")
+            addresses = [subnet["address"]] if subnet.get("address") else None
+            files.append(_networkd_file(
+                idx, item.get("name"), dhcp, addresses,
+                subnet.get("gateway"), item.get("dns_nameservers"),
+                item.get("dns_search")))
+    return [f for f in files if f]
+
+
+def _v2_gateway(e):
+    if e.get("gateway4"):
+        return e["gateway4"]
+    for route in e.get("routes") or []:
+        if route.get("to") in ("default", "0.0.0.0/0"):
+            return route.get("via")
+    return None
+
+
+def _networkd_file(idx, name, dhcp, addresses, gateway, dns, search=None):
+    lines = ["[Match]", "Name=%s" % (name or "en*"), "", "[Network]"]
+    if dhcp:
+        lines.append("DHCP=yes")
+    for addr in addresses or []:
+        lines.append("Address=%s" % addr)
+    if gateway:
+        lines.append("Gateway=%s" % gateway)
+    for entry in dns or []:
+        lines.append("DNS=%s" % entry)
+    if search:
+        lines.append("Domains=%s" % " ".join(search))
+    return {
+        "path": "/etc/systemd/network/%02d-maas.network" % (10 + idx),
+        "permissions": 420,
+        "content": "\n".join(lines) + "\n",
+    }
+
+
+def main():
+    import os
+    import subprocess
+    import sys
+
+    import yaml
+    from curtin.config import load_command_config
+    from curtin.util import load_command_environment
+
+    state = load_command_environment()
+    cfg = load_command_config(None, state)
+
+    oem_dev = subprocess.check_output(["blkid", "-L", "COS_OEM"]).decode().strip()
+    oem = "/tmp/kairos_oem"
+    os.makedirs(oem, exist_ok=True)
+    subprocess.check_call(["mount", oem_dev, oem])
+    try:
+        datasource = extract_datasource(cfg)
+        if datasource:
+            os.makedirs(os.path.join(oem, "maas"), exist_ok=True)
+            with open(os.path.join(oem, "maas", "datasource.yaml"), "w") as fh:
+                fh.write(datasource)
+            print("Kairos MAAS hook: wrote maas/datasource.yaml to COS_OEM")
+        else:
+            print("Kairos MAAS hook: no MAAS datasource in curtin config", file=sys.stderr)
+
+        netpath = state.get("network_config")
+        if netpath and os.path.exists(netpath):
+            with open(netpath) as fh:
+                netcfg = yaml.safe_load(fh) or {}
+            doc = translate_network(netcfg)
+            if doc:
+                with open(os.path.join(oem, "90_maas_network.yaml"), "w") as fh:
+                    yaml.safe_dump(doc, fh, default_flow_style=False)
+                print("Kairos MAAS hook: wrote 90_maas_network.yaml to COS_OEM")
+            else:
+                print("Kairos MAAS hook: no network to translate; Kairos default DHCP applies")
+        else:
+            print("Kairos MAAS hook: no network to translate; Kairos default DHCP applies")
+    finally:
+        subprocess.call(["umount", oem])
+
+    print("Kairos MAAS hook: done (kernel/grub/efi/fstab intentionally untouched)")
+
+
+if __name__ == "__main__":
+    main()

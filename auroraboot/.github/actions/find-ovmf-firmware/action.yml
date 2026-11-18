@@ -1,0 +1,50 @@
+name: 'Find OVMF Firmware'
+description: 'Finds the OVMF firmware file path for the current system'
+inputs:
+  prefer_secboot:
+    description: 'Prefer secure boot variant (OVMF_CODE_4M.secboot.fd) if available'
+    required: false
+    default: 'false'
+outputs:
+  firmware:
+    description: 'Path to the OVMF firmware file'
+    value: ${{ steps.find_ovmf.outputs.firmware }}
+runs:
+  using: composite
+  steps:
+    - id: find_ovmf
+      shell: bash
+      run: |
+        # In Ubuntu 24.04, OVMF files have different names.
+        # The _4M variant is 4MB (newer standard), vs the older 2MB variant.
+        # OVMF_CODE_4M.secboot.fd includes secure boot support.
+        # OVMF_CODE_4M.fd is the standard variant without secure boot.
+        #
+        # Note: The CODE and VARS files must match in size (both 4M or both 2M).
+
+        PREFER_SECBOOT="${{ inputs.prefer_secboot }}"
+
+        if [ -f /usr/share/OVMF/OVMF_CODE.fd ]; then
+          # Legacy 2MB variant (Ubuntu 22.04 and earlier)
+          echo "firmware=/usr/share/OVMF/OVMF_CODE.fd" >> $GITHUB_OUTPUT
+        elif [ "$PREFER_SECBOOT" = "true" ] && [ -f /usr/share/OVMF/OVMF_CODE_4M.secboot.fd ]; then
+          # Prefer secure boot variant if requested
+          echo "firmware=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd" >> $GITHUB_OUTPUT
+        elif [ -f /usr/share/OVMF/OVMF_CODE_4M.fd ]; then
+          # Standard 4MB variant (preferred for compatibility)
+          echo "firmware=/usr/share/OVMF/OVMF_CODE_4M.fd" >> $GITHUB_OUTPUT
+        elif [ -f /usr/share/OVMF/OVMF_CODE_4M.secboot.fd ]; then
+          # Fallback to secboot if standard not available
+          echo "firmware=/usr/share/OVMF/OVMF_CODE_4M.secboot.fd" >> $GITHUB_OUTPUT
+        else
+          # Final fallback: find any OVMF_CODE*.fd file
+          FIRMWARE=$(find /usr/share/OVMF -name "OVMF_CODE*.fd" | head -n 1)
+          if [ -n "$FIRMWARE" ]; then
+            echo "firmware=$FIRMWARE" >> $GITHUB_OUTPUT
+          else
+            echo "ERROR: Could not find OVMF firmware file"
+            echo "Installed OVMF files:"
+            dpkg -L ovmf 2>/dev/null | grep -i '\.fd$' || echo "ovmf package not found"
+            exit 1
+          fi
+        fi

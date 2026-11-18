@@ -1,0 +1,15 @@
+{
+  "@odata.id": "/redfish/v1/",
+  "@odata.type": "#ServiceRoot.v1_5_0.ServiceRoot",
+  "Id": "RootService",
+  "Name": "HPE RESTful Root Service",
+  "RedfishVersion": "1.6.0",
+  "Vendor": "HPE",
+  "Systems": { "@odata.id": "/redfish/v1/Systems" },
+  "Managers": { "@odata.id": "/redfish/v1/Managers" },
+  "Tasks": { "@odata.id": "/redfish/v1/TaskService" },
+  "SessionService": { "@odata.id": "/redfish/v1/SessionService" },
+  "Links": {
+    "Sessions": { "@odata.id": "/redfish/v1/SessionService/Sessions" }
+  }
+}

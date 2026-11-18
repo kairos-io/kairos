@@ -1,0 +1,297 @@
+suite: deployment
+templates:
+  - deployment.yaml
+tests:
+  - it: fails when host is empty
+    set:
+      host: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "host is required"
+
+  - it: renders a Deployment named after the release
+    set:
+      host: auroraboot.example.com
+    release:
+      name: ab
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: ab-auroraboot
+
+  - it: runs the web subcommand with builder=operator and derives --url from host
+    set:
+      host: auroraboot.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: web
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --builder=operator
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --url=http://auroraboot.example.com
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --data-dir=/var/lib/auroraboot
+
+  - it: uses https for --url when chart-managed TLS is enabled
+    set:
+      host: auroraboot.example.com
+      ingress:
+        tls:
+          enabled: true
+          existingSecret: my-cert
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --url=https://auroraboot.example.com
+
+  - it: defaults builder-namespace to the release namespace
+    set:
+      host: auroraboot.example.com
+    release:
+      namespace: kairos-operator
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --builder-namespace=kairos-operator
+
+  - it: honours an explicit builder.namespace override
+    set:
+      host: auroraboot.example.com
+      builder:
+        namespace: some-other-ns
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --builder-namespace=some-other-ns
+
+  - it: auto-fills builder-upload-url from the release Service DNS
+    set:
+      host: auroraboot.example.com
+    release:
+      name: ab
+      namespace: kairos-operator
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --builder-upload-url=http://ab-auroraboot.kairos-operator.svc.cluster.local:80
+
+  - it: honours an explicit builder.uploadURL override
+    set:
+      host: auroraboot.example.com
+      builder:
+        uploadURL: http://ab.custom.svc:9000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --builder-upload-url=http://ab.custom.svc:9000
+
+  - it: appends extraArgs after chart-supplied flags so they win on repeated --url
+    set:
+      host: auroraboot.example.com
+      extraArgs:
+        - --url=https://external.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --url=http://auroraboot.example.com
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --url=https://external.example.com
+      - equal:
+          path: spec.template.spec.containers[0].args[7]
+          value: --url=https://external.example.com
+
+  - it: mounts the persistence PVC at /var/lib/auroraboot
+    set:
+      host: auroraboot.example.com
+    release:
+      name: ab
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /var/lib/auroraboot
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: ab-auroraboot
+
+  - it: uses emptyDir when persistence is disabled
+    set:
+      host: auroraboot.example.com
+      persistence:
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  - it: exposes the registration token as env from the chart secret
+    set:
+      host: auroraboot.example.com
+      registrationToken:
+        value: my-static-token
+    release:
+      name: ab
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AURORABOOT_REG_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: ab-auroraboot-registration
+                key: token
+
+  - it: uses the release SA
+    set:
+      host: auroraboot.example.com
+    release:
+      name: ab
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: ab-auroraboot
+
+  - it: hashes the registration token into a pod-template annotation so rotations roll pods
+    set:
+      host: auroraboot.example.com
+      registrationToken:
+        value: my-static-token
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["checksum/registration-secret"]
+          value: 8d5ddbca14ddffe341bb5ffe68c236f901c586647c67299393ba93785ddb90fb
+
+  - it: leaves the registration token to the server when registrationToken.value is empty
+    set:
+      host: auroraboot.example.com
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env
+      - notExists:
+          path: spec.template.metadata.annotations["checksum/registration-secret"]
+
+  - it: keeps user env when registrationToken.value is empty
+    set:
+      host: auroraboot.example.com
+      env:
+        - name: FOO
+          value: bar
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: FOO
+              value: bar
+
+  - it: disables host networking and netboot privileges by default
+    set:
+      host: auroraboot.example.com
+    asserts:
+      - notExists:
+          path: spec.template.spec.hostNetwork
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: enables host networking independently
+    set:
+      host: auroraboot.example.com
+      hostNetwork:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: true
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirstWithHostNet
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: honours a host network DNS policy override
+    set:
+      host: auroraboot.example.com
+      hostNetwork:
+        enabled: true
+        dnsPolicy: ClusterFirst
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: ClusterFirst
+
+  - it: enables netboot privileges independently
+    set:
+      host: auroraboot.example.com
+      netboot:
+        enabled: true
+    asserts:
+      - notExists:
+          path: spec.template.spec.hostNetwork
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          value:
+            - NET_RAW
+            - NET_BIND_SERVICE
+
+  - it: enables host networking and netboot privileges together
+    set:
+      host: auroraboot.example.com
+      hostNetwork:
+        enabled: true
+      netboot:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.hostNetwork
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          value:
+            - NET_RAW
+            - NET_BIND_SERVICE
+
+  - it: preserves supplied security context and capabilities when netboot is enabled
+    set:
+      host: auroraboot.example.com
+      netboot:
+        enabled: true
+      securityContext:
+        runAsUser: 1000
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop:
+            - ALL
+          add:
+            - SYS_ADMIN
+            - NET_RAW
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          value:
+            - SYS_ADMIN
+            - NET_RAW
+            - NET_BIND_SERVICE
