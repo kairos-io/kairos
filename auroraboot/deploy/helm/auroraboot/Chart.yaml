@@ -6,7 +6,7 @@ version: 0.30.0
 appVersion: "v0.30.0"
 home: https://kairos.io
 sources:
-  - https://github.com/kairos-io/AuroraBoot
+  - https://github.com/kairos-io/kairos
 maintainers:
   - name: kairos-io
     url: https://github.com/kairos-io

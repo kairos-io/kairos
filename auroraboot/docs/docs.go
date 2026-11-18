@@ -11,7 +11,7 @@ const docTemplate = `{
         "title": "{{.Title}}",
         "contact": {
             "name": "Kairos authors",
-            "url": "https://github.com/kairos-io/AuroraBoot"
+            "url": "https://github.com/kairos-io/kairos"
         },
         "license": {
             "name": "Apache-2.0",

@@ -15,7 +15,7 @@
 //	@description	  * GET /api/v1/ws/ui: UI live update channel (auth via the session cookie, or Authorization: Bearer <admin-password>; same-origin only).
 //
 //	@contact.name	Kairos authors
-//	@contact.url	https://github.com/kairos-io/AuroraBoot
+//	@contact.url	https://github.com/kairos-io/kairos
 //	@license.name	Apache-2.0
 //	@license.url	https://www.apache.org/licenses/LICENSE-2.0
 //

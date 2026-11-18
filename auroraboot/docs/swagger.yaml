@@ -1057,7 +1057,7 @@ definitions:
 info:
   contact:
     name: Kairos authors
-    url: https://github.com/kairos-io/AuroraBoot
+    url: https://github.com/kairos-io/kairos
   description: |-
     HTTP API for the AuroraBoot Kairos node manager.
 
