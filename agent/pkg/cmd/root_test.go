@@ -266,7 +266,7 @@ func TestSysextInstallCatalogValidation(t *testing.T) {
 	if err := runCommand(t, confextInstall, "--catalog", "https://example.test/catalog.json", "git"); err == nil || err.Error() != "--catalog is only supported for sysext" {
 		t.Fatalf("expected confext catalog error, got %v", err)
 	}
-	if err := runCommand(t, confextInstall, "--version", "1.0.0", "oci:example.test/git:1.0.0"); err == nil || err.Error() != "--version requires --catalog" {
+	if err := runCommand(t, confextInstall, "--version", "1.0.0", "oci:example.test/git:1.0.0"); err == nil || err.Error() != "--version is only supported for sysext" {
 		t.Fatalf("expected version validation error, got %v", err)
 	}
 }
