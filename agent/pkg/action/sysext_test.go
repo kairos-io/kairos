@@ -201,6 +201,16 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 				Expect(target).To(Equal("../fwupd.sysext.raw"))
 			})
 
+			It("replaces an absolute link left by an older agent", func() {
+				link := "/var/lib/kairos/extensions/active/fwupd.sysext.raw"
+				Expect(config.Fs.Mkdir("/var/lib/kairos/extensions/active", 0755)).To(Succeed())
+				Expect(config.Fs.Symlink("/var/lib/kairos/extensions/fwupd.sysext.raw", link)).To(Succeed())
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink(link)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(target).To(Equal("../fwupd.sysext.raw"))
+			})
+
 			It("does not resolve a name that does not end on a dot boundary", func() {
 				_, err := action.GetExtension(config, "wupd", "", "sysext")
 				Expect(err).To(MatchError("extension wupd not found"))
