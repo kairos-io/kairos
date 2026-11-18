@@ -16,14 +16,29 @@ GOFLAGS ?= -trimpath
 # outside a git checkout.
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
+# BINARY_VERSION is the version stamped into every binary. kairos-init
+# writes it into each image as KAIROS_INIT_VERSION, and the upgrade
+# downgrade gate compares it with semver. A tagged build is VERSION
+# unchanged. A build between tags becomes a pre-release of the next patch,
+# v1.2.3-5-gabc1234 -> v1.2.4-dev.5+gabc1234, so plain semver orders it
+# after its tag and after every earlier build. scripts/binary-version.sh
+# holds the rule and scripts/binary-version_test.sh the cases.
+BINARY_VERSION ?= $(shell $(CURDIR)/scripts/binary-version.sh '$(VERSION)' 2>/dev/null || echo '$(VERSION)')
+
 # LDFLAGS default: strip debug/symbol tables and inject the version. Override
 # to add your own -X flags; if you override LDFLAGS, remember to include -X
 # for the version or every binary will report "dev".
-LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(VERSION)
+LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(BINARY_VERSION)
 
 .PHONY: test
-test: kairos-init-embed-stubs test-actions
+test: kairos-init-embed-stubs test-actions test-binary-version
 	$(GO) test ./...
+
+# The version rule BINARY_VERSION applies, checked against a table of
+# git describe strings.
+.PHONY: test-binary-version
+test-binary-version:
+	scripts/binary-version_test.sh
 
 # Nested go modules under .github/actions/ have their own go.mod, so the
 # root `go test ./...` above never descends into them -- discovered when

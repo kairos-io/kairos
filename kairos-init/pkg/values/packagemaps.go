@@ -561,17 +561,23 @@ var BasePackages = PackageMap{
 				"openssh",
 				"pigz",
 				"polkit",
-				"policycoreutils",
 				"procps",
 				"qemu-guest-agent", // TODO: Move this to generic model?
-				"selinux-policy-targeted",
 				"strace",
 				"systemd",
 				"timezone",
 				"vim",
 				"which",
 			},
+			// 5.4 and 5.5 are SLE Micro for Rancher. Its "Install oss
+			// repository" stage adds the Leap 15.5 OSS repo and removes the
+			// base image's policycoreutils 3.4. Asking for policycoreutils
+			// afterwards resolves 3.1 from Leap, which conflicts with the
+			// installed libsemanage-conf 3.4, and zypper exits 4.
+			// See kairos-io/kairos#6101.
 			"!=5.4, !=5.5": {
+				"policycoreutils",
+				"selinux-policy-targeted",
 				"systemd-networkd",
 				"systemd-resolved",
 			},

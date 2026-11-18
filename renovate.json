@@ -13,7 +13,7 @@
     ":ignoreModulesAndTests"
   ],
   "timezone": "Europe/Brussels",
-  "commitMessagePrefix": ":arrow_up: ",
+  "semanticCommits": "enabled",
   "reviewers": [
     "team:maintainers"
   ],

@@ -2,11 +2,36 @@ package cli
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	p2p "github.com/kairos-io/kairos/v4/provider/internal/role/p2p"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	"github.com/mudler/edgevpn/api/client/service"
 	"github.com/urfave/cli/v2"
 )
+
+// settableRoles are the values "role set" accepts: every role the provider
+// knows how to run, plus "none", which clears an assignment.
+var settableRoles = []string{
+	p2p.RoleWorker,
+	p2p.RoleMaster,
+	p2p.RoleMasterHA,
+	p2p.RoleMasterClusterInit,
+	p2p.RoleAuto,
+	providerConfig.RoleNone,
+}
+
+func validateRoleSetArgs(args []string) error {
+	if len(args) != 2 {
+		return fmt.Errorf("usage: kairos provider role set <UUID> <role>: expected 2 arguments, got %d", len(args))
+	}
+	if !slices.Contains(settableRoles, args[1]) {
+		return fmt.Errorf("unknown role %q, valid roles are: %s", args[1], strings.Join(settableRoles, ", "))
+	}
+	return nil
+}
 
 var RoleCMD = cli.Command{
 	Name:  "role",
@@ -16,7 +41,7 @@ var RoleCMD = cli.Command{
 			Flags:     networkAPI,
 			Name:      "set",
 			Usage:     "Set a node role",
-			UsageText: "kairos provider role set <UUID> master",
+			UsageText: "kairos provider role set <UUID> <role>",
 			Description: `
 		Sets a node role propagating the setting to the network.
 
@@ -26,8 +51,13 @@ var RoleCMD = cli.Command{
 
 		$ (node A) kairos agent uuid
 		$ (node B) kairos provider role set <UUID of node A> master
+
+		Valid roles: worker, master, master/ha, master/clusterinit, auto, none.
 		`,
 			Action: func(c *cli.Context) error {
+				if err := validateRoleSetArgs(c.Args().Slice()); err != nil {
+					return err
+				}
 				cc := service.NewClient(
 					c.String("network-id"),
 					edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String(apiFlagName))))

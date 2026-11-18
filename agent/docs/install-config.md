@@ -83,7 +83,7 @@ install:
 
 Other install-time options include:
 
-- **`install.encryption`**: Encrypt partitions or entire systems
+- **`install.encrypted_partitions`**: List of partition labels to encrypt (for example `COS_PERSISTENT`)
 - **`install.ephemeral_mounts`**: Configure ephemeral (temporary) mount points
 - **`install.device`**: Specify the target installation disk
 - **`install.partitions`**: Customize partition layout (size, type)

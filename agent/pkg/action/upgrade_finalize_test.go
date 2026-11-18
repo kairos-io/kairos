@@ -267,6 +267,56 @@ var _ = Describe("Upgrade finalize handoff", Label("upgrade", "handoff"), func()
 		Expect(nowActive).To(Equal(originalActive), "active.img changed after a refused downgrade")
 	})
 
+	It("reads the node's KAIROS_INIT_VERSION under HOST_DIR when running under Kubernetes", func() {
+		// kairos-operator runs the upgrade in a pod whose image is the
+		// target image, with the node's root mounted at HOST_DIR. The
+		// container's own /etc/kairos-release is the target's, so the
+		// gate has to read the node's copy under HOST_DIR.
+		GinkgoT().Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+		GinkgoT().Setenv("HOST_DIR", "/host")
+		Expect(fsutils.MkdirAll(fs, "/host/etc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/host/etc/kairos-release", []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+		Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.2.0"`+"\n"), constants.FilePerm)).To(Succeed())
+		extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+			if err := fsutils.MkdirAll(fs, filepath.Join(destination, "etc"), constants.DirPerm); err != nil {
+				return err
+			}
+			return fs.WriteFile(filepath.Join(destination, "etc/kairos-release"),
+				[]byte(`KAIROS_INIT_VERSION="v4.2.0"`+"\n"), 0o644)
+		}
+
+		upgrade = action.NewUpgradeAction(config, spec)
+		err := upgrade.Run()
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+		Expect(runner.IncludesCmds([][]string{
+			{constants.TargetKairosAgentPath},
+		})).ToNot(Succeed(), "target agent must not run on downgrade refusal")
+	})
+
+	It("reads the node's own KAIROS_INIT_VERSION when chrooted into the node under Kubernetes", func() {
+		// The documented Trusted Boot upgrade through kairos-operator runs
+		// `chroot /host kairos-agent upgrade` from a pod. The pod's
+		// environment survives the chroot, so the agent sees
+		// KUBERNETES_SERVICE_HOST, but HOST_DIR does not exist inside the
+		// chroot and /etc/kairos-release is already the node's file.
+		GinkgoT().Setenv("KUBERNETES_SERVICE_HOST", "10.0.0.1")
+		GinkgoT().Setenv("HOST_DIR", "/host")
+		Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+		extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+			if err := fsutils.MkdirAll(fs, filepath.Join(destination, "etc"), constants.DirPerm); err != nil {
+				return err
+			}
+			return fs.WriteFile(filepath.Join(destination, "etc/kairos-release"),
+				[]byte(`KAIROS_INIT_VERSION="v4.2.0"`+"\n"), 0o644)
+		}
+
+		upgrade = action.NewUpgradeAction(config, spec)
+		err := upgrade.Run()
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("refusing to upgrade"))
+	})
+
 	It("refuses when the target image carries no KAIROS_INIT_VERSION at all", func() {
 		extractor.SideEffect = func(imageRef, destination, platformRef string) error {
 			// Deliberately no /etc/kairos-release at all: models an
@@ -304,5 +354,128 @@ var _ = Describe("Upgrade finalize handoff", Label("upgrade", "handoff"), func()
 		Expect(runner.IncludesCmds([][]string{
 			{constants.TargetKairosAgentPath, "upgrade-finalize"},
 		})).To(Succeed(), "handoff should still fire when only KAIROS_VERSION rolled backwards")
+	})
+})
+
+var _ = Describe("RunFinalize ESP refresh", Label("upgrade", "grub", "efi"), func() {
+	var (
+		config  *sdkConfig.Config
+		fs      vfs.FS
+		cleanup func()
+		ctx     action.FinalizeContext
+	)
+
+	const (
+		imgDir   = "/run/cos/transition"
+		stateDir = "/run/cos/state"
+		efiDir   = "/run/cos/efi"
+	)
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+		Expect(err).ShouldNot(HaveOccurred())
+		config = agentConfig.NewConfig(
+			agentConfig.WithFs(fs),
+			agentConfig.WithRunner(v1mock.NewFakeRunner()),
+			agentConfig.WithLogger(sdkLogger.NewBufferLogger(&bytes.Buffer{})),
+			agentConfig.WithMounter(v1mock.NewErrorMounter()),
+			agentConfig.WithSyscall(&v1mock.FakeSyscall{}),
+			agentConfig.WithCloudInitRunner(&v1mock.FakeCloudInitRunner{}),
+			agentConfig.WithPlatform("linux/amd64"),
+		)
+
+		// The upgrade image: shim, grub.efi, grub modules and the grub.cfg
+		// that install would write to the state partition.
+		efiSrc := filepath.Join(imgDir, "usr/share/efi", config.Arch)
+		modSrc := filepath.Join(imgDir, "usr/lib/grub2", config.Arch+"-efi")
+		Expect(fsutils.MkdirAll(fs, efiSrc, constants.DirPerm)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, modSrc, constants.DirPerm)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, filepath.Join(imgDir, "etc/cos"), constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(efiSrc, constants.SignedShim), []byte("shim"), constants.FilePerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(efiSrc, "grub.efi"), []byte("grub"), constants.FilePerm)).To(Succeed())
+		for _, m := range constants.GetGrubModules() {
+			Expect(fs.WriteFile(filepath.Join(modSrc, m), []byte("new "+m), constants.FilePerm)).To(Succeed())
+		}
+		Expect(fs.WriteFile(filepath.Join(imgDir, constants.GrubConf), []byte("rmmod tpm\n"), constants.FilePerm)).To(Succeed())
+
+		// The state partition, with the grub.cfg of an older install.
+		Expect(fsutils.MkdirAll(fs, filepath.Join(stateDir, "grub2"), constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(stateDir, "grub2/grub.cfg"), []byte("old menu\n"), constants.FilePerm)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, efiDir, constants.DirPerm)).To(Succeed())
+
+		ctx = action.FinalizeContext{
+			ImgMountPoint:   imgDir,
+			TransitionImgFS: constants.SquashFs,
+			StateMountPoint: stateDir,
+			StateFSLabel:    constants.StateLabel,
+			Arch:            config.Arch,
+			EFIPartition: &action.SerializedPartition{
+				Name:            "device1",
+				Path:            "/dev/device1",
+				FilesystemLabel: constants.EfiLabel,
+				FS:              "vfat",
+				MountPoint:      efiDir,
+			},
+		}
+	})
+
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("writes the grub.cfg of the upgrade image to the state partition along with grub on the ESP", func() {
+		Expect(action.RunFinalize(config, ctx)).To(Succeed())
+
+		grub, err := fs.ReadFile(filepath.Join(efiDir, "EFI/boot/grub.efi"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(grub)).To(Equal("grub"))
+		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(cfg)).To(Equal("rmmod tpm\n"))
+	})
+
+	It("puts both partitions back as they were when the ESP refresh fails late", func() {
+		// The ESP as an older install left it.
+		efiBoot := filepath.Join(efiDir, "EFI/boot")
+		Expect(fsutils.MkdirAll(fs, efiBoot, constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(efiBoot, constants.GetFallBackEfi(config.Arch)), []byte("old shim"), constants.FilePerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(efiBoot, "grub.efi"), []byte("old grub"), constants.FilePerm)).To(Succeed())
+		// A directory where the stub grub.cfg goes makes RefreshESP fail on
+		// its last write, after shim and grub were already replaced.
+		Expect(fsutils.MkdirAll(fs, filepath.Join(efiBoot, "grub.cfg"), constants.DirPerm)).To(Succeed())
+
+		Expect(action.RunFinalize(config, ctx)).ToNot(Succeed())
+
+		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(cfg)).To(Equal("old menu\n"))
+		shim, err := fs.ReadFile(filepath.Join(efiBoot, constants.GetFallBackEfi(config.Arch)))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(shim)).To(Equal("old shim"))
+		grub, err := fs.ReadFile(filepath.Join(efiBoot, "grub.efi"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(grub)).To(Equal("old grub"))
+		Expect(fsutils.Exists(fs, filepath.Join(efiBoot, constants.SignedShim))).To(BeFalse(), "the refresh added this file, so restoring removes it")
+	})
+
+	It("leaves the grub.cfg on the state partition alone when the ESP refresh is skipped", func() {
+		Expect(fs.Remove(filepath.Join(imgDir, "usr/share/efi", config.Arch, "grub.efi"))).To(Succeed())
+
+		Expect(action.RunFinalize(config, ctx)).To(Succeed())
+
+		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(cfg)).To(Equal("old menu\n"))
+	})
+
+	It("leaves the grub.cfg on the state partition alone on a recovery upgrade", func() {
+		ctx.RecoveryUpgrade = true
+
+		Expect(action.RunFinalize(config, ctx)).To(Succeed())
+
+		cfg, err := fs.ReadFile(filepath.Join(stateDir, "grub2/grub.cfg"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(cfg)).To(Equal("old menu\n"))
 	})
 })

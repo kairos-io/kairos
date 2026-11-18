@@ -437,3 +437,65 @@ func TestKairosReleaseStageDryRunSkipsProviderHooks(t *testing.T) {
 		}
 	}
 }
+
+// TestGetLatestKernelWithoutInstalledKernel points the kernel lookup at a
+// missing and at an empty modules dir: a dry run gets the placeholder, a real
+// run still fails.
+func TestGetLatestKernelWithoutInstalledKernel(t *testing.T) {
+	oldPath, oldDryRun := kernelModulesPath, config.DefaultConfig.DryRun
+	t.Cleanup(func() {
+		kernelModulesPath = oldPath
+		config.DefaultConfig.DryRun = oldDryRun
+	})
+	l := logger.NewKairosLogger("test", "info", true)
+
+	for _, dir := range map[string]string{
+		"missing": filepath.Join(t.TempDir(), "modules"),
+		"empty":   t.TempDir(),
+	} {
+		kernelModulesPath = dir
+
+		config.DefaultConfig.DryRun = true
+		got, err := getLatestKernel(l)
+		if err != nil {
+			t.Fatalf("dry run with %s: unexpected error: %s", dir, err)
+		}
+		if got != dryRunKernelPlaceholder {
+			t.Fatalf("dry run with %s: got kernel %q, want %q", dir, got, dryRunKernelPlaceholder)
+		}
+		if _, err := GetKernelStage(values.System{}, l); err != nil {
+			t.Fatalf("dry run with %s: GetKernelStage failed: %s", dir, err)
+		}
+
+		config.DefaultConfig.DryRun = false
+		if got, err := getLatestKernel(l); err == nil {
+			t.Fatalf("real run with %s: got kernel %q, want an error", dir, got)
+		}
+		if _, err := GetKernelStage(values.System{}, l); err == nil {
+			t.Fatalf("real run with %s: GetKernelStage did not fail", dir)
+		}
+	}
+}
+
+// TestGetLatestKernelDryRunUsesInstalledKernel checks a dry run still reports
+// the real kernel when one is installed.
+func TestGetLatestKernelDryRunUsesInstalledKernel(t *testing.T) {
+	oldPath, oldDryRun := kernelModulesPath, config.DefaultConfig.DryRun
+	t.Cleanup(func() {
+		kernelModulesPath = oldPath
+		config.DefaultConfig.DryRun = oldDryRun
+	})
+	kernelModulesPath = t.TempDir()
+	if err := os.Mkdir(filepath.Join(kernelModulesPath, "6.12.0-1-generic"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	config.DefaultConfig.DryRun = true
+
+	got, err := getLatestKernel(logger.NewKairosLogger("test", "info", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "6.12.0-1-generic" {
+		t.Fatalf("got kernel %q, want 6.12.0-1-generic", got)
+	}
+}

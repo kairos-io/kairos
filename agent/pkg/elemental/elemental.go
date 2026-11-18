@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -39,10 +40,12 @@ import (
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils/loop"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
+	sdkImage "github.com/kairos-io/kairos/v4/sdk/utils/image"
 )
 
 // Elemental is the struct meant to self-contain most utils and actions related to Elemental, like installing or applying selinux
@@ -100,21 +103,17 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 		return err
 	}
 
-	// Try to make the kernel re-read the partition table a couple of times
-	const rereadAttempts = 5
-	for attempt := 0; attempt < rereadAttempts; attempt++ {
-		err = disk.ReReadPartitionTable()
-		if err == nil {
-			break
+	// Try to make the kernel re-read the partition table a couple of times,
+	// backing off a bit more on every attempt before retrying.
+	attempt := 0
+	err = retry.Do(func() error {
+		rerr := disk.ReReadPartitionTable()
+		if rerr != nil {
+			e.config.Logger.Debugf("Reread table attempt %d failed: %s", attempt+1, rerr)
+			attempt++
 		}
-		e.config.Logger.Debugf("Reread table attempt %d failed: %s", attempt+1, err)
-		if attempt < rereadAttempts-1 {
-			// Back off a bit more on every attempt before retrying
-			wait := time.Duration(attempt+1) * time.Second
-			e.config.Logger.Debugf("Waiting %s before next attempt", wait)
-			time.Sleep(wait)
-		}
-	}
+		return rerr
+	}, retry.Config{Attempts: 5, Delay: retry.Linear(1*time.Second, 0)})
 	if err != nil {
 		e.config.Logger.Errorf("Reread table: %s", err)
 		return err
@@ -532,7 +531,11 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 			return nil, fmt.Errorf("failed to extract image contents: %w", err)
 		}
 	} else if imgSrc.IsDir() {
-		mergedExcludes := append(excludes, "/mnt", "/proc", "/sys", "/dev", "/tmp", "/host", "/run")
+		mergedExcludes := make([]string, 0, len(excludes)+7)
+		for _, exclude := range excludes {
+			mergedExcludes = append(mergedExcludes, path.Clean("/"+exclude))
+		}
+		mergedExcludes = append(mergedExcludes, "/mnt", "/proc", "/sys", "/dev", "/tmp", "/host", "/run")
 		err = utils.SyncData(e.config.Logger, e.config.Runner, e.config.Fs, imgSrc.Value(), target, mergedExcludes...)
 		if err != nil {
 			return nil, err
@@ -756,7 +759,7 @@ func (e *Elemental) platformMatches(descriptorPlatform *ggcrv1.Platform) bool {
 }
 
 // applyImageToTarget unpacks the layers of an image onto target, dropping any
-// entry named in excludes.
+// entry that sdkImage.Excluded matches against excludes.
 func (e *Elemental) applyImageToTarget(img ggcrv1.Image, target string, excludes ...string) error {
 	reader := mutate.Extract(img)
 	defer func() { _ = reader.Close() }()
@@ -766,14 +769,13 @@ func (e *Elemental) applyImageToTarget(img ggcrv1.Image, target string, excludes
 		return err
 	}
 
-	excluded := make(map[string]struct{}, len(excludes))
-	for _, exclude := range excludes {
-		excluded[exclude] = struct{}{}
-	}
-
 	filter := archive.WithFilter(func(hdr *tar.Header) (bool, error) {
-		if _, found := excluded[hdr.Name]; found {
-			e.config.Logger.Infof("Excluding file from extraction: %s", hdr.Name)
+		excluded, err := sdkImage.Excluded(hdr.Name, excludes...)
+		if err != nil {
+			return false, err
+		}
+		if excluded {
+			e.config.Logger.Debugf("Excluding file from extraction: %s", hdr.Name)
 			return false, nil
 		}
 		return true, nil
@@ -903,6 +905,21 @@ func (e *Elemental) GetIso(iso string) (tmpDir string, err error) {
 	}
 	err = e.config.Mounter.Mount(filepath.Join(isoMnt, cnst.IsoRootFile), rootfsMnt, "auto", []string{})
 	return tmpDir, err
+}
+
+// UnmountIso unmounts the rootfs and the ISO that GetIso mounted in tmpDir, in that order.
+// A failed unmount does not stop the next one, and every error is returned.
+func (e *Elemental) UnmountIso(tmpDir string) error {
+	var errs []error
+	for _, mnt := range []string{filepath.Join(tmpDir, "rootfs"), filepath.Join(tmpDir, "iso")} {
+		if notMnt, _ := e.config.Mounter.IsLikelyNotMountPoint(mnt); notMnt {
+			continue
+		}
+		if err := e.config.Mounter.Unmount(mnt); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // UpdateSourcesFormDownloadedISO checks a downaloaded and mounted ISO in workDir and updates the active and recovery image
