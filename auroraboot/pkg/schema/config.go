@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/kairos-io/AuroraBoot/pkg/extensions"
+	"github.com/kairos-io/kairos/auroraboot/pkg/extensions"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 

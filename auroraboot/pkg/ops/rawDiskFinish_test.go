@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/internal"
+	"github.com/kairos-io/kairos/auroraboot/internal"
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 )
 

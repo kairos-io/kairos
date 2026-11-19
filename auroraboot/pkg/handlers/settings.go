@@ -8,9 +8,9 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/kairos-io/AuroraBoot/pkg/auth"
-	"github.com/kairos-io/AuroraBoot/pkg/isoserve"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/auth"
+	"github.com/kairos-io/kairos/auroraboot/pkg/isoserve"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	"github.com/labstack/echo/v4"
 )
 

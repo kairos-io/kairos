@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/kairos-io/AuroraBoot/internal"
+	"github.com/kairos-io/kairos/auroraboot/internal"
 )
 
 // Raw2MAAS gzips a raw disk image into the "ddgz" format MAAS expects for a

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 
 	"github.com/gorilla/websocket"
-	"github.com/kairos-io/AuroraBoot/pkg/client"
+	"github.com/kairos-io/kairos/auroraboot/pkg/client"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

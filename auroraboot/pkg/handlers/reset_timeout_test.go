@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 func TestResetExpired(t *testing.T) {

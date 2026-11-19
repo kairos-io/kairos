@@ -13,12 +13,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	netbootmgr "github.com/kairos-io/AuroraBoot/internal/netbootmgr"
-	"github.com/kairos-io/AuroraBoot/pkg/hardware"
-	"github.com/kairos-io/AuroraBoot/pkg/isoserve"
-	"github.com/kairos-io/AuroraBoot/pkg/redfish"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
-	"github.com/kairos-io/AuroraBoot/pkg/ws"
+	netbootmgr "github.com/kairos-io/kairos/auroraboot/internal/netbootmgr"
+	"github.com/kairos-io/kairos/auroraboot/pkg/hardware"
+	"github.com/kairos-io/kairos/auroraboot/pkg/isoserve"
+	"github.com/kairos-io/kairos/auroraboot/pkg/redfish"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/ws"
 	"github.com/labstack/echo/v4"
 )
 

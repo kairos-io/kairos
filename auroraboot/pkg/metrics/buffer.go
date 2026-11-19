@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // DefaultCapacity is the number of samples kept per node when no valid

@@ -11,8 +11,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/pkg/auth"
-	"github.com/kairos-io/AuroraBoot/pkg/handlers"
+	"github.com/kairos-io/kairos/auroraboot/pkg/auth"
+	"github.com/kairos-io/kairos/auroraboot/pkg/handlers"
 	"github.com/labstack/echo/v4"
 )
 
