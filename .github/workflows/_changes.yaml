@@ -9,9 +9,9 @@ name: Detect changes
 # and Helm chart, none of which ends up in an image or an ISO.
 #
 # auroraboot: the change can affect AuroraBoot: auroraboot/ itself, the root
-# packages it imports (sdk/, agent/pkg/ and internal/version/, see `go list
-# -deps` in auroraboot/), the root go.mod and go.sum, and the workflows and
-# actions that run its tests.
+# packages it imports, tests included (sdk/, agent/pkg/, agent/tests/ and
+# internal/version/, see `go list -deps -test` in auroraboot/), the root go.mod
+# and go.sum, and the workflows and actions that run its tests.
 #
 # A skipped job of a reusable workflow does not report the check names it
 # declares, so a branch rule must wait for the single job that gates the whole
@@ -54,4 +54,6 @@ jobs:
             { echo "kairos=true"; echo "auroraboot=true"; } >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git diff --name-only "$BASE_SHA" HEAD | tee /dev/stderr | scripts/changed-parts.sh | tee -a "$GITHUB_OUTPUT"
+          echo "Changed files:"
+          git diff --name-only --no-renames "$BASE_SHA" HEAD
+          scripts/changed-parts.sh "$BASE_SHA" | tee -a "$GITHUB_OUTPUT"
