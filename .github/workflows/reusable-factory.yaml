@@ -1234,6 +1234,28 @@ jobs:
             VERSION=${{ steps.setup.outputs.version }}
             ${{ inputs.build_args }}
 
+      - name: Download the AuroraBoot image
+        if: inputs.auroraboot_artifact != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: ${{ inputs.auroraboot_artifact }}-${{ inputs.arch }}
+          path: ${{ runner.temp }}/auroraboot-image
+
+      - name: Select the AuroraBoot image
+        id: aurora
+        env:
+          AURORABOOT_ARTIFACT: ${{ inputs.auroraboot_artifact }}
+          AURORABOOT_VERSION: ${{ inputs.auroraboot_version }}
+          IMAGE_DIR: ${{ runner.temp }}/auroraboot-image
+        run: |
+          set -euo pipefail
+          if [[ -n "$AURORABOOT_ARTIFACT" ]]; then
+            docker load -i "$IMAGE_DIR/auroraboot-image.tar"
+            echo "image=auroraboot:ci" >> "$GITHUB_OUTPUT"
+          else
+            echo "image=quay.io/kairos/auroraboot:$AURORABOOT_VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Go for test artifacts
         if: inputs.generate_test_keys || inputs.generate_test_sysext
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
@@ -1260,6 +1282,8 @@ jobs:
           GENERATE_SYSEXT: ${{ inputs.generate_test_sysext }}
           TRUSTED_BOOT: ${{ inputs.trusted_boot }}
           ARCH: ${{ inputs.arch }}
+          # The system extensions are built with the AuroraBoot image of this commit.
+          KAIROS_TEST_AURORABOOT_IMAGE: ${{ steps.aurora.outputs.image }}
         run: |
           set -euo pipefail
           keys="$RUNNER_TEMP/test-keys"
@@ -1280,28 +1304,6 @@ jobs:
               go run ./cmd/test-artifacts sysext --out "$sysext" --name work --arch "$ARCH"
             fi
             echo "sysext_dir=$sysext" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Download the AuroraBoot image
-        if: inputs.auroraboot_artifact != ''
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
-        with:
-          name: ${{ inputs.auroraboot_artifact }}-${{ inputs.arch }}
-          path: ${{ runner.temp }}/auroraboot-image
-
-      - name: Select the AuroraBoot image
-        id: aurora
-        env:
-          AURORABOOT_ARTIFACT: ${{ inputs.auroraboot_artifact }}
-          AURORABOOT_VERSION: ${{ inputs.auroraboot_version }}
-          IMAGE_DIR: ${{ runner.temp }}/auroraboot-image
-        run: |
-          set -euo pipefail
-          if [[ -n "$AURORABOOT_ARTIFACT" ]]; then
-            docker load -i "$IMAGE_DIR/auroraboot-image.tar"
-            echo "image=auroraboot:ci" >> "$GITHUB_OUTPUT"
-          else
-            echo "image=quay.io/kairos/auroraboot:$AURORABOOT_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Generate ISO artifact

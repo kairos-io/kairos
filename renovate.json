@@ -140,17 +140,6 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/^internal/testartifacts/.*\\.go$/"
-      ],
-      "matchStrings": [
-        "AuroraBootVersion = \\\"(?<currentValue>[a-zA-Z0-9_.-]+)\\\""
-      ],
-      "depNameTemplate": "quay.io/kairos/auroraboot",
-      "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
         "/.*\\.sh$/"
       ],
       "matchStrings": [
