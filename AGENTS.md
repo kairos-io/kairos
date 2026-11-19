@@ -307,6 +307,11 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
   `openssl` and `libpcsclite`; building system extensions builds the AuroraBoot
   image and needs Docker. Set `KAIROS_TEST_AURORABOOT_BINARY` or
   `KAIROS_TEST_AURORABOOT_IMAGE` to use a binary or an image you already have.
+- The merge queue waits for the `pr-gate` job of `pr.yaml`, which passes when
+  every job of that workflow succeeded or was skipped. A change that only
+  touches Markdown, the docs or the AuroraBoot web UI or Helm chart skips the
+  image builds and boot tests (`scripts/changed-parts.sh` decides). Add a new
+  job of `pr.yaml` to the `needs` of `pr-gate`.
 - Releases are cut by the `weekly-release` workflow and approved by a
   maintainer in the `promote` job of `release.yaml`. `RELEASING.md` has the
   procedure. Change that file in the same pull request as any change to those

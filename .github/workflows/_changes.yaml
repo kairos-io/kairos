@@ -1,18 +1,28 @@
 name: Detect changes
 
 # Reusable step: says which parts of the repository a pull request or merge
-# queue entry touches, so that jobs that only matter for one part can skip the
-# rest. It never skips the jobs that are required checks: a skipped job of a
-# reusable workflow does not report the check names a branch rule waits for.
+# queue entry reaches, so that the jobs that only matter for one part can be
+# skipped. The rules live in scripts/changed-parts.sh.
 #
-# auroraboot: the AuroraBoot module changed, or something it builds against did.
-# That is auroraboot/ itself, the root packages it imports (sdk/, agent/pkg/ and
-# internal/version/, see `go list -deps` in auroraboot/), the root go.mod and
-# go.sum, and the workflows and actions that run its tests.
+# kairos: the change can affect the Kairos images and their tests. It is false
+# for Markdown, the docs, the license and templates, and the AuroraBoot web UI
+# and Helm chart, none of which ends up in an image or an ISO.
+#
+# auroraboot: the change can affect AuroraBoot: auroraboot/ itself, the root
+# packages it imports (sdk/, agent/pkg/ and internal/version/, see `go list
+# -deps` in auroraboot/), the root go.mod and go.sum, and the workflows and
+# actions that run its tests.
+#
+# A skipped job of a reusable workflow does not report the check names it
+# declares, so a branch rule must wait for the single job that gates the whole
+# workflow (pr.yaml has one) and not for the checks of the jobs skipped here.
 
 on:
   workflow_call:
     outputs:
+      kairos:
+        description: '"true" when the Kairos image and test jobs have to run'
+        value: ${{ jobs.changes.outputs.kairos }}
       auroraboot:
         description: '"true" when the AuroraBoot jobs have to run'
         value: ${{ jobs.changes.outputs.auroraboot }}
@@ -24,6 +34,7 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
+      kairos: ${{ steps.filter.outputs.kairos }}
       auroraboot: ${{ steps.filter.outputs.auroraboot }}
     steps:
       - name: Checkout
@@ -38,17 +49,9 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
           set -euo pipefail
-          auroraboot='^(auroraboot/|sdk/|agent/pkg/|internal/version/|go\.(mod|sum)$|\.github/(actions/(prefer-ipv4|find-ovmf-firmware)/|workflows/(_auroraboot-tests|_build-image-auroraboot|_changes)\.yaml$))'
           if [ -z "$BASE_SHA" ]; then
             echo "No base commit for this event, running everything."
-            echo "auroraboot=true" >> "$GITHUB_OUTPUT"
+            { echo "kairos=true"; echo "auroraboot=true"; } >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          files=$(git diff --name-only "$BASE_SHA" HEAD)
-          echo "Changed files:"
-          printf '%s\n' "$files"
-          if printf '%s\n' "$files" | grep -Eq "$auroraboot"; then
-            echo "auroraboot=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "auroraboot=false" >> "$GITHUB_OUTPUT"
-          fi
+          git diff --name-only "$BASE_SHA" HEAD | tee /dev/stderr | scripts/changed-parts.sh | tee -a "$GITHUB_OUTPUT"
