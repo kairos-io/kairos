@@ -107,7 +107,7 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 			if err := meta.dirXattrs(name, header); err != nil {
 				return err
 			}
-			if err := restoreSpecialBits(root, name, mode); err != nil {
+			if err := restoreMode(root, name, mode); err != nil {
 				return err
 			}
 			// Creating the entries below this directory moves its mtime,
@@ -136,7 +136,7 @@ func extractFilesFromLayer(layer v1.Layer, dst string, log sdkLogger.KairosLogge
 			if err := file.Close(); err != nil {
 				return fmt.Errorf("close: %w", err)
 			}
-			if err := restoreSpecialBits(root, name, mode); err != nil {
+			if err := restoreMode(root, name, mode); err != nil {
 				return err
 			}
 			if err := meta.times(name, header); err != nil {
@@ -366,15 +366,12 @@ func (m *metadataRestorer) applyDirTimes() error {
 	return nil
 }
 
-// restoreSpecialBits reapplies the setuid, setgid and sticky bits a packaged
-// binary or directory may carry. root.MkdirAll and root.OpenFile accept only
-// the permission bits in their mode argument, so these are set with a
-// follow-up chmod.
-func restoreSpecialBits(root *os.Root, name string, mode os.FileMode) error {
+// restoreMode sets the exact mode the layer gives an entry. root.MkdirAll and
+// root.OpenFile create it with the permission bits masked by the process
+// umask, accept no setuid, setgid or sticky bits, and leave an existing
+// directory or file as it was, so the mode is set with a follow-up chmod.
+func restoreMode(root *os.Root, name string, mode os.FileMode) error {
 	special := mode & (os.ModeSetuid | os.ModeSetgid | os.ModeSticky)
-	if special == 0 {
-		return nil
-	}
 	if err := root.Chmod(name, mode.Perm()|special); err != nil {
 		return fmt.Errorf("chmod: %w", err)
 	}
