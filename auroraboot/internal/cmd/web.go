@@ -247,8 +247,12 @@ func runWeb(c *cli.Context) error {
 	var systemInfo handlers.APISystemBuilder
 	switch builderKind {
 	case "local":
+		kairosInitImage := os.Getenv("KAIROS_INIT_IMAGE")
+		if kairosInitImage == "" {
+			kairosInitImage = auroraboot.KairosInitImageFor(c.App.Version)
+		}
 		local, err := auroraboot.New(artifactsDir, nil, artifactStore).
-			WithKairosInitImage(os.Getenv("KAIROS_INIT_IMAGE"))
+			WithKairosInitImage(kairosInitImage)
 		if err != nil {
 			return fmt.Errorf("KAIROS_INIT_IMAGE: %w", err)
 		}

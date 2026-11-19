@@ -176,14 +176,14 @@ func New(baseDir string, deployFunc DeployerFunc, artifactStore store.ArtifactSt
 		platformsFn: dockerBuildxPlatforms,
 		store:       artifactStore,
 
-		kairosInitImage: defaultKairosInitImage + ":" + defaultKairosInitVersion,
+		kairosInitImage: KairosInitImageFor(""),
 	}
 }
 
 // WithKairosInitImage sets the kairos-init image used for builds that do not
 // name one. It becomes a FROM line in the kairosify Dockerfile, so it is
 // validated here, once, rather than on every build. An empty ref keeps the
-// pinned default.
+// default.
 func (b *Builder) WithKairosInitImage(ref string) (*Builder, error) {
 	if ref == "" {
 		return b, nil
