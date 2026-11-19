@@ -2040,9 +2040,12 @@ func (h *ArtifactHandler) ResolveBundle(c echo.Context) error {
 		// written into an upgrade command's `extensions` arg, which reaches
 		// every node in the selector and is kept in the commands table, so it
 		// must never be the admin password.
+		// The ID and the file name are path segments: a name with '#', '?'
+		// or '%' would otherwise cut the path or the token off the URL, or
+		// make it unparseable.
 		source := fmt.Sprintf("%s/api/v1/extensions/%s/download/%s?token=%s",
-			strings.TrimRight(h.aurorabootURL, "/"), ext.ID, ext.RawFilename,
-			url.QueryEscape(ext.DownloadToken))
+			strings.TrimRight(h.aurorabootURL, "/"), url.PathEscape(ext.ID),
+			url.PathEscape(ext.RawFilename), url.QueryEscape(ext.DownloadToken))
 		out = append(out, ResolvedBundleEntry{
 			Name:    ext.Name,
 			Type:    ext.Type,
