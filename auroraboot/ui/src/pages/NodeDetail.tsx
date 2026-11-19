@@ -56,7 +56,7 @@ import {
 } from "lucide-react";
 import { toast } from "@/hooks/useToast";
 import { timeAgo } from "@/lib/time";
-import { cpuCount, imageVersion, memGiB, ociImage } from "@/lib/nodeInfo";
+import { cpuCount, imageVersion, memGiB, nodeArch, ociImage } from "@/lib/nodeInfo";
 import { phaseTone, type Tone } from "@/lib/phase";
 import { cn } from "@/lib/utils";
 import { sustainedHighCpu } from "@/lib/metrics";
@@ -263,7 +263,7 @@ export function NodeDetail() {
   const bTone = bootTone(boot);
   const cpus = cpuCount(n);
   const mem = memGiB(n);
-  const arch = n.osRelease?.ARCH ?? "";
+  const arch = nodeArch(n);
   const kernel = n.osRelease?.KERNEL ?? "";
   const osLine = [n.osRelease?.PRETTY_NAME, n.osRelease?.KAIROS_FLAVOR].filter(Boolean).join(" · ");
   const hardware: { icon: typeof Cpu; value: string; label: string; mono?: boolean }[] = [

@@ -38,6 +38,13 @@ export function imageVersion(node: Node): string {
   return node.osRelease?.KAIROS_VERSION ?? "";
 }
 
+// nodeArch is the CPU architecture the node runs (e.g. "amd64", "arm64",
+// "riscv64"), or "". Some agents report ARCH; the Kairos release file always
+// carries KAIROS_ARCH, so fall back to that.
+export function nodeArch(node: Node): string {
+  return node.osRelease?.ARCH || node.osRelease?.KAIROS_ARCH || "";
+}
+
 // nodeAddress prefers the IP the server saw the node connect from, then the
 // first address the agent reported.
 export function nodeAddress(node: Node): string {
