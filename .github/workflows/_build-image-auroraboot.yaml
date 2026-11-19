@@ -12,6 +12,10 @@ name: Build AuroraBoot image
 #   architecture, push them as <tag>-amd64 and <tag>-arm64, and join them under
 #   <tag> (and the optional extra tag). The compile includes cgo and is slow
 #   under QEMU, which is why the two architectures do not share a runner.
+#   With riscv64 set, a third image is built on a native riscv64 runner and
+#   joined too when it succeeded. That job may fail without failing the
+#   workflow, so a stall on the small riscv64 runner pool never keeps the
+#   amd64 and arm64 release from getting its tag.
 #
 # The image is built with the repository root as the named build context
 # "kairos", because auroraboot/go.mod replaces the root module with ../.
@@ -31,6 +35,11 @@ on:
 
       push:
         description: 'true to push a multi-arch image to the registry'
+        type: boolean
+        default: false
+
+      riscv64:
+        description: 'true to also build and push the riscv64 image when push is true; a failure there does not fail the workflow'
         type: boolean
         default: false
 
@@ -172,8 +181,108 @@ jobs:
           push: true
           tags: ${{ inputs.image_registry }}/auroraboot:${{ inputs.image_tag }}-${{ matrix.arch }}
 
+  # The riscv64 image starts from a web UI built on amd64, because Node under
+  # QEMU is unreliable and the Dockerfile expects internal/ui/dist in its
+  # context.
+  build-ui-riscv64:
+    if: inputs.push && inputs.riscv64
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
+        with:
+          node-version: '26'
+          cache: 'npm'
+          cache-dependency-path: auroraboot/ui/package-lock.json
+
+      - name: Build the web UI
+        working-directory: auroraboot/ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload the web UI
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: auroraboot-ui-dist
+          path: auroraboot/internal/ui/dist
+          retention-days: 1
+
+  push-riscv64:
+    needs: build-ui-riscv64
+    if: inputs.push && inputs.riscv64
+    runs-on: ubuntu-24.04-riscv
+    # The job fails without failing the workflow, so the release does not wait
+    # on a stalled runner past the timeout, and the manifest job reads the
+    # output below to learn whether the image was pushed.
+    continue-on-error: true
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      pushed: ${{ steps.done.outputs.pushed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Download the web UI
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: auroraboot-ui-dist
+          path: auroraboot/internal/ui/dist
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver-opts: network=host
+
+      - name: Login to ghcr.io
+        if: inputs.registry_login == 'ghcr'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to quay.io
+        if: inputs.registry_login == 'quay'
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build and push the riscv64 image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: auroraboot
+          build-contexts: kairos=.
+          file: auroraboot/Dockerfile.riscv64
+          platforms: linux/riscv64
+          build-args: ${{ inputs.version != '' && format('VERSION={0}', inputs.version) || '' }}
+          provenance: false
+          push: true
+          tags: ${{ inputs.image_registry }}/auroraboot:${{ inputs.image_tag }}-riscv64
+
+      - name: Record that the riscv64 image was pushed
+        id: done
+        run: echo "pushed=true" >> "$GITHUB_OUTPUT"
+
   manifest:
-    needs: push
+    needs: [push, push-riscv64]
+    # push-riscv64 is skipped when riscv64 is off and may fail without failing
+    # the workflow, so the job runs as long as the two main architectures did.
+    if: always() && needs.push.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -203,10 +312,11 @@ jobs:
           REGISTRY: ${{ inputs.image_registry }}
           TAG: ${{ inputs.image_tag }}
           EXTRA_TAG: ${{ inputs.image_extra_tag }}
+          RISCV64_PUSHED: ${{ needs.push-riscv64.outputs.pushed }}
         run: |
           set -euo pipefail
           args=(-t "$REGISTRY/auroraboot:$TAG")
           [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/auroraboot:$EXTRA_TAG")
-          docker buildx imagetools create "${args[@]}" \
-            "$REGISTRY/auroraboot:$TAG-amd64" \
-            "$REGISTRY/auroraboot:$TAG-arm64"
+          sources=("$REGISTRY/auroraboot:$TAG-amd64" "$REGISTRY/auroraboot:$TAG-arm64")
+          [ "$RISCV64_PUSHED" = "true" ] && sources+=("$REGISTRY/auroraboot:$TAG-riscv64")
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"

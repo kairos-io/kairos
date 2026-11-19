@@ -351,6 +351,7 @@ jobs:
       packages: write
     with:
       push: true
+      riscv64: true
       image_registry: quay.io/kairos
       image_tag: ${{ github.ref_name }}
       version: ${{ github.ref_name }}
