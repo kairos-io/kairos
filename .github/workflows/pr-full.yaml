@@ -147,11 +147,14 @@ jobs:
   # AuroraBoot builds from this commit and builds every ISO below, so a change
   # in auroraboot/ or sdk/ is exercised by the boot tests of the same run.
   build-image-auroraboot:
+    needs: authorize
     uses: ./.github/workflows/_build-image-auroraboot.yaml
     permissions:
       contents: read
       packages: write
     with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      caller-vetted-ref: true
       oci_artifact: auroraboot-image
       arm64: true
 
