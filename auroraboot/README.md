@@ -78,6 +78,7 @@ Behind a reverse proxy that rewrites the `Host` header, set `AURORABOOT_URL` (`-
 | `--url https://…` | External URL of this instance, injected into cloud-configs so nodes know where to phone home |
 | `AURORABOOT_ADMIN_PASSWORD` | Override admin password |
 | `AURORABOOT_REG_TOKEN` | Override registration token |
+| `--netboot-port 8090` / `AURORABOOT_NETBOOT_PORT` | Port of the netboot server started from the dashboard. A build's `netboot_http_port` overrides it for that build |
 | `--disable-rate-limit` | Turn off per-identity rate limiting of the node-driven endpoints |
 | `--reset-timeout 30m` / `AURORABOOT_RESET_TIMEOUT` | How long a node has to come back after a reset before the reset is reported failed. Defaults to 30 minutes; the clock restarts when the node picks the reset command up and again when it re-registers mid-reset, and a negative duration disables expiry |
 

@@ -11,8 +11,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // managerContextKey is unexported so only this package can set or read the
@@ -42,6 +44,16 @@ func FromContext(ctx context.Context) *Manager {
 // out; see AdvertisedAddress.
 const bindAddress = "0.0.0.0"
 
+// DefaultPort is the port the netboot server listens on unless the fleet
+// server is given another one (auroraboot web --netboot-port).
+const DefaultPort = "8090"
+
+// startupGracePeriod is how long a start waits for the netboot server to fail
+// before reporting it running. A server that cannot bind its port exits within
+// milliseconds, and the start would otherwise report it running while PXE
+// clients get nothing. A variable so the tests can shorten it.
+var startupGracePeriod = 2 * time.Second
+
 var (
 	// ErrAlreadyRunning is returned when a start is asked for while a
 	// netboot server is running.
@@ -49,6 +61,10 @@ var (
 	// ErrNoNetbootFiles is returned by Start when the artifact lacks the
 	// kernel, initrd or squashfs. The wrapping error names the missing file.
 	ErrNoNetbootFiles = errors.New("artifact has no netboot files")
+	// ErrExitedAtStart is returned by a start when the netboot server exits
+	// within startupGracePeriod, most often because its port is taken. The
+	// wrapping error carries the exit status and the server's last output.
+	ErrExitedAtStart = errors.New("netboot server exited right after it started")
 )
 
 // Status represents the current state of the netboot server.
@@ -98,9 +114,29 @@ func NewManager(advertisedURL string, logSink LogSink) *Manager {
 	return &Manager{
 		address:       bindAddress,
 		advertisedURL: advertisedURL,
-		port:          "8090",
+		port:          DefaultPort,
 		logSink:       logSink,
 	}
+}
+
+// ValidatePort reports whether port is a TCP port number the netboot server
+// can listen on.
+func ValidatePort(port string) error {
+	n, err := strconv.Atoi(port)
+	if err != nil || n < 1 || n > 65535 {
+		return fmt.Errorf("invalid netboot port %q: must be a number from 1 to 65535", port)
+	}
+	return nil
+}
+
+// WithPort sets the port the netboot server listens on when a start does not
+// ask for one. An empty port keeps DefaultPort. The caller validates the port
+// with ValidatePort.
+func (m *Manager) WithPort(port string) *Manager {
+	if port != "" {
+		m.port = port
+	}
+	return m
 }
 
 // logWriter tees a running command's output to the process's own
@@ -237,7 +273,7 @@ func (m *Manager) Start(artifactsDir, artifactID string) error {
 	// without a grub config gets none extracted. See kairos-io/kairos#2573.
 	grubCfg := filepath.Join(netbootDir, "kairos-grub.cfg")
 
-	return m.StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kernel, grubCfg)
+	return m.StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kernel, grubCfg, "")
 }
 
 // StartWithPaths launches the netboot server from already-resolved file
@@ -251,19 +287,28 @@ func (m *Manager) Start(artifactsDir, artifactID string) error {
 // optional, and a path that is not on disk is dropped rather than passed on:
 // StepStartNetboot hands over its expected location unconditionally, and
 // ExtractNetboot deletes that file when the ISO carries no grub config.
-func (m *Manager) StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kernel, grubCfg string) error {
+//
+// port is the port to listen on, the build's netboot_http_port; empty means
+// the Manager's port (see WithPort).
+//
+// It returns once the server has run for startupGracePeriod, or an error
+// wrapping ErrExitedAtStart if it exits before that.
+func (m *Manager) StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kernel, grubCfg, port string) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	if m.status.Running {
+		m.mu.Unlock()
 		return ErrAlreadyRunning
 	}
 
 	if grubCfg != "" && !fileExists(grubCfg) {
 		grubCfg = ""
 	}
+	if port == "" {
+		port = m.port
+	}
 
-	cmd := exec.Command("auroraboot", startPixieArgs(cloudConfig, squashfs, m.address, m.port, initrd, kernel, grubCfg)...)
+	cmd := exec.Command("auroraboot", startPixieArgs(cloudConfig, squashfs, m.address, port, initrd, kernel, grubCfg)...)
 	// A fresh session starts with a clean log: the previous run's output (if
 	// any) is no longer relevant to debugging this one.
 	m.logBuf.Reset()
@@ -271,6 +316,7 @@ func (m *Manager) StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kern
 	cmd.Stderr = &logWriter{m: m, passOn: os.Stderr}
 
 	if err := cmd.Start(); err != nil {
+		m.mu.Unlock()
 		return fmt.Errorf("failed to start netboot server: %w", err)
 	}
 
@@ -282,22 +328,67 @@ func (m *Manager) StartWithPaths(artifactID, cloudConfig, squashfs, initrd, kern
 		// Resolved per start, not once in NewManager, so an interface that came
 		// up after the fleet server did is still picked up.
 		AdvertisedAddress: advertisedHost(m.advertisedURL),
-		Port:              m.port,
+		Port:              port,
 	}
 
 	// Wait for the process in the background so we can detect if it exits.
+	// The status is cleared before the exit is reported, so a start that
+	// fails never leaves Running set behind it.
+	exited := make(chan processExit, 1)
 	go func() {
-		_ = cmd.Wait()
+		err := cmd.Wait()
 		m.mu.Lock()
-		defer m.mu.Unlock()
-		// Only clear status if this is still the active command.
-		if m.cmd == cmd {
+		// Only clear status if this is still the active command. Stop has
+		// already cleared it when it killed the process.
+		stopped := m.cmd != cmd
+		if !stopped {
 			m.status.Running = false
 			m.cmd = nil
 		}
+		m.mu.Unlock()
+		exited <- processExit{err: err, stopped: stopped}
 	}()
 
-	return nil
+	// The lock is released while waiting: the server's output goes through
+	// logWriter, which takes it too.
+	m.mu.Unlock()
+
+	timer := time.NewTimer(startupGracePeriod)
+	defer timer.Stop()
+	select {
+	case exit := <-exited:
+		if exit.stopped {
+			return nil
+		}
+		return fmt.Errorf("%w on %s:%s (%s): %s", ErrExitedAtStart, m.address, port,
+			exitStatus(exit.err), lastLine(m.GetLogs()))
+	case <-timer.C:
+		return nil
+	}
+}
+
+// processExit is how the netboot server's process ended. stopped is set when
+// Stop ended it.
+type processExit struct {
+	err     error
+	stopped bool
+}
+
+func exitStatus(err error) string {
+	if err == nil {
+		return "exit status 0"
+	}
+	return err.Error()
+}
+
+// lastLine returns the last non-empty line of the server's output, which names
+// the reason it exited, e.g. "bind: address already in use".
+func lastLine(logs string) string {
+	lines := strings.Split(strings.TrimSpace(logs), "\n")
+	if line := strings.TrimSpace(lines[len(lines)-1]); line != "" {
+		return line
+	}
+	return "no output"
 }
 
 // Stop kills the running netboot server subprocess.

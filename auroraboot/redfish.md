@@ -202,9 +202,12 @@ and an advertised URL:
 ```bash
 auroraboot web \
   --listen              :8080 \
-  --redfish-serve-addr  10.0.0.5:8090 \
-  --redfish-serve-url   http://10.0.0.5:8090
+  --redfish-serve-addr  10.0.0.5:8091 \
+  --redfish-serve-url   http://10.0.0.5:8091
 ```
+
+The ISO server needs a port of its own: the netboot server the dashboard starts
+listens on 8090 on every interface (`--netboot-port`).
 
 `--redfish-serve-addr` is required to activate the ISO server. If `--redfish-serve-url`
 is omitted, AuroraBoot falls back to `--url` (the external server URL). Set

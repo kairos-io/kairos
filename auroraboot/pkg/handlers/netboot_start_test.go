@@ -21,6 +21,7 @@ import (
 type fakeNetboot struct {
 	startCalls []string
 	startErr   error
+	status     netbootmgr.Status
 }
 
 func (f *fakeNetboot) Start(_ string, artifactID string) error {
@@ -28,7 +29,7 @@ func (f *fakeNetboot) Start(_ string, artifactID string) error {
 	return f.startErr
 }
 func (f *fakeNetboot) Stop() error                  { return nil }
-func (f *fakeNetboot) GetStatus() netbootmgr.Status { return netbootmgr.Status{} }
+func (f *fakeNetboot) GetStatus() netbootmgr.Status { return f.status }
 func (f *fakeNetboot) GetLogs() string              { return "" }
 
 var _ = Describe("DeployHandler.StartNetboot", func() {
@@ -96,6 +97,16 @@ var _ = Describe("DeployHandler.StartNetboot", func() {
 		rec := start("art-1")
 		Expect(rec.Code).To(Equal(http.StatusBadRequest))
 		Expect(rec.Body.String()).To(MatchJSON(`{"error":"artifact has no netboot files"}`))
+	})
+
+	It("names the port when the server exits right after it started", func() {
+		nb.startErr = fmt.Errorf("%w on 0.0.0.0:8090 (exit status 1): listen tcp 0.0.0.0:8090: bind: address already in use",
+			netbootmgr.ErrExitedAtStart)
+		nb.status = netbootmgr.Status{Port: "8090"}
+		rec := start("art-1")
+		Expect(rec.Code).To(Equal(http.StatusInternalServerError))
+		Expect(rec.Body.String()).To(ContainSubstring("exited right after it started"))
+		Expect(rec.Body.String()).To(ContainSubstring("port 8090"))
 	})
 
 	It("does not put server paths in the error body when the start fails", func() {

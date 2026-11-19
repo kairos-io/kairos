@@ -248,7 +248,9 @@ func (d *Deployer) StepStartNetboot() error {
 			// "Start Netboot" collides with it on the same port instead of
 			// reporting "already running".
 			if mgr := netbootmgr.FromContext(ctx); mgr != nil {
-				return mgr.StartWithPaths(filepath.Base(d.destination()), d.cloudConfigPath(), d.squashFSfile(), d.initrdFile(), d.kernelFile(), d.netbootGrubCfgFile())
+				// The build's netboot_http_port wins over the server's
+				// --netboot-port, as it does for the CLI below.
+				return mgr.StartWithPaths(filepath.Base(d.destination()), d.cloudConfigPath(), d.squashFSfile(), d.initrdFile(), d.kernelFile(), d.netbootGrubCfgFile(), d.Config.NetBootHTTPPort)
 			}
 			return ops.StartPixiecore(d.cloudConfigPath(), d.netBootListenAddr(), d.netbootPort(), d.squashFSfile, d.initrdFile, d.kernelFile, d.netbootGrubCfgFile, d.Config.NetBoot)(ctx)
 		}),
