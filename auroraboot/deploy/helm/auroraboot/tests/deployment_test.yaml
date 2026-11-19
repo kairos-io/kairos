@@ -23,13 +23,13 @@ tests:
           path: metadata.name
           value: ab-auroraboot
 
-  - it: deploys the master image when no tag is set
+  - it: deploys the master image from ghcr when no tag is set
     set:
       host: auroraboot.example.com
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/kairos/auroraboot:master
+          value: ghcr.io/kairos-io/kairos/auroraboot:master
 
   - it: deploys the tag from image.tag when it is set
     set:
@@ -38,7 +38,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: quay.io/kairos/auroraboot:v4.5.1
+          value: ghcr.io/kairos-io/kairos/auroraboot:v4.5.1
 
   - it: runs the web subcommand with builder=operator and derives --url from host
     set:
