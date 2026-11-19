@@ -287,6 +287,7 @@ export function NodeDetail() {
             {n.remoteIP && <span className="font-mono">{n.remoteIP}</span>}
             {groupName && <span>{groupName}</span>}
             {image && <span>Image {image}</span>}
+            {arch && <span>Arch {arch}</span>}
             {n.agentVersion && <span>Kairos {n.agentVersion}</span>}
           </>
         }
@@ -456,6 +457,11 @@ export function NodeDetail() {
                     </Button>
                   </span>
                 </DetailRow>
+                {arch && (
+                  <DetailRow label="Architecture">
+                    <span className="font-mono text-sm">{arch}</span>
+                  </DetailRow>
+                )}
                 <DetailRow label="Seen from">
                   {n.remoteIP ? (
                     <span className="flex flex-wrap items-center gap-1.5">
