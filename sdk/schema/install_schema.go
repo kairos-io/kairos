@@ -45,6 +45,43 @@ type InstallSchema struct {
 	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
 }
 
+var _ jsonschemago.Preparer = InstallSchema{}
+
+// PrepareJSONSchema closes the block to keys it does not declare.
+//
+// kairos-io/kairos#5833 is the cost of leaving it open: a config written from
+// an old doc set install.encryption, which nothing reads, validated clean, and
+// installed its partitions unencrypted. The readers decode the keys they know
+// and drop the rest without a word, so the schema is the only place that can
+// name a key that does nothing.
+//
+// Closing the block is safe because the list above is the whole of what the
+// block's readers honour, and agent/pkg/config/schema_blocks_test.go keeps it
+// that way. The readers are sdk/types/install.Install, through
+// sdk/types/config.Config; InstallSpec and InstallUkiSpec, through
+// unmarshallFullSpec(cfg, "install", spec); readRegistryOptions, for
+// registry-auth; and the kcrypt encrypt-on-boot policy, which reads
+// encrypted_partitions, a key Install already declares. no_format and image
+// stay declared: they are read by nothing, and warnDeprecatedKeys names the
+// key to use instead, which says more than an unknown key would.
+//
+// reboot and poweroff are declared again here, as plain booleans. They come
+// from PowerManagement's oneOf branches, and additionalProperties only counts
+// the properties of the schema it is on, so without them both keys would be
+// refused. The branches still refuse setting both.
+func (InstallSchema) PrepareJSONSchema(schema *jsonschemago.Schema) error {
+	for key, description := range map[string]string{
+		"reboot":   "Reboot after installation",
+		"poweroff": "Power off after installation",
+	} {
+		property := (&jsonschemago.Schema{}).WithType(jsonschemago.Boolean.Type()).WithDescription(description)
+		schema.WithPropertiesItem(key, property.ToSchemaOrBool())
+	}
+	schema.WithAdditionalProperties(*(&jsonschemago.SchemaOrBool{}).WithTypeBoolean(false))
+
+	return nil
+}
+
 // RegistryAuthSchema describes one explicit registry credential form. Exactly
 // one form is accepted by the agent at runtime.
 type RegistryAuthSchema struct {

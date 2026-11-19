@@ -17,11 +17,13 @@ limitations under the License.
 package config_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/sdk/schema"
+	"github.com/kairos-io/kairos/v4/sdk/types/install"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -94,4 +96,81 @@ var _ = Describe("Schema blocks that are read straight into an action spec", fun
 		Entry("upgrade", v1.UpgradeSpec{}, schema.UpgradeSchema{}, "upgrade", "recovery", "registry-auth"),
 		Entry("reset", v1.ResetSpec{}, schema.ResetSchema{}, "reset"),
 	)
+})
+
+// yamlKeys returns the keys a struct decodes from YAML.
+func yamlKeys(v interface{}) []string {
+	t := reflect.TypeOf(v)
+	var keys []string
+	for i := 0; i < t.NumField(); i++ {
+		tag, _, _ := strings.Cut(t.Field(i).Tag.Get("yaml"), ",")
+		if tag == "" || tag == "-" {
+			continue
+		}
+		keys = append(keys, tag)
+	}
+	return keys
+}
+
+// generatedInstallKeys returns the properties of the install block in the
+// generated schema. Unlike declaredKeys it sees reboot and poweroff, which
+// InstallSchema has no field for.
+func generatedInstallKeys() []string {
+	raw, err := schema.GenerateSchema(schema.RootSchema{}, "")
+	Expect(err).ToNot(HaveOccurred())
+	var doc struct {
+		Properties  map[string]map[string]interface{} `json:"properties"`
+		Definitions map[string]map[string]interface{} `json:"definitions"`
+	}
+	Expect(json.Unmarshal([]byte(raw), &doc)).To(Succeed())
+
+	block := doc.Properties["install"]
+	if ref, ok := block["$ref"].(string); ok {
+		block = doc.Definitions[strings.TrimPrefix(ref, "#/definitions/")]
+	}
+	Expect(block["additionalProperties"]).To(Equal(false), "the install block is open to unknown keys")
+	properties, ok := block["properties"].(map[string]interface{})
+	Expect(ok).To(BeTrue(), "the install block has no properties")
+
+	keys := make([]string, 0, len(properties))
+	for key := range properties {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+// The install block has more than one reader: sdk/types/install.Install
+// through Config, and InstallSpec or InstallUkiSpec through
+// unmarshallFullSpec. The schema closes the block to keys it does not declare
+// (kairos-io/kairos#6004), so a key one of them reads and the schema lacks
+// would be reported as unknown on a config that works.
+var _ = Describe("The install schema block", func() {
+	readers := map[string][]string{
+		"sdk/types/install.Install": yamlKeys(install.Install{}),
+		"InstallSpec":               decodedKeys(v1.InstallSpec{}),
+		"InstallUkiSpec":            decodedKeys(v1.InstallUkiSpec{}),
+		// Read by readRegistryOptions, before the spec is decoded.
+		"readRegistryOptions": {"registry-auth"},
+	}
+
+	It("declares every key a reader decodes", func() {
+		declared := generatedInstallKeys()
+		for reader, keys := range readers {
+			for _, key := range keys {
+				Expect(declared).To(ContainElement(key), fmt.Sprintf(
+					"install.%s is read by %s but not declared by the install schema, so validate refuses it", key, reader))
+			}
+		}
+	})
+
+	It("declares no key that nothing reads, other than the deprecated ones", func() {
+		// warnDeprecatedKeys names the key to use instead of these two.
+		read := []string{"no_format", "image"}
+		for _, keys := range readers {
+			read = append(read, keys...)
+		}
+		for _, key := range generatedInstallKeys() {
+			Expect(read).To(ContainElement(key), fmt.Sprintf("install.%s is declared by the install schema but read by nothing", key))
+		}
+	})
 })
