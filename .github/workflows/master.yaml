@@ -142,8 +142,6 @@ jobs:
       contents: read
     with:
       image_artifact: auroraboot-image-amd64
-    secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   # The release binaries and the multi-arch image are built on every push to
   # master as well, so a break in them shows up here and not on a Monday.

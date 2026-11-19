@@ -19,10 +19,6 @@ on:
         description: 'Name of the workflow artifact that holds the amd64 AuroraBoot image archive'
         type: string
         default: auroraboot-image-amd64
-    secrets:
-      CODECOV_TOKEN:
-        description: 'Codecov upload token; the upload is skipped when it is missing'
-        required: false
 
 permissions:
   contents: read
@@ -34,8 +30,6 @@ defaults:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     # The store specs that need concurrent writers run against this server;
     # they are skipped when AURORABOOT_TEST_POSTGRES_DSN is unset.
     services:
@@ -82,13 +76,7 @@ jobs:
         env:
           AURORABOOT_TEST_POSTGRES_DSN: postgres://postgres:test@localhost:5432/postgres?sslmode=disable
         run: |
-          sudo env AURORABOOT_TEST_POSTGRES_DSN="$AURORABOOT_TEST_POSTGRES_DSN" go run github.com/onsi/ginkgo/v2/ginkgo --tags ui -v -r -p --covermode=atomic --coverprofile=coverage.out --timeout=2h --skip-package ./e2e ./...
-      - name: Codecov
-        if: ${{ env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7
-        with:
-          files: auroraboot/coverage.out
-          flags: auroraboot
+          sudo env AURORABOOT_TEST_POSTGRES_DSN="$AURORABOOT_TEST_POSTGRES_DSN" go run github.com/onsi/ginkgo/v2/ginkgo --tags ui -v -r -p --timeout=2h --skip-package ./e2e ./...
 
   vet-tagged:
     runs-on: ubuntu-latest
@@ -130,8 +118,6 @@ jobs:
 
   e2e-tests:
     runs-on: ubuntu-26.04
-    env:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -196,13 +182,7 @@ jobs:
           TMPDIR: ${{ runner.temp }}
           EXTENSIONS_AGENT_IMAGE: quay.io/kairos/hadron:v0.6.3-core-amd64-generic-v4.4.0
         run: |
-          go run github.com/onsi/ginkgo/v2/ginkgo -v -r -p --covermode=atomic --coverprofile=coverage.out --timeout=2h --label-filter "e2e" ./e2e
-      - name: Codecov
-        if: ${{ env.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5  # v7
-        with:
-          files: auroraboot/coverage.out
-          flags: auroraboot-e2e
+          go run github.com/onsi/ginkgo/v2/ginkgo -v -r -p --timeout=2h --label-filter "e2e" ./e2e
 
   test-bootable-raw-efi:
     runs-on: ubuntu-26.04
