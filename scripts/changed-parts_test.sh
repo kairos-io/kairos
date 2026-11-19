@@ -66,7 +66,10 @@ g commit -q -m base
 base="$(g rev-parse HEAD)"
 g mv auroraboot/ui/a.tsx docs/a.tsx
 g commit -q -m rename
-out="$(cd "$repo" && GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 timeout 60 "$SCRIPT" "$base" </dev/null || true)"
+out="$(
+  cd "$repo" || exit 1
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 timeout 60 "$SCRIPT" "$base" </dev/null || true
+)"
 got="$(sed -n 's/^kairos=//p' <<<"$out") $(sed -n 's/^auroraboot=//p' <<<"$out")"
 if [ "$got" = "false true" ]; then
   echo "ok   a file moved out of the web UI into the docs"
