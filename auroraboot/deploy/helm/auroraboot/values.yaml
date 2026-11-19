@@ -6,7 +6,8 @@ host: ""
 
 image:
   repository: quay.io/kairos/auroraboot
-  # If empty, the chart uses appVersion from Chart.yaml.
+  # If empty, the chart uses appVersion from Chart.yaml: the release version for a
+  # packaged chart, `master` for a checkout of the repository.
   tag: ""
   pullPolicy: IfNotPresent
 
