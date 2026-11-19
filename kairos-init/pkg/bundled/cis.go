@@ -1,5 +1,7 @@
 package bundled
 
+import "strings"
+
 // CISModprobeBlocklistPath is the modprobe.d drop-in that makes the
 // filesystem modules CIS Distribution Independent Linux v2.0.0 L1 sections
 // 1.1.1.1-1.1.1.6 call out unavailable.
@@ -106,6 +108,13 @@ const CISAuditRulesPath = "/etc/audit/rules.d/50-kairos.rules"
 // binary would otherwise bypass every b64-only rule. `auditctl -R` warns and
 // keeps loading past b32 lines the running kernel rejects, so shipping both
 // pairs is safe on kernels without 32-bit compat.
+//
+// The rules name the legacy syscalls amd64 still has. aarch64 never had
+// chmod, chown, lchown, creat, open, unlink or rename, and `auditctl -R`
+// stops at the first b64 line naming one, so neither the rest of the rules
+// nor `-e 2` reach the kernel. CISAuditRulesForArch drops those names from
+// the b64 lines on arm64, where the *at forms already cover them. The b32
+// lines stay as they are: 32-bit ARM has the legacy syscalls.
 const CISAuditRules = `-D
 -b 8192
 --backlog_wait_time 60000
@@ -165,6 +174,49 @@ const CISAuditRules = `-D
 
 -e 2
 `
+
+// cisAuditARM64MissingSyscalls are the syscalls CISAuditRules names that
+// the aarch64 syscall table does not have.
+var cisAuditARM64MissingSyscalls = map[string]bool{
+	"chmod":  true,
+	"chown":  true,
+	"lchown": true,
+	"creat":  true,
+	"open":   true,
+	"unlink": true,
+	"rename": true,
+}
+
+// CISAuditRulesForArch returns CISAuditRules for the given target
+// architecture (values.Architecture as a string). Every architecture other
+// than arm64 gets CISAuditRules unchanged.
+func CISAuditRulesForArch(arch string) string {
+	if arch != "arm64" {
+		return CISAuditRules
+	}
+
+	lines := strings.Split(CISAuditRules, "\n")
+	for i, line := range lines {
+		if !strings.Contains(line, " -F arch=b64 ") {
+			continue
+		}
+		fields := strings.Fields(line)
+		for j := 0; j+1 < len(fields); j++ {
+			if fields[j] != "-S" {
+				continue
+			}
+			kept := []string{}
+			for _, name := range strings.Split(fields[j+1], ",") {
+				if !cisAuditARM64MissingSyscalls[name] {
+					kept = append(kept, name)
+				}
+			}
+			fields[j+1] = strings.Join(kept, ",")
+		}
+		lines[i] = strings.Join(fields, " ")
+	}
+	return strings.Join(lines, "\n")
+}
 
 // CISAuditdConfDPath is the openrc /etc/conf.d/auditd drop-in Alpine's audit
 // package ships. Alpine's openrc auditd script loads a single rules file at

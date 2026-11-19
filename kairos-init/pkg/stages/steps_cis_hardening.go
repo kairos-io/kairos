@@ -116,7 +116,7 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 					Permissions: 0640,
 					Owner:       0,
 					Group:       0,
-					Content:     bundled.CISAuditRules,
+					Content:     bundled.CISAuditRulesForArch(sis.Arch.String()),
 				},
 			},
 		},
