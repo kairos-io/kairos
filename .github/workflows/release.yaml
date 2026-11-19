@@ -385,6 +385,9 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          # The values file in the repository names the master image on ghcr.
+          # The released chart names the release image on quay.io.
+          scripts/auroraboot-release-values.sh auroraboot/deploy/helm/auroraboot/values.yaml
           helm package auroraboot/deploy/helm/auroraboot \
             --version "${TAG#v}" --app-version "$TAG" --destination .
           helm push "auroraboot-${TAG#v}.tgz" oci://ghcr.io/kairos-io/charts

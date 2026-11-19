@@ -32,6 +32,9 @@ published.
    The image covers amd64 and arm64. A riscv64 image is built on a native
    riscv64 runner and joins the tag only when that job succeeds, so a stalled
    runner does not hold the release back.
+   The chart in the repository deploys the `master` image from ghcr.io. The
+   release job points the published chart at `quay.io/kairos/auroraboot` before
+   it packages it.
 
 The run ends successfully without a release when `master.yaml` did not
 succeed, when no run has finished, when no commit landed since the newest
