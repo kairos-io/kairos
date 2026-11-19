@@ -188,6 +188,9 @@ func (u *UpgradeAction) Run() (err error) {
 	// If not upgrading recovery and booting from non passive, backup active into passive
 	// We dont want to overwrite passive if we are booting from passive as it could mean that active is broken and we would
 	// be overriding a working passive with a broken/unknown  active
+	// restoreActive puts the backed up active image back in place if the
+	// upgrade fails after the backup, so the system is left as it was
+	restoreActive := func() {}
 	if !u.spec.RecoveryUpgrade() && bootedFrom != state.Passive {
 		// backup current active.img to passive.img before overwriting the active.img
 		u.Info("Backing up current active image")
@@ -204,8 +207,10 @@ func (u *UpgradeAction) Run() (err error) {
 		if err != nil {
 			u.Error("Error while labeling the passive image %s: %s", u.spec.Passive.File, err)
 			u.Debug("Error while labeling the passive image %s, command output: %s", u.spec.Passive.File, out)
+			u.restoreActiveImage(source, false)
 			return err
 		}
+		restoreActive = func() { u.restoreActiveImage(source, true) }
 		syscall.Sync()
 	}
 
@@ -213,6 +218,7 @@ func (u *UpgradeAction) Run() (err error) {
 	err = u.config.Fs.Rename(upgradeImg.File, finalImageFile)
 	if err != nil {
 		u.Error("Failed to move %s to %s: %s", upgradeImg.File, finalImageFile, err)
+		restoreActive()
 		return err
 	}
 	u.Info("Finished moving %s to %s", upgradeImg.File, finalImageFile)
@@ -265,6 +271,26 @@ func (u *UpgradeAction) recordState() {
 	if err != nil {
 		u.config.Logger.Warnf("failed to update kairos state file: %s", err)
 	}
+}
+
+// restoreActiveImage moves the image backed up to the passive path back to
+// activeFile. With relabel set it also gives it the active label again, for
+// when the backup was already labeled as passive. Errors are only logged, the
+// caller is already returning the error that made the upgrade fail.
+func (u *UpgradeAction) restoreActiveImage(activeFile string, relabel bool) {
+	u.Info("Restoring %s to %s", u.spec.Passive.File, activeFile)
+	if err := u.config.Fs.Rename(u.spec.Passive.File, activeFile); err != nil {
+		u.Error("Failed to restore %s to %s: %s", u.spec.Passive.File, activeFile, err)
+		return
+	}
+	if relabel {
+		out, err := u.config.Runner.Run("tune2fs", "-L", u.spec.Active.Label, activeFile)
+		if err != nil {
+			u.Error("Error while labeling the restored active image %s: %s", activeFile, err)
+			u.Debug("Error while labeling the restored active image %s, command output: %s", activeFile, out)
+		}
+	}
+	syscall.Sync()
 }
 
 // remove attempts to remove the given path. Does nothing if it doesn't exist
