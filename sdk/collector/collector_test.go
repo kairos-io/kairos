@@ -356,6 +356,7 @@ info:
 				Expect(c.MergeConfigURL()).To(Succeed())
 
 				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(c.UnmergedConfigURLs).To(Equal([]string{server.URL + "/config.yaml"}))
 				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
 				Expect(warnings.String()).To(ContainSubstring(server.URL + "/config.yaml"))
 			})
@@ -369,6 +370,7 @@ info:
 				c := &Config{Values: ConfigValues{"config_url": server.URL + "/config.yaml"}}
 				Expect(c.MergeConfigURL()).To(Succeed())
 
+				Expect(c.UnmergedConfigURLs).To(Equal([]string{server.URL + "/config.yaml"}))
 				Expect(warnings.String()).To(ContainSubstring("has no valid header"))
 			})
 
