@@ -375,8 +375,8 @@ github.com/mudler/entities v0.8.3 h1:ByzKC/G2M9qdSpd0S8C6Q4kHcXhCX/9xWL6+vGpBVrs
 github.com/mudler/entities v0.8.3/go.mod h1:zlDInTAYHmJ7Py6GEVsPV0BsGcK9oa63KY4qrRzQCSY=
 github.com/mudler/go-processmanager v0.1.2 h1:ggPb/hOWZUxn/YrLCYfbzAscnMUZWtOnDwkfC7cJ7js=
 github.com/mudler/go-processmanager v0.1.2/go.mod h1:h6kmHUZeafr+k5hRYpGLMzJFH4hItHffgpRo2QIkP+o=
-github.com/mudler/yip v1.27.0 h1:keafl5qFyb+bm/OI5F2NU4PW4Jnwa/AhTGHbLhFsvfs=
-github.com/mudler/yip v1.27.0/go.mod h1:U43wuq9dYA9J7686w+lhPKX5fCLGocUZ/6XUwlQWYcQ=
+github.com/mudler/yip v1.27.1 h1:+SVzAzNUERE47mZLTDG6IvsRitKwdeAOC83Kz9OBeoM=
+github.com/mudler/yip v1.27.1/go.mod h1:U43wuq9dYA9J7686w+lhPKX5fCLGocUZ/6XUwlQWYcQ=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 h1:zYyBkD/k9seD2A7fsi6Oo2LfFZAehjjQMERAvZLEDnQ=
