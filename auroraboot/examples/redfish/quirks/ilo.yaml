@@ -1,0 +1,40 @@
+# examples/redfish/quirks/ilo.yaml
+#
+# A worked example: an operator quirk profile equivalent to AuroraBoot's built-in
+# HPE iLO profile. Drop a directory of files like this one and pass it with
+# `--quirks-dir` (CLI) or `--redfish-quirks-dir` (fleet server), then select it by
+# name with `--vendor ilo` (CLI) or by setting a BMCTarget's vendor to "ilo".
+#
+# Because its name is "ilo", placing this file in the quirks dir OVERRIDES the
+# built-in iLO profile (the override is logged loudly at load). Operator intent
+# wins — useful when you have tweaked the profile for your firmware.
+#
+# Support tier: an operator-supplied profile is ALWAYS tier C (UNVERIFIED). To
+# reach tier B (community-validated) the profile must ship in-tree together with a
+# recorded, sanitized hardware mockup that CI replays — see
+# docs/CONTRIBUTING-vendor-profiles.md (and P4, which adds the mockup harness).
+
+# name (required): how the profile is selected. `--vendor <name>` / BMCTarget.Vendor.
+name: ilo
+
+# match (optional): an informational selection hint. The probe command stamps the
+# BMC manufacturer here; it does not change selection (selection is by `name`).
+match:
+  vendor: HPE
+
+# mediaSearch (optional): reorder/filter the candidate VirtualMedia members. Each
+# `order` entry is one of "system", "manager", or "manager:<id>"; matching members
+# are emitted in that order and unmatched members are dropped. HPE iLO hosts
+# virtual media under the Manager (the BMC), not the ComputerSystem, so prefer
+# Manager-hosted media first, then fall back to System-hosted.
+mediaSearch:
+  order: [manager, system]
+
+# The remaining sections are omitted here because iLO accepts the spec defaults.
+# An omitted section compiles to a nil hook (= spec-default behaviour), so this
+# profile diverges from generic ONLY in media search order. See template.yaml for
+# every field documented.
+
+# validatedFirmware (optional): the firmware this profile was validated against.
+# Informational, used for tier labelling. Label it honestly, e.g. "iLO 5 2.44".
+validatedFirmware: ""

@@ -3,10 +3,11 @@
 // The plugins are a contract between Kairos and its providers (see
 // installer/prereqs), so every installer frontend has to speak it the same
 // way: the same plugin set, the same two events, and the same rule that a
-// misbehaving plugin is logged rather than fatal.
+// misbehaving plugin is reported as an error to the caller, never fatal.
 package checks
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -28,7 +29,7 @@ var CheckPluginPaths = []string{"/system/tui-checks", "/usr/local/system/tui-che
 // interactive-install check events and autoloads the tui-check-* plugins. It
 // deliberately does NOT install the global error->os.Exit handler that
 // internal/bus uses, so a misbehaving check plugin can never kill the TUI; all
-// problems are logged and surfaced through the returned data instead.
+// problems are logged and returned as errors from Gather and Apply instead.
 func NewManager(log sdkLogger.KairosLogger) *pluggable.Manager {
 	m := pluggable.NewManager([]pluggable.EventType{prereqs.EventChecks, prereqs.EventChecksApply})
 
@@ -76,6 +77,13 @@ func logPluginResponse(log sdkLogger.KairosLogger, phase string, p *pluggable.Pl
 	}
 }
 
+// pluginError turns the error go-pluggable recorded for a plugin (it crashed,
+// exited non-zero or printed something that is not a response) into an error
+// that names the plugin.
+func pluginError(p *pluggable.Plugin, r *pluggable.EventResponse) error {
+	return fmt.Errorf("check plugin %s failed: %s", p.Name, strings.TrimSpace(r.Error))
+}
+
 // Gather publishes the prerequisites check event on the dedicated manager
 // and collects the checks returned by every plugin. It is synchronous (go-
 // pluggable runs the plugins inline during Publish).
@@ -85,6 +93,9 @@ func Gather(m *pluggable.Manager, log sdkLogger.KairosLogger, config string) ([]
 
 	m.Response(prereqs.EventChecks, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 		logPluginResponse(log, "checks", p, r)
+		if r.Errored() && firstErr == nil {
+			firstErr = pluginError(p, r)
+		}
 		if r.Data == "" {
 			return
 		}
@@ -117,6 +128,9 @@ func Apply(m *pluggable.Manager, log sdkLogger.KairosLogger, decisions []prereqs
 
 	m.Response(prereqs.EventChecksApply, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 		logPluginResponse(log, "apply", p, r)
+		if r.Errored() && firstErr == nil {
+			firstErr = pluginError(p, r)
+		}
 		if r.Data == "" {
 			return
 		}
