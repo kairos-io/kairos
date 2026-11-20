@@ -22,6 +22,7 @@ type RootSchema struct {
 	Install            InstallSchema     `json:"install,omitempty"`
 	Kcrypt             KcryptSchema      `json:"kcrypt,omitempty"`
 	Options            map[string]string `json:"options,omitempty" description:"Various options, as key/value pairs."`
+	Phonehome          PhonehomeSchema   `json:"phonehome,omitempty"`
 	Upgrade            UpgradeSchema     `json:"upgrade,omitempty"`
 	Reset              ResetSchema       `json:"reset,omitempty"`
 	// Users is not required. An admin user may instead be defined in a yip
