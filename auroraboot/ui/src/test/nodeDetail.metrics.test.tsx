@@ -91,6 +91,17 @@ describe("NodeDetail resources card", () => {
     expect(screen.queryByText(/CPU above 85%/)).not.toBeInTheDocument();
   });
 
+  it("shows the architecture in the header and the details panel while the Hardware card is hidden", async () => {
+    const s = sample(40);
+    vi.stubGlobal("fetch", mockFetch({ latest: s, samples: [s] }));
+    renderPage();
+
+    await screen.findByRole("region", { name: "Resources" });
+    expect(screen.queryByRole("region", { name: "Hardware" })).not.toBeInTheDocument();
+    expect(screen.getByText("Arch amd64")).toBeInTheDocument();
+    expect(screen.getByText("Architecture")).toBeInTheDocument();
+  });
+
   it("warns when the last 10 samples are at 85% or more", async () => {
     const samples = Array.from({ length: 10 }, () => sample(90));
     vi.stubGlobal("fetch", mockFetch({ latest: samples[9], samples }));

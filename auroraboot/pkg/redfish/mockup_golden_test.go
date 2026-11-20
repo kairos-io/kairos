@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/pkg/redfish"
+	"github.com/kairos-io/kairos/auroraboot/pkg/redfish"
 )
 
 // This is the P4 per-vendor golden test (design §4a). For each (mockup, profile)

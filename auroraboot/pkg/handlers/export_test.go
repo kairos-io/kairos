@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/redfish"
+	"github.com/kairos-io/kairos/auroraboot/pkg/redfish"
 )
 
 // RedfishFinalizer is the test-visible alias of the unexported redfishFinalizer

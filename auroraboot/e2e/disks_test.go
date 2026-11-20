@@ -10,7 +10,7 @@ import (
 
 	"github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/partition/gpt"
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

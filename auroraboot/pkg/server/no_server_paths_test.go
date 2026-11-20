@@ -10,11 +10,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/internal/netbootmgr"
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
-	"github.com/kairos-io/AuroraBoot/pkg/batches"
-	"github.com/kairos-io/AuroraBoot/pkg/server"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/internal/netbootmgr"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
+	"github.com/kairos-io/kairos/auroraboot/pkg/batches"
+	"github.com/kairos-io/kairos/auroraboot/pkg/server"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // Records hold server paths (key set directories, built file paths); no GET

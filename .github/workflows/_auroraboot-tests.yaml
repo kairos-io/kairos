@@ -1,14 +1,32 @@
-name: Tests
+name: AuroraBoot tests
+
+# Reusable step: the test jobs of the auroraboot/ Go module.
+#
+# unit-tests, vet-tagged and helm-chart need nothing but the source. The e2e,
+# raw-disk and UI jobs run the AuroraBoot image that _build-image-auroraboot.yaml
+# built from the same commit and uploaded as the artifact named by
+# image_artifact, so the caller runs that workflow first and lists it in
+# `needs`.
+#
+# Booting a UKI ISO is not tested here. _uki-test.yaml boots a UKI ISO that is
+# produced by `auroraboot build-uki` from the same AuroraBoot build, so a copy
+# of that test would run the same thing twice.
+
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-concurrency:
-  group: ci-tests-${{ github.head_ref || github.ref }}-${{ github.repository }}
-  cancel-in-progress: true
+  workflow_call:
+    inputs:
+      image_artifact:
+        description: 'Name of the workflow artifact that holds the amd64 AuroraBoot image archive'
+        type: string
+        default: auroraboot-image-amd64
+
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: auroraboot
+
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
@@ -28,19 +46,20 @@ jobs:
           --health-retries 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: auroraboot/go.mod
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
         with:
           node-version: '26'
           cache: 'npm'
-          cache-dependency-path: ui/package-lock.json
+          cache-dependency-path: auroraboot/ui/package-lock.json
       - name: Build UI bundle (embedded via go:embed)
         run: make ui-build
       - name: Run UI tests
@@ -48,33 +67,28 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libpcsclite-dev
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1  # v4.4.0
       - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver-opts: network=host
       - name: Run tests
         env:
           AURORABOOT_TEST_POSTGRES_DSN: postgres://postgres:test@localhost:5432/postgres?sslmode=disable
         run: |
-          sudo env AURORABOOT_TEST_POSTGRES_DSN="$AURORABOOT_TEST_POSTGRES_DSN" go run github.com/onsi/ginkgo/v2/ginkgo --tags ui -v -r -p --covermode=atomic --coverprofile=coverage.out --timeout=2h --skip-package ./e2e ./...
-      - name: Codecov
-        uses: codecov/codecov-action@v7
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          files: ./coverage.out
+          sudo env AURORABOOT_TEST_POSTGRES_DSN="$AURORABOOT_TEST_POSTGRES_DSN" go run github.com/onsi/ginkgo/v2/ginkgo --tags ui -v -r -p --timeout=2h --skip-package ./e2e ./...
+
   vet-tagged:
-    name: vet-tagged
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
-      - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          go-version-file: go.mod
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: auroraboot/go.mod
       # Running the suite needs kind, docker and kubectl and takes up to 30
       # minutes, so this type-checks it instead. No other job passes
       # operator_e2e, and go vet applies no build tags of its own, so without
@@ -83,15 +97,16 @@ jobs:
       # no system packages.
       - name: Type-check build-tagged trees
         run: make vet-tagged
+
   helm-chart:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Helm
-        uses: azure/setup-helm@v5
+        uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e  # v5
         with:
           version: v4.3.2
       - name: Install helm-unittest plugin
@@ -100,47 +115,21 @@ jobs:
         run: make helm-chart-lint
       - name: Run chart unit tests
         run: make helm-chart-test
-  build-image:
-    runs-on: ubuntu-26.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Prefer IPv4
-        uses: ./.github/actions/prefer-ipv4
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v4
-        with:
-          driver-opts: network=host
-      - name: Build Docker image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          tags: auroraboot:ci
-          outputs: type=docker,dest=/tmp/auroraboot-image.tar
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: auroraboot-image
-          path: /tmp/auroraboot-image.tar
-          retention-days: 1
+
   e2e-tests:
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libpcsclite-dev
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: auroraboot/go.mod
       # docker/setup-qemu-action runs the binfmt container on the default bridge,
       # which the former self-hosted runners failed with "bridge port not forwarding after 200ms".
       # binfmt only writes to /proc/sys/fs/binfmt_misc, so give it the host
@@ -154,17 +143,17 @@ jobs:
       - name: Prefer IPv4
         uses: ./.github/actions/prefer-ipv4
       - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver-opts: network=host
       - name: Build local image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           push: false
           load: true
-          context: .
-          file: ./Dockerfile
+          context: auroraboot
+          build-contexts: kairos=.
+          file: auroraboot/Dockerfile
           platforms: linux/amd64
           tags: auroraboot:test
       - name: Ensure loop device nodes
@@ -193,90 +182,16 @@ jobs:
           TMPDIR: ${{ runner.temp }}
           EXTENSIONS_AGENT_IMAGE: quay.io/kairos/hadron:v0.6.3-core-amd64-generic-v4.4.0
         run: |
-          go run github.com/onsi/ginkgo/v2/ginkgo -v -r -p --covermode=atomic --coverprofile=coverage.out --timeout=2h --label-filter "e2e" ./e2e
-      - name: Codecov
-        uses: codecov/codecov-action@v7
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          files: ./coverage.out
-  test-bootable-iso-uki:
-    runs-on: ubuntu-26.04
-    needs: build-image
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Install deps
-        run: |
-          sudo apt-get update && sudo apt-get install -y ovmf libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev swtpm libpcsclite-dev
-      - name: Grant access to /dev/kvm
-        run: |
-          echo "KERNEL==\"kvm\", GROUP=\"$(id -gn)\", MODE=\"0660\", OPTIONS+=\"static_node=kvm\"" | sudo tee /etc/udev/rules.d/99-kvm-access.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          sudo udevadm settle
-          sudo setfacl -m "u:$(id -un):rw" /dev/kvm
-          test -w /dev/kvm
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-      - name: Prefer IPv4
-        uses: ./.github/actions/prefer-ipv4
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v4
-        with:
-          driver-opts: network=host
-      - name: Download image artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: auroraboot-image
-          path: /tmp/
-      - name: Load image
-        run: docker load -i /tmp/auroraboot-image.tar
-      - name: Generate ISO
-        run: |
-          mkdir build
-          docker run --rm --privileged \
-          --network=host \
-          -v $PWD/build/:/output \
-          -v $PWD/e2e/assets/keys/:/keys \
-          auroraboot:ci \
-          --debug \
-          build-uki \
-          --output-dir /output \
-          --public-keys /keys \
-          --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
-          --sb-key /keys/db.key \
-          --sb-cert /keys/db.pem \
-          --output-type iso \
-          -x "console=ttyS0" \
-          quay.io/kairos/ubuntu:24.04-core-amd64-generic-v3.7.2
-      - name: Find OVMF firmware
-        uses: ./.github/actions/find-ovmf-firmware
-        id: find_ovmf
-        with:
-          prefer_secboot: true
-      - name: Test UKI iso is bootable
-        env:
-          FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
-          KVM: true
-          EFIVARS_EMPTY: true
-          TMPDIR: ${{ runner.temp }}
-        run: |
-          export ISO=$(find $PWD/build -name *.iso)
-          go run github.com/onsi/ginkgo/v2/ginkgo run --label-filter "bootable" -v --fail-fast -r ./e2e
+          go run github.com/onsi/ginkgo/v2/ginkgo -v -r -p --timeout=2h --label-filter "e2e" ./e2e
+
   test-bootable-raw-efi:
     runs-on: ubuntu-26.04
-    needs: build-image
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install deps
         run: |
           sudo apt-get update && sudo apt-get install -y ovmf libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev libpcsclite-dev
@@ -289,20 +204,19 @@ jobs:
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
           test -w /dev/kvm
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: auroraboot/go.mod
       - name: Prefer IPv4
         uses: ./.github/actions/prefer-ipv4
       - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver-opts: network=host
       - name: Download image artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          name: auroraboot-image
+          name: ${{ inputs.image_artifact }}
           path: /tmp/
       - name: Load image
         run: docker load -i /tmp/auroraboot-image.tar
@@ -311,7 +225,7 @@ jobs:
           mkdir build
           docker run --rm --privileged \
           --network=host \
-          -v $PWD/build/:/output \
+          -v "$PWD/build/":/output \
           auroraboot:ci \
           --debug \
           --set "disable_http_server=true" --set "disable_netboot=true" --set "state_dir=/output" \
@@ -328,11 +242,11 @@ jobs:
           EFIVARS_EMPTY: true
           TMPDIR: ${{ runner.temp }}
         run: |
-          export RAW_IMAGE=$(find $PWD/build -name *.raw)
+          export RAW_IMAGE=$(find "$PWD/build" -name '*.raw')
           go run github.com/onsi/ginkgo/v2/ginkgo run --label-filter "raw-bootable" -v --fail-fast -r ./e2e
+
   test-bootable-raw-efi-boot-active:
     runs-on: ubuntu-26.04
-    needs: build-image
     strategy:
       fail-fast: false
       matrix:
@@ -348,9 +262,10 @@ jobs:
     name: test-bootable-raw-efi-boot-active (${{ matrix.layout }})
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install deps
         run: |
           sudo apt-get update && sudo apt-get install -y ovmf libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev libpcsclite-dev
@@ -363,34 +278,37 @@ jobs:
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
           test -w /dev/kvm
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: auroraboot/go.mod
       - name: Prefer IPv4
         uses: ./.github/actions/prefer-ipv4
       - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver-opts: network=host
       - name: Download image artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          name: auroraboot-image
+          name: ${{ inputs.image_artifact }}
           path: /tmp/
       - name: Load image
         run: docker load -i /tmp/auroraboot-image.tar
       - name: Generate raw image
+        env:
+          EXTRA_ARGS: ${{ matrix.extra_args }}
         run: |
           mkdir build
+          # EXTRA_ARGS holds several words on purpose.
+          # shellcheck disable=SC2086
           docker run --rm --privileged \
           --network=host \
-          -v $PWD/build/:/output \
+          -v "$PWD/build/":/output \
           auroraboot:ci \
           --debug \
           --set "disable_http_server=true" --set "disable_netboot=true" --set "state_dir=/output" \
           --set "disk.efi=true" \
-          ${{ matrix.extra_args }} \
+          $EXTRA_ARGS \
           --set "disk.size=16000" \
           --set "container_image=oci://quay.io/kairos/ubuntu:24.04-core-amd64-generic-v3.7.2"
       - name: Find OVMF firmware
@@ -405,16 +323,17 @@ jobs:
           EXPECT_PASSIVE: ${{ matrix.expect_passive }}
           NO_RECOVERY: ${{ matrix.no_recovery }}
         run: |
-          export RAW_IMAGE=$(find $PWD/build -name *.raw)
+          export RAW_IMAGE=$(find "$PWD/build" -name '*.raw')
           go run github.com/onsi/ginkgo/v2/ginkgo run --label-filter "raw-bootable" -v --fail-fast -r ./e2e
+
   test-bootable-raw-bios:
     runs-on: ubuntu-26.04
-    needs: build-image
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install deps
         run: |
           sudo apt-get update && sudo apt-get install -y ovmf libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev libpcsclite-dev
@@ -427,20 +346,19 @@ jobs:
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
           test -w /dev/kvm
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: auroraboot/go.mod
       - name: Prefer IPv4
         uses: ./.github/actions/prefer-ipv4
       - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
         with:
           driver-opts: network=host
       - name: Download image artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          name: auroraboot-image
+          name: ${{ inputs.image_artifact }}
           path: /tmp/
       - name: Load image
         run: docker load -i /tmp/auroraboot-image.tar
@@ -449,7 +367,7 @@ jobs:
           mkdir build
           docker run --rm --privileged \
           --network=host \
-          -v $PWD/build/:/output \
+          -v "$PWD/build/":/output \
           auroraboot:ci \
           --debug \
           --set "disable_http_server=true" --set "disable_netboot=true" --set "state_dir=/output" \
@@ -461,50 +379,52 @@ jobs:
           KVM: true
           TMPDIR: ${{ runner.temp }}
         run: |
-          export RAW_IMAGE=$(find $PWD/build -name *.raw)
+          export RAW_IMAGE=$(find "$PWD/build" -name '*.raw')
           go run github.com/onsi/ginkgo/v2/ginkgo run --label-filter "raw-bootable" -v --fail-fast -r ./e2e
+
   test-ui-builder:
     runs-on: ubuntu-latest
-    needs: build-image
     steps:
-     - name: Checkout code
-       uses: actions/checkout@v7
-       with:
-         fetch-depth: 1
-     - name: Set up Docker Buildx
-       id: buildx
-       uses: docker/setup-buildx-action@v4
-       with:
-         driver-opts: network=host
-     - name: Download image artifact
-       uses: actions/download-artifact@v8
-       with:
-         name: auroraboot-image
-         path: /tmp/
-     - name: Load image
-       run: docker load -i /tmp/auroraboot-image.tar
-     - name: Cypress run
-       uses: cypress-io/github-action@v7.4.10
-       with:
-         working-directory: e2e/web/
-         start: docker run --network=host --rm auroraboot:ci web
-         wait-on: 'http://localhost:8080'
-         wait-on-timeout: 60
-     - name: Upload Cypress screenshots
-       if: always()
-       continue-on-error: true
-       uses: actions/upload-artifact@v7
-       with:
-         name: cypress-screenshots
-         path: e2e/web/cypress/screenshots/
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+        with:
+          driver-opts: network=host
+      - name: Download image artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: ${{ inputs.image_artifact }}
+          path: /tmp/
+      - name: Load image
+        run: docker load -i /tmp/auroraboot-image.tar
+      - name: Cypress run
+        uses: cypress-io/github-action@0ed14f5d30c4ad6e5e8ffb6f57dbb69150137a3f  # v7.4.10
+        with:
+          working-directory: auroraboot/e2e/web/
+          start: docker run --network=host --rm auroraboot:ci web
+          wait-on: 'http://localhost:8080'
+          wait-on-timeout: 60
+      - name: Upload Cypress screenshots
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: cypress-screenshots
+          path: auroraboot/e2e/web/cypress/screenshots/
+
   phonehome-vm:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install deps
         run: |
           sudo apt-get update && sudo apt-get install -y ovmf libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev swtpm libpcsclite-dev
@@ -517,9 +437,9 @@ jobs:
           sudo setfacl -m "u:$(id -un):rw" /dev/kvm
           test -w /dev/kvm
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: auroraboot/go.mod
       - name: Prefer IPv4
         uses: ./.github/actions/prefer-ipv4
       - name: Find OVMF firmware
@@ -538,9 +458,9 @@ jobs:
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter phonehome-vm --timeout 100m --grace-period 10m ./e2e
       - name: Upload phonehome logs
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: phonehome-logs
-          path: e2e/logs/phonehome
+          path: auroraboot/e2e/logs/phonehome
           if-no-files-found: ignore
           retention-days: 7

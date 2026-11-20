@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/pkg/server"
+	"github.com/kairos-io/kairos/auroraboot/pkg/server"
 )
 
 var _ = Describe("Client IP", func() {

@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/kairos-io/AuroraBoot/pkg/metrics"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/metrics"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	"github.com/labstack/echo/v4"
 )
 
