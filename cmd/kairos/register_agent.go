@@ -18,4 +18,11 @@ func init() {
 		cmd.Aliases = []string{"kairos-agent"}
 		return cmd
 	}, agent.ReportError)
+
+	// The agent has its own `version` command, which prints the bare version,
+	// or `kairos <version>` and the Go version with `--long`. Scripts parse
+	// that output: AuroraBoot's install script compares it against a minimum
+	// agent version. The agent does not define --version or -v, so those stay
+	// with kairos.
+	ownsVersion("agent", func(arg string) bool { return arg == "version" })
 }
