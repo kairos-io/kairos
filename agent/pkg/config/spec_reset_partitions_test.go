@@ -25,6 +25,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	sdkBundles "github.com/kairos-io/kairos/v4/sdk/types/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkInstall "github.com/kairos-io/kairos/v4/sdk/types/install"
@@ -160,6 +161,48 @@ var _ = Describe("NewResetSpec with optional partitions missing", Label("types",
 		Expect(err.Error()).To(ContainSubstring("reset-persistent"))
 		// The warning is the branch this replaces, so it must not also fire.
 		Expect(memLog.String()).ToNot(ContainSubstring("no Persistent partition found"))
+	})
+
+	// A container only a passphrase opens was left locked in recovery on
+	// purpose (the person forgot the passphrase). The spec takes the raw
+	// container so the reset preflight can erase it and create a new one.
+	It("takes a locked passphrase container instead of refusing", func() {
+		orig := kcrypt.LUKSSubsystem
+		DeferCleanup(func() { kcrypt.LUKSSubsystem = orig })
+		var probed string
+		kcrypt.LUKSSubsystem = func(device string) (string, error) {
+			probed = device
+			return kcrypt.PassphraseSubsystem, nil
+		}
+		ghwTest = ghwMock.GhwMock{}
+		ghwTest.AddDisk(resetDisk(&sdkPartitions.Partition{
+			Name: "device5", PartitionLabel: "persistent",
+			FilesystemLabel: sdkConstants.PersistentLUKSLabel, FS: sdkConstants.LUKSFs,
+		}))
+		ghwTest.CreateDevices()
+
+		spec, err := config.NewResetSpec(c)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(spec.Partitions.Persistent).ToNot(BeNil())
+		Expect(spec.Partitions.Persistent.FS).To(Equal(sdkConstants.LUKSFs))
+		Expect(spec.Partitions.Persistent.Path).ToNot(BeEmpty())
+		Expect(probed).To(Equal(spec.Partitions.Persistent.Path))
+		Expect(memLog.String()).To(ContainSubstring("the reset will erase it"))
+	})
+
+	It("still refuses a locked container with another key", func() {
+		orig := kcrypt.LUKSSubsystem
+		DeferCleanup(func() { kcrypt.LUKSSubsystem = orig })
+		kcrypt.LUKSSubsystem = func(string) (string, error) { return "", nil }
+		ghwTest = ghwMock.GhwMock{}
+		ghwTest.AddDisk(resetDisk(&sdkPartitions.Partition{
+			Name: "device5", PartitionLabel: "persistent",
+			FilesystemLabel: sdkConstants.PersistentLUKSLabel, FS: sdkConstants.LUKSFs,
+		}))
+		ghwTest.CreateDevices()
+
+		_, err := config.NewResetSpec(c)
+		Expect(err).To(MatchError(ContainSubstring("no open mapper")))
 	})
 
 	It("refuses to reset an OEM partition that is a locked LUKS container when asked to format it", func() {
