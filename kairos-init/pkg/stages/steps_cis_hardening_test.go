@@ -116,6 +116,15 @@ var _ = Describe("GetCISHardeningStage", func() {
 		log = logger.NewKairosLogger("test", "error", true)
 	})
 
+	Context("on an arm64 target", func() {
+		It("installs the audit rules built for arm64", func() {
+			result := stages.GetCISHardeningStage(values.System{Arch: values.ArchARM64}, log)
+			rules := fileByPath(result, bundled.CISAuditRulesPath)
+			Expect(rules.Content).To(Equal(bundled.CISAuditRulesForArch("arm64")))
+			Expect(rules.Content).NotTo(Equal(bundled.CISAuditRules))
+		})
+	})
+
 	Context("with default config", func() {
 		var result []schema.Stage
 
