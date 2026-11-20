@@ -370,7 +370,19 @@ var _ = Describe("Install action tests", func() {
 			Expect(cl.WasGetCalledWith("http://nonexistingiso")).To(BeTrue())
 		})
 
+		// fillIsoRootfs makes the mounted ISO rootfs hold a file of the given
+		// size, as the squashfs of a real ISO would.
+		fillIsoRootfs := func(size int) {
+			mounter.OnMount = func(_ string, target string) error {
+				if filepath.Base(target) != "rootfs" {
+					return nil
+				}
+				return fs.WriteFile(filepath.Join(target, "payload"), make([]byte, size), constants.FilePerm)
+			}
+		}
+
 		It("Fails to install from ISO as rsync can't find the temporary root tree", Label("iso"), func() {
+			fillIsoRootfs(1024)
 			fs.Create("cOS.iso")
 			spec.Iso = "http://cOS.iso"
 			spec.Target = device
@@ -381,6 +393,7 @@ var _ = Describe("Install action tests", func() {
 		})
 
 		It("Unmounts the downloaded ISO and its rootfs after installing from ISO", Label("iso"), func() {
+			fillIsoRootfs(1024)
 			fs.Create("cOS.iso")
 			spec.Iso = "http://cOS.iso"
 			spec.Target = device
@@ -394,6 +407,7 @@ var _ = Describe("Install action tests", func() {
 		})
 
 		It("Removes the downloaded ISO temp dir even when unmounting it fails", Label("iso"), func() {
+			fillIsoRootfs(1024)
 			fs.Create("cOS.iso")
 			spec.Iso = "http://cOS.iso"
 			spec.Target = device
@@ -403,6 +417,64 @@ var _ = Describe("Install action tests", func() {
 			Expect(isoDir).To(ContainSubstring("elemental"))
 			_, err := fs.Stat(isoDir)
 			Expect(err).To(HaveOccurred())
+		})
+
+		It("Sizes the images and partitions from the downloaded ISO before partitioning", Label("iso"), func() {
+			// 5MiB of data in the ISO rootfs is measured as 105MiB.
+			fillIsoRootfs(5 * 1024 * 1024)
+			fs.Create("cOS.iso")
+			spec.Iso = "http://cOS.iso"
+			spec.Target = device
+			// Sizes calculated earlier from the live media, not from the ISO
+			spec.Active.Size = 3072
+			spec.Passive.Size = 3072
+			spec.Recovery.Size = 3072
+			spec.Partitions.State.Size = 10216
+			spec.Partitions.Recovery.Size = 6344
+			Expect(installer.Run()).To(Succeed())
+			Expect(spec.Active.Size).To(Equal(uint(105)))
+			Expect(spec.Passive.Size).To(Equal(uint(105)))
+			Expect(spec.Recovery.Size).To(Equal(uint(105)))
+			Expect(spec.Partitions.State.Size).To(Equal(uint(105*3 + 1000)))
+			Expect(spec.Partitions.Recovery.Size).To(Equal(uint(105*2 + 200)))
+			Expect(memLog.String()).To(ContainSubstring("Setting state partition size to 1315MiB"))
+		})
+
+		It("Keeps the sizes set in the config as minimums when installing from ISO", Label("iso"), func() {
+			fillIsoRootfs(5 * 1024 * 1024)
+			config.Collector = collector.Config{Values: collector.ConfigValues{
+				"install": collector.ConfigValues{
+					"system":     collector.ConfigValues{"size": 150},
+					"partitions": collector.ConfigValues{"recovery": collector.ConfigValues{"size": 450}},
+				},
+			}}
+			fs.Create("cOS.iso")
+			spec.Iso = "http://cOS.iso"
+			spec.Target = device
+			spec.Active.Size = 3072
+			Expect(installer.Run()).To(Succeed())
+			Expect(spec.Active.Size).To(Equal(uint(150)))
+			Expect(spec.Passive.Size).To(Equal(uint(105)))
+			Expect(spec.Recovery.Size).To(Equal(uint(105)))
+			Expect(spec.Partitions.State.Size).To(Equal(uint(150*2 + 105 + 1000)))
+			Expect(spec.Partitions.Recovery.Size).To(Equal(uint(450)))
+		})
+
+		It("Stops before partitioning if the downloaded ISO cannot be measured", Label("iso"), func() {
+			// Nothing is put in the ISO rootfs, so there is nothing to measure
+			fs.Create("cOS.iso")
+			spec.Iso = "http://cOS.iso"
+			spec.Target = device
+			spec.Active.Size = 3072
+			spec.Partitions.State.Size = 10216
+			err := installer.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("sizing the images from the downloaded ISO"))
+			Expect(spec.Active.Size).To(Equal(uint(3072)))
+			Expect(spec.Partitions.State.Size).To(Equal(uint(10216)))
+			for _, cmd := range runner.Cmds() {
+				Expect(cmd[0]).ToNot(Equal("blkdeactivate"))
+			}
 		})
 
 		It("Fails to install without formatting if a previous install is detected", Label("no-format", "disk"), func() {

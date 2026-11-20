@@ -334,7 +334,11 @@ jobs:
           # empty. $VERSION uses the same `git describe --tags --dirty
           # --always` rule factory-action's setup step uses so both sides
           # land on the same tag.
-          VERSION=$(git describe --tags --dirty --always)
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && -n "${GITHUB_REF_NAME}" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION=$(git describe --tags --dirty --always)
+          fi
           if [[ "$VERSION" =~ ^[a-f0-9]+$ ]]; then
             VERSION="v0.0.0-$VERSION"
           fi

@@ -1,0 +1,98 @@
+suite: rbac
+templates:
+  - rbac.yaml
+tests:
+  - it: renders a Role and RoleBinding in builder.namespace
+    set:
+      host: auroraboot.example.com
+    release:
+      name: ab
+      namespace: kairos-operator
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: Role
+      - documentIndex: 0
+        equal:
+          path: metadata.namespace
+          value: kairos-operator
+      - documentIndex: 1
+        isKind:
+          of: RoleBinding
+      - documentIndex: 1
+        equal:
+          path: subjects[0].name
+          value: ab-auroraboot
+      - documentIndex: 1
+        equal:
+          path: subjects[0].namespace
+          value: kairos-operator
+
+  - it: grants access to OSArtifacts, secrets, pods, pod logs, and jobs
+    set:
+      host: auroraboot.example.com
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - contains:
+          path: rules
+          any: true
+          content:
+            apiGroups: ["build.kairos.io"]
+            resources: ["osartifacts"]
+            verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - contains:
+          path: rules
+          any: true
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      - contains:
+          path: rules
+          any: true
+          content:
+            apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get", "list", "watch"]
+      - contains:
+          path: rules
+          any: true
+          content:
+            apiGroups: [""]
+            resources: ["pods/log"]
+            verbs: ["get", "list", "watch"]
+      - contains:
+          path: rules
+          any: true
+          content:
+            apiGroups: ["batch"]
+            resources: ["jobs"]
+            verbs: ["get", "list", "watch"]
+
+  - it: places the Role in an explicit builder.namespace when overridden
+    set:
+      host: auroraboot.example.com
+      builder:
+        namespace: elsewhere
+    release:
+      namespace: default
+    documentSelector:
+      path: kind
+      value: Role
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: elsewhere
+
+  - it: skips RBAC when rbac.create=false
+    set:
+      host: auroraboot.example.com
+      rbac:
+        create: false
+    asserts:
+      - hasDocuments:
+          count: 0
