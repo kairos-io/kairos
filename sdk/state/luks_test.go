@@ -21,10 +21,10 @@ exit 1
 const fakeLsblk = `#!/bin/sh
 case "$1" in
 /dev/disk/by-label/COS_PERSISTENT|/dev/mapper/vda5)
-  echo '{"blockdevices":[{"path":"/dev/mapper/vda5","fstype":"ext4","mountpoint":"/usr/local","size":"10G","ro":false,"label":"COS_PERSISTENT"}]}'
+  echo '{"blockdevices":[{"path":"/dev/mapper/vda5","fstype":"ext4","mountpoint":"/usr/local","size":10737418240,"ro":false,"label":"COS_PERSISTENT"}]}'
   ;;
 /dev/disk/by-label/COS_OEM|/dev/mapper/vda2)
-  echo '{"blockdevices":[{"path":"/dev/mapper/vda2","fstype":"ext4","mountpoint":"/oem","size":"64M","ro":false,"label":"COS_OEM"}]}'
+  echo '{"blockdevices":[{"path":"/dev/mapper/vda2","fstype":"ext4","mountpoint":"/oem","size":67108864,"ro":false,"label":"COS_OEM"}]}'
   ;;
 *)
   exit 1
@@ -37,10 +37,10 @@ esac
 const fakeLsblkOldLabels = `#!/bin/sh
 case "$1" in
 /dev/disk/by-label/COS_PERSISTENT)
-  echo '{"blockdevices":[{"path":"/dev/vda5","fstype":"crypto_LUKS","size":"10G","ro":false,"label":"COS_PERSISTENT"}]}'
+  echo '{"blockdevices":[{"path":"/dev/vda5","fstype":"crypto_LUKS","size":10737418240,"ro":false,"label":"COS_PERSISTENT"}]}'
   ;;
 /dev/mapper/vda5)
-  echo '{"blockdevices":[{"path":"/dev/mapper/vda5","fstype":"ext4","mountpoint":"/usr/local","size":"10G","ro":false,"label":"COS_PERSISTENT"}]}'
+  echo '{"blockdevices":[{"path":"/dev/mapper/vda5","fstype":"ext4","mountpoint":"/usr/local","size":10737418240,"ro":false,"label":"COS_PERSISTENT"}]}'
   ;;
 *)
   exit 1
