@@ -95,10 +95,16 @@ func (i InstallAction) Run() (err error) {
 			return err
 		}
 		cleanup.Push(func() error { return i.cfg.Fs.RemoveAll(tmpDir) })
-		err = e.UpdateSourcesFormDownloadedISO(tmpDir, &i.spec.Active, &i.spec.Recovery)
+		planned := *i.spec
+		err = e.UpdateSourcesFormDownloadedISO(tmpDir, &planned.Active, &planned.Recovery)
 		if err != nil {
 			return err
 		}
+		planned.SetRecoveryImageFile()
+		if err := config.RecalculateInstallSizes(i.cfg, &planned); err != nil {
+			return err
+		}
+		*i.spec = planned
 	}
 
 	if i.spec.NoFormat {

@@ -47,6 +47,7 @@ type InstallSpec struct {
 	AllowInsecureRegistries bool                           `yaml:"allow-insecure-registries,omitempty" mapstructure:"allow-insecure-registries"`
 	Passive                 images.Image
 	GrubConf                string
+	sizing                  *installSizing
 }
 
 // Sanitize checks the consistency of the struct, returns error
@@ -65,16 +66,7 @@ func (i *InstallSpec) Sanitize() error {
 	if i.Partitions.State == nil || i.Partitions.State.MountPoint == "" {
 		return fmt.Errorf("undefined state partition")
 	}
-	// Set the image file name depending on the filesystem
-	recoveryMnt := constants.RecoveryDir
-	if i.Partitions.Recovery != nil && i.Partitions.Recovery.MountPoint != "" {
-		recoveryMnt = i.Partitions.Recovery.MountPoint
-	}
-	if i.Recovery.FS == constants.SquashFs {
-		i.Recovery.File = filepath.Join(recoveryMnt, "cOS", constants.RecoverySquashFile)
-	} else {
-		i.Recovery.File = filepath.Join(recoveryMnt, "cOS", constants.RecoveryImgFile)
-	}
+	i.SetRecoveryImageFile()
 
 	if err := checkExtraPartitionsSize(i.ExtraPartitions, i.Partitions.Persistent); err != nil {
 		return err
@@ -92,6 +84,38 @@ func (i *InstallSpec) Sanitize() error {
 	// Going over the disk size produces an unbootable system that only fails
 	// at first boot, so we fail early here instead.
 	return checkPartitionsFitTargetDisk(i.Target, targetDisk, i.Partitions.PartitionsByInstallOrder(i.ExtraPartitions))
+}
+
+// SetRecoveryImageFile keeps image copy relationships when the recovery format changes.
+func (i *InstallSpec) SetRecoveryImageFile() {
+	previous := i.Recovery.File
+	// Set the image file name depending on the filesystem
+	recoveryMnt := constants.RecoveryDir
+	if i.Partitions.Recovery != nil && i.Partitions.Recovery.MountPoint != "" {
+		recoveryMnt = i.Partitions.Recovery.MountPoint
+	}
+	if i.Recovery.FS == constants.SquashFs {
+		i.Recovery.File = filepath.Join(recoveryMnt, "cOS", constants.RecoverySquashFile)
+	} else {
+		i.Recovery.File = filepath.Join(recoveryMnt, "cOS", constants.RecoveryImgFile)
+	}
+
+	if previous != "" && previous != i.Recovery.File {
+		for _, img := range []*images.Image{&i.Active, &i.Passive} {
+			if img.Source != nil && img.Source.IsFile() && img.Source.Value() == previous {
+				img.Source = images.NewFileSrc(i.Recovery.File)
+			}
+		}
+	}
+}
+
+// ValidateDiskSize rechecks the target after installation media changes the plan.
+func (i *InstallSpec) ValidateDiskSize() error {
+	disk, err := lookupTargetDisk(i.Target)
+	if err != nil {
+		return err
+	}
+	return checkPartitionsFitTargetDisk(i.Target, disk, i.Partitions.PartitionsByInstallOrder(i.ExtraPartitions))
 }
 
 // gptMetadataOverhead is the disk space the partitioner reserves and that the

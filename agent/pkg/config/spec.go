@@ -110,45 +110,32 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 		firmware = sdkConstants.BIOS
 	}
 
+	activeImg.Size = cfg.Install.Active.Size
+	recoveryImg.Size = cfg.Install.Recovery.Size
 	activeImg.Label = sdkConstants.ActiveLabel
-	activeImg.Size = sdkConstants.ImgSize
 	activeImg.File = filepath.Join(constants.StateDir, "cOS", constants.ActiveImgFile)
 	activeImg.FS = sdkConstants.LinuxImgFs
 	activeImg.MountPoint = constants.ActiveDir
 
-	// First try to use the install media source
-	if isoRootExists {
-		activeImg.Source = sdkImages.NewDirSrc(constants.IsoBaseTree)
-	}
-	// Then any user provided source
-	if cfg.Install.Source != "" {
-		activeImg.Source, _ = sdkImages.NewSrcFromURI(cfg.Install.Source)
-	}
-	// If we dont have any just an empty source so the sanitation fails
-	// TODO: Should we directly fail here if we got no source instead of waiting for the Sanitize() to fail?
-	if !isoRootExists && cfg.Install.Source == "" {
-		activeImg.Source = sdkImages.NewEmptySrc()
-	}
+	activeImg.Source = sdkImages.NewEmptySrc()
 
 	if recoveryExists {
-		recoveryImg.Source = sdkImages.NewFileSrc(recoveryImgFile)
+		recoveryImg.Source = sdkImages.NewEmptySrc()
 		recoveryImg.FS = constants.SquashFs
 		recoveryImg.File = filepath.Join(constants.RecoveryDir, "cOS", constants.RecoverySquashFile)
-		recoveryImg.Size = sdkConstants.ImgSize
 	} else {
-		recoveryImg.Source = sdkImages.NewFileSrc(activeImg.File)
+		recoveryImg.Source = sdkImages.NewEmptySrc()
 		recoveryImg.FS = sdkConstants.LinuxImgFs
 		recoveryImg.Label = sdkConstants.SystemLabel
 		recoveryImg.File = filepath.Join(constants.RecoveryDir, "cOS", constants.RecoveryImgFile)
-		recoveryImg.Size = sdkConstants.ImgSize
 	}
 
 	passiveImg = sdkImages.Image{
 		File:   filepath.Join(constants.StateDir, "cOS", constants.PassiveImgFile),
 		Label:  sdkConstants.PassiveLabel,
-		Source: sdkImages.NewFileSrc(activeImg.File),
+		Source: sdkImages.NewEmptySrc(),
 		FS:     sdkConstants.LinuxImgFs,
-		Size:   sdkConstants.ImgSize,
+		Size:   cfg.Install.Passive.Size,
 	}
 
 	spec := &spec.InstallSpec{
@@ -170,20 +157,45 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 		return nil, err
 	}
 
-	// Get the actual source size to calculate the image size and partitions size
-	size, err := GetSourceSize(cfg, spec.Active.Source)
-	if err != nil {
-		cfg.Logger.Warnf("Failed to infer size for images: %s", err.Error())
-	} else {
-		cfg.Logger.Infof("Setting image size to %dMiB", size)
-		spec.Active.Size = uint(size)
-		spec.Passive.Size = uint(size)
-		spec.Recovery.Size = uint(size)
-	}
-
-	err = unmarshallFullSpec(cfg, "install", spec)
+	err := unmarshallFullSpec(cfg, "install", spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+
+	if err := applyInstallImageDefaults(cfg, spec); err != nil {
+		return nil, err
+	}
+
+	// Select fallbacks only after decoding per-image sources and legacy URIs.
+	// A downloaded ISO replaces active and recovery sources later.
+	if (spec.Active.Source == nil || spec.Active.Source.IsEmpty()) && spec.Iso == "" {
+		if cfg.Install.Source != "" {
+			spec.Active.Source, err = sdkImages.NewSrcFromURI(cfg.Install.Source)
+			if err != nil {
+				return nil, err
+			}
+		} else if isoRootExists {
+			spec.Active.Source = sdkImages.NewDirSrc(constants.IsoBaseTree)
+		}
+	}
+	if spec.Active.Source == nil {
+		spec.Active.Source = sdkImages.NewEmptySrc()
+	}
+	if spec.Recovery.Source == nil || spec.Recovery.Source.IsEmpty() {
+		if recoveryExists && spec.Iso == "" {
+			spec.Recovery.Source = sdkImages.NewFileSrc(recoveryImgFile)
+		} else {
+			spec.Recovery.Source = sdkImages.NewFileSrc(spec.Active.File)
+		}
+	}
+	if spec.Passive.Source == nil || spec.Passive.Source.IsEmpty() {
+		spec.Passive.Source = sdkImages.NewFileSrc(spec.Active.File)
+	}
+
+	spec.SetRecoveryImageFile()
+	requested := spec.RequestedSizes()
+	if err := setInstallImageSizes(cfg, spec, requested, spec.Iso != "", false); err != nil {
+		return nil, err
 	}
 
 	// resolve also the target of the spec so we can partition properly
@@ -194,8 +206,38 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 
 	// Calculate the partitions afterwards so they use the image sizes for the final partition sizes
 	spec.Partitions = NewInstallElementalPartitions(cfg.Logger, spec)
+	spec.RecordCalculatedSizes(requested)
 
 	return spec, nil
+}
+
+// applyInstallImageDefaults uses caller sources only when the merged config has
+// not selected one and the ISO will not replace it.
+func applyInstallImageDefaults(cfg *sdkConfig.Config, install *spec.InstallSpec) error {
+	for _, pair := range []struct {
+		image    *sdkImages.Image
+		fallback sdkImages.Image
+		replaced bool
+	}{
+		{&install.Active, cfg.Install.Active, install.Iso != ""},
+		{&install.Passive, cfg.Install.Passive, false},
+		{&install.Recovery, cfg.Install.Recovery, install.Iso != ""},
+	} {
+		if pair.replaced || (pair.image.Source != nil && !pair.image.Source.IsEmpty()) {
+			continue
+		}
+		if pair.fallback.Source != nil && !pair.fallback.Source.IsEmpty() {
+			pair.image.Source = pair.fallback.Source
+		} else if pair.fallback.URI != "" {
+			source, err := sdkImages.NewSrcFromURI(pair.fallback.URI)
+			if err != nil {
+				return err
+			}
+			pair.image.Source = source
+		}
+	}
+
+	return nil
 }
 
 func NewInstallElementalPartitions(log sdkLogger.KairosLogger, spec *spec.InstallSpec) sdkPartitions.ElementalPartitions {
@@ -1096,6 +1138,34 @@ func unmarshallFullSpec(r *sdkConfig.Config, subkey string, sp sdkSpec.Spec) err
 	}
 
 	warnDeprecatedKeys(r.Logger, subkey, vp)
+
+	// Only classic installs defer ISO sources and resolve legacy URIs before
+	// applying defaults. Other operations retain their existing decoding rules.
+	if _, ok := sp.(*spec.InstallSpec); ok {
+		settings := vp.AllSettings()
+		for _, key := range []string{"system", "passive", "recovery-system"} {
+			img, ok := settings[key].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if vp.GetString("iso") != "" && key != "passive" {
+				delete(img, "source")
+				delete(img, "uri")
+				continue
+			}
+			if uri, exists := img["uri"]; exists {
+				r.Logger.Warnf("The 'uri' field in install.%s is deprecated, please use 'source' instead", key)
+				if _, exists := img["source"]; !exists {
+					img["source"] = uri
+				}
+				delete(img, "uri")
+			}
+		}
+		vp = viper.New()
+		if err := vp.MergeConfigMap(settings); err != nil {
+			return err
+		}
+	}
 
 	err = vp.Unmarshal(sp, setDecoder, decodeHook)
 	if err != nil {
