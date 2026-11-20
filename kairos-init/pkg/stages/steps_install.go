@@ -361,6 +361,10 @@ func GetInstallOemCloudConfigs(l logger.KairosLogger) error {
 		l.Logger.Warn().Msg("Skipping installing cloudconfigs stage")
 		return nil
 	}
+	return writeOemCloudConfigs(l, "/system/oem")
+}
+
+func writeOemCloudConfigs(l logger.KairosLogger, dir string) error {
 	files, err := bundled.EmbeddedConfigs.ReadDir("cloudconfigs")
 	if err != nil {
 		l.Logger.Error().Err(err).Msg("Failed to read embedded files")
@@ -373,22 +377,22 @@ func GetInstallOemCloudConfigs(l logger.KairosLogger) error {
 			data, err := bundled.EmbeddedConfigs.ReadFile(filepath.Join("cloudconfigs", file.Name()))
 			if err != nil {
 				l.Logger.Error().Err(err).Str("file", file.Name()).Msg("Failed to read embedded file")
-				continue
+				return fmt.Errorf("reading embedded cloud config %s: %w", file.Name(), err)
 			}
 
-			// check if /system/oem exists and create it if not
-			if _, err = os.Stat("/system/oem"); os.IsNotExist(err) {
-				err = os.MkdirAll("/system/oem", 0755)
+			// check if the destination dir exists and create it if not
+			if _, err = os.Stat(dir); os.IsNotExist(err) {
+				err = os.MkdirAll(dir, 0755)
 				if err != nil {
-					l.Logger.Error().Err(err).Str("dir", "/system/oem").Msg("Failed to create directory")
-					continue
+					l.Logger.Error().Err(err).Str("dir", dir).Msg("Failed to create directory")
+					return fmt.Errorf("creating %s: %w", dir, err)
 				}
 			}
-			outputPath := filepath.Join("/system/oem/", file.Name())
+			outputPath := filepath.Join(dir, file.Name())
 			err = os.WriteFile(outputPath, data, 0644)
 			if err != nil {
-				fmt.Printf("Failed to write file %s: %v\n", outputPath, err)
-				continue
+				l.Logger.Error().Err(err).Str("file", outputPath).Msg("Failed to write cloud config")
+				return fmt.Errorf("writing %s: %w", outputPath, err)
 			}
 
 			l.Logger.Debug().Str("file", outputPath).Msg("Wrote cloud config")
