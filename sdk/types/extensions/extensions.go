@@ -122,11 +122,13 @@ const CmdlineKey = "kairos.extensions"
 //	kairos.extensions=fwupd@2.1.7
 //
 // Each entry goes through ParseExtension, so a catalog name, a `name@version`
-// and a URI all mean here what they mean in a cloud config. A comma cannot
-// appear in any of those forms, which is what makes it safe as the separator:
-// an OCI reference separates its digest with `@`, and a URL that needed a
-// comma would need percent-encoding to survive the kernel command line
-// anyway.
+// and a URI all mean here what they mean in a cloud config. The one form that
+// can hold a comma is a version constraint, as in `fwupd@>=2.1,<3`: a piece
+// that starts with a constraint operator (`<`, `>`, `=`, `!`, `~`, `^`)
+// continues the version of the entry before it instead of starting a new one.
+// No catalog name, URI or path starts with one of those, and a URL that
+// needed a comma would need percent-encoding to survive the kernel command
+// line anyway.
 //
 // An empty value (`kairos.extensions=`) and a bare `kairos.extensions` both
 // declare nothing, and are not an error: dropping the value is how an operator
@@ -138,10 +140,7 @@ func ParseCmdline(cmdline string) (Extensions, error) {
 		if !found || key != CmdlineKey {
 			continue
 		}
-		for _, entry := range strings.Split(value, ",") {
-			if strings.TrimSpace(entry) == "" {
-				continue
-			}
+		for _, entry := range splitCmdlineValue(value) {
 			extension, err := ParseExtension(entry)
 			if err != nil {
 				return nil, fmt.Errorf("%s=%s: %w", CmdlineKey, value, err)
@@ -150,6 +149,35 @@ func ParseCmdline(cmdline string) (Extensions, error) {
 		}
 	}
 	return parsed, nil
+}
+
+// splitCmdlineValue splits a kairos.extensions value on its commas, dropping
+// empty entries and joining a piece that starts with a constraint operator
+// back onto the versioned catalog name before it.
+func splitCmdlineValue(value string) []string {
+	var entries []string
+	for _, piece := range strings.Split(value, ",") {
+		trimmed := strings.TrimSpace(piece)
+		if trimmed == "" {
+			continue
+		}
+		if last := len(entries) - 1; last >= 0 && strings.ContainsAny(trimmed[:1], "<>=!~^") && continuesConstraint(entries[last]) {
+			entries[last] += "," + trimmed
+			continue
+		}
+		entries = append(entries, trimmed)
+	}
+	return entries
+}
+
+// continuesConstraint reports whether entry is a catalog name with a version,
+// the only form a following constraint piece can belong to.
+func continuesConstraint(entry string) bool {
+	if (Extension{Name: entry}).IsReference() {
+		return false
+	}
+	_, version, found := strings.Cut(entry, "@")
+	return found && version != ""
 }
 
 // IsReference reports whether the extension names an image directly, by URI or

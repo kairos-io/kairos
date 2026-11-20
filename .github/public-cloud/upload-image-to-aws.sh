@@ -241,7 +241,7 @@ checkImageExistsOrCreate() {
   echo "Image test passed successfully. Proceeding with making image public and copying to other regions..."
 
   makeAMIpublic "$imageID" "$AWS_REGION"
-  copyToAllRegions "$imageID" "$imageName" "$description" "$kairosVersion"
+  copyToPublishRegions "$imageID" "$imageName" "$description" "$kairosVersion"
 }
 
 # Function to wait for the AMI to become available
@@ -276,15 +276,17 @@ makeAMIpublic() {
   echo "[$region] Image '$imageID' is now public."
 }
 
-copyToAllRegions() {
+copyToPublishRegions() {
   local imageID="$1"
   local imageName="$2"
   local description="$3"
   local kairosVersion="$4"
 
-  echo "Copying AMI '$imageName ($imageID)' to all regions"
-  mapfile -t regions < <(AWS ec2 describe-regions | jq -r '.Regions[].RegionName')
-  for reg in "${regions[@]}"; do
+  local pids=()
+  local failed=0
+
+  echo "Copying AMI '$imageName ($imageID)' to ${AWS_PUBLISH_REGIONS[*]}"
+  for reg in "${AWS_PUBLISH_REGIONS[@]}"; do
     # If the current region is the same as the region we are trying to copy, just ignore, the AMI is already there
     if [[ "${AWS_REGION}" == "${reg}" ]]; then
         continue
@@ -326,9 +328,16 @@ copyToAllRegions() {
 
       echo "[$reg] AMI Copied: $amiCopyID"
     ) &
+    pids+=("$!")
   done
 
-  wait # Wait for all background jobs to finish
+  for pid in "${pids[@]}"; do
+    wait "$pid" || failed=$((failed + 1))
+  done
+  if [ "$failed" -gt 0 ]; then
+    echo "Copying the AMI failed in $failed region(s)"
+    return 1
+  fi
 }
 
 # ----- Main script -----

@@ -57,23 +57,86 @@
         "examples/bundle/Dockerfile"
       ],
       "enabled": false
+    },
+    {
+      "description": "AuroraBoot kept patch updates on automerge in its own repository, unlike the rest of this one.",
+      "matchFileNames": [
+        "auroraboot/**"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "automerge": true
+    },
+    {
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchFileNames": [
+        "auroraboot/go.mod"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "digest"
+      ],
+      "groupName": "auroraboot go dependencies"
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchFileNames": [
+        "auroraboot/ui/**"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "auroraboot frontend dependencies"
+    },
+    {
+      "description": "typescript-eslint caps its typescript peer dependency at <6.1.0, so TypeScript 6 and 7 cannot be installed next to it and `npm run lint` fails outright. Hold typescript on 5.x until typescript-eslint publishes a release that admits it. See kairos-io/AuroraBoot#674 and typescript-eslint/typescript-eslint#10940.",
+      "matchFileNames": [
+        "auroraboot/ui/**"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<6"
+    },
+    {
+      "matchFileNames": [
+        "auroraboot/go.mod"
+      ],
+      "matchDepNames": [
+        "github.com/urfave/cli/v3"
+      ],
+      "enabled": false
+    },
+    {
+      "groupName": "repositories",
+      "matchPackageNames": [
+        "/^quay.io/kairos/packages*/"
+      ]
+    },
+    {
+      "versioning": "regex:^(?<major>\\d{12})-git(?<patch>[a-f0-9]{8})-repository\\.yaml$",
+      "matchPackageNames": [
+        "/^quay.io/kairos/packages*/"
+      ]
+    },
+    {
+      "description": "openSUSE Leap 42.x is the EOL 2017 line, older than 15.x and 16.x, but Renovate reads 42 as the newest version. Keep it out. See kairos-io/AuroraBoot#923.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "opensuse/leap"
+      ],
+      "allowedVersions": "<42"
     }
   ],
   "customManagers": [
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/.github/workflows/.*.ya?ml/",
-        "/internal/testartifacts/.*\\.go$/"
-      ],
-      "matchStrings": [
-        "quay.io/kairos/auroraboot:(?<currentValue>[a-zA-Z0-9_.-]+)",
-        "AuroraBootVersion = \\\"(?<currentValue>[a-zA-Z0-9_.-]+)\\\"",
-        "auroraboot_version:\\s*[\\\"']?(?<currentValue>[a-zA-Z0-9_.-]+)[\\\"']?"
-      ],
-      "depNameTemplate": "quay.io/kairos/auroraboot",
-      "datasourceTemplate": "docker"
-    },
     {
       "customType": "regex",
       "managerFilePatterns": [
@@ -131,6 +194,37 @@
       ],
       "depNameTemplate": "quay.io/kairos/kairos-init",
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^auroraboot/image-assets/luet-(amd64|arm64)\\.yaml$/"
+      ],
+      "matchStrings": [
+        "\\s*#\\s*renovate:\\s*datasource=(?<datasource>.*?) depName=(?<depName>.*?)?\\s+reference:\\s(?<currentValue>.*?)\\s"
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^auroraboot/ui/src/pages/ArtifactBuilder\\.tsx$/"
+      ],
+      "matchStrings": [
+        "//\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*baseImage:\\s*\"[^\"]+:(?<currentValue>[^\"]+)\"",
+        "//\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*const\\s+\\w+\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/_auroraboot-tests\\.yaml$/"
+      ],
+      "matchStrings": [
+        "quay\\.io/kairos/ubuntu:(?<currentValue>24\\.04-core-amd64-generic-v[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "quay.io/kairos/ubuntu",
+      "versioningTemplate": "regex:^24\\.04-core-amd64-generic-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     }
   ]
 }
