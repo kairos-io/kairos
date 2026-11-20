@@ -190,7 +190,10 @@ func netbootCmdline(squashFSfile, cloudConfigFile string, grubCfgFileGet valueGe
 	if nb.Cmdline != "" {
 		line = fmt.Sprintf(`root=live:{{ ID "%s" }}`, squashFSfile) + configURL + " " + nb.Cmdline
 	} else {
-		line = fmt.Sprintf(`rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "%s" }} netboot install-mode-interactive`, squashFSfile) + configURL + " console=tty1 console=ttyS0 console=tty0"
+		// rd.overlay is the dracut 110+ name of rd.live.overlay.overlayfs.
+		// Passing both keeps older dracut working without a deprecation
+		// warning on newer dracut, as grub_live_bios.cfg does.
+		line = fmt.Sprintf(`rd.overlay rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "%s" }} netboot install-mode-interactive`, squashFSfile) + configURL + " console=tty1 console=ttyS0 console=tty0"
 
 		// Without an explicit override, take the options the ISO itself boots
 		// with instead of leaving this list to drift away from it.
