@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
 	"github.com/kairos-io/kairos/v4/sdk/types/images"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -219,6 +220,15 @@ type UpgradeSpec struct {
 	Passive                 images.Image
 	Partitions              partitions.ElementalPartitions
 	ExcludedPaths           []string `yaml:"excluded-paths,omitempty" mapstructure:"excluded-paths"`
+	// Diff asks for a diff upgrade: the agent fetches only the changes from
+	// the running release to the target and applies them onto a copy of the
+	// booted image. Anything that keeps a diff from applying falls back to
+	// the full image in Active.Source.
+	Diff bool `yaml:"diff,omitempty" mapstructure:"diff"`
+	// DiffSource names the diff to apply. Setting it implies Diff. When it is
+	// empty the diff is looked for next to the full image, at its tag with
+	// diffupgrade.TagSuffix appended.
+	DiffSource string `yaml:"diff-source,omitempty" mapstructure:"diff-source"`
 }
 
 func (u *UpgradeSpec) RecoveryUpgrade() bool {
@@ -245,6 +255,26 @@ func (u *UpgradeSpec) Sanitize() error {
 	}
 	return nil
 }
+
+// DiffUpgrade reports whether a diff upgrade was asked for.
+func (u *UpgradeSpec) DiffUpgrade() bool { return u.Diff || u.DiffSource != "" }
+
+// ResolveDiffSource returns the diff to apply, either the one named in
+// DiffSource or the one next to the full image.
+func (u *UpgradeSpec) ResolveDiffSource() (*images.ImageSource, error) {
+	if u.DiffSource != "" {
+		return images.NewSrcFromURI(u.DiffSource)
+	}
+	if u.Active.Source == nil || !u.Active.Source.IsDocker() {
+		return nil, fmt.Errorf("a diff can only be found next to an oci: source, set upgrade.diff-source to name it")
+	}
+	ref, err := diffupgrade.RefFor(u.Active.Source.Value())
+	if err != nil {
+		return nil, err
+	}
+	return images.NewDockerSrc(ref), nil
+}
+
 func (u *UpgradeSpec) ShouldReboot() bool   { return u.Reboot }
 func (u *UpgradeSpec) ShouldShutdown() bool { return u.PowerOff }
 

@@ -29,6 +29,7 @@ import (
 	agentState "github.com/kairos-io/kairos/v4/agent/pkg/state"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -157,11 +158,21 @@ func (u *UpgradeAction) Run() (err error) {
 		return err
 	}
 
-	u.Info("deploying image %s to %s", upgradeImg.Source.Value(), upgradeImg.File)
-	_, err = e.DeployImage(&upgradeImg, true, u.spec.ExcludedPaths...)
-	if err != nil {
-		u.Error("Failed deploying image to file '%s': %s", upgradeImg.File, err)
-		return err
+	// A diff upgrade only changes how the transition image is built. When it
+	// cannot be built from a diff, the full image is deployed as usual.
+	// Either way newID ends up as the release the transition image holds,
+	// recorded once the image is in place (see recordRootfsID).
+	newID, fromDiff := u.tryDiffDeploy(e, &upgradeImg, bootedFrom)
+	if !fromDiff {
+		u.Info("deploying image %s to %s", upgradeImg.Source.Value(), upgradeImg.File)
+		_, err = e.DeployImage(&upgradeImg, true, u.spec.ExcludedPaths...)
+		if err != nil {
+			u.Error("Failed deploying image to file '%s': %s", upgradeImg.File, err)
+			return err
+		}
+		if !u.spec.RecoveryUpgrade() {
+			newID = measureRootfsID(u.config, &upgradeImg)
+		}
 	}
 	cleanup.Push(func() error { return e.DiscardImage(&upgradeImg) })
 
@@ -192,6 +203,13 @@ func (u *UpgradeAction) Run() (err error) {
 		// backup current active.img to passive.img before overwriting the active.img
 		u.Info("Backing up current active image")
 		source := filepath.Join(u.spec.Partitions.State.MountPoint, "cOS", constants.ActiveImgFile)
+		// Read before the move: relabeling passive below rewrites the
+		// image, which voids what was recorded for it, so the ID is
+		// recorded again for passive once that is done.
+		activeID, idErr := diffupgrade.RecordedID(u.config.Fs, source)
+		if idErr != nil {
+			u.Debug("Not carrying a rootfs ID over to passive: %s", idErr)
+		}
 		u.Info("Moving %s to %s", source, u.spec.Passive.File)
 		err = u.config.Fs.Rename(source, u.spec.Passive.File)
 		if err != nil {
@@ -206,6 +224,7 @@ func (u *UpgradeAction) Run() (err error) {
 			u.Debug("Error while labeling the passive image %s, command output: %s", u.spec.Passive.File, out)
 			return err
 		}
+		recordRootfsID(u.config, u.spec.Passive.File, activeID)
 		syscall.Sync()
 	}
 
@@ -216,6 +235,9 @@ func (u *UpgradeAction) Run() (err error) {
 		return err
 	}
 	u.Info("Finished moving %s to %s", upgradeImg.File, finalImageFile)
+	if !u.spec.RecoveryUpgrade() {
+		recordRootfsID(u.config, finalImageFile, newID)
+	}
 
 	syscall.Sync()
 
