@@ -354,20 +354,21 @@ func (u *UpgradeAction) handoffFinalizeToTarget(upgradeImg *sdkImages.Image) err
 		}
 		return err
 	}
-	return utils.ChrootedCallback(u.config, upgradeImg.MountPoint, binds, callback)
+	return utils.ChrootedCallbackWithBinds(u.config, upgradeImg.MountPoint, binds, callback)
 }
 
 // finalizeHandoffBinds returns the bind mounts the target chroot needs so
 // the target agent can reach the host filesystem the same way it does under
 // Kubernetes (host at /host), and so the after-upgrade-chroot hook still
-// finds OEM at /oem and persistent at /usr/local inside the chroot.
-func (u *UpgradeAction) finalizeHandoffBinds() map[string]string {
-	binds := map[string]string{}
+// finds OEM at /oem and persistent at /usr/local inside the chroot. A
+// source can appear more than once, bound to several targets.
+func (u *UpgradeAction) finalizeHandoffBinds() []utils.BindMount {
+	var binds []utils.BindMount
 	addBind := func(src, dst string) {
 		if src == "" || dst == "" {
 			return
 		}
-		binds[src] = dst
+		binds = append(binds, utils.BindMount{Source: src, Target: dst})
 	}
 	if u.spec.Partitions.State != nil {
 		addBind(u.spec.Partitions.State.MountPoint, filepath.Join(constants.HandoffHostPrefix, u.spec.Partitions.State.MountPoint))
