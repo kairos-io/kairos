@@ -599,6 +599,26 @@ var _ = Describe("Deployer", func() {
 			Expect(d.Close()).To(Succeed())
 			Expect(bmc.sawRequest(http.MethodDelete, bmc.sessionLocation)).To(BeTrue())
 		})
+
+		It("lets Close finish the session DELETE when Config.Timeout runs out during it", func() {
+			// Close runs while the connection is still live, and the BMC answers
+			// the DELETE only after Config.Timeout has run out. The logout must not
+			// be bound to the connection deadline, or it is cut off and the
+			// session leaks on the BMC.
+			bmc.sessionDeleteDelay = 600 * time.Millisecond
+			d = redfish.NewDeployer(redfish.Config{
+				Endpoint:  bmc.URL(),
+				Username:  testUser,
+				Password:  testPassword,
+				VerifySSL: false,
+				Timeout:   500 * time.Millisecond,
+			})
+
+			Expect(d.Connect(ctx)).To(Succeed())
+			Expect(d.Close()).To(Succeed())
+			Expect(bmc.sessionWasDeleted()).To(BeTrue(),
+				"the session DELETE was cancelled by the connection deadline")
+		})
 	})
 
 	Describe("Authentication mode", func() {
