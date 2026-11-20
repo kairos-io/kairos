@@ -16,6 +16,10 @@ name: UKI qemu test
 on:
   workflow_call:
     inputs:
+      auroraboot_artifact:
+        description: 'Prefix of the workflow artifacts that hold AuroraBoot as a docker archive, used to build the upgrade image'
+        type: string
+        required: true
       base_image:
         description: 'Base OCI image the trusted-boot Kairos flavor was built on top of (e.g. ghcr.io/kairos-io/hadron-trusted:v0.6.3)'
         type: string
@@ -282,6 +286,17 @@ jobs:
         with:
           driver-opts: network=host
 
+      - name: Download the AuroraBoot image
+        if: inputs.test == 'install-upgrade'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: ${{ inputs.auroraboot_artifact }}-${{ inputs.arch }}
+          path: ${{ runner.temp }}/auroraboot-image
+
+      - name: Load the AuroraBoot image
+        if: inputs.test == 'install-upgrade'
+        run: docker load -i "$RUNNER_TEMP/auroraboot-image/auroraboot-image.tar"
+
       - name: Build & push UKI upgrade image
         # Only the install-upgrade spec needs an upgrade target: it installs
         # off the UKI ISO and then upgrades to a slightly-modified
@@ -304,7 +319,7 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$PWD/build":/result \
             -v "$RUNNER_TEMP/test-keys":/keys \
-            quay.io/kairos/auroraboot:v0.30.0 --debug build-uki \
+            auroraboot:ci --debug build-uki \
               --output-dir /result --output-type container \
               --public-keys /keys \
               --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
