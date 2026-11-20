@@ -591,7 +591,14 @@ jobs:
 
           # Handle version resolution
           if [[ "${INPUTS_VERSION}" == "auto" ]]; then
-            VERSION=$(git describe --tags --dirty --always)
+            if [[ "${GITHUB_REF_TYPE}" == "tag" && -n "${GITHUB_REF_NAME}" ]]; then
+              # Two tags can sit on one commit when a rejected release is
+              # re-cut. git describe then keeps the alphabetically first
+              # one, so a tag build uses the name of the tag being built.
+              VERSION="${GITHUB_REF_NAME}"
+            else
+              VERSION=$(git describe --tags --dirty --always)
+            fi
             # Handle three cases:
             # 1. No tags: 39d55d3 → v0.0.0-39d55d3
             # 2. Dirty tag: v3.5.0-23-g94fe1d98 → keep as is
