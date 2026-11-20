@@ -5,8 +5,8 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // issueCommand queues one Pending command for nodeID the way the command

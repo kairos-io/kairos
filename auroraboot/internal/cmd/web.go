@@ -15,7 +15,7 @@
 //	@description	  * GET /api/v1/ws/ui: UI live update channel (auth via the session cookie, or Authorization: Bearer <admin-password>; same-origin only).
 //
 //	@contact.name	Kairos authors
-//	@contact.url	https://github.com/kairos-io/AuroraBoot
+//	@contact.url	https://github.com/kairos-io/kairos
 //	@license.name	Apache-2.0
 //	@license.url	https://www.apache.org/licenses/LICENSE-2.0
 //
@@ -64,18 +64,18 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/kairos-io/AuroraBoot/docs" // swag-generated; populates docs.SwaggerInfo
-	"github.com/kairos-io/AuroraBoot/internal/builder/auroraboot"
-	"github.com/kairos-io/AuroraBoot/internal/builder/operator"
-	netbootmgr "github.com/kairos-io/AuroraBoot/internal/netbootmgr"
-	"github.com/kairos-io/AuroraBoot/internal/secrets"
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
-	"github.com/kairos-io/AuroraBoot/pkg/batches"
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/handlers"
-	"github.com/kairos-io/AuroraBoot/pkg/isoserve"
-	"github.com/kairos-io/AuroraBoot/pkg/server"
-	"github.com/kairos-io/AuroraBoot/pkg/ws"
+	_ "github.com/kairos-io/kairos/auroraboot/docs" // swag-generated; populates docs.SwaggerInfo
+	"github.com/kairos-io/kairos/auroraboot/internal/builder/auroraboot"
+	"github.com/kairos-io/kairos/auroraboot/internal/builder/operator"
+	netbootmgr "github.com/kairos-io/kairos/auroraboot/internal/netbootmgr"
+	"github.com/kairos-io/kairos/auroraboot/internal/secrets"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
+	"github.com/kairos-io/kairos/auroraboot/pkg/batches"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/handlers"
+	"github.com/kairos-io/kairos/auroraboot/pkg/isoserve"
+	"github.com/kairos-io/kairos/auroraboot/pkg/server"
+	"github.com/kairos-io/kairos/auroraboot/pkg/ws"
 
 	"github.com/labstack/echo/v4"
 	"github.com/urfave/cli/v2"
@@ -247,8 +247,12 @@ func runWeb(c *cli.Context) error {
 	var systemInfo handlers.APISystemBuilder
 	switch builderKind {
 	case "local":
+		kairosInitImage := os.Getenv("KAIROS_INIT_IMAGE")
+		if kairosInitImage == "" {
+			kairosInitImage = auroraboot.KairosInitImageFor(c.App.Version)
+		}
 		local, err := auroraboot.New(artifactsDir, nil, artifactStore).
-			WithKairosInitImage(os.Getenv("KAIROS_INIT_IMAGE"))
+			WithKairosInitImage(kairosInitImage)
 		if err != nil {
 			return fmt.Errorf("KAIROS_INIT_IMAGE: %w", err)
 		}

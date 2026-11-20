@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/AuroraBoot/internal"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
-	"github.com/kairos-io/AuroraBoot/pkg/utils"
+	"github.com/kairos-io/kairos/auroraboot/internal"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/utils"
 	agentConstants "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"

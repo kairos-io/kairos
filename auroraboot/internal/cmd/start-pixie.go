@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kairos-io/AuroraBoot/internal"
-	"github.com/kairos-io/AuroraBoot/pkg/ops"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/internal"
+	"github.com/kairos-io/kairos/auroraboot/pkg/ops"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/urfave/cli/v2"
 )

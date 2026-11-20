@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	cmd "github.com/kairos-io/AuroraBoot/internal/cmd"
+	cmd "github.com/kairos-io/kairos/auroraboot/internal/cmd"
 )
 
 var (

@@ -8,14 +8,31 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
 )
 
+var _ = Describe("KairosInitImageFor", func() {
+	DescribeTable("picks the kairos-init tag that matches the AuroraBoot version",
+		func(version, want string) {
+			Expect(KairosInitImageFor(version)).To(Equal("quay.io/kairos/kairos-init:" + want))
+		},
+		Entry("a release", "v4.5.1", "v4.5.1"),
+		Entry("a release candidate", "v4.6.0-rc2", "v4.6.0-rc2"),
+		Entry("a dotted prerelease", "v4.6.0-beta.1", "v4.6.0-beta.1"),
+		Entry("the placeholder of an unversioned build", "v0.0.0", "latest"),
+		Entry("an empty version", "", "latest"),
+		Entry("a development build", "dev", "latest"),
+		Entry("a build between tags", "v4.5.1-5-gabc1234", "latest"),
+		Entry("a dirty build", "v4.5.1-dirty", "latest"),
+		Entry("a version without the v", "4.5.1", "latest"),
+	)
+})
+
 var _ = Describe("WithKairosInitImage", func() {
-	It("keeps the pinned default for an empty reference", func() {
+	It("keeps the default for an empty reference", func() {
 		b, err := New(GinkgoT().TempDir(), nil, nil).WithKairosInitImage("")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(b.kairosInitImage).To(Equal(defaultKairosInitImage + ":" + defaultKairosInitVersion))
+		Expect(b.kairosInitImage).To(Equal(KairosInitImageFor("")))
 	})
 
 	It("refuses a reference that would add lines to the kairosify Dockerfile", func() {
@@ -45,10 +62,10 @@ var _ = Describe("kairosify kairos-init image", func() {
 		outputDir = GinkgoT().TempDir()
 	})
 
-	It("uses the pinned default when nothing else names one", func() {
+	It("uses the default when nothing else names one", func() {
 		b := New(outputDir, nil, &kairosifyTestStore{})
 		Expect(render(b, builder.BuildOptions{ID: "a-1"})).To(HavePrefix(
-			"FROM " + defaultKairosInitImage + ":" + defaultKairosInitVersion + " AS kairos-init\n"))
+			"FROM " + KairosInitImageFor("") + " AS kairos-init\n"))
 	})
 
 	It("uses the image the builder was configured with", func() {
