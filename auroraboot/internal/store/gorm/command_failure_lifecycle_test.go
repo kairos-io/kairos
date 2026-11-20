@@ -7,8 +7,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // An upgrade or reset that fails before the reboot never brings the node back

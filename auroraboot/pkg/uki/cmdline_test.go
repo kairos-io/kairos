@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

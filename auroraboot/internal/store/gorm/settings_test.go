@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
 )
 
 var _ = Describe("settingStore", func() {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	cmdpkg "github.com/kairos-io/AuroraBoot/internal/cmd"
+	cmdpkg "github.com/kairos-io/kairos/auroraboot/internal/cmd"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/urfave/cli/v2"

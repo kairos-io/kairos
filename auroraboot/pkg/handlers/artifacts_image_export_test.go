@@ -20,8 +20,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 
-	"github.com/kairos-io/AuroraBoot/pkg/handlers"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/handlers"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	"github.com/labstack/echo/v4"
 )
 

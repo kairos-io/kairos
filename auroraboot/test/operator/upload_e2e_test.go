@@ -19,8 +19,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	opbuilder "github.com/kairos-io/AuroraBoot/internal/builder/operator"
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
+	opbuilder "github.com/kairos-io/kairos/auroraboot/internal/builder/operator"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
 )
 
 var _ = Describe("Operator exporter uploads artifacts back to AuroraBoot", func() {

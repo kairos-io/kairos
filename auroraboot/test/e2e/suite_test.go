@@ -29,10 +29,10 @@ import (
 	"github.com/spectrocloud/peg/pkg/machine"
 	"github.com/spectrocloud/peg/pkg/machine/types"
 
-	"github.com/kairos-io/AuroraBoot/internal/builder/auroraboot"
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
-	"github.com/kairos-io/AuroraBoot/pkg/server"
-	"github.com/kairos-io/AuroraBoot/pkg/ws"
+	"github.com/kairos-io/kairos/auroraboot/internal/builder/auroraboot"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
+	"github.com/kairos-io/kairos/auroraboot/pkg/server"
+	"github.com/kairos-io/kairos/auroraboot/pkg/ws"
 )
 
 func TestE2E(t *testing.T) {
