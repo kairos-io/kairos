@@ -258,6 +258,11 @@ func (h *DeployHandler) StartNetboot(c echo.Context) error {
 			return c.JSON(http.StatusConflict, map[string]string{"error": "netboot server is already running"})
 		case errors.Is(err, netbootmgr.ErrNoNetbootFiles):
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "artifact has no netboot files"})
+		case errors.Is(err, netbootmgr.ErrExitedAtStart):
+			// Most often the port is taken, e.g. by the Redfish ISO server.
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf(
+				"netboot server exited right after it started; check that port %s is free (--netboot-port), and see the server log",
+				h.netboot.GetStatus().Port)})
 		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to start netboot server; see the server log"})
 	}
