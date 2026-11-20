@@ -182,6 +182,41 @@ var _ = Describe("ExtractFilesFromLastLayer", Label("sysext"), func() {
 		Expect(info.Mode() & os.ModeSetuid).ToNot(BeZero())
 	})
 
+	It("keeps the layer's permission bits whatever the umask of the process", func() {
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/bin/", Mode: 0o755},
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/bin/tool", Mode: 0o755},
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/share/groupw/", Mode: 0o775},
+			tar.Header{Typeflag: tar.TypeReg, Name: "usr/share/groupw/data", Mode: 0o664},
+			tar.Header{Typeflag: tar.TypeReg, Name: "etc/app.conf", Mode: 0o644},
+		)
+		old := syscall.Umask(0o077)
+		defer syscall.Umask(old)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		for name, want := range map[string]os.FileMode{
+			"usr/bin":               0o755,
+			"usr/bin/tool":          0o755,
+			"usr/share/groupw":      0o775,
+			"usr/share/groupw/data": 0o664,
+			"etc/app.conf":          0o644,
+		} {
+			info, err := os.Stat(filepath.Join(dest, name))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.Mode().Perm()).To(Equal(want), name)
+		}
+	})
+
+	It("sets the layer's mode on a directory that already exists", func() {
+		Expect(os.MkdirAll(filepath.Join(dest, "usr/share/groupw"), 0o700)).To(Succeed())
+		image := imageWithLayer(
+			tar.Header{Typeflag: tar.TypeDir, Name: "usr/share/groupw/", Mode: 0o775},
+		)
+		Expect(ExtractFilesFromLastLayer(image, dest, log, DefaultAllowListRegex)).To(Succeed())
+		info, err := os.Stat(filepath.Join(dest, "usr/share/groupw"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o775)))
+	})
+
 	It("truncates an existing file instead of leaving stale trailing bytes", func() {
 		target := filepath.Join(dest, "usr", "data")
 		Expect(os.MkdirAll(filepath.Dir(target), 0o755)).To(Succeed())
