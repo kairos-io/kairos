@@ -1,0 +1,76 @@
+suite: ingress
+templates:
+  - ingress.yaml
+tests:
+  - it: renders an Ingress with the supplied host and no tls by default
+    set:
+      host: auroraboot.example.com
+    release:
+      name: ab
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.rules[0].host
+          value: auroraboot.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: ab-auroraboot
+      - notExists:
+          path: spec.tls
+
+  - it: is omitted when ingress.enabled=false
+    set:
+      host: auroraboot.example.com
+      ingress:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: references an existing TLS secret when configured
+    set:
+      host: auroraboot.example.com
+      ingress:
+        tls:
+          enabled: true
+          existingSecret: my-cert
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: my-cert
+      - contains:
+          path: spec.tls[0].hosts
+          content: auroraboot.example.com
+
+  - it: adds cert-manager annotation and derived secret name when issuerName is set
+    set:
+      host: auroraboot.example.com
+      ingress:
+        tls:
+          enabled: true
+          issuerName: letsencrypt
+    release:
+      name: ab
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt
+      - equal:
+          path: spec.tls[0].secretName
+          value: ab-auroraboot-tls
+
+  - it: uses the Issuer kind annotation when issuerKind=Issuer
+    set:
+      host: auroraboot.example.com
+      ingress:
+        tls:
+          enabled: true
+          issuerName: letsencrypt
+          issuerKind: Issuer
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/issuer"]
+          value: letsencrypt

@@ -1,0 +1,22 @@
+apiVersion: v2
+name: auroraboot
+description: AuroraBoot web UI wired to the kairos-operator as its build backend.
+type: application
+# Placeholders. The release workflow packages the chart with
+# --version X.Y.Z --app-version vX.Y.Z and the release image repository, so the
+# chart published to oci://ghcr.io/kairos-io/charts carries the Kairos release
+# version. A checkout of the repository deploys the image of the master branch
+# from ghcr.io/kairos-io/kairos/auroraboot, the `master` tag.
+version: 0.0.0
+appVersion: "master"
+home: https://kairos.io
+sources:
+  - https://github.com/kairos-io/kairos
+maintainers:
+  - name: kairos-io
+    url: https://github.com/kairos-io
+keywords:
+  - kairos
+  - auroraboot
+  - netboot
+  - immutable-os

@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-navy: var(--navy);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-neutral: var(--neutral);
+  --color-neutral-foreground: var(--neutral-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-fg: var(--sidebar-fg);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: "Noto Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #EE5007;
+  --primary-hover: #FF7442;
+  --primary-foreground: #FFFFFF;
+  --primary-soft: #FFF0E8;
+  --navy: #03153A;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #03153A;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #F1F5F9;
+  --accent-foreground: #0F172A;
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #FF7442;
+  --radius: 0.625rem;
+
+  --success: #1A9A52;
+  --success-foreground: #12733C;
+  --warning: #C98A04;
+  --warning-foreground: #8F6200;
+  --danger: #D6372C;
+  --danger-foreground: #A8261D;
+  --info: #2F6FE0;
+  --info-foreground: #1F53B5;
+  --neutral: #8A94A8;
+  --neutral-foreground: #56607A;
+
+  --sidebar-bg: var(--navy);
+  --sidebar-fg: #e2e8f0;
+  --sidebar-accent: #EE5007;
+  --sidebar-muted: rgba(255, 255, 255, 0.1);
+}
+
+.dark {
+  --background: #1a1e25;
+  --foreground: #f1f5f9;
+  --card: #232830;
+  --card-foreground: #f1f5f9;
+  --popover: #232830;
+  --popover-foreground: #f1f5f9;
+  --primary: #FF7442;
+  --primary-hover: #FF8A5C;
+  --primary-foreground: #0F172A;
+  --primary-soft: #2A1A14;
+  --navy: #111419;
+  --secondary: #2d3341;
+  --secondary-foreground: #f1f5f9;
+  --muted: #2d3341;
+  --muted-foreground: #94a3b8;
+  --accent: #2D3341;
+  --accent-foreground: #F1F5F9;
+  --destructive: var(--danger);
+  --destructive-foreground: #ffffff;
+  --border: #334155;
+  --input: #334155;
+  --ring: #EE5007;
+
+  --success: #3CC97A;
+  --success-foreground: #5FDC95;
+  --warning: #EAB308;
+  --warning-foreground: #F4C93F;
+  --danger: #FF5F55;
+  --danger-foreground: #FF8A82;
+  --info: #5D93FF;
+  --info-foreground: #8AB0FF;
+  --neutral: #6F7A91;
+  --neutral-foreground: #A3ADC2;
+
+  --sidebar-bg: var(--navy);
+  --sidebar-fg: #e2e8f0;
+  --sidebar-accent: #FF7442;
+  --sidebar-muted: rgba(255, 255, 255, 0.08);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+.terminal-output {
+  background: var(--navy);
+  color: #e2e8f0;
+}
+
+/* Subtle entrance animations used by the onboarding wizard and banners.
+   Kept to transform + opacity for 60fps, ease-out quint for a natural
+   decel, and fully suppressed under prefers-reduced-motion so nothing
+   moves for motion-sensitive users. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade-up-delay-1 {
+  animation: fade-up 360ms cubic-bezier(0.22, 1, 0.36, 1) 80ms both;
+}
+
+.animate-fade-up-delay-2 {
+  animation: fade-up 360ms cubic-bezier(0.22, 1, 0.36, 1) 160ms both;
+}
+
+.animate-fade-up-delay-3 {
+  animation: fade-up 360ms cubic-bezier(0.22, 1, 0.36, 1) 240ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-up-delay-1,
+  .animate-fade-up-delay-2,
+  .animate-fade-up-delay-3 {
+    animation: none;
+  }
+}

@@ -1,0 +1,32 @@
+name: 'Prefer IPv4'
+description: 'Takes IPv6 out of the runner network namespace so outgoing connections use IPv4'
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        # The self-hosted runners have no IPv6 route off the cluster, but they
+        # do get an IPv6 address, so Go prefers the AAAA record of a registry
+        # host and the connection dies with "network is unreachable". BuildKit
+        # does not treat that error as retryable, so a single dial fails the
+        # whole build. Dropping the addresses makes IPv4 the only candidate.
+        # Refs kairos-io/kairos#4686.
+        echo "addresses and routes before:"
+        ip -6 addr show scope global || true
+        ip -6 route show default || true
+
+        SUDO=sudo
+        [ "$(id -u)" -eq 0 ] && SUDO=
+
+        # Loopback is left alone so that services bound to ::1 keep working.
+        ok=true
+        for ifc in default $(ls /proc/sys/net/ipv6/conf | grep -vxE 'lo|all|default'); do
+          $SUDO sysctl -qw "net.ipv6.conf.$ifc.disable_ipv6=1" || ok=false
+        done
+
+        if [ "$ok" = true ]; then
+          echo "addresses after:"
+          ip -6 addr show scope global || true
+        else
+          echo "::warning::could not disable IPv6, registry pulls may still pick an unreachable AAAA record"
+        fi

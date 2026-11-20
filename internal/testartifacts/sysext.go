@@ -70,6 +70,10 @@ func BuildSysext(ctx context.Context, opts SysextOptions) (string, error) {
 	}
 	defer func() { _ = docker(context.Background(), "rmi", "-f", tag) }()
 
+	image, err := AuroraBootImage(ctx)
+	if err != nil {
+		return "", err
+	}
 	sock, err := socketArgs()
 	if err != nil {
 		return "", err
@@ -90,14 +94,14 @@ func BuildSysext(ctx context.Context, opts SysextOptions) (string, error) {
 		args = append(args, "-v", opts.KeyFile+":/keys/key.pem:ro", "-v", opts.CertFile+":/keys/cert.pem:ro")
 		sysextArgs = append(sysextArgs, "--private-key", "/keys/key.pem", "--certificate", "/keys/cert.pem")
 	}
-	args = append(args, AuroraBootImage)
+	args = append(args, image)
 	args = append(args, sysextArgs...)
 	args = append(args, opts.Name, tag)
 	if err := docker(ctx, args...); err != nil {
 		return "", err
 	}
 	out := opts.Name + ".sysext.raw"
-	if err := chownOutput(ctx, opts.Dir, out); err != nil {
+	if err := chownOutput(ctx, image, opts.Dir, out); err != nil {
 		return "", err
 	}
 	return filepath.Join(opts.Dir, out), nil
@@ -106,9 +110,9 @@ func BuildSysext(ctx context.Context, opts SysextOptions) (string, error) {
 // chownOutput gives a file a root container wrote into a bind mount back to
 // the calling user, who cannot chown it from the host. The paths inside the
 // image stay root owned; only the image file itself changes hands.
-func chownOutput(ctx context.Context, dir, name string) error {
+func chownOutput(ctx context.Context, image, dir, name string) error {
 	args := []string{"run", "--rm", "-v", dir + ":/out", "--entrypoint", "chown",
-		AuroraBootImage, fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "/out/" + name}
+		image, fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid()), "/out/" + name}
 	if err := docker(ctx, args...); err != nil {
 		return fmt.Errorf("taking ownership of %s: %w", name, err)
 	}
@@ -146,10 +150,14 @@ func BuildPlainSquashfsSysext(ctx context.Context, dir, name string) (string, er
 		return "", err
 	}
 
+	image, err := AuroraBootImage(ctx)
+	if err != nil {
+		return "", err
+	}
 	out := name + ".sysext.raw"
 	args := append([]string{"run", "--rm"}, userArgs()...)
 	args = append(args, "-v", src+":/src:ro", "-v", dir+":/out", "--entrypoint", "mksquashfs",
-		AuroraBootImage, "/src", "/out/"+out, "-all-root", "-noappend", "-quiet")
+		image, "/src", "/out/"+out, "-all-root", "-noappend", "-quiet")
 	if err := docker(ctx, args...); err != nil {
 		return "", fmt.Errorf("building %s: %w", out, err)
 	}

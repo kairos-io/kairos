@@ -19,6 +19,7 @@ package action
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"time"
@@ -193,6 +194,9 @@ func (i InstallAction) Run() (err error) {
 	if err != nil {
 		return err
 	}
+	if i.spec.Firmware == sdkConstants.EFI {
+		i.writeEFIBootEntry()
+	}
 
 	// Relabel SELinux
 	binds := map[string]string{}
@@ -283,4 +287,46 @@ func (i InstallAction) Run() (err error) {
 	}
 	progress.EmitStep(agentrun.StepDone)
 	return nil
+}
+
+// writeEFIBootEntry gives the installed disk a UEFI boot entry, first in
+// BootOrder (see WriteEFIBootEntry). The GRUB install alone leaves the disk
+// bootable only through the removable-media path, which a firmware with
+// other entries in its boot list may never try. A failure only warns: that
+// path still works on every firmware that tries it.
+func (i *InstallAction) writeEFIBootEntry() {
+	efi := i.spec.Partitions.EFI
+	if efi == nil || efi.Path == "" {
+		i.cfg.Logger.Warnf("Not writing a UEFI boot entry: the EFI partition has no device path")
+		return
+	}
+	loader := RemovableMediaLoader(cnst.GetFallBackEfi(i.cfg.Arch))
+	name := efiBootEntryName(i.cfg, i.spec.Active.MountPoint, i.spec.GrubDefEntry)
+	var out strings.Builder
+	if err := WriteEFIBootEntry(efiBootEntryPaths(), efi.Path, loader, name, &out); err != nil {
+		i.cfg.Logger.Warnf("Could not write a UEFI boot entry, the firmware can still boot %s: %s", loader, err)
+		return
+	}
+	i.cfg.Logger.Infof("UEFI boot entry: %s", strings.TrimSpace(out.String()))
+}
+
+// efiBootEntryPaths is a variable so a test can keep the install action away
+// from the machine's own firmware variables.
+var efiBootEntryPaths = DefaultEFIBootEntryPaths
+
+// efiBootEntryName is the name the firmware's boot menu shows: the GRUB menu
+// name (install.grub-entry-name, else GRUB_ENTRY_NAME from the image's
+// kairos-release or os-release, as SetDefaultGrubEntry reads it), else
+// constants.GrubDefEntry.
+func efiBootEntryName(cfg *sdkConfig.Config, imgMountPoint, configured string) string {
+	if configured != "" {
+		return configured
+	}
+	for _, f := range []string{"kairos-release", "os-release"} {
+		env, err := utils.LoadEnvFile(cfg.Fs, filepath.Join(imgMountPoint, "etc", f))
+		if err == nil && env["GRUB_ENTRY_NAME"] != "" {
+			return env["GRUB_ENTRY_NAME"]
+		}
+	}
+	return cnst.GrubDefEntry
 }

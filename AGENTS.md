@@ -273,6 +273,11 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
 
 ## This repository, specifically
 
+- `auroraboot/` is its own Go module, `github.com/kairos-io/kairos/auroraboot`,
+  and a `replace` points it at the root module. A green root `go test ./...`
+  says nothing about it. Run `make -C auroraboot test`, which builds the UI
+  bundle that the Go packages embed, and `make -C auroraboot vet-tagged` for the
+  build-tagged trees.
 - `go build ./...` and `go test ./...` fail on a fresh clone with
   `pattern binaries/edgevpn: no matching files found`. `kairos-init/pkg/bundled`
   embeds binaries that are built rather than committed. Run `make test` and
@@ -297,10 +302,16 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
   itself at runtime.
 - Test fixtures are generated, not committed. `internal/testartifacts`
   builds them, and `cmd/test-artifacts` is its command line for CI.
-  Generating keys downloads the AuroraBoot release binary and needs `openssl`
-  and `libpcsclite`; building system extensions also needs Docker. Set
-  `KAIROS_TEST_AURORABOOT_BINARY` to a local `auroraboot` binary to skip the
-  download, for offline hosts or architectures without a release binary.
+  Both run the AuroraBoot of the same checkout, built from `auroraboot/`.
+  Generating keys builds the `auroraboot` binary and needs a C compiler,
+  `openssl` and `libpcsclite`; building system extensions builds the AuroraBoot
+  image and needs Docker. Set `KAIROS_TEST_AURORABOOT_BINARY` or
+  `KAIROS_TEST_AURORABOOT_IMAGE` to use a binary or an image you already have.
+- The merge queue waits for the `pr-gate` job of `pr.yaml`, which passes when
+  every job of that workflow succeeded or was skipped. A change that only
+  touches Markdown, the docs or the AuroraBoot web UI or Helm chart skips the
+  image builds and boot tests (`scripts/changed-parts.sh` decides). Add a new
+  job of `pr.yaml` to the `needs` of `pr-gate`.
 - Releases are cut by the `weekly-release` workflow and approved by a
   maintainer in the `promote` job of `release.yaml`. `RELEASING.md` has the
   procedure. Change that file in the same pull request as any change to those
