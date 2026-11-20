@@ -132,6 +132,46 @@ var _ = Describe("Rate limiting", func() {
 		})
 	})
 
+	// kairos-io/kairos#6001: the agent websocket asks Allow for each
+	// heartbeat frame, and has to draw from the bucket the REST routes use.
+	Describe("NodeLimiter", func() {
+		fire := func(mw echo.MiddlewareFunc, nodeID string) int {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set(auth.ContextKeyNodeID, nodeID)
+			_ = mw(okHandler)(c)
+			return rec.Code
+		}
+
+		It("shares one bucket per node between Allow and Middleware", func() {
+			// A rate this low refills nothing during the spec.
+			limiter := auth.NewNodeLimiter(0.001, 3)
+			mw := limiter.Middleware()
+
+			Expect(limiter.Allow("node-a")).To(BeTrue())
+			Expect(fire(mw, "node-a")).To(Equal(http.StatusOK))
+			Expect(limiter.Allow("node-a")).To(BeTrue())
+			// The burst of 3 is spent, over both paths.
+			Expect(limiter.Allow("node-a")).To(BeFalse())
+			Expect(fire(mw, "node-a")).To(Equal(http.StatusTooManyRequests))
+
+			// Another node has a bucket of its own.
+			Expect(limiter.Allow("node-b")).To(BeTrue())
+		})
+
+		It("always allows when disabled, and for an empty node ID", func() {
+			disabled := auth.NewNodeLimiter(0, 0)
+			limiter := auth.NewNodeLimiter(0.001, 1)
+			for i := 0; i < 10; i++ {
+				Expect(disabled.Allow("node-a")).To(BeTrue())
+				Expect(limiter.Allow("")).To(BeTrue())
+			}
+			var unset *auth.NodeLimiter
+			Expect(unset.Allow("node-a")).To(BeTrue())
+		})
+	})
+
 	Describe("RegistrationRateLimiter", func() {
 		// fireFromIP sends n requests through the limiter from the given client IP,
 		// returning the status codes and the elapsed time. No node ID is set —
