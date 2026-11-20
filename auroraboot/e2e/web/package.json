@@ -1,0 +1,16 @@
+{
+  "name": "auroraboot-e2e-web",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Cypress smoke suite for the AuroraBoot web UI. Runs in CI against a freshly-started AuroraBoot container (see .github/workflows/tests.yml test-ui-builder job); not published or consumed as a library.",
+  "scripts": {
+    "cy:open": "cypress open",
+    "cy:run": "cypress run"
+  },
+  "devDependencies": {
+    "cypress": "^16.0.0"
+  },
+  "overrides": {
+    "qs": "6.17.1"
+  }
+}

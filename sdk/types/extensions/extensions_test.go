@@ -258,3 +258,25 @@ func TestParseCmdlineRejectsAnUnreadableEntry(t *testing.T) {
 		t.Errorf("error %q does not name the key that carried the bad value", err)
 	}
 }
+
+// A comma inside a version constraint belongs to the constraint, so
+// `fwupd@>=2.1,<3` is one extension, and the list around it still splits.
+func TestParseCmdlineKeepsCommaInConstraint(t *testing.T) {
+	got, err := ParseCmdline("quiet kairos.extensions=gpg,fwupd@>=2.1,<3,oci://ghcr.io/example/a.sysext.raw")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := Extensions{
+		{Name: "gpg"},
+		{Name: "fwupd", Version: ">=2.1,<3"},
+		{Name: "oci://ghcr.io/example/a.sysext.raw"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("entry %d: got %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}

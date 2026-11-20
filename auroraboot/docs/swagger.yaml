@@ -1,0 +1,2588 @@
+basePath: /
+definitions:
+  builder.ExtensionBuildStatus:
+    properties:
+      containerImage:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      phase:
+        type: string
+      rawFile:
+        type: string
+    type: object
+  handlers.APIArtifactOutputs:
+    properties:
+      cloudImage:
+        type: boolean
+      fips:
+        type: boolean
+      gce:
+        type: boolean
+      iso:
+        description: |-
+          The installer ISO. With trustedBoot it is the signed UKI ISO, which
+          needs signing.ukiKeySetId.
+        type: boolean
+      maas:
+        type: boolean
+      netboot:
+        description: |-
+          Not available with trustedBoot, like rawDisk, cloudImage, gce, vhd and
+          maas: a Trusted Boot image has no GRUB and no separate initrd.
+        type: boolean
+      rawDisk:
+        type: boolean
+      tar:
+        type: boolean
+      trustedBoot:
+        type: boolean
+      vhd:
+        type: boolean
+    type: object
+  handlers.APIArtifactProvisioning:
+    properties:
+      allowedCommands:
+        description: |-
+          AllowedCommands is the explicit list emitted under phonehome.allowed_commands.
+          Nil means "use AuroraBoot's safe default set". An empty slice means deny-all
+          (observe-only node) — the UI warns when the operator picks this.
+        items:
+          type: string
+        type: array
+      autoInstall:
+        type: boolean
+      password:
+        type: string
+      registerAuroraBoot:
+        type: boolean
+      sshKeys:
+        type: string
+      targetGroupId:
+        type: string
+      userMode:
+        enum:
+        - default
+        - custom
+        - none
+        type: string
+      username:
+        type: string
+    type: object
+  handlers.APIArtifactSigning:
+    properties:
+      ukiKeySetId:
+        type: string
+      ukiSecureBootEnroll:
+        enum:
+        - "off"
+        - manual
+        - if-safe
+        - force
+        type: string
+    type: object
+  handlers.APIBulkCommandRequest:
+    properties:
+      args:
+        additionalProperties:
+          type: string
+        type: object
+      command:
+        example: upgrade
+        type: string
+      concurrency:
+        description: Concurrency caps how many nodes run at once. 0 runs every node
+          at once.
+        type: integer
+      rebootTimeoutSeconds:
+        description: |-
+          RebootTimeoutSeconds is how long a node that reboots may take to come
+          back. Defaults to 600, at most 604800 (7 days).
+        type: integer
+      selector:
+        $ref: '#/definitions/store.CommandSelector'
+      stopOnFailure:
+        description: StopOnFailure stops the batch when a node fails. Defaults to
+          true.
+        type: boolean
+    type: object
+  handlers.APIBusyNodesError:
+    properties:
+      error:
+        type: string
+      nodeIDs:
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.APIClaimRequest:
+    properties:
+      claimKey:
+        example: machine-abc123
+        type: string
+    type: object
+  handlers.APICreateArtifactRequest:
+    properties:
+      allow-insecure-registries:
+        example: false
+        type: boolean
+      arch:
+        enum:
+        - amd64
+        - arm64
+        example: amd64
+        type: string
+      baseImage:
+        type: string
+      cloudConfig:
+        type: string
+      dockerfile:
+        type: string
+      extensions:
+        description: |-
+          Extensions are catalog extension names (name or name@version) to place
+          in the built ISO. ExtensionsCatalogs replaces the default catalog they
+          resolve against; each one must be an http or https URL.
+        items:
+          type: string
+        type: array
+      extensionsCatalogs:
+        items:
+          type: string
+        type: array
+      hadronBase:
+        type: string
+      hadronExtra:
+        type: string
+      hadronFirmware:
+        items:
+          type: string
+        type: array
+      hadronLayers:
+        items:
+          type: string
+        type: array
+      kairosInitImage:
+        type: string
+      kairosVersion:
+        example: v1.0
+        type: string
+      kubernetesDistro:
+        enum:
+        - k3s
+        - k0s
+        type: string
+      kubernetesEnabled:
+        type: boolean
+      kubernetesVersion:
+        type: string
+      model:
+        example: generic
+        type: string
+      name:
+        type: string
+      outputs:
+        $ref: '#/definitions/handlers.APIArtifactOutputs'
+      overlayId:
+        description: ID returned by POST /api/v1/artifacts/upload-overlay
+        format: uuid
+        type: string
+      provisioning:
+        $ref: '#/definitions/handlers.APIArtifactProvisioning'
+      signing:
+        $ref: '#/definitions/handlers.APIArtifactSigning'
+      variant:
+        enum:
+        - core
+        - standard
+        example: core
+        type: string
+    type: object
+  handlers.APICreateCommandRequest:
+    properties:
+      args:
+        additionalProperties:
+          type: string
+        type: object
+      command:
+        enum:
+        - upgrade
+        - upgrade-recovery
+        - reset
+        - apply-cloud-config
+        - reboot
+        - exec
+        example: upgrade
+        type: string
+    type: object
+  handlers.APICreateGroupRequest:
+    properties:
+      description:
+        example: Production fleet nodes
+        type: string
+      name:
+        example: production
+        type: string
+    type: object
+  handlers.APIError:
+    properties:
+      code:
+        type: string
+      detail:
+        type: string
+      error:
+        type: string
+    type: object
+  handlers.APIGenerateKeySetRequest:
+    properties:
+      name:
+        example: production
+        type: string
+      secureBootEnroll:
+        enum:
+        - "off"
+        - manual
+        - if-safe
+        - force
+        type: string
+    type: object
+  handlers.APIGroupCommandRequest:
+    properties:
+      args:
+        additionalProperties:
+          type: string
+        type: object
+      command:
+        example: upgrade
+        type: string
+      concurrency:
+        description: Concurrency caps how many nodes run at once. 0 runs every node
+          at once.
+        type: integer
+      rebootTimeoutSeconds:
+        description: |-
+          RebootTimeoutSeconds is how long a node that reboots may take to come
+          back. Defaults to 600, at most 604800 (7 days).
+        type: integer
+      stopOnFailure:
+        description: StopOnFailure stops the batch when a node fails. Defaults to
+          true.
+        type: boolean
+    type: object
+  handlers.APIHeartbeatRequest:
+    properties:
+      addresses:
+        description: |-
+          Addresses are the node's current network addresses (optional, multi-NIC).
+          When present they replace the stored list (e.g. after a DHCP change); when
+          omitted the stored list is preserved.
+        items:
+          $ref: '#/definitions/store.NodeAddress'
+        type: array
+      agentVersion:
+        example: v2.27.0
+        type: string
+      bootState:
+        description: |-
+          BootState is the node's current boot state (optional): one of
+          active | passive | recovery | autoreset (unknown values pass through).
+        example: active
+        type: string
+      hostname:
+        description: |-
+          Hostname is the node's current hostname (optional). Reported on every
+          heartbeat, not only at registration, so a hostname that cloud-init applies
+          after phone-home has registered, or a later rename, reaches the record. When
+          omitted the stored hostname is preserved.
+        example: kairos-node-01
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      metrics:
+        allOf:
+        - $ref: '#/definitions/store.NodeMetrics'
+        description: |-
+          Metrics is an optional resource sample. The server keeps recent samples in
+          memory. A sample that does not decode is ignored and does not fail the
+          heartbeat.
+      osRelease:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  handlers.APINodeMetricsResponse:
+    properties:
+      latest:
+        $ref: '#/definitions/store.NodeMetrics'
+      samples:
+        items:
+          $ref: '#/definitions/store.NodeMetrics'
+        type: array
+    type: object
+  handlers.APIRegisterRequest:
+    properties:
+      addresses:
+        description: |-
+          Addresses are the node's reported network addresses (optional, multi-NIC).
+          Stored exactly as received; interface filtering is the agent's job.
+        items:
+          $ref: '#/definitions/store.NodeAddress'
+        type: array
+      agentVersion:
+        example: v2.27.0
+        type: string
+      bootState:
+        description: |-
+          BootState is the node's reported boot state (optional): one of
+          active | passive | recovery | autoreset (unknown values pass through).
+        example: active
+        type: string
+      group:
+        description: |-
+          Group is the ID or name of the group a new node joins (optional); an ID
+          match wins over a name match. The holder of the registration token
+          chooses it for a new node, so the registration token decides group
+          placement. An unknown group leaves the node ungrouped. Ignored when the
+          node registers again.
+        example: edge-sites
+        type: string
+      hostname:
+        example: kairos-node-01
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        description: |-
+          Labels are a new node's initial labels (optional). The holder of the
+          registration token chooses them for a new node. Ignored when the node
+          registers again.
+        type: object
+      machineID:
+        example: a1b2c3d4e5f6
+        type: string
+      registrationToken:
+        example: 74a7e7452f9da2fd7739557f027bca0f
+        type: string
+    type: object
+  handlers.APIRegisterResponse:
+    properties:
+      apiKey:
+        example: 3db2c1e4f5a6b7c8d9e0f1a2b3c4d5e6
+        type: string
+      id:
+        example: c8a4fb46-1836-4c70-97c8-29490ad110bc
+        type: string
+    type: object
+  handlers.APIRegistrationTokenResponse:
+    properties:
+      registrationToken:
+        type: string
+    type: object
+  handlers.APIReleaseRequest:
+    properties:
+      claimKey:
+        example: machine-abc123
+        type: string
+    type: object
+  handlers.APIReleaseResponse:
+    properties:
+      released:
+        type: boolean
+    type: object
+  handlers.APISetGroupRequest:
+    properties:
+      groupID:
+        description: GroupID names the target group; null moves the node out of any
+          group.
+        example: b1db4f35-6195-410a-94f2-09e66e0a6a83
+        type: string
+        x-nullable: true
+    type: object
+  handlers.APISetLabelsRequest:
+    properties:
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  handlers.APISystemBuilder:
+    properties:
+      backend:
+        enum:
+        - local
+        - operator
+        example: operator
+        type: string
+      cluster:
+        example: https://kind.example
+        type: string
+      downloadSupported:
+        type: boolean
+      namespace:
+        example: kairos-builds
+        type: string
+    type: object
+  handlers.APIUpdateArtifactRequest:
+    properties:
+      name:
+        type: string
+      saved:
+        type: boolean
+    type: object
+  handlers.APIUpdateGroupRequest:
+    properties:
+      description:
+        description: Description replaces the group description; an empty string clears
+          it and an omitted field keeps the current one.
+        type: string
+      name:
+        description: Name replaces the group name; an empty or omitted name keeps
+          the current one.
+        type: string
+    type: object
+  handlers.DownloadLinkRequest:
+    properties:
+      filename:
+        type: string
+    type: object
+  handlers.DownloadLinkResponse:
+    properties:
+      expiresAt:
+        type: string
+      path:
+        type: string
+    type: object
+  handlers.LoginRequest:
+    properties:
+      password:
+        type: string
+    type: object
+  handlers.ResolvedBundleEntry:
+    properties:
+      name:
+        type: string
+      source:
+        type: string
+      type:
+        type: string
+      version:
+        type: string
+    type: object
+  handlers.SecureBootKeySetResponse:
+    properties:
+      createdAt:
+        type: string
+      hasTpmPcrKey:
+        type: boolean
+      id:
+        type: string
+      name:
+        type: string
+      secureBootEnroll:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  handlers.UploadOverlayResponse:
+    properties:
+      id:
+        description: ID references the overlay in a build request's overlayId.
+        format: uuid
+        type: string
+    type: object
+  handlers.batchList:
+    properties:
+      batches:
+        items:
+          $ref: '#/definitions/store.CommandBatch'
+        type: array
+      total:
+        type: integer
+    type: object
+  handlers.createExtensionRequest:
+    properties:
+      arch:
+        type: string
+      hierarchies:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      serviceReload:
+        type: boolean
+      signingKeySetId:
+        type: string
+      source:
+        $ref: '#/definitions/handlers.extensionSourceReq'
+      type:
+        type: string
+      version:
+        type: string
+    type: object
+  handlers.decommissionResponse:
+    properties:
+      commandID:
+        type: string
+      nodeOnline:
+        type: boolean
+    type: object
+  handlers.extensionCatalogsResponse:
+    properties:
+      launch:
+        description: Launch are the catalogs given with --extensions-catalog. Read-only.
+        items:
+          type: string
+        type: array
+      saved:
+        description: Saved are the catalogs an operator added at runtime.
+        items:
+          type: string
+        type: array
+    type: object
+  handlers.extensionSourceReq:
+    properties:
+      artifactId:
+        type: string
+      baseImage:
+        type: string
+      dockerfile:
+        type: string
+      extraSteps:
+        type: string
+      mode:
+        type: string
+    type: object
+  handlers.imageSourceLocalServe:
+    properties:
+      advertisedURL:
+        description: AdvertisedURL is the advertised base URL the BMC reaches the
+          served ISO at.
+        type: string
+      configured:
+        description: |-
+          Configured reports whether a local ISO-serve listener was configured at
+          launch (--redfish-serve-addr). Without it, local serving cannot be enabled.
+        type: boolean
+      enabled:
+        description: Enabled is the runtime gate (only meaningful when Configured).
+        type: boolean
+      usesTLS:
+        description: UsesTLS reports whether the listener serves over HTTPS.
+        type: boolean
+    type: object
+  handlers.imageSourceResponse:
+    properties:
+      defaultImageURL:
+        type: string
+      localServe:
+        $ref: '#/definitions/handlers.imageSourceLocalServe'
+    type: object
+  handlers.setBundleEntry:
+    properties:
+      extensionName:
+        type: string
+      extensionType:
+        type: string
+      order:
+        type: integer
+      pinnedVersion:
+        type: string
+    type: object
+  store.ArtifactExtensionBundle:
+    properties:
+      artifactId:
+        type: string
+      createdAt:
+        type: string
+      extensionName:
+        type: string
+      extensionType:
+        description: sysext | confext
+        type: string
+      order:
+        type: integer
+      pinnedVersion:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  store.ArtifactRecord:
+    properties:
+      allow-insecure-registries:
+        type: boolean
+      arch:
+        type: string
+      artifacts:
+        items:
+          type: string
+        type: array
+      autoInstall:
+        type: boolean
+      baseImage:
+        type: string
+      cloudConfig:
+        type: string
+      cloudImage:
+        type: boolean
+      containerImage:
+        type: string
+      createdAt:
+        type: string
+      dockerfile:
+        type: string
+      extensionHierarchies:
+        $ref: '#/definitions/store.ExtensionHierarchies'
+      extensions:
+        description: |-
+          Extensions and ExtensionsCatalogs record the catalog extensions this
+          artifact was built with, so cloning it rebuilds with the same ones. An
+          empty catalog list means the build read extensions.DefaultCatalog,
+          which keeps a stored build following that default when it moves.
+        items:
+          type: string
+        type: array
+      extensionsCatalogs:
+        items:
+          type: string
+        type: array
+      fips:
+        type: boolean
+      gce:
+        type: boolean
+      hadronBase:
+        type: string
+      hadronExtra:
+        type: string
+      hadronFirmware:
+        items:
+          type: string
+        type: array
+      hadronLayers:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      iso:
+        type: boolean
+      kairosInitImage:
+        type: string
+      kairosVersion:
+        type: string
+      kubernetesDistro:
+        type: string
+      kubernetesEnabled:
+        type: boolean
+      kubernetesVersion:
+        type: string
+      maas:
+        type: boolean
+      message:
+        type: string
+      model:
+        type: string
+      name:
+        type: string
+      netboot:
+        type: boolean
+      overlayId:
+        type: string
+      phase:
+        type: string
+      rawDisk:
+        type: boolean
+      registerAuroraBoot:
+        type: boolean
+      saved:
+        type: boolean
+      tar:
+        type: boolean
+      targetGroupId:
+        type: string
+      trustedBoot:
+        type: boolean
+      updatedAt:
+        type: string
+      variant:
+        type: string
+      vhd:
+        type: boolean
+    type: object
+  store.BatchNode:
+    properties:
+      batchID:
+        type: string
+      commandID:
+        type: string
+        x-nullable: true
+      deadline:
+        type: string
+      finishedAt:
+        type: string
+      hostname:
+        type: string
+      message:
+        type: string
+      nodeID:
+        type: string
+      position:
+        type: integer
+      rebootingSince:
+        description: |-
+          RebootingSince is when the reboot the node is waiting on was
+          scheduled: its command's completion, then its autoreset boot.
+        type: string
+      startedAt:
+        type: string
+      state:
+        type: string
+    type: object
+  store.CPUMetrics:
+    properties:
+      usedPercent:
+        type: number
+    type: object
+  store.CommandBatch:
+    properties:
+      args:
+        additionalProperties:
+          type: string
+        type: object
+      command:
+        type: string
+      concurrency:
+        type: integer
+      counts:
+        additionalProperties:
+          type: integer
+        description: Counts maps each node state to how many nodes are in it.
+        type: object
+      createdAt:
+        type: string
+      finishedAt:
+        type: string
+      groupID:
+        type: string
+        x-nullable: true
+      hostnames:
+        description: |-
+          Hostnames holds the hostnames of the batch's first five nodes in start
+          order (BatchListHostnames). Only the batch list fills it.
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      nodes:
+        description: Nodes is filled by BatchGet only.
+        items:
+          $ref: '#/definitions/store.BatchNode'
+        type: array
+      phase:
+        type: string
+      rebootTimeoutSeconds:
+        type: integer
+      selection:
+        type: string
+      stopOnFailure:
+        type: boolean
+      stopReason:
+        type: string
+      stoppedAt:
+        type: string
+      stoppedByNodeID:
+        type: string
+        x-nullable: true
+    type: object
+  store.CommandSelector:
+    properties:
+      groupID:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      nodeIDs:
+        items:
+          type: string
+        type: array
+    type: object
+  store.DiskMetrics:
+    properties:
+      label:
+        type: string
+      mount:
+        type: string
+      totalBytes:
+        type: integer
+      usedBytes:
+        type: integer
+    type: object
+  store.ExtensionHierarchies:
+    properties:
+      confext:
+        items:
+          type: string
+        type: array
+      sysext:
+        items:
+          type: string
+        type: array
+    type: object
+  store.ManagedNode:
+    properties:
+      addresses:
+        description: |-
+          Addresses are the node's reported network addresses (multi-NIC). Optional
+          and backward-compatible: an agent that does not send them leaves the list
+          empty. Stored as JSON, mirroring OSRelease/Labels.
+        items:
+          $ref: '#/definitions/store.NodeAddress'
+        type: array
+      agentVersion:
+        type: string
+      bootState:
+        description: |-
+          BootState is the node's reported boot state for day-2 lifecycle (e.g. a node
+          that booted the passive image signals a broken active image). Known values:
+          active | passive | recovery | autoreset — but unknown values are accepted
+          and stored as-is so future boot states pass through without a server change.
+        type: string
+      claimKey:
+        description: |-
+          ClaimKey, when non-nil, is the opaque caller-owned key that has claimed this
+          node via POST /api/v1/groups/:id/claim (e.g. a CAPI machine's identity). A
+          nil ClaimKey means the node is unclaimed and available. It is a pointer, not
+          a string, on purpose: "unclaimed" must be SQL NULL, because the composite
+          unique index idx_node_group_claim on (group_id, claim_key) makes a claimKey
+          own at most one node per group, and NULLs are exempt from unique indexes on
+          both SQLite and PostgreSQL — so many unclaimed nodes coexist while a second
+          node can never take an already-used claimKey in the same group.
+        type: string
+      claimedAt:
+        description: ClaimedAt is when ClaimKey was set; nil when unclaimed.
+        type: string
+      createdAt:
+        type: string
+      group:
+        $ref: '#/definitions/store.NodeGroup'
+      groupID:
+        type: string
+        x-nullable: true
+      hostname:
+        type: string
+      id:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      lastHeartbeat:
+        type: string
+      lastReset:
+        description: LastReset is when the most recent automatic reset completed successfully.
+        type: string
+      lastUpgrade:
+        description: LastUpgrade is when the most recent upgrade completed successfully.
+        type: string
+      machineID:
+        type: string
+      osRelease:
+        additionalProperties:
+          type: string
+        type: object
+      phase:
+        type: string
+      remoteIP:
+        description: |-
+          RemoteIP is the IP the server observed the node connect from at register or
+          heartbeat time (kairos-io/kairos#4590), independent of Addresses: the node
+          does not report it, and it survives even when an agent sends no addresses at
+          all (e.g. the WebSocket heartbeat path, or an older agent). It tracks NAT/DHCP
+          changes because every heartbeat re-observes and overwrites it.
+        type: string
+      resetProgressAt:
+        description: |-
+          ResetProgressAt is when the reset last made observable progress. Two
+          events stamp it: the node claiming the reset command for delivery, and
+          the node coming back reporting bootState=autoreset, by re-registering or
+          by a heartbeat after the reset reboot (the lifecycle moving from pending
+          to in-progress). The reset timeout is measured from
+          this timestamp when it is set, so a node that picks the command up late
+          still gets a full window to reboot, wipe and come back instead of sharing
+          the one that started at ResetRequestedAt. Nil until the reset reaches the
+          node, and cleared when a new reset is requested.
+        type: string
+      resetRequestedAt:
+        description: |-
+          ResetRequestedAt is when the reset command was issued (ResetState set to
+          pending); nil when no reset has been requested.
+        type: string
+      resetState:
+        description: |-
+          ResetState tracks the day-2 automatic-reset lifecycle across the reboot a
+          reset command triggers (kairos-io/kairos#4255). A reset can't complete
+          synchronously — the agent selects the statereset boot entry and reboots — so
+          the command acks immediately and the real outcome is resolved here when the
+          node re-registers and reports its post-reboot boot state. One of:
+          "" (none) | pending | in-progress | done | failed.
+        type: string
+      updatedAt:
+        type: string
+      upgradeRequestedAt:
+        description: |-
+          UpgradeRequestedAt is when the upgrade command was issued (UpgradeState set
+          to pending); nil when no upgrade has been requested.
+        type: string
+      upgradeState:
+        description: |-
+          UpgradeState tracks the upgrade lifecycle across the reboot an upgrade
+          command triggers. The agent acks the command once the new image is staged,
+          before it reboots into it, so a Completed upgrade command only means the
+          upgrade was scheduled; the real outcome is resolved here when the node
+          re-registers and reports its post-reboot boot state. One of:
+          "" (none) | pending | done | failed.
+        type: string
+    type: object
+  store.MemoryMetrics:
+    properties:
+      availableBytes:
+        type: integer
+      totalBytes:
+        type: integer
+    type: object
+  store.NodeAddress:
+    properties:
+      address:
+        type: string
+      type:
+        type: string
+    type: object
+  store.NodeCommand:
+    properties:
+      args:
+        additionalProperties:
+          type: string
+        type: object
+      batchID:
+        description: |-
+          BatchID names the batch that created this command, so a command can be
+          traced to its batch. It is empty on a command addressed to one node.
+        type: string
+      command:
+        type: string
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      deliveredAt:
+        type: string
+      expiresAt:
+        type: string
+      id:
+        type: string
+      managedNodeID:
+        type: string
+      phase:
+        type: string
+      result:
+        type: string
+    type: object
+  store.NodeExtensionRow:
+    properties:
+      bootState:
+        description: active | passive | recovery | common
+        type: string
+      extensionId:
+        type: string
+      installedAt:
+        type: string
+      name:
+        type: string
+      nodeId:
+        type: string
+      type:
+        description: sysext | confext
+        type: string
+      updatedAt:
+        type: string
+      version:
+        type: string
+    type: object
+  store.NodeGroup:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      node_count:
+        description: |-
+          NodeCount is the number of nodes in the group. It is not stored. List and
+          Get always set it (0 included); a group embedded in a node payload leaves
+          it nil, so it is omitted there.
+        type: integer
+      updatedAt:
+        type: string
+    type: object
+  store.NodeMetrics:
+    properties:
+      cpu:
+        $ref: '#/definitions/store.CPUMetrics'
+      disks:
+        items:
+          $ref: '#/definitions/store.DiskMetrics'
+        type: array
+      load:
+        items:
+          type: number
+        type: array
+      memory:
+        $ref: '#/definitions/store.MemoryMetrics'
+      sampledAt:
+        type: string
+      temperatureC:
+        type: number
+      uptimeSeconds:
+        type: integer
+    type: object
+info:
+  contact:
+    name: Kairos authors
+    url: https://github.com/kairos-io/kairos
+  description: |-
+    HTTP API for the AuroraBoot Kairos node manager.
+
+    Three security schemes are used across the API:
+    * AdminBearer: Authorization: Bearer <admin-password>. Scripts and automation callers. The web UI signs in through POST /api/v1/session and uses a session cookie instead.
+    * NodeAPIKey: Authorization: Bearer <api-key>. Registered Kairos nodes calling their own endpoints. The api-key is returned from POST /api/v1/nodes/register.
+    * RegistrationToken: shared secret carried inside the body of POST /api/v1/nodes/register.
+
+    Two WebSocket endpoints also exist but are not described in this spec:
+    * GET /api/v1/ws: agent command channel (auth via Authorization: Bearer <api-key>, or ?token=<api-key> for agents that cannot set headers).
+    * GET /api/v1/ws/ui: UI live update channel (auth via the session cookie, or Authorization: Bearer <admin-password>; same-origin only).
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  title: AuroraBoot API
+  version: 0.1.0
+paths:
+  /api/v1/artifacts:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/store.ArtifactRecord'
+            type: array
+      security:
+      - AdminBearer: []
+      summary: List artifacts
+      tags:
+      - Artifacts
+    post:
+      consumes:
+      - application/json
+      description: Kicks off an asynchronous build. The response is the initial record
+        with phase Pending. Subscribe to /api/v1/ws/ui or poll GET /api/v1/artifacts/{id}
+        to watch it progress through Building then Ready/Error.
+      parameters:
+      - description: Build specification
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APICreateArtifactRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/store.ArtifactRecord'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Start a build
+      tags:
+      - Artifacts
+  /api/v1/artifacts/{id}:
+    delete:
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - AdminBearer: []
+      summary: Delete an artifact and its output files
+      tags:
+      - Artifacts
+    get:
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.ArtifactRecord'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Get an artifact
+      tags:
+      - Artifacts
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIUpdateArtifactRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.ArtifactRecord'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Update artifact metadata (name / saved flag)
+      tags:
+      - Artifacts
+  /api/v1/artifacts/{id}/bundle-extensions:
+    get:
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/store.ArtifactExtensionBundle'
+            type: array
+      security:
+      - AdminBearer: []
+      summary: List bundled extensions for an artifact
+      tags:
+      - Artifacts
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Replacement set
+        in: body
+        name: body
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/handlers.setBundleEntry'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/store.ArtifactExtensionBundle'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Replace bundled extensions for an artifact
+      tags:
+      - Artifacts
+  /api/v1/artifacts/{id}/bundle-resolve:
+    post:
+      description: Returns the bundle entries with concrete download URLs and resolved
+        versions, ready to be passed as the `extensions` arg of an `upgrade` phonehome
+        command.
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.ResolvedBundleEntry'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Resolve bundled extensions for upgrade dispatch
+      tags:
+      - Artifacts
+  /api/v1/artifacts/{id}/cancel:
+    post:
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Cancel a running build
+      tags:
+      - Artifacts
+  /api/v1/artifacts/{id}/download-link:
+    post:
+      consumes:
+      - application/json
+      description: Returns a path that downloads one file of the artifact without
+        other credentials for one hour.
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File name
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.DownloadLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.DownloadLinkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Create a download link
+      tags:
+      - Artifacts
+  /api/v1/artifacts/{id}/logs:
+    get:
+      description: Returns the full concatenated log as text/plain. For real-time
+        updates subscribe to the UI WebSocket and filter {type:"build-log"} envelopes.
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      security:
+      - AdminBearer: []
+      summary: Get build log snapshot
+      tags:
+      - Artifacts
+  /api/v1/artifacts/{id}/upload/{filename}:
+    put:
+      consumes:
+      - application/octet-stream
+      description: Per-build endpoint the operator backend's exporter uses to ship
+        finished artifacts back to AuroraBoot. Bearer is the UploadToken minted at
+        Create time; the admin bearer does not grant access.
+      parameters:
+      - description: Artifact ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Artifact filename (single-segment; no path separators)
+        in: path
+        name: filename
+        required: true
+        type: string
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      summary: Upload a single artifact file for a build
+      tags:
+      - Artifacts
+  /api/v1/artifacts/upload-overlay:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Stores the uploaded files as an overlay to copy on top of a build's
+        rootfs. A .tar.gz or .tgz file is extracted; any other file is saved as is.
+        Pass the returned ID as overlayId when starting a build. If any file is rejected
+        or cannot be stored, nothing is kept.
+      parameters:
+      - description: Overlay files or a .tar.gz archive
+        in: formData
+        name: files
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.UploadOverlayResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Upload a rootfs overlay
+      tags:
+      - Artifacts
+  /api/v1/batches:
+    get:
+      parameters:
+      - description: Only batches started for this group
+        in: query
+        name: groupID
+        type: string
+      - description: Only batches that include this node
+        in: query
+        name: nodeID
+        type: string
+      - description: Page size (default 50, at most 200)
+        in: query
+        name: limit
+        type: integer
+      - description: Number of batches to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.batchList'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: List batches, newest first
+      tags:
+      - Batches
+  /api/v1/batches/{id}:
+    get:
+      parameters:
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.CommandBatch'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Get a batch with its per-node state
+      tags:
+      - Batches
+  /api/v1/batches/{id}/stop:
+    post:
+      parameters:
+      - description: Batch ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.CommandBatch'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Stop a running batch
+      tags:
+      - Batches
+  /api/v1/extensions:
+    post:
+      consumes:
+      - application/json
+      description: Kicks off an async sysext/confext build. Subscribe to /api/v1/ws/ui
+        or poll GET /api/v1/extensions/{id}.
+      parameters:
+      - description: Build specification
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.createExtensionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/builder.ExtensionBuildStatus'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Start an extension build
+      tags:
+      - Extensions
+  /api/v1/extensions/{id}/nodes:
+    get:
+      parameters:
+      - description: Extension ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/store.NodeExtensionRow'
+            type: array
+      security:
+      - AdminBearer: []
+      summary: List nodes that have a given extension installed
+      tags:
+      - Extensions
+  /api/v1/groups:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/store.NodeGroup'
+            type: array
+      security:
+      - AdminBearer: []
+      summary: List groups
+      tags:
+      - Groups
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APICreateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/store.NodeGroup'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Create a group
+      tags:
+      - Groups
+  /api/v1/groups/{id}:
+    delete:
+      description: Member nodes are detached in the same transaction; nodes are never
+        deleted.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - AdminBearer: []
+      summary: Delete a group
+      tags:
+      - Groups
+    get:
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.NodeGroup'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Get a group
+      tags:
+      - Groups
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIUpdateGroupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.NodeGroup'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Update a group
+      tags:
+      - Groups
+  /api/v1/groups/{id}/claim:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Claim payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIClaimRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.ManagedNode'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "409":
+          description: No unclaimed node available (code=NoCapacity)
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Claim a node from a group
+      tags:
+      - Groups
+  /api/v1/groups/{id}/commands:
+    post:
+      consumes:
+      - application/json
+      description: Starts a rolling batch and returns its record. Nodes that are already
+        in a running batch are rejected with 409 and listed in nodeIDs.
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Command and rollout options
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIGroupCommandRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/store.CommandBatch'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.APIBusyNodesError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Run a command on every node of a group
+      tags:
+      - Commands
+  /api/v1/metrics/latest:
+    get:
+      description: Returns the latest resource sample of every node that has one,
+        keyed by node ID. Samples are kept in memory only.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              $ref: '#/definitions/store.NodeMetrics'
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Get the latest metrics of every node
+      tags:
+      - Nodes
+  /api/v1/netboot/logs:
+    get:
+      description: Returns the current (or most recent) PXE/netboot session's captured
+        output as text/plain. For real-time updates subscribe to the UI WebSocket
+        and filter {type:"netboot-log"} envelopes.
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      security:
+      - AdminBearer: []
+      summary: Get netboot server log snapshot
+      tags:
+      - Netboot
+  /api/v1/nodes:
+    get:
+      description: Returns every registered node. Optional group/label filters.
+      parameters:
+      - description: Filter by group ID
+        in: query
+        name: group
+        type: string
+      - description: Filter by a single key:value label pair
+        in: query
+        name: label
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/store.ManagedNode'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: List nodes
+      tags:
+      - Nodes
+  /api/v1/nodes/{nodeID}:
+    delete:
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Delete a node
+      tags:
+      - Nodes
+    get:
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/store.ManagedNode'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Get a node
+      tags:
+      - Nodes
+  /api/v1/nodes/{nodeID}/commands:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      - description: Command payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APICreateCommandRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/store.NodeCommand'
+        "409":
+          description: The node is in a running batch
+          schema:
+            $ref: '#/definitions/handlers.APIBusyNodesError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Queue a command for a single node
+      tags:
+      - Commands
+  /api/v1/nodes/{nodeID}/decommission:
+    post:
+      description: Sends an `unregister` command to the node if it is currently online.
+        The UI subscribes to the returned commandID via the UI WebSocket for live
+        progress, then issues DELETE /api/v1/nodes/{nodeID} when the command reaches
+        Completed. When the node is offline, this returns nodeOnline=false with an
+        empty commandID — the operator should then force-delete and run `kairos-agent
+        phone-home uninstall` on the box manually.
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.decommissionResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Dispatch remote teardown before deleting a node
+      tags:
+      - Nodes
+  /api/v1/nodes/{nodeID}/extensions:
+    get:
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/store.NodeExtensionRow'
+            type: array
+      security:
+      - AdminBearer: []
+      summary: List extensions installed on a node
+      tags:
+      - Extensions
+  /api/v1/nodes/{nodeID}/group:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      - description: Target group
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APISetGroupRequest'
+      responses:
+        "200":
+          description: OK
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Assign a node to a group
+      tags:
+      - Nodes
+  /api/v1/nodes/{nodeID}/heartbeat:
+    post:
+      consumes:
+      - application/json
+      description: Transitions the node to Online and records the latest agent version,
+        OS info and hostname.
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      - description: Heartbeat payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIHeartbeatRequest'
+      responses:
+        "200":
+          description: OK
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - NodeAPIKey: []
+      summary: Agent heartbeat
+      tags:
+      - Agent
+  /api/v1/nodes/{nodeID}/labels:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      - description: Labels payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APISetLabelsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Replace a node's labels
+      tags:
+      - Nodes
+  /api/v1/nodes/{nodeID}/metrics:
+    get:
+      description: Returns the latest resource sample of a node and its recent samples,
+        oldest first. Samples are kept in memory only. A node without samples returns
+        a null latest and an empty samples list.
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APINodeMetricsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Get node metrics
+      tags:
+      - Nodes
+  /api/v1/nodes/{nodeID}/release:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Node ID
+        in: path
+        name: nodeID
+        required: true
+        type: string
+      - description: Release payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIReleaseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APIReleaseResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "409":
+          description: Claimed by a different key (code=ClaimMismatch)
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Release a node's claim
+      tags:
+      - Nodes
+  /api/v1/nodes/commands:
+    post:
+      consumes:
+      - application/json
+      description: Starts a rolling batch and returns its record. Nodes that are already
+        in a running batch are rejected with 409 and listed in nodeIDs.
+      parameters:
+      - description: Selector, command and rollout options
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIBulkCommandRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/store.CommandBatch'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.APIBusyNodesError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Run a command on the nodes matching a selector
+      tags:
+      - Commands
+  /api/v1/nodes/register:
+    post:
+      consumes:
+      - application/json
+      description: 'Idempotent by machineID: if a node with the same machineID already
+        exists, the existing record is returned so the agent can resume with its persisted
+        API key. Authenticated by the registrationToken inside the request body.'
+      parameters:
+      - description: Registration payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIRegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APIRegisterResponse'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.APIRegisterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      summary: Register a node
+      tags:
+      - Agent bootstrap
+  /api/v1/secureboot-keys:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.SecureBootKeySetResponse'
+            type: array
+      security:
+      - AdminBearer: []
+      summary: List SecureBoot key sets
+      tags:
+      - SecureBoot
+  /api/v1/secureboot-keys/{id}:
+    delete:
+      description: Removes the database record. Key files on disk are left in place.
+      parameters:
+      - description: Key set ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+      security:
+      - AdminBearer: []
+      summary: Delete a key set record
+      tags:
+      - SecureBoot
+  /api/v1/secureboot-keys/{id}/export:
+    get:
+      description: Streams a gzipped tar with manifest.json at the root and every
+        key file under keys/. File permissions preserved so private keys remain 0600.
+      parameters:
+      - description: Key set ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/gzip
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - AdminBearer: []
+      summary: Export a key set as a portable tar.gz
+      tags:
+      - SecureBoot
+  /api/v1/secureboot-keys/generate:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Key set name + enroll mode
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.APIGenerateKeySetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SecureBootKeySetResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Generate a SecureBoot key set
+      tags:
+      - SecureBoot
+  /api/v1/secureboot-keys/import:
+    post:
+      consumes:
+      - multipart/form-data
+      parameters:
+      - description: Override the manifest name to avoid a collision
+        in: query
+        name: name
+        type: string
+      - description: tar.gz produced by the export endpoint
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.SecureBootKeySetResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Import a key set exported from another instance
+      tags:
+      - SecureBoot
+  /api/v1/session:
+    delete:
+      responses:
+        "204":
+          description: No Content
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      summary: Sign out
+      tags:
+      - session
+    get:
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      summary: Check the session
+      tags:
+      - session
+    post:
+      consumes:
+      - application/json
+      description: Exchanges the admin password for an HttpOnly session cookie that
+        lasts 12 hours. A request carrying an Origin header must come from this server's
+        origin.
+      parameters:
+      - description: Admin password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      summary: Sign in
+      tags:
+      - session
+  /api/v1/settings/extension-catalogs:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.extensionCatalogsResponse'
+      security:
+      - AdminBearer: []
+      summary: Read the configured extension catalogs
+      tags:
+      - Settings
+    put:
+      consumes:
+      - application/json
+      description: Replaces the catalogs saved from the UI. The catalogs given at
+        launch with --extensions-catalog are not affected.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.extensionCatalogsResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Replace the saved extension catalogs
+      tags:
+      - Settings
+  /api/v1/settings/image-source:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.imageSourceResponse'
+      security:
+      - AdminBearer: []
+      summary: Read the runtime image-source settings
+      tags:
+      - Settings
+    put:
+      consumes:
+      - application/json
+      description: Sets the global default image URL and the local-serve enable flag
+        / advertised URL. Enabling local serve requires a launch-configured listener.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.imageSourceResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Update the runtime image-source settings
+      tags:
+      - Settings
+  /api/v1/settings/registration-token:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APIRegistrationTokenResponse'
+      security:
+      - AdminBearer: []
+      summary: Read the current registration token
+      tags:
+      - Settings
+  /api/v1/settings/registration-token/rotate:
+    post:
+      description: Generates and persists a new token. Already-registered nodes keep
+        working because they authenticate with their api-key.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APIRegistrationTokenResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.APIError'
+      security:
+      - AdminBearer: []
+      summary: Rotate the registration token
+      tags:
+      - Settings
+  /api/v1/system/builder:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.APISystemBuilder'
+      security:
+      - AdminBearer: []
+      summary: Report the active builder backend
+      tags:
+      - System
+securityDefinitions:
+  AdminBearer:
+    description: Supply as "Bearer <admin-password>".
+    in: header
+    name: Authorization
+    type: apiKey
+  NodeAPIKey:
+    description: Supply as "Bearer <api-key>" returned from POST /api/v1/nodes/register.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -1,0 +1,8 @@
+# Built-in quirk profiles that ship with a recorded, sanitized DMTF mockup under
+# pkg/redfish/testdata/mockups/<name>/ and are replayed by the §4a golden test
+# (mockup_golden_test.go). Listing a name here promotes that in-tree profile to
+# tier B (see mockups.go / deriveTier). One profile name per line; "#" comments and
+# blank lines are ignored. TestMockupManifestMatchesTestdata keeps this list in
+# exact sync with the committed testdata trees, so it can never claim a mockup that
+# isn't there or omit one that is.
+ilo

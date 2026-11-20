@@ -88,9 +88,15 @@ jobs:
           # Resolve the hadron container image this kairos release was built with
           # (version discovered from the published hadron tags, not hardcoded).
           containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
+          # Releases without an auroraboot image under their own tag use the last
+          # standalone build. Only its per-architecture tags exist, and the amd64 one
+          # matches these runners. Remove this fallback once the Latest release was
+          # built from this repository.
+          aurora="quay.io/kairos/auroraboot:${latestTag}"
+          docker manifest inspect "$aurora" >/dev/null 2>&1 || aurora=quay.io/kairos/auroraboot:v0.31.0-amd64
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
-            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.30.0 \
+            -v $PWD:/aurora --rm "$aurora" \
             --debug \
             --set "disable_http_server=true" \
             --set "container_image=docker:${containerImage}" \
@@ -179,9 +185,15 @@ jobs:
           # Resolve the hadron container image this kairos release was built with
           # (version discovered from the published hadron tags, not hardcoded).
           containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
+          # Releases without an auroraboot image under their own tag use the last
+          # standalone build. Only its per-architecture tags exist, and the amd64 one
+          # matches these runners. Remove this fallback once the Latest release was
+          # built from this repository.
+          aurora="quay.io/kairos/auroraboot:${latestTag}"
+          docker manifest inspect "$aurora" >/dev/null 2>&1 || aurora=quay.io/kairos/auroraboot:v0.31.0-amd64
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
-            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.30.0 \
+            -v $PWD:/aurora --rm "$aurora" \
             --debug \
             --set "disable_http_server=true" \
             --set "container_image=docker:${containerImage}" \
@@ -264,9 +276,15 @@ jobs:
             # Resolve the hadron container image this kairos release was built with
             # (version discovered from the published hadron tags, not hardcoded).
             containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
+            # Releases without an auroraboot image under their own tag use the last
+            # standalone build. Only its per-architecture tags exist, and the amd64 one
+            # matches these runners. Remove this fallback once the Latest release was
+            # built from this repository.
+            aurora="quay.io/kairos/auroraboot:${latestTag}"
+            docker manifest inspect "$aurora" >/dev/null 2>&1 || aurora=quay.io/kairos/auroraboot:v0.31.0-amd64
             docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
               --privileged \
-              -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.30.0 \
+              -v $PWD:/aurora --rm "$aurora" \
               --debug \
               --set "disable_http_server=true" \
               --set "container_image=docker:${containerImage}" \

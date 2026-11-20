@@ -1,0 +1,19 @@
+{
+  "@odata.id": "/redfish/v1/Managers/1/VirtualMedia/1",
+  "@odata.type": "#VirtualMedia.v1_3_0.VirtualMedia",
+  "Id": "1",
+  "Name": "VirtualMedia",
+  "MediaTypes": [ "Floppy", "USBStick" ],
+  "Image": null,
+  "Inserted": false,
+  "WriteProtected": false,
+  "ConnectedVia": "NotConnected",
+  "Actions": {
+    "#VirtualMedia.InsertMedia": {
+      "target": "/redfish/v1/Managers/1/VirtualMedia/1/Actions/VirtualMedia.InsertMedia"
+    },
+    "#VirtualMedia.EjectMedia": {
+      "target": "/redfish/v1/Managers/1/VirtualMedia/1/Actions/VirtualMedia.EjectMedia"
+    }
+  }
+}
