@@ -1,0 +1,24 @@
+examples/airgap/build
+examples/airgap/data
+dist/
+build/
+coverage.out
+coverage.out.*
+/AuroraBoot
+/auroraboot
+node_modules
+
+# Experimental web app build artifacts
+internal/web/
+
+# UI build output. Vite writes the bundle to internal/ui/dist (ignored by
+# the dist/ pattern above), which internal/ui embeds in builds with the ui tag.
+ui/dist/
+
+# Local fleet-server data dir
+data/
+
+# Local e2e log dumps
+test/e2e/logs/
+e2e/logs/
+pkg/ops/assets/__pycache__/

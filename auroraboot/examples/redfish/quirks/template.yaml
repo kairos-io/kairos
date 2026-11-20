@@ -1,0 +1,72 @@
+# examples/redfish/quirks/template.yaml
+#
+# A fully-commented template for an operator quirk profile. Copy it, rename it,
+# delete the sections you do not need, and drop it in your `--quirks-dir` /
+# `--redfish-quirks-dir`. Every section is OPTIONAL except `name`; an omitted
+# section compiles to "use the spec-default behaviour", so a profile with only a
+# name behaves exactly like the generic (spec-default) profile.
+#
+# A profile is INERT DATA, not code. The hard safety boundary (enforced at load
+# and by the core deploy flow) means a profile can NEVER:
+#   - set or clear the InsertMedia `Image` URL (core-owned and SSRF-validated),
+#   - force an unsupported ResetType (the core re-validates against the BMC's
+#     advertised allowable values),
+#   - touch sessions, TLS verification, or system selection.
+# A malformed profile is rejected at load and disables ONLY itself; it never fails
+# the whole load or the deploy.
+#
+# Support tier: operator-supplied profiles are ALWAYS tier C (UNVERIFIED). See
+# docs/CONTRIBUTING-vendor-profiles.md for how to reach tier B.
+
+# name (REQUIRED): the profile's identity. Select it with `--vendor <name>` (CLI)
+# or by setting a BMCTarget's vendor to this name (fleet server). A name that
+# collides with a built-in (generic, ilo, supermicro) OVERRIDES the built-in, and
+# the override is logged loudly at load. An unknown `--vendor` falls back to
+# generic — a typo never silently enables the wrong workaround.
+name: my-vendor
+
+# match (optional): an informational selection hint only. It does NOT drive
+# selection (selection is purely by `name`). The probe command records the BMC
+# manufacturer here as a documentation aid.
+match:
+  vendor: ExampleVendor
+
+# mediaSearch (optional): reorder/filter the candidate VirtualMedia members. Each
+# entry in `order` is one of:
+#   - "system"        — media hosted under the ComputerSystem
+#   - "manager"       — media hosted under any Manager (the BMC)
+#   - "manager:<id>"  — media hosted under one specific Manager, by Id
+# Matching members are emitted in the listed order; members matching no entry are
+# DROPPED. Omit this section to keep the core's default search order.
+mediaSearch:
+  order: [manager, system]
+
+# mediaType (optional): the VirtualMedia MediaType sent on InsertMedia. One of:
+#   CD | DVD | USBStick | Floppy
+# Omit to use the spec default (CD).
+mediaType: CD
+
+# resetType (optional): an ordered, first-match-wins rule set for the ResetType
+# sent when the system is reset to boot the media. `when.powerState` is one of
+# "On", "Off", or "*" (any). `then` is a Redfish ResetType (e.g. On, ForceRestart,
+# GracefulRestart, ForceOff, PowerCycle). The chosen type is STILL re-validated by
+# the core against the BMC's advertised allowable values — a rule can prefer but
+# never force an unsupported type. Omit to keep the core default.
+resetType:
+  - when: { powerState: "Off" }
+    then: "On"
+  - when: { powerState: "*" }
+    then: "ForceRestart"
+
+# tuneInsertParams (optional): a sparse patch over an ALLOWLISTED set of InsertMedia
+# fields. Allowed fields: MediaType, TransferProtocolType, Inserted, WriteProtected.
+# The `Image` field is REJECTED at load (any casing) — the image URL is core-owned
+# and SSRF-validated. Use `clear` to drop a field the BMC rejects, `set` to set one.
+tuneInsertParams:
+  clear: [TransferProtocolType]   # e.g. some BMCs reject an explicit transfer protocol
+  set:
+    WriteProtected: true
+
+# validatedFirmware (optional): the firmware revision this profile was validated
+# against. Informational, used for tier labelling. Label it honestly.
+validatedFirmware: "ExampleVendor BMC fw 1.23"
