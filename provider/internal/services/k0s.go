@@ -20,6 +20,12 @@ Wants=network-online.target
 [Service]
 StartLimitInterval=5
 StartLimitBurst=10
+# The provider writes the node environment here at bootstrap (proxy settings
+# and the like). Kairos writes this unit, so nothing else declares the file,
+# and without this line SetEnv reports success for environment k0s never sees.
+# Optional, as the openrc script's own test for the file is, because the file
+# exists only once the provider has run.
+EnvironmentFile=-@ENVFILE@
 ExecStart=/usr/bin/k0s controller
 
 RestartSec=10
@@ -45,6 +51,12 @@ Wants=network-online.target
 [Service]
 StartLimitInterval=5
 StartLimitBurst=10
+# The provider writes the node environment here at bootstrap (proxy settings
+# and the like). Kairos writes this unit, so nothing else declares the file,
+# and without this line SetEnv reports success for environment k0s never sees.
+# Optional, as the openrc script's own test for the file is, because the file
+# exists only once the provider has run.
+EnvironmentFile=-@ENVFILE@
 ExecStart=/usr/bin/k0s worker
 
 RestartSec=10
