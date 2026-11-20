@@ -1,4 +1,4 @@
-FROM rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
+FROM rockylinux:9@sha256:03303863808e9cd79f0c58c833db3e5f9cde9f2abe16804a267b05dc54af86e4
 ARG VERSION=v0.0.1
 
 RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.5.0,src=/kairos-init,dst=/kairos-init \
