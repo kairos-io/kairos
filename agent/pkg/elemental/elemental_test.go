@@ -1078,6 +1078,50 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(os.ReadFile(filepath.Join(target, "etc", "os-release"))).To(Equal([]byte("NAME=\"Kairos\"\n")))
 		})
 
+		DescribeTable("Applies --exclude-path to an OCI archive the same way as to a registry image", Label("docker"),
+			func(exclude string, gone, kept []string) {
+				runner.ClearCmds()
+				runner.SideEffect = realRunner
+
+				archivePath := saveTreeImage(GinkgoT().TempDir(),
+					"etc/", "etc/a.conf", "etc/b.conf",
+					"var/", "var/lib/", "var/lib/foo/", "var/lib/foo/data", "var/lib/bar",
+				)
+				target := GinkgoT().TempDir()
+
+				_, err := e.DumpSource(target, sdkImages.NewOCIFileSrc(archivePath), exclude)
+				Expect(err).To(BeNil())
+				for _, p := range gone {
+					Expect(filepath.Join(target, p)).ToNot(BeAnExistingFile(), "%s should be excluded by %q", p, exclude)
+				}
+				for _, p := range kept {
+					Expect(filepath.Join(target, p)).To(BeAnExistingFile(), "%s should survive %q", p, exclude)
+				}
+			},
+			Entry("/var/lib/foo", "/var/lib/foo",
+				[]string{"var/lib/foo", "var/lib/foo/data"}, []string{"var/lib/bar", "etc/a.conf"}),
+			Entry("var/lib/foo", "var/lib/foo",
+				[]string{"var/lib/foo", "var/lib/foo/data"}, []string{"var/lib/bar", "etc/a.conf"}),
+			Entry("etc/*", "etc/*",
+				[]string{"etc/a.conf", "etc/b.conf"}, []string{"etc", "var/lib/foo/data"}),
+			Entry("/etc/a.conf", "/etc/a.conf",
+				[]string{"etc/a.conf"}, []string{"etc/b.conf", "var/lib/foo/data"}),
+		)
+
+		It("Anchors --exclude-path to the source root for a directory source", func() {
+			var args []string
+			runner.SideEffect = func(cmd string, a ...string) ([]byte, error) {
+				if cmd == cnst.Rsync {
+					args = a
+				}
+				return []byte{}, nil
+			}
+			_, err := e.DumpSource("/dest", sdkImages.NewDirSrc("/source"), "var/lib/foo", "/etc/a.conf", "etc/*/")
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(args).To(ContainElements("--exclude=/var/lib/foo", "--exclude=/etc/a.conf", "--exclude=/etc/*"))
+			Expect(args).ToNot(ContainElement("--exclude=var/lib/foo"))
+		})
+
 		It("Refuses an archive that holds no image, and leaves the target alone", Label("docker"), func() {
 			runner.ClearCmds()
 			runner.SideEffect = realRunner
@@ -1476,6 +1520,28 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(int(stat.Mode().Perm())).To(Equal(cnst.ConfigPerm))
 
 		})
+		It("names the last cloud config so it sorts last with ten or more entries", func() {
+			var cloudInit []string
+			for i := 0; i < 11; i++ {
+				path := fmt.Sprintf("/config%d.yaml", i)
+				Expect(fs.WriteFile(path, []byte(fmt.Sprintf("entry %d", i)), cnst.FilePerm)).To(Succeed())
+				cloudInit = append(cloudInit, path)
+			}
+			Expect(fsutils.MkdirAll(fs, cnst.OEMDir, cnst.DirPerm)).To(Succeed())
+
+			Expect(e.CopyCloudConfig(cloudInit)).To(Succeed())
+
+			entries, err := fs.ReadDir(cnst.OEMDir)
+			Expect(err).ToNot(HaveOccurred())
+			var inLexicalOrder, inListOrder []string
+			for i, entry := range entries {
+				content, err := fs.ReadFile(filepath.Join(cnst.OEMDir, entry.Name()))
+				Expect(err).ToNot(HaveOccurred())
+				inLexicalOrder = append(inLexicalOrder, string(content))
+				inListOrder = append(inListOrder, fmt.Sprintf("entry %d", i))
+			}
+			Expect(inLexicalOrder).To(Equal(inListOrder))
+		})
 		It("Doesnt do anything if the config file is not set", func() {
 			err := e.CopyCloudConfig([]string{})
 			Expect(err).To(BeNil())
@@ -1607,6 +1673,50 @@ func saveRootfsImage(dir, format string) string {
 	path, err := layout.Write(layoutDir, empty.Index)
 	Expect(err).ToNot(HaveOccurred())
 	Expect(path.AppendImage(img)).To(Succeed())
+	Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
+
+	return archivePath
+}
+
+// saveTreeImage writes an OCI layout archive of a one layer image holding
+// paths, owned by the current user. A path ending in "/" is a directory,
+// anything else a file.
+func saveTreeImage(dir string, paths ...string) string {
+	GinkgoHelper()
+
+	layerPath := filepath.Join(dir, "tree.tar")
+	layerFile, err := os.Create(layerPath)
+	Expect(err).ToNot(HaveOccurred())
+	writer := tar.NewWriter(layerFile)
+	for _, p := range paths {
+		hdr := &tar.Header{Name: p, Uid: os.Getuid(), Gid: os.Getgid()}
+		var body []byte
+		if strings.HasSuffix(p, "/") {
+			hdr.Typeflag = tar.TypeDir
+			hdr.Mode = 0755
+		} else {
+			body = []byte(p)
+			hdr.Typeflag = tar.TypeReg
+			hdr.Mode = 0644
+			hdr.Size = int64(len(body))
+		}
+		Expect(writer.WriteHeader(hdr)).To(Succeed())
+		_, err = writer.Write(body)
+		Expect(err).ToNot(HaveOccurred())
+	}
+	Expect(writer.Close()).To(Succeed())
+	Expect(layerFile.Close()).To(Succeed())
+
+	layer, err := tarball.LayerFromFile(layerPath)
+	Expect(err).ToNot(HaveOccurred())
+	img, err := mutate.AppendLayers(empty.Image, layer)
+	Expect(err).ToNot(HaveOccurred())
+
+	layoutDir := filepath.Join(dir, "tree-layout")
+	path, err := layout.Write(layoutDir, empty.Index)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(path.AppendImage(img)).To(Succeed())
+	archivePath := filepath.Join(dir, "tree.tar.oci")
 	Expect(exec.Command("tar", "-cf", archivePath, "-C", layoutDir, ".").Run()).To(Succeed())
 
 	return archivePath

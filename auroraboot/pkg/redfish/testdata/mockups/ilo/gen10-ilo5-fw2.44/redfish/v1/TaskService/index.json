@@ -1,0 +1,8 @@
+{
+  "@odata.id": "/redfish/v1/TaskService",
+  "@odata.type": "#TaskService.v1_1_4.TaskService",
+  "Id": "TaskService",
+  "Name": "Task Service",
+  "ServiceEnabled": true,
+  "Tasks": { "@odata.id": "/redfish/v1/TaskService/Tasks" }
+}

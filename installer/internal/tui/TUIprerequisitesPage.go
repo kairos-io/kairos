@@ -21,7 +21,8 @@ import (
 // (e.g. wiping the disks the user selected) before the installation begins.
 //
 // When no provider returns any check the page auto-advances to disk selection,
-// so it is invisible on systems without prerequisites providers.
+// so it is invisible on systems without prerequisites providers. A plugin that
+// fails while gathering blocks the page instead, since its checks never ran.
 type prerequisitesPage struct {
 	checks   []prereqs.Check
 	answers  map[string]prereqs.Answer  // by check ID
@@ -34,6 +35,10 @@ type prerequisitesPage struct {
 	applyErr string
 	failure  string // failNone | failRequired | failOptional
 	results  []prereqs.ApplyResult
+
+	// gatherErr is set when a plugin failed during Gather. The page then only
+	// offers to gather again.
+	gatherErr bool
 }
 
 const (
@@ -67,6 +72,9 @@ func (p *prerequisitesPage) ID() string    { return "prerequisites" }
 func (p *prerequisitesPage) Title() string { return "Prerequisites" }
 
 func (p *prerequisitesPage) Help() string {
+	if p.gatherErr {
+		return "enter/r: retry • q/ctrl+c: quit"
+	}
 	switch p.failure {
 	case failRequired:
 		return "enter: retry • q/ctrl+c: quit"
@@ -80,7 +88,9 @@ func (p *prerequisitesPage) Help() string {
 }
 
 // Skipped reports that there were no checks, so the page moved on.
-func (p *prerequisitesPage) Skipped() bool { return p.loaded && len(p.checks) == 0 }
+func (p *prerequisitesPage) Skipped() bool {
+	return p.loaded && !p.gatherErr && len(p.checks) == 0
+}
 
 // Init gathers the checks from providers synchronously (go-pluggable runs
 // plugins inline), the way the wizard asks them for their prompts. With no
@@ -88,19 +98,42 @@ func (p *prerequisitesPage) Skipped() bool { return p.loaded && len(p.checks) ==
 // page.
 func (p *prerequisitesPage) Init() tea.Cmd {
 	if !p.loaded {
-		p.mgr = checks.NewManager(*mainModel.log)
-		found, err := checks.Gather(p.mgr, *mainModel.log, "")
-		if err != nil {
-			mainModel.log.Logger.Warn().Err(err).Msg("gathering prerequisites checks")
-		}
-		p.checks = found
-		p.buildFields()
-		p.loaded = true
-		mainModel.log.Logger.Debug().Int("checks", len(found)).Int("fields", len(p.fields)).Msg("Prerequisites gathered")
+		p.gather()
 	}
+	return p.afterGather()
+}
 
+// gather runs the check plugins and resets the page to what they returned.
+// A plugin error puts the page in the blocking gather failure state.
+func (p *prerequisitesPage) gather() {
+	p.mgr = checks.NewManager(*mainModel.log)
+	found, err := checks.Gather(p.mgr, *mainModel.log, "")
+	p.checks = found
+	p.answers = map[string]prereqs.Answer{}
+	p.texts = map[string]textinput.Model{}
+	p.cursor, p.offset = 0, 0
+	p.clearFailure()
+	p.gatherErr = false
+	p.buildFields()
+	p.loaded = true
+	if err != nil {
+		mainModel.log.Logger.Error().Err(err).Msg("gathering prerequisites checks")
+		p.gatherErr = true
+		p.failure = failRequired
+		p.applyErr = fmt.Sprintf("Failed gathering prerequisites: %s", err.Error())
+	}
+	mainModel.log.Logger.Debug().Int("checks", len(found)).Int("fields", len(p.fields)).Msg("Prerequisites gathered")
+}
+
+// afterGather decides where the page goes once the checks are in: it stays
+// put on a gather failure, moves on when there is nothing to show, and
+// focuses the first field otherwise.
+func (p *prerequisitesPage) afterGather() tea.Cmd {
+	if p.gatherErr {
+		return nil
+	}
 	if len(p.checks) == 0 {
-		return func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
+		return p.advance()
 	}
 	return p.syncFocus()
 }
@@ -134,6 +167,16 @@ func (p *prerequisitesPage) buildFields() {
 func (p *prerequisitesPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	km, ok := msg.(tea.KeyMsg)
 	if !ok {
+		return p, nil
+	}
+
+	// A failed gather leaves nothing to answer: only retrying is offered.
+	if p.gatherErr {
+		switch km.String() {
+		case "enter", "r", "R":
+			p.gather()
+			return p, p.afterGather()
+		}
 		return p, nil
 	}
 
