@@ -144,7 +144,6 @@ type KubeVIP struct {
 	// closed on a mismatch. When unset, the download proceeds unverified,
 	// same as before this field existed.
 	ManifestSHA256 string `yaml:"manifest_sha256,omitempty"`
-	Interface      string `yaml:"interface,omitempty"`
 	Enabled        *bool  `yaml:"enabled,omitempty"`
 	// DeprecatedEnable carries the `enable` spelling. UnmarshalYAML folds it
 	// into Enabled, so every reader has to use Enabled; this field only
@@ -153,7 +152,19 @@ type KubeVIP struct {
 	StaticPod        bool   `yaml:"static_pod,omitempty"`
 	Version          string `yaml:"version,omitempty"`
 	Image            string `yaml:"image,omitempty"`
-	kubevip.Config
+
+	// kube-vip's own settings, which applyKConfigToInitConfig copies into the
+	// manifest it generates. Without the inline tag yaml.v3 treats an
+	// anonymous struct field as an ordinary field named after its type, so
+	// every one of these keys had to be nested under `kubevip.config` to be
+	// read, and `kubevip.enableBGP` was accepted and dropped.
+	//
+	// The outer `interface` field is gone because kube-vip declares
+	// one too, and yaml.v3 refuses to inline a struct that repeats a key of the
+	// outer one. Both are strings and both mean the interface the VIP is
+	// bound to, so the promoted field keeps KubeVIP.Interface reading the same
+	// key it always did.
+	kubevip.Config `yaml:",inline"`
 }
 
 // UnmarshalYAML accepts `enabled` and the deprecated `enable`.
