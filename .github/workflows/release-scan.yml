@@ -14,9 +14,12 @@ name: 'Release vulnerability scan'
 # bundle instead reports advisories against binaries other than the ones being
 # shipped, and misses advisories in the ones that are.
 
-# This is a release gate: release.yaml and release-arm.yaml call it via
-# workflow_call, and every publishing job depends on it, so a release with
-# unignored advisories never publishes.
+# This is a release gate: release.yaml calls it via workflow_call, and every
+# publishing job depends on it. By default any unignored advisory fails the
+# job. release.yaml passes `block-on: high`, so only advisories of high or
+# critical severity (or of unreadable severity) stop a release. The others are
+# written to the job summary and exposed as the `findings` output, which
+# release.yaml posts to Slack and adds to the release notes.
 #
 # The pull_request trigger is scoped to the files that determine the result:
 # the dependency set, the Makefile targets that build the bundle, the edgevpn
@@ -24,6 +27,20 @@ name: 'Release vulnerability scan'
 # changes none of them cannot change the findings.
 on:
   workflow_call:
+    inputs:
+      block-on:
+        description: >-
+          `any` fails on every unignored advisory. `high` fails only on
+          advisories that scripts/osv-findings.sh marks as blocking (high,
+          critical or unreadable severity).
+        type: string
+        default: any
+    outputs:
+      findings:
+        description: >-
+          JSON array of the unignored advisories, as printed by
+          scripts/osv-findings.sh.
+        value: ${{ jobs.scan-shipped-bundle.outputs.findings }}
   workflow_dispatch:
   pull_request:
     paths:
@@ -31,6 +48,7 @@ on:
       - 'go.sum'
       - 'Makefile'
       - 'scripts/prepare-kairos-init-binaries.sh'
+      - 'scripts/osv-findings.sh'
       - 'osv-scanner.toml'
       - '.github/workflows/release-scan.yml'
 
@@ -41,6 +59,8 @@ jobs:
   scan-shipped-bundle:
     name: scan shipped bundle
     runs-on: ubuntu-latest
+    outputs:
+      findings: ${{ steps.report.outputs.findings }}
     steps:
       - name: Checkout kairos
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -119,20 +139,23 @@ jobs:
           fi
 
       - name: Report and enforce
+        id: report
+        env:
+          BLOCK_ON: ${{ inputs.block-on || 'any' }}
         run: |
           set -euo pipefail
           # One advisory can affect several module versions in the same bundle
           # (different binaries pin different versions), so a finding is an
           # (advisory, module@version) pair and the two counts differ. Report
           # both rather than calling every row an advisory.
-          jq -r '
-            [ .results[].packages[]
-              | . as $pkg
-              | .vulnerabilities[]?
-              | "| `\(.id)` | `\($pkg.package.name)@\($pkg.package.version)` |"
-            ] | unique | .[]' osv.json > findings.md || true
-          FINDINGS="$(wc -l < findings.md)"
-          ADVISORIES="$(jq -r '[.results[].packages[].vulnerabilities[]?.id] | unique | length' osv.json)"
+          scripts/osv-findings.sh osv.json > findings.json
+          FINDINGS="$(jq 'length' findings.json)"
+          ADVISORIES="$(jq '[.[].id] | unique | length' findings.json)"
+          if [ "${BLOCK_ON}" = high ]; then
+            BLOCKING="$(jq '[.[] | select(.blocking)] | length' findings.json)"
+          else
+            BLOCKING="${FINDINGS}"
+          fi
           {
             echo "## Vulnerability scan of the shipped bundle"
             echo
@@ -141,16 +164,25 @@ jobs:
             if [ "${FINDINGS}" -eq 0 ]; then
               echo "No unignored advisories."
             else
-              echo "**${ADVISORIES} advisories**, ${FINDINGS} findings across module versions."
+              echo "**${ADVISORIES} advisories**, ${FINDINGS} findings across module versions, ${BLOCKING} blocking."
               echo
-              echo "| advisory | module |"
-              echo "|---|---|"
-              cat findings.md
+              echo "| advisory | module | severity | blocking |"
+              echo "|---|---|---|---|"
+              jq -r --arg block_on "${BLOCK_ON}" '.[] | "| `\(.id)` | `\(.module)` | \(.severity) | \(if $block_on == "high" and (.blocking | not) then "no" else "yes" end) |"' findings.json
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
-          if [ "${FINDINGS}" -gt 0 ]; then
-            echo "::error::${ADVISORIES} unignored advisories (${FINDINGS} findings) in the shipped bundle. Bump the affected component, or add a dated entry to osv-scanner.toml with a reason."
+          # One line, so no delimiter is needed in the output file.
+          echo "findings=$(jq -c . findings.json)" >> "${GITHUB_OUTPUT}"
+          if [ "${BLOCKING}" -gt 0 ]; then
+            if [ "${BLOCK_ON}" = high ]; then
+              echo "::error::${BLOCKING} findings of high or critical severity, or of unreadable severity, in the shipped bundle. Bump the affected component, or add a dated entry to osv-scanner.toml with a reason."
+            else
+              echo "::error::${ADVISORIES} unignored advisories (${FINDINGS} findings) in the shipped bundle. Bump the affected component, or add a dated entry to osv-scanner.toml with a reason."
+            fi
             exit 1
+          fi
+          if [ "${FINDINGS}" -gt 0 ]; then
+            echo "::warning::${ADVISORIES} unignored advisories below high severity in the shipped bundle. They do not block the release."
           fi
 
       - name: Upload scan output

@@ -70,35 +70,43 @@ Create a branch with a descriptive name, such as ``fix/dns``.
 ## Step 5: Push your feature branch to your fork
 
 1. If working on an issue, signal other contributors that you are actively working on by commenting on the issue.
-1. Submit a pull request.
-    1. All code PR must be labeled with one of
-        - ⚠️ (`:warning:`, major or breaking changes)
-        - ✨ (`:sparkles:`, feature additions)
-        - 🐛 (`:bug:`, patch and bugfixes)
-        - 📖 (`:book:`, documentation or proposals)
-        - 🔧 (`:wrenchIcon:`, toolings for developers)
-        - :art: ( `:art`, for refactoring )
-        - 🌱 (`:seedling:`, minor or other)
-        - :penguin: (`:penguin:`, for Distribution or Dockerfile changes)
-        - :arrow_up: (`:arrow_up:`, for dependencies bumps)
-        - :robot: (`:robot:`, for CI/tests changes )
+1. Submit a pull request whose title is a [Conventional Commit](https://www.conventionalcommits.org/) subject, such as `fix(grub): load all_video only when the module file exists`. Pull requests are squash-merged, so the title becomes the commit subject on `master`, and the `PR title` check fails a title that does not follow the format.
 1. If your PR has multiple commits, you must [squash them into a single commit](https://kubernetes.io/docs/contribute/new-content/open-a-pr/#squashing-commits) before merging your PR.
 
-Individual commits should not be tagged separately, but will generally be
-assumed to match the PR. For instance, if you have a bugfix in with
-a breaking change, it's generally encouraged to submit the bugfix
-separately, but if you must put them in one PR, mark the commit
-separately.
+The type in the title decides the next release's version, because releases
+are cut from the commit subjects on `master`:
+
+| Title | Example | Release |
+|---|---|---|
+| `feat` | `feat(agent): add --dry-run to upgrade` | minor, such as `v4.4.0` to `v4.5.0` |
+| `fix`, `docs`, `test`, `ci`, `chore`, `refactor`, `perf`, `build`, `style`, `revert` | `fix(iso): ...` | patch, such as `v4.4.0` to `v4.4.1` |
+| any type with `!` before the colon, or a `BREAKING CHANGE:` footer in any commit message of the pull request | `feat(agent)!: drop the --legacy flag` | major, cut by a maintainer |
+
+Use `feat` for anything a user can see or use that was not there before, and
+`fix` for a change that makes existing behaviour work as intended. A
+dependency update is `fix(deps)` when it changes what ships and
+`chore(deps)` when it does not. Renovate titles its own pull requests with
+one of the two. A reviewer may
+correct the title before merging.
+
+If you have a bugfix in with a breaking change, it's generally encouraged to
+submit the bugfix separately, so that the breaking change gets a release of
+its own.
 
 All changes must be code reviewed. Expect reviewers to request that you
 avoid common [go style mistakes](https://github.com/golang/go/wiki/CodeReviewComments) in your PRs.
 
 As you develop code, continue to push code to your remote feature
-branch. Please make sure to include the issue number and the label you're addressing
-in your commit message, such as:
+branch. Only the pull request title has to follow the format above. The
+commits inside the pull request are not checked, because the squash merge
+replaces their subjects with the title, so a commit such as "address review"
+or "Apply suggestion from ..." is fine. Their messages do become the body of
+the squashed commit, so a `BREAKING CHANGE:` footer in any of them makes the
+next release a major one. Please reference the issue you are addressing in
+the pull request description or in a commit message, such as:
 
 ```bash
-git commit -s -am ":seedling: Drop foo flag (fixes #123)"
+git commit -s -am "Drop the foo flag (fixes #123)"
 ```
 
 NOTE: All commits must be signed-off (DCO - Developer Certificate of Origin) so make sure you use the `-s` flag when you commit.

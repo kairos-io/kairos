@@ -235,6 +235,16 @@ func checkUpgrade(source string) error {
 	return checkRoot()
 }
 
+// upgradeArgs accepts at most one positional, the source. Flags are only read
+// up to the first positional, so anything after the source would otherwise
+// be dropped without a word, --dry-run included.
+func upgradeArgs(cmd *cobra.Command, args []string) error {
+	if len(args) <= 1 {
+		return nil
+	}
+	return usageError(cmd, fmt.Sprintf("upgrade takes at most one source argument, got %d: %q; put flags such as --dry-run or --recovery before the source", len(args), args))
+}
+
 func newUpgradeCmd(global *globalFlags) *cobra.Command {
 	var (
 		image, source, bootEntry string
@@ -250,7 +260,7 @@ func newUpgradeCmd(global *globalFlags) *cobra.Command {
 Manually upgrade a kairos node Active image. Does not upgrade the passive image. It upgrades the recovery image when the --recovery flag is passed.
 
 To specify a version, pass it as argument using the --source flag. Passing just the Kairos version as the first argument is no longer supported. If you speficy a positional argument, it will be treated
-as a value for the --source flag.
+as a value for the --source flag. Flags go before it: anything after the positional argument is refused.
 
 You can also specify the upgrade image by setting "upgrade.system.uri" for the active image or "upgrade.recovery-system.uri" for the recovery image, in the cloud config.
 
@@ -265,6 +275,7 @@ $ kairos upgrade list-releases
 See https://kairos.io/docs/upgrade/manual/ for documentation.
 
 `,
+		Args: upgradeArgs,
 		PreRunE: func(*cobra.Command, []string) error {
 			return checkUpgrade(source)
 		},
@@ -308,7 +319,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 	addSourceFlag(flags, &source)
 	flags.StringVar(&bootEntry, "boot-entry", "", "Specify a systemd-boot entry to upgrade (other than active/passive/recovery). The value should match the name of the '.efi' file.")
 	flags.BoolVar(&recovery, constants.BootRecovery, false, "Upgrade recovery")
-	flags.StringSliceVar(&excludePaths, "exclude-path", nil, "Paths to exclude from the upgrade process. Can be specified multiple times.")
+	flags.StringSliceVar(&excludePaths, "exclude-path", nil, "Path in the new image to leave out of the upgrade, from the image root, e.g. /var/lib/foo or etc/*.conf. A leading / is optional, an excluded directory drops its contents, and * and ? are globs that do not cross /. Can be specified multiple times.")
 	addAllowInsecureRegistriesFlag(flags, &insecure)
 	flags.BoolVar(&dryRun, "dry-run", false, "Resolve the upgrade and print a summary of what would be done, without changing the system")
 
@@ -903,7 +914,7 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 	}
 }
 
-func newResetCmd() *cobra.Command {
+func newResetCmd(global *globalFlags) *cobra.Command {
 	var reboot, unattended, resetOem bool
 
 	cmd := &cobra.Command{
@@ -927,7 +938,7 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 			// The persistent partition is formatted by default during reset
 			// (pkg/config/spec.go NewResetSpec sets FormatPersistent: true),
 			// so there's no useful CLI knob to surface here.
-			return agent.Reset(reboot, unattended, resetOem, constants.GetUserConfigDirs()...)
+			return agent.Reset(reboot, unattended, resetOem, global.strictValidation, constants.GetUserConfigDirs()...)
 		},
 	}
 
@@ -1782,7 +1793,7 @@ func sysextConfextCommands(extType string) []*cobra.Command {
 				return fmt.Errorf("--catalog is only supported for sysext")
 			}
 			if catalogVersion != "" && extType != "sysext" {
-				return fmt.Errorf("--version requires --catalog")
+				return fmt.Errorf("--version is only supported for sysext")
 			}
 			requested := args[0]
 			cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
@@ -1962,7 +1973,7 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		newManualInstallCmd(&global),
 		newInstallCmd(),
 		newRecoveryCmd(),
-		newResetCmd(),
+		newResetCmd(&global),
 		newValidateCmd(),
 		newPrintSchemaCmd(),
 		newRunStageCmd(&global),
