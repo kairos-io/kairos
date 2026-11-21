@@ -38,7 +38,7 @@ require (
 	github.com/jaypipes/ghw v0.27.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kairos-io/go-nodepair v0.3.0
-	github.com/kairos-io/tpm-helpers v0.0.0-20261020143916-2cc4ae14e34b
+	github.com/kairos-io/tpm-helpers v0.0.0-20261118100530-3e9e02ba538e
 	github.com/klauspost/compress v1.20.4
 	github.com/kube-vip/kube-vip v1.3.1
 	github.com/labstack/echo/v5 v5.4.4
