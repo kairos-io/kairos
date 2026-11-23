@@ -2,7 +2,6 @@ package validation_test
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -133,13 +132,7 @@ func evalGuardOn(expr, cmdline string, liveMode, ukiInstallMode bool) bool {
 	expr = strings.ReplaceAll(expr, "/run/cos/"+state.InstallModeSentinel,
 		sentinel(state.InstallModeSentinel, wrote(state.InstallModeSentinel)))
 
-	err := exec.Command("sh", "-c", expr).Run()
-	if err == nil {
-		return true
-	}
-	_, isExit := err.(*exec.ExitError)
-	Expect(isExit).To(BeTrue(), "guard failed to run: %v", err)
-	return false
+	return guardPassesExpr(expr)
 }
 
 var _ = Describe("Bundled cloudconfigs install-mode guards", func() {

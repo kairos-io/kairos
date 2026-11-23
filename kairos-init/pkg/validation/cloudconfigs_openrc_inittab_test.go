@@ -119,10 +119,8 @@ func replayOpenRCInittab(liveMode bool, cmdline string) string {
 					continue
 				}
 
-				if step.If != "" {
-					if err := exec.Command("sh", "-c", localize(step.If)).Run(); err != nil {
-						continue
-					}
+				if step.If != "" && !guardPassesExpr(localize(step.If)) {
+					continue
 				}
 
 				for _, command := range step.Commands {
