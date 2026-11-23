@@ -763,6 +763,11 @@ jobs:
   # few seconds a publish lasts.
   publish:
     needs: [promote]
+    # The default condition, success(), is false when any job upstream of this
+    # one was skipped. notify-advisories is skipped whenever the scan finds
+    # nothing to report, so promote overrides the default and so does this job.
+    # A release candidate skips promote and therefore skips publish.
+    if: ${{ !cancelled() && needs.promote.result == 'success' }}
     runs-on: ubuntu-latest
     concurrency:
       group: release-publish-${{ github.repository }}
