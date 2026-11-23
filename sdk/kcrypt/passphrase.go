@@ -169,8 +169,20 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		deadline = time.Now().Add(timeout)
 	}
 
+	// In recovery an empty answer leaves the partition locked, so a
+	// forgotten passphrase does not keep anyone out of the reset. Only an
+	// answer counts: a timeout or a failed password agent is nobody choosing
+	// to have the container erased.
+	leaveLocked := leaveLockedAllowed()
+	withHint := func(s string) string {
+		if leaveLocked {
+			return leaveLockedPrompt(s)
+		}
+		return s
+	}
+
 	p := promptFor(luksTokenTypes(label))
-	prompt := p.ask
+	prompt := withHint(p.ask)
 	for attempt := 1; ; attempt++ {
 		var left time.Duration
 		if !deadline.IsZero() {
@@ -181,14 +193,19 @@ func promptUntilOpen(label string, timeout time.Duration, logger sdkLogger.Kairo
 		}
 
 		pass, err := askPassword(prompt, "kcrypt:"+info.Name, left)
+		if leaveLocked && err == nil && pass == "" {
+			logger.Logger.Warn().Str("partition", label).Msg("Left locked on request: a reset will erase it")
+			return "", ErrLeftLocked
+		}
 		if err != nil {
 			logger.Logger.Warn().Err(err).Str("partition", label).Msg("No passphrase entered")
 			return "", errNoPassphrase
 		}
+
 		pass, err = openTyped(info, pass, p.recovery)
 		if err != nil {
 			logger.Logger.Warn().Str("partition", label).Int("attempt", attempt).Msg(p.wrong)
-			prompt = p.wrong
+			prompt = withHint(p.wrong)
 			continue
 		}
 
@@ -228,6 +245,13 @@ func unlockLabelsByPrompt(labels []string, timeout time.Duration, logger sdkLogg
 			continue
 		}
 		pass, err := promptUntilOpen(label, timeout, logger)
+		if errors.Is(err, ErrLeftLocked) {
+			// The person chose to go on without the passphrase (recovery
+			// only): do not ask for the other partitions, and let the
+			// boot go on with all of them locked.
+			logger.Logger.Warn().Strs("partitions", labels).Msg("Passphrase partitions left locked on request")
+			return nil
+		}
 		if err != nil {
 			return fmt.Errorf("failed to unlock partition %s: %w", label, err)
 		}
