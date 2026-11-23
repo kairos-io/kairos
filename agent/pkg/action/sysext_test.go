@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
@@ -182,7 +183,32 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
 				target, err := config.Fs.Readlink("/var/lib/kairos/extensions/active/fwupd.sysext.raw")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(target).To(ContainSubstring("fwupd.sysext.raw"))
+				Expect(target).To(Equal("../fwupd.sysext.raw"))
+			})
+
+			It("writes a link that resolves from the initramfs mount at /sysroot", func() {
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink("/var/lib/kairos/extensions/active/fwupd.sysext.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(filepath.IsAbs(target)).To(BeFalse())
+			})
+
+			It("keeps its link when enabled twice", func() {
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink("/var/lib/kairos/extensions/active/fwupd.sysext.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(target).To(Equal("../fwupd.sysext.raw"))
+			})
+
+			It("replaces an absolute link left by an older agent", func() {
+				link := "/var/lib/kairos/extensions/active/fwupd.sysext.raw"
+				Expect(config.Fs.Mkdir("/var/lib/kairos/extensions/active", 0755)).To(Succeed())
+				Expect(config.Fs.Symlink("/var/lib/kairos/extensions/fwupd.sysext.raw", link)).To(Succeed())
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink(link)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(target).To(Equal("../fwupd.sysext.raw"))
 			})
 
 			It("does not resolve a name that does not end on a dot boundary", func() {
