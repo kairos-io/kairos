@@ -1027,6 +1027,22 @@ func getSize(vfs sdkFS.KairosFS, size *int64, fileList map[string]bool, path str
 	return nil
 }
 
+// isExcludedSourcePath reports whether path, found while walking the directory source root,
+// is one of the constants.SourceDirExcludes or lies below one of them.
+func isExcludedSourcePath(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	rel = "/" + filepath.ToSlash(rel)
+	for _, exclude := range constants.SourceDirExcludes {
+		if rel == exclude || strings.HasPrefix(rel, exclude+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // GetSourceSize will try to gather the actual size of the source
 // Useful to create the exact size of images and by side effect the partition size
 // This helps adjust the size to be juuuuust right.
@@ -1064,11 +1080,14 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 			if hostDir != "" && strings.HasPrefix(path, hostDir) {
 				config.Logger.Logger.Debug().Str("path", path).Str("hostDir", hostDir).Msg("Skipping dir as it is a host directory")
 				return fs.SkipDir
-			} else if underKubernetes && (strings.HasPrefix(path, "/proc") || strings.HasPrefix(path, "/dev") || strings.HasPrefix(path, "/run")) {
-				// If under kubernetes, the upgrade will check the size of / which includes the host dir mounted under /host
-				// But it also can bind the host mounts into / so we want to skip those runtime dirs
-				// During install or upgrade outside kubernetes, we dont care about those dirs as they are not expected to be in the source dir
-				config.Logger.Logger.Debug().Str("path", path).Str("hostDir", hostDir).Msg("Skipping dir as it is a runtime directory under kubernetes (/proc, /dev or /run)")
+			} else if isExcludedSourcePath(source.Value(), path) {
+				// Skip what the copy skips. Under kubernetes the source is / and the host mounts are bound into it,
+				// where /sys can even hold entries that cannot be read.
+				if d != nil && !d.IsDir() {
+					// SkipDir on a file would also skip its remaining siblings.
+					return nil
+				}
+				config.Logger.Logger.Debug().Str("path", path).Msg("Skipping dir as it is excluded from the copy")
 				return fs.SkipDir
 			} else {
 				v := getSize(config.Fs, &size, filesVisited, path, d, err)

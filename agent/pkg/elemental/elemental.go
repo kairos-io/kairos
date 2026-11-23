@@ -532,11 +532,11 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 			return nil, fmt.Errorf("failed to extract image contents: %w", err)
 		}
 	} else if imgSrc.IsDir() {
-		mergedExcludes := make([]string, 0, len(excludes)+7)
+		mergedExcludes := make([]string, 0, len(excludes)+len(cnst.SourceDirExcludes))
 		for _, exclude := range excludes {
 			mergedExcludes = append(mergedExcludes, path.Clean("/"+exclude))
 		}
-		mergedExcludes = append(mergedExcludes, "/mnt", "/proc", "/sys", "/dev", "/tmp", "/host", "/run")
+		mergedExcludes = append(mergedExcludes, cnst.SourceDirExcludes...)
 		err = utils.SyncData(e.config.Logger, e.config.Runner, e.config.Fs, imgSrc.Value(), target, mergedExcludes...)
 		if err != nil {
 			return nil, err
