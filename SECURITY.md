@@ -1,5 +1,27 @@
 # Security Policy
 
+## Supported Versions
+
+Only the latest Kairos release receives fixes, including security fixes. Users
+are expected to run the latest release.
+
+Kairos releases from `master` every Monday. When `master` is green and
+something landed since the previous release, a new version is cut and
+published once a maintainer approves it. A change that adds a feature gives a
+minor version, any other change gives a patch version. [RELEASING.md](RELEASING.md)
+describes the process.
+
+| Version | Supported |
+|---|---|
+| Latest release | Yes |
+| Older minor or patch releases | No. A maintainer may backport a fix by hand, on a best-effort basis |
+
+Hadron, the minimal base OS Kairos images can be built from, is a rolling
+release and has no long-term support versions. It releases twice a week.
+
+Help with older versions is best-effort and comes from the community.
+Spectro Cloud offers enterprise support for users who need more.
+
 ## Reporting a Vulnerability
 
 Kairos supports responsible disclosure and endeavors to resolve security issues in a reasonable timeframe.
