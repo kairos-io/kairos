@@ -19,6 +19,10 @@ on:
         description: 'Name of the workflow artifact that holds the amd64 AuroraBoot image archive'
         type: string
         default: auroraboot-image-amd64
+      e2e:
+        description: 'Run the slow jobs that boot or drive the AuroraBoot image (e2e, raw disk, UI, phone-home). The fast jobs always run.'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -117,6 +121,7 @@ jobs:
         run: make helm-chart-test
 
   e2e-tests:
+    if: inputs.e2e
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
@@ -185,6 +190,7 @@ jobs:
           go run github.com/onsi/ginkgo/v2/ginkgo -v -r -p --timeout=2h --label-filter "e2e" ./e2e
 
   test-bootable-raw-efi:
+    if: inputs.e2e
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
@@ -246,6 +252,7 @@ jobs:
           go run github.com/onsi/ginkgo/v2/ginkgo run --label-filter "raw-bootable" -v --fail-fast -r ./e2e
 
   test-bootable-raw-efi-boot-active:
+    if: inputs.e2e
     runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
@@ -327,6 +334,7 @@ jobs:
           go run github.com/onsi/ginkgo/v2/ginkgo run --label-filter "raw-bootable" -v --fail-fast -r ./e2e
 
   test-bootable-raw-bios:
+    if: inputs.e2e
     runs-on: ubuntu-26.04
     steps:
       - name: Checkout code
@@ -383,6 +391,7 @@ jobs:
           go run github.com/onsi/ginkgo/v2/ginkgo run --label-filter "raw-bootable" -v --fail-fast -r ./e2e
 
   test-ui-builder:
+    if: inputs.e2e
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -417,6 +426,7 @@ jobs:
           path: auroraboot/e2e/web/cypress/screenshots/
 
   phonehome-vm:
+    if: inputs.e2e
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
