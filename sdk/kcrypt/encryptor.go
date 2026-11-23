@@ -699,30 +699,58 @@ func validateSystemdVersion(logger sdkLogger.KairosLogger, minVersion int) error
 // tests can point the check at a temporary path.
 var tpmDevicePath = "/dev/tpmrm0"
 
-// tpmDeviceWaitTimeout bounds how long validateTPMDevice polls for the device.
-// On some boards the TPM driver finishes probing seconds after boot.
-var tpmDeviceWaitTimeout = 10 * time.Second
+// tpmCmdlinePath is the kernel command line source. It is a variable so
+// tests can provide a temporary file.
+var tpmCmdlinePath = "/proc/cmdline"
 
-// tpmDevicePollInterval is the delay between checks while waiting for the device.
-const tpmDevicePollInterval = 100 * time.Millisecond
+// tpmDevicePollInterval is the delay between checks when retries are enabled.
+var tpmDevicePollInterval = time.Second
 
-// validateTPMDevice checks if TPM 2.0 device exists, polling for it for up to
-// tpmDeviceWaitTimeout before failing.
+const tpmDeviceRetryCmdlineArg = "rd.immucore.retry-tpm="
+
+// tpmDeviceRetryTimeout returns the optional retry window in seconds from the
+// kernel command line. Without a positive integer value, validation performs
+// one immediate check and fails if the device is absent.
+func tpmDeviceRetryTimeout(cmdline string) time.Duration {
+	for _, arg := range strings.Fields(cmdline) {
+		if !strings.HasPrefix(arg, tpmDeviceRetryCmdlineArg) {
+			continue
+		}
+		seconds, err := strconv.ParseInt(strings.TrimPrefix(arg, tpmDeviceRetryCmdlineArg), 10, 64)
+		if err != nil || seconds <= 0 || seconds > int64((1<<63-1)/int64(time.Second)) {
+			return 0
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	return 0
+}
+
+// validateTPMDevice checks if TPM 2.0 device exists. Waiting for a device that
+// probes slowly is opt-in through rd.immucore.retry-tpm=<seconds> so systems
+// without a TPM do not incur a boot delay by default.
 func validateTPMDevice(logger sdkLogger.KairosLogger) error {
 	// Check for a TPM 2.0 device as it's needed to encrypt
 	// Exposed by the kernel to userspace as /dev/tpmrm0 since kernel 4.12
 	// https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=fdc915f7f71939ad5a3dda3389b8d2d7a7c5ee66
-	deadline := time.Now().Add(tpmDeviceWaitTimeout)
+	var retryTimeout time.Duration
+	if cmdline, err := os.ReadFile(tpmCmdlinePath); err == nil {
+		retryTimeout = tpmDeviceRetryTimeout(string(cmdline))
+	}
+	deadline := time.Now().Add(retryTimeout)
 	for {
 		_, err := os.Stat(tpmDevicePath)
 		if err == nil {
 			logger.Logger.Info().Msgf("TPM 2.0 device found at %s", tpmDevicePath)
 			return nil
 		}
-		if time.Now().After(deadline) {
-			logger.Warnf("Could not find TPM 2.0 device at %s after %s", tpmDevicePath, tpmDeviceWaitTimeout)
+		if retryTimeout == 0 || !time.Now().Before(deadline) {
+			logger.Warnf("Could not find TPM 2.0 device at %s", tpmDevicePath)
 			return fmt.Errorf("could not find TPM 2.0 device at %s: %w", tpmDevicePath, err)
 		}
-		time.Sleep(tpmDevicePollInterval)
+		wait := time.Until(deadline)
+		if wait > tpmDevicePollInterval {
+			wait = tpmDevicePollInterval
+		}
+		time.Sleep(wait)
 	}
 }
