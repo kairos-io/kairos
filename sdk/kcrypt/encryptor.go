@@ -695,17 +695,34 @@ func validateSystemdVersion(logger sdkLogger.KairosLogger, minVersion int) error
 	return nil
 }
 
-// validateTPMDevice checks if TPM 2.0 device exists.
+// tpmDevicePath is the TPM 2.0 character device. It is a variable so that
+// tests can point the check at a temporary path.
+var tpmDevicePath = "/dev/tpmrm0"
+
+// tpmDeviceWaitTimeout bounds how long validateTPMDevice polls for the device.
+// On some boards the TPM driver finishes probing seconds after boot.
+var tpmDeviceWaitTimeout = 10 * time.Second
+
+// tpmDevicePollInterval is the delay between checks while waiting for the device.
+const tpmDevicePollInterval = 100 * time.Millisecond
+
+// validateTPMDevice checks if TPM 2.0 device exists, polling for it for up to
+// tpmDeviceWaitTimeout before failing.
 func validateTPMDevice(logger sdkLogger.KairosLogger) error {
 	// Check for a TPM 2.0 device as it's needed to encrypt
 	// Exposed by the kernel to userspace as /dev/tpmrm0 since kernel 4.12
 	// https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=fdc915f7f71939ad5a3dda3389b8d2d7a7c5ee66
-	_, err := os.Stat("/dev/tpmrm0")
-	if err != nil {
-		logger.Warnf("Could not find TPM 2.0 device at /dev/tpmrm0")
-		return fmt.Errorf("could not find TPM 2.0 device at /dev/tpmrm0: %w", err)
+	deadline := time.Now().Add(tpmDeviceWaitTimeout)
+	for {
+		_, err := os.Stat(tpmDevicePath)
+		if err == nil {
+			logger.Logger.Info().Msgf("TPM 2.0 device found at %s", tpmDevicePath)
+			return nil
+		}
+		if time.Now().After(deadline) {
+			logger.Warnf("Could not find TPM 2.0 device at %s after %s", tpmDevicePath, tpmDeviceWaitTimeout)
+			return fmt.Errorf("could not find TPM 2.0 device at %s: %w", tpmDevicePath, err)
+		}
+		time.Sleep(tpmDevicePollInterval)
 	}
-
-	logger.Logger.Info().Msg("TPM 2.0 device found at /dev/tpmrm0")
-	return nil
 }
