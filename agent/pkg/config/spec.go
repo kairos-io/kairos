@@ -135,13 +135,13 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 		activeImg.Source = sdkImages.NewEmptySrc()
 	}
 
+	// The passive and recovery sources are left unset until the install
+	// config is read, so a legacy uri can still fill them in.
 	if recoveryExists {
-		recoveryImg.Source = sdkImages.NewFileSrc(recoveryImgFile)
 		recoveryImg.FS = constants.SquashFs
 		recoveryImg.File = filepath.Join(constants.RecoveryDir, "cOS", constants.RecoverySquashFile)
 		recoveryImg.Size = sdkConstants.ImgSize
 	} else {
-		recoveryImg.Source = sdkImages.NewFileSrc(activeImg.File)
 		recoveryImg.FS = sdkConstants.LinuxImgFs
 		recoveryImg.Label = sdkConstants.SystemLabel
 		recoveryImg.File = filepath.Join(constants.RecoveryDir, "cOS", constants.RecoveryImgFile)
@@ -149,11 +149,10 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	}
 
 	passiveImg = sdkImages.Image{
-		File:   filepath.Join(constants.StateDir, "cOS", constants.PassiveImgFile),
-		Label:  sdkConstants.PassiveLabel,
-		Source: sdkImages.NewFileSrc(activeImg.File),
-		FS:     sdkConstants.LinuxImgFs,
-		Size:   sdkConstants.ImgSize,
+		File:  filepath.Join(constants.StateDir, "cOS", constants.PassiveImgFile),
+		Label: sdkConstants.PassiveLabel,
+		FS:    sdkConstants.LinuxImgFs,
+		Size:  sdkConstants.ImgSize,
 	}
 
 	spec := &spec.InstallSpec{
@@ -175,6 +174,16 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	if err := unmarshallFullSpec(cfg, "install", spec); err != nil {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
 	}
+	if spec.Recovery.Source == nil || spec.Recovery.Source.IsEmpty() {
+		if recoveryExists {
+			spec.Recovery.Source = sdkImages.NewFileSrc(recoveryImgFile)
+		} else {
+			spec.Recovery.Source = sdkImages.NewFileSrc(spec.Active.File)
+		}
+	}
+	if spec.Passive.Source == nil || spec.Passive.Source.IsEmpty() {
+		spec.Passive.Source = sdkImages.NewFileSrc(spec.Active.File)
+	}
 	// Honor install registry options before any image is fetched
 	if err := applyRegistryOptions(cfg, "install", spec.Active.Source); err != nil {
 		return nil, err
@@ -187,8 +196,30 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	} else {
 		cfg.Logger.Infof("Setting image size to %dMiB", size)
 		spec.Active.Size = uint(size)
-		spec.Passive.Size = uint(size)
-		spec.Recovery.Size = uint(size)
+		for _, img := range []*sdkImages.Image{&spec.Passive, &spec.Recovery} {
+			if sharesActiveSource(spec.Active, *img) {
+				img.Size = uint(size)
+			}
+		}
+	}
+	for _, img := range []struct {
+		name  string
+		image *sdkImages.Image
+	}{{"passive", &spec.Passive}, {"recovery", &spec.Recovery}} {
+		if sharesActiveSource(spec.Active, *img.image) {
+			continue
+		}
+		ownSize, err := GetSourceSize(cfg, img.image.Source)
+		if err != nil {
+			cfg.Logger.Warnf("Failed to infer size for the %s image: %s", img.name, err.Error())
+			continue
+		}
+		if ownSize <= 0 {
+			cfg.Logger.Warnf("Failed to infer size for the %s image: no data found in %s", img.name, img.image.Source.String())
+			continue
+		}
+		cfg.Logger.Infof("Setting %s image size to %dMiB", img.name, ownSize)
+		img.image.Size = uint(ownSize)
 	}
 
 	err = unmarshallFullSpec(cfg, "install", spec)
@@ -332,11 +363,27 @@ func statePartitionSize(log sdkLogger.KairosLogger, configured *sdkPartitions.Pa
 	return stateSize
 }
 
-// ResizeInstallSpecForSource measures the active image source of the spec
-// again and recalculates the image sizes and the recovery and state partition
-// sizes from it. Sizes set in the install config are kept as minimums, sizes
-// calculated earlier from another source are replaced. If the source cannot be
-// measured or the config cannot be read, the spec is left unchanged.
+// sharesActiveSource reports whether img is deployed from the same source as
+// the active image, either a copy of the active image file or the active
+// source itself, so it takes the size of the active image.
+func sharesActiveSource(active, img sdkImages.Image) bool {
+	src := img.Source
+	if src == nil || src.IsEmpty() {
+		return true
+	}
+	if src.IsFile() && active.File != "" && src.Value() == active.File {
+		return true
+	}
+	return active.Source != nil && src.String() == active.Source.String()
+}
+
+// ResizeInstallSpecForSource measures the image sources of the spec again and
+// recalculates the image sizes and the recovery and state partition sizes from
+// them. The passive and recovery images are sized from their own source unless
+// they are copied from the active image. Sizes set in the install config are
+// kept as minimums, sizes calculated earlier from another source are replaced.
+// If a source cannot be measured or the config cannot be read, the spec is left
+// unchanged.
 func ResizeInstallSpecForSource(cfg *sdkConfig.Config, sp *spec.InstallSpec) error {
 	size, err := GetSourceSize(cfg, sp.Active.Source)
 	if err != nil {
@@ -344,6 +391,28 @@ func ResizeInstallSpecForSource(cfg *sdkConfig.Config, sp *spec.InstallSpec) err
 	}
 	if size <= 0 {
 		return fmt.Errorf("measuring the install source %s: no data found", sp.Active.Source.String())
+	}
+
+	measure := func(name string, img sdkImages.Image) (uint, error) {
+		if sharesActiveSource(sp.Active, img) {
+			return uint(size), nil
+		}
+		own, err := GetSourceSize(cfg, img.Source)
+		if err != nil {
+			return 0, fmt.Errorf("measuring the %s image source: %w", name, err)
+		}
+		if own <= 0 {
+			return 0, fmt.Errorf("measuring the %s image source %s: no data found", name, img.Source.String())
+		}
+		return uint(own), nil
+	}
+	passiveMeasured, err := measure("passive", sp.Passive)
+	if err != nil {
+		return err
+	}
+	recoveryMeasured, err := measure("recovery", sp.Recovery)
+	if err != nil {
+		return err
 	}
 
 	// Decode the install config on its own to tell the sizes the user asked
@@ -354,8 +423,8 @@ func ResizeInstallSpecForSource(cfg *sdkConfig.Config, sp *spec.InstallSpec) err
 	}
 
 	activeSize := max(uint(size), configured.Active.Size)
-	passiveSize := max(uint(size), configured.Passive.Size)
-	recoverySize := max(uint(size), configured.Recovery.Size)
+	passiveSize := max(passiveMeasured, configured.Passive.Size)
+	recoverySize := max(recoveryMeasured, configured.Recovery.Size)
 	cfg.Logger.Infof("Setting image sizes to %dMiB (active), %dMiB (passive) and %dMiB (recovery)", activeSize, passiveSize, recoverySize)
 
 	recoveryPart := recoveryPartitionSize(cfg.Logger, configured.Partitions.Recovery, recoverySize)
@@ -1339,6 +1408,7 @@ func checkDeprecatedURIUsage(logger sdkLogger.KairosLogger, sp sdkSpec.Spec) {
 	case *spec.InstallSpec:
 		checkImageURI(&s.Active, logger, "install.system")
 		checkImageURI(&s.Recovery, logger, "install.recovery-system")
+		checkImageURI(&s.Passive, logger, "install.passive")
 	case *spec.UpgradeSpec:
 		checkImageURI(&s.Active, logger, "upgrade.system")
 		checkImageURI(&s.Recovery, logger, "upgrade.recovery-system")
