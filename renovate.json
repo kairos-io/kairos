@@ -31,6 +31,16 @@
       "pinDigests": true
     },
     {
+      "description": "Every hadron flavour moves together, so one PR bumps all the pins.",
+      "matchDepNames": [
+        "ghcr.io/kairos-io/hadron",
+        "ghcr.io/kairos-io/hadron-fips",
+        "ghcr.io/kairos-io/hadron-trusted"
+      ],
+      "groupName": "hadron base image",
+      "commitMessageTopic": "hadron base image"
+    },
+    {
       "description": "The v2 line of bubbles and bubbletea is published as charm.land/bubbles/v2 and charm.land/bubbletea/v2, so github.com/charmbracelet/<pkg>/v2 does not resolve. See #4472 and #4473.",
       "matchDatasources": [
         "go"
@@ -145,6 +155,21 @@
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s+[A-Z_][A-Z0-9_]*\\s*=\\s*\"[^:\"]+:(?<currentValue>[^\"\\s]+)\""
       ]
+    },
+    {
+      "description": "Hadron base image pins live in workflow matrices, a script, a Makefile and a Go test, none of which a built-in manager reads. Only vX.Y.Z tags match, so the moving hadron:main tag is left alone. Test fixtures and kairos-init's own matrix keep their old tags on purpose.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/.*\\.ya?ml$/",
+        "/^scripts/build-iso\\.sh$/",
+        "/^agent/Makefile$/",
+        "/^tests/insecure_registry_test\\.go$/"
+      ],
+      "matchStrings": [
+        "(?<depName>ghcr\\.io/kairos-io/hadron(?:-fips|-trusted)?):(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
     },
     {
       "customType": "regex",
