@@ -35,6 +35,10 @@ published.
    The chart in the repository deploys the `master` image from ghcr.io. The
    release job points the published chart at `quay.io/kairos/auroraboot` before
    it packages it.
+   The `kairos-init` and `kcrypt-challenger` images get an SBOM at build time,
+   and `_attest-image.yaml` then signs them with cosign and attests their build
+   provenance. `upload-release` waits for that, so a release whose images could
+   not be signed never reaches the approval step.
 
 The run ends successfully without a release when `master.yaml` did not
 succeed, when no run has finished, when no commit landed since the newest
