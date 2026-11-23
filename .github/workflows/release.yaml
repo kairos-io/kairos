@@ -26,8 +26,11 @@ name: release
 #     (binaries)
 #   - build-image-kairos-init / build-image-kcrypt-challenger
 #     (pushed to quay.io/kairos with the tag only, with an SBOM)
-#   - attest-image-kairos-init / attest-image-kcrypt-challenger
-#     (cosign signature and build provenance for the pushed digest)
+#   - push-image-auroraboot (pushed to quay.io/kairos with the tag
+#     only, with an SBOM)
+#   - attest-image-kairos-init / attest-image-kcrypt-challenger /
+#     attest-image-auroraboot (cosign signature and build provenance
+#     for the pushed digest)
 #   - build-iso / build-iso-arm / build-iso-k3s / build-iso-k0s
 #     (OS images pushed directly to quay.io/kairos, ISO/RAW artifacts
 #     attached to the GH Release)
@@ -362,9 +365,10 @@ jobs:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
-  # Sign and attest both images by digest in their own jobs, so the
-  # build jobs never hold an OIDC token. upload-release waits for both,
-  # so promote and publish never move :latest to an unsigned image.
+  # Sign and attest the images by digest in their own jobs, so the
+  # build jobs never hold an OIDC token. upload-release waits for all
+  # of them, so promote and publish never move :latest to an unsigned
+  # image.
   attest-image-kairos-init:
     needs: build-image-kairos-init
     uses: ./.github/workflows/_attest-image.yaml
@@ -381,8 +385,9 @@ jobs:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
       QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
 
+  # Waits for the signature, so the chart never names an unsigned image.
   release-helm-chart:
-    needs: [push-image-auroraboot]
+    needs: [push-image-auroraboot, attest-image-auroraboot]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -424,6 +429,22 @@ jobs:
     with:
       image: quay.io/kairos/kcrypt-challenger
       digest: ${{ needs.build-image-kcrypt-challenger.outputs.digest }}
+      registry_login: quay
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+
+  attest-image-auroraboot:
+    needs: push-image-auroraboot
+    uses: ./.github/workflows/_attest-image.yaml
+    permissions:
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      packages: write
+    with:
+      image: quay.io/kairos/auroraboot
+      digest: ${{ needs.push-image-auroraboot.outputs.digest }}
       registry_login: quay
     secrets:
       QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
@@ -695,6 +716,7 @@ jobs:
       - release-helm-chart
       - attest-image-kairos-init
       - attest-image-kcrypt-challenger
+      - attest-image-auroraboot
     uses: ./.github/workflows/_upload-release.yaml
     permissions:
       contents: write
@@ -857,6 +879,9 @@ jobs:
       - build-image-kcrypt-challenger
       - build-auroraboot
       - push-image-auroraboot
+      - attest-image-kairos-init
+      - attest-image-kcrypt-challenger
+      - attest-image-auroraboot
       - release-helm-chart
       - build-iso
       - build-iso-arm
