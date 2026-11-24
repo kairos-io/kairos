@@ -42,14 +42,14 @@ type PassphraseRequestData struct {
 // and handles selective enrollment logic for the kcrypt-challenger
 type Attestator struct {
 	reconciler *controllers.SealedVolumeReconciler
-	kclient    *kubernetes.Clientset
+	kclient    kubernetes.Interface
 	namespace  string
 	logger     logr.Logger
 	partition  PartitionInfo // Store partition info from WebSocket headers
 }
 
 // NewAttestator creates a new Attestator
-func NewAttestator(reconciler *controllers.SealedVolumeReconciler, kclient *kubernetes.Clientset, namespace string, logger logr.Logger, partition PartitionInfo) *Attestator {
+func NewAttestator(reconciler *controllers.SealedVolumeReconciler, kclient kubernetes.Interface, namespace string, logger logr.Logger, partition PartitionInfo) *Attestator {
 	return &Attestator{
 		reconciler: reconciler,
 		kclient:    kclient,
@@ -93,7 +93,11 @@ func (ca *Attestator) IssuePassphrase(ctx context.Context, req attestation.Reque
 			// New enrollment - allow PCR deferral
 			shouldDeferPCRs = true
 			ca.logger.Info("LiveCD mode: Deferring PCR enrollment for new TPM", "tpmHash", req.TPMHash[:8])
-		} else if enrollmentContext.SealedVolume != nil && enrollmentContext.SealedVolume.Spec.Attestation != nil {
+		} else if enrollmentContext.SealedVolume != nil && enrollmentContext.SealedVolume.Spec.Attestation == nil {
+			// Pre-created SealedVolume (static passphrase) - nothing enrolled yet, allow PCR deferral
+			shouldDeferPCRs = true
+			ca.logger.Info("LiveCD mode: Deferring PCR enrollment for SealedVolume without attestation data", "tpmHash", req.TPMHash[:8])
+		} else if enrollmentContext.SealedVolume != nil {
 			// Check if existing PCRs are all empty (re-enrollment mode)
 			allPCRsEmpty := true
 			if enrollmentContext.SealedVolume.Spec.Attestation.PCRValues != nil &&
@@ -653,7 +657,7 @@ func performInitialEnrollment(ctx *EnrollmentContext, attestation *ClientAttesta
 }
 
 // addPartitionToExistingVolume adds a new partition to an existing SealedVolume
-func addPartitionToExistingVolume(ctx *EnrollmentContext, reconciler *controllers.SealedVolumeReconciler, kclient *kubernetes.Clientset, namespace string, logger logr.Logger) error {
+func addPartitionToExistingVolume(ctx *EnrollmentContext, reconciler *controllers.SealedVolumeReconciler, kclient kubernetes.Interface, namespace string, logger logr.Logger) error {
 	logger.Info("Adding new partition to existing SealedVolume")
 
 	// Generate secret name and path for the new partition using DefaultSecret logic
@@ -767,7 +771,7 @@ func verifyAttestationData(ctx *EnrollmentContext, attestation *ClientAttestatio
 }
 
 // updateEnrollmentData updates attestation data for re-enrollment of existing TPMs
-func updateEnrollmentData(ctx *EnrollmentContext, attestation *ClientAttestation, reconciler *controllers.SealedVolumeReconciler, kclient *kubernetes.Clientset, namespace string, logger logr.Logger) error {
+func updateEnrollmentData(ctx *EnrollmentContext, attestation *ClientAttestation, reconciler *controllers.SealedVolumeReconciler, kclient kubernetes.Interface, namespace string, logger logr.Logger) error {
 	// If no attestation data exists, create initial TOFU attestation
 	// This handles the case where an operator creates a SealedVolume without attestation data
 	// (e.g., for static passphrase setup or after SealedVolume recreation)
