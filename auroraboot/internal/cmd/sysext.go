@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
-	aurorabootUtils "github.com/kairos-io/AuroraBoot/pkg/utils"
+	aurorabootUtils "github.com/kairos-io/kairos/auroraboot/pkg/utils"
 	"github.com/kairos-io/kairos/v4/sdk/sysext"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkImage "github.com/kairos-io/kairos/v4/sdk/utils/image"

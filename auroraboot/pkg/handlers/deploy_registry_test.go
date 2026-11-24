@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // memDeploymentStore is a minimal in-package fake for the white-box progress test.

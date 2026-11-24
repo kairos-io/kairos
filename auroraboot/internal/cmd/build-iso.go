@@ -8,14 +8,14 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/kairos-io/AuroraBoot/internal"
+	"github.com/kairos-io/kairos/auroraboot/internal"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 
-	"github.com/kairos-io/AuroraBoot/deployer"
-	"github.com/kairos-io/AuroraBoot/internal/config"
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
-	"github.com/kairos-io/AuroraBoot/pkg/extensions"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/deployer"
+	"github.com/kairos-io/kairos/auroraboot/internal/config"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/extensions"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 	"github.com/spectrocloud-labs/herd"
 	"github.com/urfave/cli/v2"
 )

@@ -28,11 +28,17 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 )
 
+// BindMount is a bind mount from Source outside the chroot to Target inside it.
+type BindMount struct {
+	Source string
+	Target string
+}
+
 // Chroot represents the struct that will allow us to run commands inside a given chroot
 type Chroot struct {
 	path          string
 	defaultMounts []string
-	extraMounts   map[string]string
+	extraMounts   []BindMount
 	activeMounts  []string
 	config        *sdkConfig.Config
 }
@@ -41,7 +47,7 @@ func NewChroot(path string, config *sdkConfig.Config) *Chroot {
 	chroot := &Chroot{
 		path:          path,
 		defaultMounts: []string{"/dev", "/dev/pts", "/proc", "/sys"},
-		extraMounts:   map[string]string{},
+		extraMounts:   []BindMount{},
 		activeMounts:  []string{},
 		config:        config,
 	}
@@ -62,17 +68,41 @@ func ChrootedCallback(cfg *sdkConfig.Config, path string, bindMounts map[string]
 	return chroot.RunCallback(callback)
 }
 
+// ChrootedCallbackWithBinds runs the given callback in a chroot environment
+// with the given bind mounts, mounted in order. Unlike ChrootedCallback, the
+// same source can be bound to several targets.
+func ChrootedCallbackWithBinds(cfg *sdkConfig.Config, path string, binds []BindMount, callback func() error) error {
+	cfg.Logger.Debugf("Extra mounts: %v", binds)
+	chroot := NewChroot(path, cfg)
+	chroot.SetExtraBinds(binds)
+	return chroot.RunCallback(callback)
+}
+
 // Sets additional bind mounts for the chroot environment. They are represented
 // in a map where the key is the path outside the chroot and the value is the
-// path inside the chroot.
+// path inside the chroot. They are mounted sorted by source path.
 func (c *Chroot) SetExtraMounts(extraMounts map[string]string) {
-	c.extraMounts = extraMounts
+	keys := make([]string, 0, len(extraMounts))
+	for k := range extraMounts {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	binds := make([]BindMount, 0, len(keys))
+	for _, k := range keys {
+		binds = append(binds, BindMount{Source: k, Target: extraMounts[k]})
+	}
+	c.extraMounts = binds
+}
+
+// SetExtraBinds sets additional bind mounts for the chroot environment,
+// mounted in the given order.
+func (c *Chroot) SetExtraBinds(binds []BindMount) {
+	c.extraMounts = binds
 }
 
 // Prepare will mount the defaultMounts as bind mounts, to be ready when we run chroot
 func (c *Chroot) Prepare() error {
 	var err error
-	keys := []string{}
 	mountOptions := []string{"bind"}
 
 	if len(c.activeMounts) > 0 {
@@ -100,23 +130,19 @@ func (c *Chroot) Prepare() error {
 		c.config.Logger.Debugf("Mounted %s to %s", mnt, mountPoint)
 	}
 
-	for k := range c.extraMounts {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		c.config.Logger.Debugf("Mounting %s to chroot", k)
-		mountPoint := fmt.Sprintf("%s%s", strings.TrimSuffix(c.path, "/"), c.extraMounts[k])
+	for _, b := range c.extraMounts {
+		c.config.Logger.Debugf("Mounting %s to chroot", b.Source)
+		mountPoint := fmt.Sprintf("%s%s", strings.TrimSuffix(c.path, "/"), b.Target)
 		err = fsutils.MkdirAll(c.config.Fs, mountPoint, constants.DirPerm)
 		if err != nil {
 			return err
 		}
-		err = c.config.Mounter.Mount(k, mountPoint, "bind", mountOptions)
+		err = c.config.Mounter.Mount(b.Source, mountPoint, "bind", mountOptions)
 		if err != nil {
 			return err
 		}
 		c.activeMounts = append(c.activeMounts, mountPoint)
-		c.config.Logger.Debugf("Mounted %s to %s", k, mountPoint)
+		c.config.Logger.Debugf("Mounted %s to %s", b.Source, mountPoint)
 	}
 
 	return nil

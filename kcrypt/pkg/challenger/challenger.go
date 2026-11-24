@@ -1052,49 +1052,77 @@ func findVolumeForTPM(tpmHash string, volumeList *keyserverv1alpha1.SealedVolume
 	return nil
 }
 
-// findPartitionInVolume checks if a specific partition exists in a SealedVolume.
-// A partition can be identified by any of its UUID, label or device name. When
-// those point at different entries, the UUID wins over the label, and the label
-// wins over the device name, because kernel device names can change between
-// boots and may then equal the name stored for another partition. A UUID of
-// "unknown", which the node sends when udev has none, never matches.
-func findPartitionInVolume(volume *keyserverv1alpha1.SealedVolume, partition PartitionInfo) (*SealedVolumeData, bool) {
-	matchers := []func(p keyserverv1alpha1.PartitionSpec) bool{
-		func(p keyserverv1alpha1.PartitionSpec) bool {
-			return partition.UUID != "" && partition.UUID != ghw.UNKNOWN && p.UUID == partition.UUID
-		},
-		func(p keyserverv1alpha1.PartitionSpec) bool {
-			return partition.Label != "" && p.Label == partition.Label
-		},
-		func(p keyserverv1alpha1.PartitionSpec) bool {
-			return partition.DeviceName != "" && p.DeviceName == partition.DeviceName
-		},
-	}
+// knownID reports whether an identifier carries information. The node sends
+// "unknown" when udev has no partition UUID, which says nothing about the
+// partition, so it is treated like an empty field.
+func knownID(id string) bool {
+	return id != "" && id != ghw.UNKNOWN
+}
 
-	for _, matches := range matchers {
-		for _, p := range volume.Spec.Partitions {
-			if !matches(p) {
-				continue
-			}
-			secretName := ""
-			if p.Secret != nil && p.Secret.Name != "" {
-				secretName = p.Secret.Name
-			}
-			secretPath := ""
-			if p.Secret != nil && p.Secret.Path != "" {
-				secretPath = p.Secret.Path
-			}
-			volumeData := &SealedVolumeData{
-				Quarantined:    volume.Spec.Quarantined,
-				SecretName:     secretName,
-				SecretPath:     secretPath,
-				VolumeName:     volume.Name,
-				PartitionLabel: p.Label,
-			}
-			return volumeData, true
+// differs reports whether two identifiers are both known and unequal.
+func differs(stored, requested string) bool {
+	return knownID(stored) && knownID(requested) && stored != requested
+}
+
+func sealedVolumeData(volume *keyserverv1alpha1.SealedVolume, p keyserverv1alpha1.PartitionSpec) *SealedVolumeData {
+	data := &SealedVolumeData{
+		Quarantined:    volume.Spec.Quarantined,
+		VolumeName:     volume.Name,
+		PartitionLabel: p.Label,
+	}
+	if p.Secret != nil {
+		data.SecretName = p.Secret.Name
+		data.SecretPath = p.Secret.Path
+	}
+	return data
+}
+
+// findPartitionInVolume checks if a specific partition exists in a SealedVolume.
+//
+// A stored UUID that differs from the requested one rules the entry out,
+// whatever its label or device name say. A stored UUID that equals the
+// requested one is a match on its own: the label and device name are not
+// compared, because a partition keeps its UUID when it is relabeled or when
+// the kernel gives it another device name. Without a UUID match, the label is
+// tried next and then the device name. The device name only counts when the
+// entry has no UUID or label that contradicts the request, because kernel
+// names change between boots and can equal the name stored for another
+// partition.
+//
+// When the only entry with the requested label has a different UUID, the
+// machine was most likely reinstalled and repartitioned. The old passphrase
+// must not be reused and a second entry with the same label must not be
+// enrolled, so an error names the SealedVolume and the label for the operator
+// to remove. The error leaves out the UUIDs because the caller is not attested.
+func findPartitionInVolume(volume *keyserverv1alpha1.SealedVolume, partition PartitionInfo) (*SealedVolumeData, bool, error) {
+	parts := volume.Spec.Partitions
+
+	for _, p := range parts {
+		if knownID(partition.UUID) && p.UUID == partition.UUID {
+			return sealedVolumeData(volume, p), true, nil
 		}
 	}
-	return nil, false
+
+	for _, p := range parts {
+		if knownID(partition.Label) && p.Label == partition.Label && !differs(p.UUID, partition.UUID) {
+			return sealedVolumeData(volume, p), true, nil
+		}
+	}
+
+	for _, p := range parts {
+		if knownID(partition.Label) && p.Label == partition.Label && differs(p.UUID, partition.UUID) {
+			return nil, false, fmt.Errorf("partition with label %q is enrolled in SealedVolume %q with a different UUID; "+
+				"if the machine was reinstalled, remove the entry for that label from the SealedVolume", p.Label, volume.Name)
+		}
+	}
+
+	for _, p := range parts {
+		if knownID(partition.DeviceName) && p.DeviceName == partition.DeviceName &&
+			!differs(p.UUID, partition.UUID) && !differs(p.Label, partition.Label) {
+			return sealedVolumeData(volume, p), true, nil
+		}
+	}
+	return nil, false, nil
 }
 
 // determineEnrollmentContext checks for existing enrollment and creates context
@@ -1114,7 +1142,14 @@ func determineEnrollmentContext(reconciler *controllers.SealedVolumeReconciler, 
 
 	if existingSealedVolume != nil {
 		// TPM is already enrolled - check if this specific partition exists
-		volumeData, partitionExists := findPartitionInVolume(existingSealedVolume, partition)
+		volumeData, partitionExists, err := findPartitionInVolume(existingSealedVolume, partition)
+		if err != nil {
+			// The node is not attested yet, so the error it receives leaves out the
+			// UUIDs. They are logged here for the operator.
+			logger.Error(err, "Rejecting partition enrollment", "tpmHash", tpmHash,
+				"partitionLabel", partition.Label, "partitionDeviceName", partition.DeviceName, "partitionUUID", partition.UUID)
+			return nil, err
+		}
 		if partitionExists {
 			// This is an existing partition for an enrolled TPM
 			existingVolume = volumeData

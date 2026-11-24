@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kairos-io/AuroraBoot/pkg/auth"
-	"github.com/kairos-io/AuroraBoot/pkg/batches"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
-	"github.com/kairos-io/AuroraBoot/pkg/ws"
+	"github.com/kairos-io/kairos/auroraboot/pkg/auth"
+	"github.com/kairos-io/kairos/auroraboot/pkg/batches"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/ws"
 	"github.com/labstack/echo/v4"
 )
 

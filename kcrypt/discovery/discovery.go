@@ -71,8 +71,8 @@ Configuration:
   # Display TPM enrollment information (hash, PCRs, EK)
   kcrypt-discovery-challenger info
 
-  # Clean up TPM NV memory (useful for development)
-  kcrypt-discovery-challenger cleanup
+  # Clean up TPM NV memory (useful for development): run the agent's command
+  kairos-agent kcrypt cleanupnv
 
   # Run plugin event
   kcrypt-discovery-challenger discovery.password`,

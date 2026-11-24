@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cavaliergopher/grab/v3"
-	"github.com/kairos-io/AuroraBoot/internal"
+	"github.com/kairos-io/kairos/auroraboot/internal"
 )
 
 const UserAgent = "AuroraBoot"

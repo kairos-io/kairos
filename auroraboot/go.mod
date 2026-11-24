@@ -1,4 +1,4 @@
-module github.com/kairos-io/AuroraBoot
+module github.com/kairos-io/kairos/auroraboot
 
 go 1.27.4
 
@@ -25,7 +25,7 @@ require (
 	github.com/klauspost/compress v1.20.4
 	github.com/labstack/echo/v4 v4.16.5
 	github.com/mudler/go-processmanager v0.1.2
-	github.com/mudler/yip v1.27.0
+	github.com/mudler/yip v1.27.1
 	github.com/onsi/ginkgo/v2 v2.34.0
 	github.com/onsi/gomega v1.44.0
 	github.com/otiai10/copy v1.14.1
@@ -266,3 +266,5 @@ require (
 )
 
 tool github.com/swaggo/swag/cmd/swag
+
+replace github.com/kairos-io/kairos/v4 => ../

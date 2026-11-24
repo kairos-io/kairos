@@ -1,7 +1,7 @@
 package deployer_test
 
 import (
-	"github.com/kairos-io/AuroraBoot/deployer"
+	"github.com/kairos-io/kairos/auroraboot/deployer"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

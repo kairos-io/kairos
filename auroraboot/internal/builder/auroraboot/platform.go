@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
 )
 
 // PlatformsFunc reports the platforms the docker builder can build for.

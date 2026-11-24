@@ -4,12 +4,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/disk"
 	"github.com/diskfs/go-diskfs/filesystem"
 	"github.com/diskfs/go-diskfs/filesystem/iso9660"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -272,7 +273,7 @@ var _ = Describe("netbootCmdline", func() {
 		line, err := netbootCmdline(squashfs(), "/config.yaml", nil, schema.NetBoot{})
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(line).To(HavePrefix(`rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "` + squashfs() + `" }}`))
+		Expect(line).To(HavePrefix(`rd.overlay rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "` + squashfs() + `" }}`))
 		Expect(line).To(ContainSubstring(`config_url={{ ID "/config.yaml" }}`))
 		Expect(line).To(HaveSuffix(`kairos.extensions={{ ID "` + filepath.Join(dir, "work.sysext.raw") + `" }}`))
 	})
@@ -388,6 +389,7 @@ var _ = Describe("netbootCmdline", func() {
 
 		Expect(line).To(ContainSubstring("kairos.ram console=ttyS0"))
 		Expect(line).NotTo(ContainSubstring("install-mode"))
+		Expect(strings.Fields(line)).NotTo(ContainElement("rd.overlay"))
 		Expect(line).NotTo(ContainSubstring("rd.live.overlay.overlayfs"))
 		Expect(line).To(ContainSubstring(`root=live:{{ ID "` + squashfs() + `" }}`))
 		Expect(line).To(ContainSubstring(`config_url={{ ID "/config.yaml" }}`))

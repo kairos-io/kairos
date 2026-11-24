@@ -122,6 +122,17 @@ users:
 			It("is successful reading it from a string", func() {
 				Expect(Validate(yaml)).ToNot(HaveOccurred())
 			})
+			It("reads a relative file whose name starts with http as a file", func() {
+				dir := GinkgoT().TempDir()
+				Expect(os.WriteFile(filepath.Join(dir, "http-node.yaml"), []byte(yaml), 0644)).To(Succeed())
+
+				wd, err := os.Getwd()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(os.Chdir(dir)).To(Succeed())
+				DeferCleanup(os.Chdir, wd)
+
+				Expect(Validate("http-node.yaml")).To(Succeed())
+			})
 		})
 
 		Context("without a header", func() {

@@ -9,12 +9,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/server"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/server"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // Minimal fake implementations for server integration tests.
@@ -22,6 +23,14 @@ import (
 type fakeNodeStore struct {
 	mu    sync.Mutex
 	nodes []*store.ManagedNode
+	// heartbeats counts the UpdateHeartbeat calls.
+	heartbeats int
+}
+
+func (f *fakeNodeStore) heartbeatCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.heartbeats
 }
 
 func (f *fakeNodeStore) Register(_ context.Context, n *store.ManagedNode) error {
@@ -73,6 +82,9 @@ func (f *fakeNodeStore) ListBySelector(_ context.Context, _ store.CommandSelecto
 	return nil, nil
 }
 func (f *fakeNodeStore) UpdateHeartbeat(_ context.Context, _ string, _ string, _ map[string]string, _ []store.NodeAddress, _ string, _ string, _ string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.heartbeats++
 	return nil
 }
 func (f *fakeNodeStore) UpdatePhase(_ context.Context, _ string, _ string) error { return nil }
@@ -565,6 +577,27 @@ var _ = Describe("Rate limiting wiring", func() {
 		Expect(getCommands("agent-key")).NotTo(Equal(http.StatusTooManyRequests))
 		Expect(getCommands("agent-key")).To(Equal(http.StatusTooManyRequests))
 		Expect(heartbeat("agent-key")).To(Equal(http.StatusTooManyRequests))
+	})
+
+	// kairos-io/kairos#6001: a node that heartbeats over the agent websocket
+	// used to bypass the limit, and every frame reached the store.
+	It("limits heartbeats over the agent websocket with the same bucket", func() {
+		wsURL := "ws" + strings.TrimPrefix(e.URL, "http") + "/api/v1/ws?token=agent-key"
+		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		Expect(err).NotTo(HaveOccurred())
+		defer conn.Close()
+
+		// Burst is 2: two heartbeats are applied and the rest dropped.
+		for i := 0; i < 5; i++ {
+			Expect(conn.WriteMessage(websocket.TextMessage,
+				[]byte(`{"type":"heartbeat","data":{"agentVersion":"1.0"}}`))).To(Succeed())
+		}
+		Eventually(ns.heartbeatCount, 5*time.Second, 20*time.Millisecond).Should(Equal(2))
+		Consistently(ns.heartbeatCount, 500*time.Millisecond, 20*time.Millisecond).Should(Equal(2))
+
+		// The socket spent the bucket the REST routes draw from.
+		Expect(heartbeat("agent-key")).To(Equal(http.StatusTooManyRequests))
+		Expect(getCommands("agent-key")).To(Equal(http.StatusTooManyRequests))
 	})
 
 	It("rate-limits registration per client IP once its burst is spent", func() {

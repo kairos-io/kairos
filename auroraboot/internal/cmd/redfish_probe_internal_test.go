@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/pkg/redfish"
+	"github.com/kairos-io/kairos/auroraboot/pkg/redfish"
 )
 
 func TestResolveProbeOutput(t *testing.T) {

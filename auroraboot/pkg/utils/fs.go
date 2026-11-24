@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
 	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"

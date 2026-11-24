@@ -10,8 +10,8 @@ import (
 )
 
 var _ = Describe("embedded UI assets", func() {
-	// `go install github.com/kairos-io/AuroraBoot@<version>` builds from the
-	// module zip, which never contains the generated internal/ui/dist. The
+	// A build from the module zip, as `go install` does, has no generated
+	// internal/ui/dist, because the zip never contains it. The
 	// embed has to compile without it.
 	It("compiles when the UI has not been built", func() {
 		dir := filepath.Join(GinkgoT().TempDir(), "ui")

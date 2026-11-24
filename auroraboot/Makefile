@@ -78,9 +78,10 @@ clean-go: ## Clean Go build artifacts
 # Clean everything (including node_modules)
 clean: clean-ui-deps clean-ui clean-go ## Clean all build artifacts including dependencies
 
-# Build Docker image
+# Build Docker image. go.mod replaces the root Kairos module with ../, so the
+# repository root goes in as the named build context "kairos".
 build-docker: ## Build the Docker image
-	docker build -t auroraboot:local .
+	docker buildx build --load --build-context kairos=.. -t auroraboot:local .
 
 # Run tests (UI dist is embedded via go:embed, so it must exist before `go test`)
 test: ui-build ## Run Go tests
