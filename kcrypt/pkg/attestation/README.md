@@ -1,15 +1,15 @@
 ## Attestation Package
 
-This package implements a clean, close-circle API for the kcrypt-challenger remote attestation flow. It separates client and server responsibilities and defines the wire messages used between them, so consumers can simply pass bytes from one step to the next and only check for errors in between.
+This package implements a clean, close-circle API for the kcrypt-challenger remote attestation flow. It separates client and server responsibilities and defines the wire messages used between them, so consumers can simply pass the messages from one step to the next and only check for errors in between.
 
-Important: The client decides which PCRs to include/enroll/validate. The server validates according to its selective enrollment policy. Nonces are not used in this flow (sequential, authenticated channel).
+Important: The client decides which PCRs to include/enroll/validate. The server validates according to its selective enrollment policy. The PCR quote is bound to a nonce: the secret the server generates for the credential challenge. The client recovers it by activating the credential and quotes with it as the nonce, and the server verifies the quote against the secret it issued, so a quote recorded on an earlier boot does not verify.
 
 ### High-Level Flow
 
 Client (node with TPM):
 1) CreateInit → send to server
-2) Receive AttestationChallenge
-3) HandleChallenge → send AttestationProof to server
+2) Receive Challenge
+3) HandleChallenge → send Proof to server
 
 Server (kcrypt-challenger):
 1) ParseInit
@@ -17,18 +17,18 @@ Server (kcrypt-challenger):
 3) VerifyProof (secret + PCR quote signature verification + PCR consistency verification) → proceed with selective enrollment and passphrase release
 
 ### Wire Messages (owned by this package)
-- AttestationInit: EK (PEM/DER), AK AttestationParameters, optional AK public, DeferPCREnrollment flag (for LiveCD mode)
-- AttestationChallenge: EncryptedCredential (no PCRs)
-- AttestationProof: Secret (credential activation), PCRQuote (JSON with quote + selected PCR values)
+- Init: EKPublic (SPKI DER), AKParams (JSON-encoded AK attestation parameters), DeferPCREnrollment flag (for LiveCD mode)
+- Challenge: EncryptedCredential (no PCRs)
+- Proof: Secret (credential activation, also the quote nonce), PCRQuote (JSON with quote + selected PCR values)
 
 ### Client API
 - NewRemoteAttestationClient(opts ...tpm.Option) (*RemoteAttestationClient, error)
 - Close() error
-- CreateInit() (*AttestationInit, error)
-- CreateInitDeferredEnrollment() (*AttestationInit, error)  // For LiveCD mode
-- HandleChallenge(challenge *AttestationChallenge, pcrs []int) (*AttestationProof, error)
+- CreateInit() (*Init, error)
+- CreateInitDeferredEnrollment() (*Init, error)  // For LiveCD mode
+- HandleChallenge(challenge *Challenge, pcrs []int) (*Proof, error)
 
-Internally, the client uses transient AKs (no persistent AK storage). It sends EK + AK attestation data in AttestationInit, and later returns the secret and PCR quote in AttestationProof.
+Internally, the client uses transient AKs (no persistent AK storage). It sends EK + AK attestation data in Init, and later returns the secret and PCR quote in Proof.
 
 **LiveCD Mode Support:**
 - `CreateInit()`: Normal enrollment - PCRs will be enrolled with current values
@@ -36,12 +36,12 @@ Internally, the client uses transient AKs (no persistent AK storage). It sends E
 
 ### Server API
 - NewRemoteAttestationServer(attestator Attestator) *RemoteAttestationServer
-- ParseInit(initBytes []byte) (ek *attest.EK, akParams *attest.AttestationParameters, err error)
-- GenerateChallenge(initBytes []byte) (challengeBytes []byte, secret []byte, err error)
-- VerifyProof(initBytes []byte, proofBytes []byte, expectedSecret []byte) (VerificationResult, error)
-- IssuePassphrase(initBytes []byte, proofBytes []byte, expectedSecret []byte) ([]byte, error)
+- ParseInit(init *Init) (*attest.EK, *attest.AttestationParameters, error)
+- GenerateChallenge(init *Init) (*Challenge, []byte, error)  // the []byte is the secret to keep for VerifyProof
+- VerifyProof(init *Init, proof *Proof, expectedSecret []byte) (VerificationResult, error)
+- IssuePassphrase(ctx context.Context, init *Init, proof *Proof, expectedSecret []byte) ([]byte, error)
 
-The server accepts AttestationInit, generates an EncryptedCredential (challenge) bound to EK+AK params (no PCRs), and later verifies the secret and the PCR quote signature using the AK public contained within the attestation parameters. The server also verifies that the provided PCR values are consistent with the TPM quote to ensure they are cryptographically bound to the quote. After verification, it delegates policy/enrollment to the injected Attestator and returns a passphrase or error.
+The server accepts Init, generates an EncryptedCredential (challenge) bound to EK+AK params (no PCRs), and later verifies the secret, and the PCR quote signature and nonce, using the AK public contained within the attestation parameters. The server also verifies that the provided PCR values are consistent with the TPM quote to ensure they are cryptographically bound to the quote. After verification, it delegates policy/enrollment to the injected Attestator and returns a passphrase or error.
 
 ### Selective Enrollment
 This package does not implement enrollment. The server injects an Attestator which receives final verified attestation data and decides enrollment/validation and passphrase issuance. Typical policies (for reference):
@@ -87,10 +87,10 @@ Interface (conceptual):
 
 ```
 type Attestator interface {
-    IssuePassphrase(ctx context.Context, req AttestationRequest) ([]byte, error)
+    IssuePassphrase(ctx context.Context, req Request) ([]byte, error)
 }
 
-type AttestationRequest struct {
+type Request struct {
     TPMHash            string            // derived from EK (server-enrolled identity)
     PCRs               map[int][]byte    // client-selected PCRs from verified quote
     EKPEM              []byte            // optional: EK in PEM/DER for auditing/forensics

@@ -16,7 +16,7 @@ import {
 import { ChevronDown, ChevronRight, Server, Plus } from "lucide-react";
 import { timeAgo } from "@/lib/time";
 import { isOnline, phaseTone } from "@/lib/phase";
-import { cpuCount, hasBootIssue, imageVersion, memGiB, nodeAddress } from "@/lib/nodeInfo";
+import { cpuCount, hasBootIssue, imageVersion, memGiB, nodeAddress, nodeArch } from "@/lib/nodeInfo";
 import { phaseCounts } from "@/lib/nodeFilter";
 import { StatusDot } from "@/components/fleet/StatusDot";
 import { StackBar } from "@/components/fleet/StackBar";
@@ -90,7 +90,7 @@ export function NodeTable({
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const sel = selected ?? new Set<string>();
-  const columns = (metrics ? 8 : 7) + (selectable ? 1 : 0) + (showGroupColumn ? 1 : 0);
+  const columns = (metrics ? 9 : 8) + (selectable ? 1 : 0) + (showGroupColumn ? 1 : 0);
   const allNodes = groups ? groups.flatMap((g) => g.nodes) : nodes;
 
   function setMany(ids: string[], on: boolean) {
@@ -120,6 +120,7 @@ export function NodeTable({
     const tone = phaseTone(node.phase);
     const address = nodeAddress(node);
     const image = imageVersion(node);
+    const arch = nodeArch(node);
     const labels = Object.entries(node.labels || {});
     const online = isOnline(node.phase);
     const boot = hasBootIssue(node) ? (node.bootState ?? "").toLowerCase() : "";
@@ -161,6 +162,9 @@ export function NodeTable({
         </TableCell>
         <TableCell className="font-mono text-xs">
           {image || <span className="text-muted-foreground">—</span>}
+        </TableCell>
+        <TableCell className="font-mono text-xs">
+          {arch || <span className="text-muted-foreground">—</span>}
         </TableCell>
         {metrics ? (
           <>
@@ -267,6 +271,7 @@ export function NodeTable({
           <TableHead>Node</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Image</TableHead>
+          <TableHead>Arch</TableHead>
           {metrics ? (
             <>
               <TableHead>CPU</TableHead>

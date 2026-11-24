@@ -1,6 +1,9 @@
 package stages
 
 import (
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -13,25 +16,34 @@ import (
 
 // GetStageExtensions returns the expansions for a given stage
 // It loads the extensions from a dir in the filesystem, loads all files and only selects the proper stage to be returned
-func GetStageExtensions(stage string, logger logger.KairosLogger) []schema.Stage {
+func GetStageExtensions(stage string, logger logger.KairosLogger) ([]schema.Stage, error) {
 	var data []schema.Stage
 	// If extensions are not enabled, return empty
 	if !config.DefaultConfig.Extensions {
-		return data
+		return data, nil
 	}
 
-	dir := os.Getenv("KAIROS_INIT_STAGE_EXTENSIONS_DIR")
+	dir, explicit := os.LookupEnv("KAIROS_INIT_STAGE_EXTENSIONS_DIR")
 	if dir == "" {
 		dir = "/etc/kairos-init/stage-extensions"
+		explicit = false
 	}
 
 	logger.Logger.Debug().Str("stage", stage).Str("dir", dir).Msg("getting stage")
+
+	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+		if explicit {
+			return nil, fmt.Errorf("stage extensions dir %s does not exist", dir)
+		}
+		logger.Logger.Warn().Str("stage", stage).Str("dir", dir).Msg("stage extensions are enabled but the extensions dir does not exist")
+		return data, nil
+	}
 
 	// Go over all the files in order
 	// and load them
 	litter.Config.HideZeroValues = true
 	litter.Config.HidePrivateFields = false
-	_ = vfs.Walk(vfs.OSFS, dir, func(path string, info os.FileInfo, err error) error {
+	err := vfs.Walk(vfs.OSFS, dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -47,8 +59,7 @@ func GetStageExtensions(stage string, logger logger.KairosLogger) []schema.Stage
 		logger.Logger.Debug().Str("file", path).Msg("loading file")
 		d, err := schema.Load(path, vfs.OSFS, schema.FromFile, nil)
 		if err != nil {
-			logger.Logger.Error().Str("file", path).Err(err).Msg("error loading file")
-			return nil
+			return fmt.Errorf("loading stage extension %s: %w", path, err)
 		}
 		for _, s := range d.Stages[stage] {
 			logger.Logger.Debug().Str("file", path).Msg("found stage, appending data")
@@ -56,6 +67,9 @@ func GetStageExtensions(stage string, logger logger.KairosLogger) []schema.Stage
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
-	return data
+	return data, nil
 }

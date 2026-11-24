@@ -1,0 +1,59 @@
+name: AuroraBoot OSV-Scanner
+
+# Scans auroraboot/ for known vulnerabilities in its Go modules and its UI
+# lockfile. The repository-wide scan in osv-scanner.yml is switched off (see
+# kairos-io/kairos#3985), so AuroraBoot keeps a scan of its own. It reads the
+# ignores in the root osv-scanner.toml.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'auroraboot/**'
+      - 'osv-scanner.toml'
+  pull_request:
+    paths:
+      - 'auroraboot/**'
+      - 'osv-scanner.toml'
+  merge_group:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  # A pull request is scanned against its own base, so the check only goes red
+  # for an advisory the pull request itself introduces. An advisory published
+  # against code already on master is in both scans and cancels out.
+  scan-pr:
+    if: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      # Require writing security events to upload SARIF file to security tab
+      security-events: write
+      contents: read
+      actions: read
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@32d3cd482bdadfb38b186c0ad1b031902d55d932"  # v2.7.1
+    with:
+      scan-args: |-
+        --config=./osv-scanner.toml
+        -r
+        ./auroraboot
+
+  # master, the merge queue and the weekly run carry the whole baseline, so an
+  # advisory published against merged code surfaces here rather than on the
+  # next unrelated pull request. The diff scan cannot serve the merge queue:
+  # it reads GITHUB_BASE_REF, which GitHub sets for pull_request only.
+  scan-baseline:
+    if: ${{ github.event_name != 'pull_request' }}
+    permissions:
+      # Require writing security events to upload SARIF file to security tab
+      security-events: write
+      contents: read
+      actions: read
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@32d3cd482bdadfb38b186c0ad1b031902d55d932"  # v2.7.1
+    with:
+      scan-args: |-
+        --config=./osv-scanner.toml
+        -r
+        ./auroraboot

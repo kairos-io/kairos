@@ -242,19 +242,7 @@ func NewInstallElementalPartitions(log sdkLogger.KairosLogger, spec *spec.Instal
 	// Double the space for recovery, as upgrades use the recovery partition to create the transition image for upgrades
 	// so we need twice the space to do a proper upgrade
 	// Check if the default/user provided values are enough to fit the images sizes
-	var recoverySize uint
-	if spec.Partitions.Recovery == nil { // This means its not configured by user so use the default
-		recoverySize = (spec.Recovery.Size * 2) + 200
-	} else {
-		if spec.Partitions.Recovery.Size < (spec.Recovery.Size*2)+200 { // Configured by user but not enough space
-			// If we had the logger here we could log a message saying that space is not enough and we are auto increasing it
-			recoverySize = (spec.Recovery.Size * 2) + 200
-			log.Warnf("Not enough space set for recovery partition(%dMiB), increasing it to fit the recovery images(%dMiB)", spec.Partitions.Recovery.Size, recoverySize)
-		} else {
-			recoverySize = spec.Partitions.Recovery.Size
-		}
-	}
-	log.Infof("Setting recovery partition size to %dMiB", recoverySize)
+	recoverySize := recoveryPartitionSize(log, spec.Partitions.Recovery, spec.Recovery.Size)
 	pt.Recovery = &sdkPartitions.Partition{
 		FilesystemLabel: sdkConstants.RecoveryLabel,
 		Size:            recoverySize,
@@ -269,18 +257,7 @@ func NewInstallElementalPartitions(log sdkLogger.KairosLogger, spec *spec.Instal
 	// Also multiply the space for active, as upgrades use the state partition to create the transition image for upgrades
 	// so we need twice the space to do a proper upgrade
 	// Check if the default/user provided values are enough to fit the images sizes
-	var stateSize uint
-	if spec.Partitions.State == nil { // This means its not configured by user so use the default
-		stateSize = (spec.Active.Size * 2) + spec.Passive.Size + 1000
-	} else {
-		if spec.Partitions.State.Size < (spec.Active.Size*2)+spec.Passive.Size+1000 { // Configured by user but not enough space
-			stateSize = (spec.Active.Size * 2) + spec.Passive.Size + 1000
-			log.Warnf("Not enough space set for state partition(%dMiB), increasing it to fit the state images(%dMiB)", spec.Partitions.State.Size, stateSize)
-		} else {
-			stateSize = spec.Partitions.State.Size
-		}
-	}
-	log.Infof("Setting state partition size to %dMiB", stateSize)
+	stateSize := statePartitionSize(log, spec.Partitions.State, spec.Active.Size, spec.Passive.Size)
 	pt.State = &sdkPartitions.Partition{
 		FilesystemLabel: sdkConstants.StateLabel,
 		Size:            stateSize,
@@ -315,6 +292,85 @@ func NewInstallElementalPartitions(log sdkLogger.KairosLogger, spec *spec.Instal
 		log.Infof("Setting EFI partition size to %dMiB", spec.Partitions.EFI.Size)
 	}
 	return pt
+}
+
+// recoveryPartitionSize returns the recovery partition size for a recovery
+// image of imgSize MiB. A size configured by the user is kept when it fits the
+// image, and raised otherwise.
+func recoveryPartitionSize(log sdkLogger.KairosLogger, configured *sdkPartitions.Partition, imgSize uint) uint {
+	var recoverySize uint
+	if configured == nil { // This means its not configured by user so use the default
+		recoverySize = (imgSize * 2) + 200
+	} else {
+		if configured.Size < (imgSize*2)+200 { // Configured by user but not enough space
+			recoverySize = (imgSize * 2) + 200
+			log.Warnf("Not enough space set for recovery partition(%dMiB), increasing it to fit the recovery images(%dMiB)", configured.Size, recoverySize)
+		} else {
+			recoverySize = configured.Size
+		}
+	}
+	log.Infof("Setting recovery partition size to %dMiB", recoverySize)
+	return recoverySize
+}
+
+// statePartitionSize returns the state partition size for the given active
+// and passive image sizes in MiB. A size configured by the user is kept when
+// it fits the images, and raised otherwise.
+func statePartitionSize(log sdkLogger.KairosLogger, configured *sdkPartitions.Partition, activeSize, passiveSize uint) uint {
+	var stateSize uint
+	if configured == nil { // This means its not configured by user so use the default
+		stateSize = (activeSize * 2) + passiveSize + 1000
+	} else {
+		if configured.Size < (activeSize*2)+passiveSize+1000 { // Configured by user but not enough space
+			stateSize = (activeSize * 2) + passiveSize + 1000
+			log.Warnf("Not enough space set for state partition(%dMiB), increasing it to fit the state images(%dMiB)", configured.Size, stateSize)
+		} else {
+			stateSize = configured.Size
+		}
+	}
+	log.Infof("Setting state partition size to %dMiB", stateSize)
+	return stateSize
+}
+
+// ResizeInstallSpecForSource measures the active image source of the spec
+// again and recalculates the image sizes and the recovery and state partition
+// sizes from it. Sizes set in the install config are kept as minimums, sizes
+// calculated earlier from another source are replaced. If the source cannot be
+// measured or the config cannot be read, the spec is left unchanged.
+func ResizeInstallSpecForSource(cfg *sdkConfig.Config, sp *spec.InstallSpec) error {
+	size, err := GetSourceSize(cfg, sp.Active.Source)
+	if err != nil {
+		return fmt.Errorf("measuring the install source: %w", err)
+	}
+	if size <= 0 {
+		return fmt.Errorf("measuring the install source %s: no data found", sp.Active.Source.String())
+	}
+
+	// Decode the install config on its own to tell the sizes the user asked
+	// for apart from the ones calculated before.
+	configured := &spec.InstallSpec{}
+	if err := unmarshallFullSpec(cfg, "install", configured); err != nil {
+		return fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+
+	activeSize := max(uint(size), configured.Active.Size)
+	passiveSize := max(uint(size), configured.Passive.Size)
+	recoverySize := max(uint(size), configured.Recovery.Size)
+	cfg.Logger.Infof("Setting image sizes to %dMiB (active), %dMiB (passive) and %dMiB (recovery)", activeSize, passiveSize, recoverySize)
+
+	recoveryPart := recoveryPartitionSize(cfg.Logger, configured.Partitions.Recovery, recoverySize)
+	statePart := statePartitionSize(cfg.Logger, configured.Partitions.State, activeSize, passiveSize)
+
+	sp.Active.Size = activeSize
+	sp.Passive.Size = passiveSize
+	sp.Recovery.Size = recoverySize
+	if sp.Partitions.Recovery != nil {
+		sp.Partitions.Recovery.Size = recoveryPart
+	}
+	if sp.Partitions.State != nil {
+		sp.Partitions.State.Size = statePart
+	}
+	return nil
 }
 
 // NewUpgradeSpec returns an UpgradeSpec struct all based on defaults and current host state
@@ -971,6 +1027,22 @@ func getSize(vfs sdkFS.KairosFS, size *int64, fileList map[string]bool, path str
 	return nil
 }
 
+// isExcludedSourcePath reports whether path, found while walking the directory source root,
+// is one of the constants.SourceDirExcludes or lies below one of them.
+func isExcludedSourcePath(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	rel = "/" + filepath.ToSlash(rel)
+	for _, exclude := range constants.SourceDirExcludes {
+		if rel == exclude || strings.HasPrefix(rel, exclude+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 // GetSourceSize will try to gather the actual size of the source
 // Useful to create the exact size of images and by side effect the partition size
 // This helps adjust the size to be juuuuust right.
@@ -1008,11 +1080,14 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 			if hostDir != "" && strings.HasPrefix(path, hostDir) {
 				config.Logger.Logger.Debug().Str("path", path).Str("hostDir", hostDir).Msg("Skipping dir as it is a host directory")
 				return fs.SkipDir
-			} else if underKubernetes && (strings.HasPrefix(path, "/proc") || strings.HasPrefix(path, "/dev") || strings.HasPrefix(path, "/run")) {
-				// If under kubernetes, the upgrade will check the size of / which includes the host dir mounted under /host
-				// But it also can bind the host mounts into / so we want to skip those runtime dirs
-				// During install or upgrade outside kubernetes, we dont care about those dirs as they are not expected to be in the source dir
-				config.Logger.Logger.Debug().Str("path", path).Str("hostDir", hostDir).Msg("Skipping dir as it is a runtime directory under kubernetes (/proc, /dev or /run)")
+			} else if isExcludedSourcePath(source.Value(), path) {
+				// Skip what the copy skips. Under kubernetes the source is / and the host mounts are bound into it,
+				// where /sys can even hold entries that cannot be read.
+				if d != nil && !d.IsDir() {
+					// SkipDir on a file would also skip its remaining siblings.
+					return nil
+				}
+				config.Logger.Logger.Debug().Str("path", path).Msg("Skipping dir as it is excluded from the copy")
 				return fs.SkipDir
 			} else {
 				v := getSize(config.Fs, &size, filesVisited, path, d, err)

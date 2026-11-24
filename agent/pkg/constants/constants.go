@@ -278,4 +278,9 @@ func BootTitleForRole(role, title string) (string, error) {
 }
 
 // DiskUUID is the static UUID for main disk identification.
+// SourceDirExcludes are the paths, relative to the root of a directory source,
+// that are not part of the system being installed or upgraded. They are left
+// out of the copy and out of the size calculation.
+var SourceDirExcludes = []string{"/mnt", "/proc", "/sys", "/dev", "/tmp", "/host", "/run"}
+
 var DiskUUID = uuid.NewV5(uuid.NamespaceURL, "KAIROS_DISK").String()

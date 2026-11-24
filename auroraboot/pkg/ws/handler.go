@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/kairos-io/AuroraBoot/pkg/auth"
-	"github.com/kairos-io/AuroraBoot/pkg/metrics"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/auth"
+	"github.com/kairos-io/kairos/auroraboot/pkg/metrics"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	"github.com/labstack/echo/v4"
 )
 
@@ -134,6 +134,13 @@ type AgentHandler struct {
 	// command belongs to can settle the node and fill its slot. pkg/ws cannot
 	// import the scheduler, so the server wires it. nil-safe.
 	OnCommandPhase func(ctx context.Context, commandID string)
+	// AllowHeartbeat, when set, is asked before each heartbeat frame is
+	// applied, and a heartbeat it refuses is dropped. The server passes the
+	// per-node rate limiter of the REST heartbeat route, so a node cannot get
+	// around the limit by heartbeating over this socket instead. Command status
+	// frames are not limited: a dropped one would be lost, where a throttled
+	// REST request is retried. nil allows every heartbeat.
+	AllowHeartbeat func(nodeID string) bool
 	// OnNodeBooted is invoked for a heartbeat that carries an uptime, with the
 	// boot time computed from it, so a batch waiting on the node's reboot can
 	// settle it. Wired in pkg/server/server.go. nil-safe.
@@ -259,6 +266,10 @@ func (h *AgentHandler) HandleAgentWS(c echo.Context) error {
 	// Send pending commands on connect.
 	h.sendPendingCommands(node.ID, wc)
 
+	// Logged once per connection: a node over the limit would otherwise log
+	// a line per frame, which is the flood the limit is there to stop.
+	loggedThrottle := false
+
 	// Read loop.
 	for {
 		_, message, err := conn.ReadMessage()
@@ -289,6 +300,13 @@ func (h *AgentHandler) HandleAgentWS(c echo.Context) error {
 
 		switch msg.Type {
 		case "heartbeat":
+			if h.AllowHeartbeat != nil && !h.AllowHeartbeat(node.ID) {
+				if !loggedThrottle {
+					log.Printf("ws: node %s is sending heartbeats over the rate limit, dropping the excess", node.ID)
+					loggedThrottle = true
+				}
+				continue
+			}
 			h.handleHeartbeat(node.ID, msg.Data, remoteIP)
 		case "command_status":
 			h.handleCommandStatus(node.ID, msg.Data)

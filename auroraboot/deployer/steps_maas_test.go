@@ -3,8 +3,8 @@ package deployer
 import (
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 )
 
 // rawDiskIsSet must treat a MAAS output the same as the other raw-disk outputs

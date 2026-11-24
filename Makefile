@@ -13,8 +13,10 @@ GOFLAGS ?= -trimpath
 # VERSION is the human-readable version string every binary reports.
 # Format: git describe (e.g. v1.2.3, or v1.2.3-5-gabc1234 between tags, plus
 # a "-dirty" suffix if the tree has uncommitted changes). Falls back to "dev"
-# outside a git checkout.
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# outside a git checkout. A CI build of a tag takes the tag's own name instead:
+# git describe keeps the alphabetically first tag when two sit on one commit,
+# so a release re-cut at the same commit would be stamped with the rejected one.
+VERSION ?= $(shell if [ "$$GITHUB_REF_TYPE" = tag ] && [ -n "$$GITHUB_REF_NAME" ]; then printf '%s' "$$GITHUB_REF_NAME"; else git describe --tags --always --dirty 2>/dev/null || echo dev; fi)
 
 # BINARY_VERSION is the version stamped into every binary. kairos-init
 # writes it into each image as KAIROS_INIT_VERSION, and the upgrade

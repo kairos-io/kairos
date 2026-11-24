@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/pkg/client"
+	"github.com/kairos-io/kairos/auroraboot/pkg/client"
 )
 
 var _ = Describe("NodesService", func() {

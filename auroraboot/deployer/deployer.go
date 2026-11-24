@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/kairos-io/AuroraBoot/internal"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/internal"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 	sdklogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	"github.com/spectrocloud-labs/herd"

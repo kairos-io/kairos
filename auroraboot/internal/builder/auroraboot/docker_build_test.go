@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

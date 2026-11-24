@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/auth"
+	"github.com/kairos-io/kairos/auroraboot/pkg/auth"
 	"github.com/labstack/echo/v4"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -129,6 +129,46 @@ var _ = Describe("Rate limiting", func() {
 		It("lets an explicit burst override the default in both directions", func() {
 			mw := auth.NodeRateLimiter(50, 3)
 			expectAllowance(fireAsNode(mw, "node-a", 3+spentBurstProbe), 50, 3)
+		})
+	})
+
+	// kairos-io/kairos#6001: the agent websocket asks Allow for each
+	// heartbeat frame, and has to draw from the bucket the REST routes use.
+	Describe("NodeLimiter", func() {
+		fire := func(mw echo.MiddlewareFunc, nodeID string) int {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set(auth.ContextKeyNodeID, nodeID)
+			_ = mw(okHandler)(c)
+			return rec.Code
+		}
+
+		It("shares one bucket per node between Allow and Middleware", func() {
+			// A rate this low refills nothing during the spec.
+			limiter := auth.NewNodeLimiter(0.001, 3)
+			mw := limiter.Middleware()
+
+			Expect(limiter.Allow("node-a")).To(BeTrue())
+			Expect(fire(mw, "node-a")).To(Equal(http.StatusOK))
+			Expect(limiter.Allow("node-a")).To(BeTrue())
+			// The burst of 3 is spent, over both paths.
+			Expect(limiter.Allow("node-a")).To(BeFalse())
+			Expect(fire(mw, "node-a")).To(Equal(http.StatusTooManyRequests))
+
+			// Another node has a bucket of its own.
+			Expect(limiter.Allow("node-b")).To(BeTrue())
+		})
+
+		It("always allows when disabled, and for an empty node ID", func() {
+			disabled := auth.NewNodeLimiter(0, 0)
+			limiter := auth.NewNodeLimiter(0.001, 1)
+			for i := 0; i < 10; i++ {
+				Expect(disabled.Allow("node-a")).To(BeTrue())
+				Expect(limiter.Allow("")).To(BeTrue())
+			}
+			var unset *auth.NodeLimiter
+			Expect(unset.Allow("node-a")).To(BeTrue())
 		})
 	})
 

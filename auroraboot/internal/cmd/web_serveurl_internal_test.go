@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/isoserve"
+	"github.com/kairos-io/kairos/auroraboot/pkg/isoserve"
 )
 
 // TestCheckServeURLScheme covers the launch-time guard that keeps the scheme

@@ -12,17 +12,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/docs"
-	netbootpkg "github.com/kairos-io/AuroraBoot/internal/netbootmgr"
-	"github.com/kairos-io/AuroraBoot/internal/ui"
-	"github.com/kairos-io/AuroraBoot/pkg/auth"
-	"github.com/kairos-io/AuroraBoot/pkg/batches"
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/handlers"
-	"github.com/kairos-io/AuroraBoot/pkg/isoserve"
-	"github.com/kairos-io/AuroraBoot/pkg/metrics"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
-	"github.com/kairos-io/AuroraBoot/pkg/ws"
+	"github.com/kairos-io/kairos/auroraboot/docs"
+	netbootpkg "github.com/kairos-io/kairos/auroraboot/internal/netbootmgr"
+	"github.com/kairos-io/kairos/auroraboot/internal/ui"
+	"github.com/kairos-io/kairos/auroraboot/pkg/auth"
+	"github.com/kairos-io/kairos/auroraboot/pkg/batches"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/handlers"
+	"github.com/kairos-io/kairos/auroraboot/pkg/isoserve"
+	"github.com/kairos-io/kairos/auroraboot/pkg/metrics"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/ws"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -302,7 +302,11 @@ func New(cfg Config) *echo.Echo {
 	// command groups, so a node draws heartbeats and command polls from a single
 	// bucket keyed on its node ID. A separate instance per group would give each
 	// node two independent buckets and an effective ~2x the configured rate.
-	nodeLimiter := auth.NodeRateLimiter(nodeRateRPS, cfg.NodeRateLimitBurst)
+	limiter := auth.NewNodeLimiter(nodeRateRPS, cfg.NodeRateLimitBurst)
+	nodeLimiter := limiter.Middleware()
+	// Heartbeats over the agent websocket draw from the same bucket as the
+	// REST heartbeats and command polls (kairos-io/kairos#6001).
+	agentWSHandler.AllowHeartbeat = limiter.Allow
 
 	// Agent registration (registration token auth). The per-IP rate limiter runs
 	// BEFORE the token check so it also throttles invalid-token (brute-force)

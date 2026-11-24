@@ -68,7 +68,11 @@ func newAurorabootImage() {
 	// npm and luet steps then fail with "bridge port not forwarding after
 	// 200ms". No RUN step publishes a port, they only fetch, so the host
 	// network is enough.
-	output, err := exec.Command("docker", "build", "--network", "host", "--target", "default", "-t", "auroraboot:test", "-f", filepath.Join(rootDir, "Dockerfile"), rootDir).CombinedOutput()
+	//
+	// The Dockerfile copies the root Kairos module that go.mod replaces with
+	// ../, so the repository root goes in as the named context "kairos".
+	repoRoot := filepath.Join(rootDir, "..")
+	output, err := exec.Command("docker", "buildx", "build", "--load", "--network", "host", "--target", "default", "--build-context", "kairos="+repoRoot, "-t", "auroraboot:test", "-f", filepath.Join(rootDir, "Dockerfile"), rootDir).CombinedOutput()
 	Expect(err).ToNot(HaveOccurred(), string(output))
 }
 

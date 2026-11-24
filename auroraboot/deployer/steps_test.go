@@ -13,9 +13,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
-	"github.com/kairos-io/AuroraBoot/pkg/ops"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/ops"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 	"github.com/spectrocloud-labs/herd"
 )
 

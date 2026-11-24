@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 type kairosifyTestStore struct{}

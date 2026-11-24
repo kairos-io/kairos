@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/kairos-io/AuroraBoot/pkg/utils"
+	"github.com/kairos-io/kairos/auroraboot/pkg/utils"
 	process "github.com/mudler/go-processmanager"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -10,10 +10,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/google/uuid"
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	"github.com/labstack/echo/v4"
 )
 
@@ -114,6 +115,9 @@ func (h *ExtensionHandler) Create(c echo.Context) error {
 	}
 	if req.Name == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name is required"})
+	}
+	if err := validateExtensionName(req.Name); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
 	if err := validateExtensionRequest(req); err != nil {
@@ -231,6 +235,27 @@ func validateExtensionRequest(req createExtensionRequest) error {
 	return nil
 }
 
+// validateExtensionName refuses a name that cannot be the extension's file
+// name or the name argument of the build. The build writes the image as
+// <name>.<type>.raw and the download route only serves a file name that
+// isSafePathSegment accepts. The name is a positional argument of `auroraboot
+// sysext` and `auroraboot confext`, so a leading '-' would be read as a flag,
+// and systemd skips a hidden image, so a leading '.' would never be merged.
+func validateExtensionName(name string) error {
+	if !isSafePathSegment(name) {
+		return fmt.Errorf("name must not contain '/', '\\' or '..'")
+	}
+	if strings.HasPrefix(name, "-") || strings.HasPrefix(name, ".") {
+		return fmt.Errorf("name must not start with '-' or '.'")
+	}
+	for _, r := range name {
+		if unicode.IsControl(r) {
+			return fmt.Errorf("name must not contain control characters")
+		}
+	}
+	return nil
+}
+
 // rejectFromInExtraSteps refuses lines that begin with FROM (case-insensitive,
 // allowing leading whitespace). The "From artifact" mode pins the base; user
 // steps must not override it.
@@ -313,6 +338,9 @@ func (h *ExtensionHandler) Update(c echo.Context) error {
 	var patch extensionPatch
 	if err := c.Bind(&patch); err != nil || patch.Name == "" {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "name is required"})
+	}
+	if err := validateExtensionName(patch.Name); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 	ctx := c.Request().Context()
 	rec, err := h.store.GetByID(ctx, c.Param("id"))

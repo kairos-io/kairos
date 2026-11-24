@@ -13,11 +13,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/utils"
+	"github.com/kairos-io/kairos/auroraboot/pkg/utils"
 
 	uuidPkg "github.com/gofrs/uuid"
-	"github.com/kairos-io/AuroraBoot/internal"
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/internal"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
 )
 
 // Raw2Azure converts a raw disk to a VHD disk compatible with Azure
