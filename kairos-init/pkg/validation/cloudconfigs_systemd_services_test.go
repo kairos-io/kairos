@@ -3,6 +3,7 @@ package validation_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -16,7 +17,11 @@ import (
 type serviceStage struct {
 	Name               string `yaml:"name"`
 	OnlyServiceManager string `yaml:"only_service_manager"`
-	Systemctl          struct {
+	Files              []struct {
+		Path    string `yaml:"path"`
+		Content string `yaml:"content"`
+	} `yaml:"files"`
+	Systemctl struct {
 		Enable []string `yaml:"enable"`
 	} `yaml:"systemctl"`
 }
@@ -111,5 +116,36 @@ var _ = Describe("Bundled systemd services cloudconfig", func() {
 		}
 		Expect(checked).To(HaveKey("iscsid"))
 		Expect(checked).To(HaveKey("logrotate.timer"))
+	})
+
+	// The network stage writes the SSH keys that a user lists as github: or
+	// gitlab:, and it fails for a user the boot stage has not created yet. On
+	// a board whose initrd takes 40 seconds the network stage won the race and
+	// no key was ever written.
+	It("runs the network stage only after the boot stage has finished", func() {
+		content, err := os.ReadFile(filepath.Join("..", "bundled", "cloudconfigs", "09_systemd_services.yaml"))
+		Expect(err).NotTo(HaveOccurred())
+
+		var cfg serviceConfig
+		Expect(yaml.Unmarshal(content, &cfg)).To(Succeed())
+
+		var unit string
+		for _, stage := range cfg.Stages["initramfs"] {
+			for _, f := range stage.Files {
+				if f.Path == "/etc/systemd/system/cos-setup-network.service" {
+					unit = f.Content
+				}
+			}
+		}
+		Expect(unit).NotTo(BeEmpty(), "09_systemd_services.yaml does not create cos-setup-network.service")
+
+		var after []string
+		for _, line := range strings.Split(unit, "\n") {
+			if value, ok := strings.CutPrefix(strings.TrimSpace(line), "After="); ok {
+				after = append(after, strings.Fields(value)...)
+			}
+		}
+		Expect(after).To(ContainElement("network-online.target"))
+		Expect(after).To(ContainElement("cos-setup-boot.service"))
 	})
 })
