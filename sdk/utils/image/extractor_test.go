@@ -52,9 +52,15 @@ func (errorReader) Read([]byte) (int, error) {
 // current uid/gid, so ExtractOCIImage's chown succeeds when the suite runs
 // rootless (v1random.Image writes uid/gid 0, which a non-root lchown rejects).
 func currentUserImage() (v1.Image, error) {
+	return currentUserImageWith("hello from the insecure registry")
+}
+
+// currentUserImageWith is currentUserImage with the content of hello.txt chosen
+// by the caller.
+func currentUserImageWith(text string) (v1.Image, error) {
 	var buf bytes.Buffer
 	tw := tar.NewWriter(&buf)
-	content := []byte("hello from the insecure registry")
+	content := []byte(text)
 	if err := tw.WriteHeader(&tar.Header{
 		Name:     "hello.txt",
 		Typeflag: tar.TypeReg,
@@ -419,5 +425,129 @@ var _ = Describe("ExtractOCIImage on an image that unpacks to nothing", func() {
 
 		Expect(image.ExtractOCIImage(img, destDir, "hello.txt")).To(Succeed())
 		Expect(filepath.Join(destDir, "hello.txt")).ToNot(BeAnExistingFile())
+	})
+})
+
+var _ = Describe("OCIImageExtractor digest pinning", func() {
+	var (
+		registry *httptest.Server
+		daemon   *httptest.Server
+		daemonRq int
+		host     string
+		digest   v1.Hash
+		destDir  string
+	)
+
+	BeforeEach(func() {
+		registry = httptest.NewServer(ggcrregistry.New())
+		u, err := url.Parse(registry.URL)
+		Expect(err).ToNot(HaveOccurred())
+		host = u.Host
+
+		img, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+		digest, err = img.Digest()
+		Expect(err).ToNot(HaveOccurred())
+		ref, err := name.ParseReference(host+"/test/pin:latest", name.Insecure)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(remote.Write(ref, img)).To(Succeed())
+
+		// A Docker daemon that records every request, so a spec can tell
+		// whether the image was looked up there.
+		daemonRq = 0
+		daemon = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			daemonRq++
+			http.NotFound(w, r)
+		}))
+		du, err := url.Parse(daemon.URL)
+		Expect(err).ToNot(HaveOccurred())
+		GinkgoT().Setenv("DOCKER_HOST", "tcp://"+du.Host)
+
+		destDir, err = os.MkdirTemp("", "sdk-extractor-*")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		registry.Close()
+		daemon.Close()
+		Expect(os.RemoveAll(destDir)).To(Succeed())
+	})
+
+	It("resolves a tag to the digest the registry serves", func() {
+		got, err := image.OCIImageExtractor{Insecure: true}.ResolveDigest(host + "/test/pin:latest")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(got).To(Equal(digest.String()))
+	})
+
+	It("fails to resolve a tag the registry does not have", func() {
+		_, err := image.OCIImageExtractor{Insecure: true}.ResolveDigest(host + "/test/pin:missing")
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("does not ask the local daemon for a digest reference", func() {
+		ref := host + "/test/pin@" + digest.String()
+		Expect(image.OCIImageExtractor{Insecure: true}.ExtractImage(ref, destDir, "linux/amd64")).To(Succeed())
+		Expect(daemonRq).To(BeZero())
+		content, err := os.ReadFile(filepath.Join(destDir, "hello.txt"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(content)).To(Equal("hello from the insecure registry"))
+	})
+
+	It("extracts the pinned platform of an index after the tag moves, without asking the daemon", func() {
+		platformImage := func(arch, text string) v1.Image {
+			img, err := currentUserImageWith(text)
+			Expect(err).ToNot(HaveOccurred())
+			img, err = mutate.ConfigFile(img, &v1.ConfigFile{OS: "linux", Architecture: arch})
+			Expect(err).ToNot(HaveOccurred())
+			return img
+		}
+		index := func(amd64Text, arm64Text string) v1.ImageIndex {
+			return mutate.AppendManifests(empty.Index,
+				mutate.IndexAddendum{
+					Add:        platformImage("amd64", amd64Text),
+					Descriptor: v1.Descriptor{Platform: &v1.Platform{OS: "linux", Architecture: "amd64"}},
+				},
+				mutate.IndexAddendum{
+					Add:        platformImage("arm64", arm64Text),
+					Descriptor: v1.Descriptor{Platform: &v1.Platform{OS: "linux", Architecture: "arm64"}},
+				})
+		}
+
+		tagRef := host + "/test/multi:latest"
+		parsed, err := name.ParseReference(tagRef, name.Insecure)
+		Expect(err).ToNot(HaveOccurred())
+		original := index("original amd64", "original arm64")
+		Expect(remote.WriteIndex(parsed, original)).To(Succeed())
+		indexDigest, err := original.Digest()
+		Expect(err).ToNot(HaveOccurred())
+
+		extractor := image.OCIImageExtractor{Insecure: true}
+		resolved, err := extractor.ResolveDigest(tagRef)
+		Expect(err).ToNot(HaveOccurred())
+		// The digest of the index itself, not of one platform manifest.
+		Expect(resolved).To(Equal(indexDigest.String()))
+		manifest, err := original.IndexManifest()
+		Expect(err).ToNot(HaveOccurred())
+		for _, m := range manifest.Manifests {
+			Expect(resolved).ToNot(Equal(m.Digest.String()))
+		}
+
+		// Move the tag to different content.
+		Expect(remote.WriteIndex(parsed, index("moved amd64", "moved arm64"))).To(Succeed())
+		moved, err := extractor.ResolveDigest(tagRef)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(moved).ToNot(Equal(resolved))
+
+		pinned := host + "/test/multi@" + resolved
+		Expect(extractor.ExtractImage(pinned, destDir, "linux/arm64")).To(Succeed())
+		content, err := os.ReadFile(filepath.Join(destDir, "hello.txt"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(content)).To(Equal("original arm64"))
+		Expect(daemonRq).To(BeZero())
+	})
+
+	It("still asks the local daemon for a tag", func() {
+		Expect(image.OCIImageExtractor{Insecure: true}.ExtractImage(host+"/test/pin:latest", destDir, "linux/amd64")).To(Succeed())
+		Expect(daemonRq).To(BeNumerically(">", 0))
 	})
 })
