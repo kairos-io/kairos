@@ -1088,7 +1088,8 @@ func sealedVolumeData(volume *keyserverv1alpha1.SealedVolume, p keyserverv1alpha
 // When the only entry with the requested label has a different UUID, the
 // machine was most likely reinstalled and repartitioned. The old passphrase
 // must not be reused and a second entry with the same label must not be
-// enrolled, so an error names the entry for the operator to remove.
+// enrolled, so an error names the SealedVolume and the label for the operator
+// to remove. The error leaves out the UUIDs because the caller is not attested.
 func findPartitionInVolume(volume *keyserverv1alpha1.SealedVolume, partition PartitionInfo) (*SealedVolumeData, bool, error) {
 	parts := volume.Spec.Partitions
 
@@ -1106,8 +1107,8 @@ func findPartitionInVolume(volume *keyserverv1alpha1.SealedVolume, partition Par
 
 	for _, p := range parts {
 		if knownID(partition.Label) && p.Label == partition.Label && differs(p.UUID, partition.UUID) {
-			return nil, false, fmt.Errorf("partition with label %q has UUID %q, but SealedVolume %q stores UUID %q for that label; "+
-				"if the machine was reinstalled, remove the stale entry for label %q from the SealedVolume", partition.Label, partition.UUID, volume.Name, p.UUID, p.Label)
+			return nil, false, fmt.Errorf("partition with label %q is enrolled in SealedVolume %q with a different UUID; "+
+				"if the machine was reinstalled, remove the entry for that label from the SealedVolume", p.Label, volume.Name)
 		}
 	}
 
@@ -1139,6 +1140,10 @@ func determineEnrollmentContext(reconciler *controllers.SealedVolumeReconciler, 
 		// TPM is already enrolled - check if this specific partition exists
 		volumeData, partitionExists, err := findPartitionInVolume(existingSealedVolume, partition)
 		if err != nil {
+			// The node is not attested yet, so the error it receives leaves out the
+			// UUIDs. They are logged here for the operator.
+			logger.Error(err, "Rejecting partition enrollment", "tpmHash", tpmHash,
+				"partitionLabel", partition.Label, "partitionDeviceName", partition.DeviceName, "partitionUUID", partition.UUID)
 			return nil, err
 		}
 		if partitionExists {

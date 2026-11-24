@@ -36,6 +36,13 @@ var _ = Describe("findPartitionInVolume", func() {
 		Expect(data.PartitionLabel).To(Equal("DATA"))
 	})
 
+	It("matches on the UUID alone when the label and device name differ", func() {
+		// A partition keeps its UUID when it is relabeled or gets another kernel name.
+		data := find(PartitionInfo{Label: "RELABELED", DeviceName: "sdc9", UUID: "uuid-data"})
+		Expect(data.SecretName).To(Equal("secret-data"))
+		Expect(data.PartitionLabel).To(Equal("DATA"))
+	})
+
 	It("prefers a UUID match over a label match", func() {
 		data := find(PartitionInfo{Label: "COS_OEM", UUID: "uuid-data"})
 		Expect(data.SecretName).To(Equal("secret-data"))
@@ -89,7 +96,9 @@ var _ = Describe("findPartitionInVolume", func() {
 		_, ok, err := findPartitionInVolume(volume, PartitionInfo{Label: "DATA", DeviceName: "sdb2", UUID: "uuid-reinstalled"})
 		Expect(ok).To(BeFalse())
 		Expect(err).To(MatchError(ContainSubstring("tofu-a1b2c3d4")))
-		Expect(err).To(MatchError(ContainSubstring("uuid-data")))
+		Expect(err).To(MatchError(ContainSubstring("DATA")))
+		Expect(err).ToNot(MatchError(ContainSubstring("uuid-data")))
+		Expect(err).ToNot(MatchError(ContainSubstring("uuid-reinstalled")))
 		Expect(err).To(MatchError(ContainSubstring("remove")))
 	})
 
