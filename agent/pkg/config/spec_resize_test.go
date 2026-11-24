@@ -327,3 +327,74 @@ var _ = Describe("NewInstallSpec image sizes", Label("install"), func() {
 		Expect(memLog.String()).To(ContainSubstring("Failed to infer size for the recovery image"))
 	})
 })
+
+var _ = Describe("NewInstallSpec active source", Label("install", "iso"), func() {
+	var fs *vfst.TestFS
+	var cleanup func()
+	var c *sdkConfig.Config
+
+	install := func(values collector.ConfigValues) {
+		c.Collector = collector.Config{Values: collector.ConfigValues{"install": values}}
+	}
+
+	BeforeEach(func() {
+		var err error
+		fs, cleanup, err = vfst.NewTestFS(nil)
+		Expect(err).ToNot(HaveOccurred())
+		var memLog bytes.Buffer
+		c = config.NewConfig(config.WithFs(fs), config.WithLogger(sdkLogger.NewBufferLogger(&memLog)))
+		c.Install = &sdkInstall.Install{}
+		c.Collector = collector.Config{}
+
+		// The install media tree is present, 5MiB of data is measured as 105MiB
+		Expect(fsutils.MkdirAll(fs, constants.IsoBaseTree, constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(constants.IsoBaseTree, "payload"), make([]byte, 5*1024*1024), constants.FilePerm)).To(Succeed())
+		// 30MiB of data is measured as 130MiB
+		Expect(fsutils.MkdirAll(fs, "/custom/system", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/custom/system/payload", make([]byte, 30*1024*1024), constants.FilePerm)).To(Succeed())
+	})
+	AfterEach(func() {
+		cleanup()
+	})
+
+	It("uses the install media when nothing else is set", func() {
+		sp, err := config.NewInstallSpec(c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sp.Active.Source.Value()).To(Equal(constants.IsoBaseTree))
+		Expect(sp.Active.Size).To(Equal(uint(105)))
+	})
+
+	It("takes the legacy install.system.uri over the install media", func() {
+		install(collector.ConfigValues{
+			"system": collector.ConfigValues{"uri": "dir:///custom/system"},
+		})
+		sp, err := config.NewInstallSpec(c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sp.Active.Source.Value()).To(Equal("/custom/system"))
+		Expect(sp.Active.Size).To(Equal(uint(130)))
+		Expect(sp.Passive.Size).To(Equal(uint(130)))
+	})
+
+	It("takes install.system.source over the install media", func() {
+		install(collector.ConfigValues{
+			"system": collector.ConfigValues{"source": "dir:///custom/system"},
+		})
+		sp, err := config.NewInstallSpec(c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sp.Active.Source.Value()).To(Equal("/custom/system"))
+	})
+
+	It("takes install.source over the install media", func() {
+		c.Install = &sdkInstall.Install{Source: "dir:///custom/system"}
+		sp, err := config.NewInstallSpec(c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sp.Active.Source.Value()).To(Equal("/custom/system"))
+	})
+
+	It("leaves the source empty without install media or config", func() {
+		Expect(fs.RemoveAll(constants.IsoBaseTree)).To(Succeed())
+		sp, err := config.NewInstallSpec(c)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sp.Active.Source.IsEmpty()).To(BeTrue())
+	})
+})
