@@ -110,6 +110,14 @@ func (i InstallAction) Run() (err error) {
 		if err = config.ResizeInstallSpecForSource(i.cfg, i.spec); err != nil {
 			return fmt.Errorf("sizing the images from the downloaded ISO: %w", err)
 		}
+		// The new sizes can push the partitions past the end of the disk.
+		// Refuse before the disk is touched, a formatting install is about
+		// to wipe it.
+		if !i.spec.NoFormat {
+			if err = i.spec.CheckDiskPlan(); err != nil {
+				return fmt.Errorf("the disk plan after sizing from the downloaded ISO: %w", err)
+			}
+		}
 	}
 
 	if i.spec.NoFormat {

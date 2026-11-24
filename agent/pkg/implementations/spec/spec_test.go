@@ -423,6 +423,15 @@ var _ = Describe("Types", Label("types", "config"), func() {
 					err := sp.Sanitize()
 					Expect(err).ToNot(HaveOccurred())
 				})
+				It("checks the plan again when the sizes changed after Sanitize", func() {
+					sp.Partitions.Persistent = &sdkPartitions.Partition{Size: 10}
+					Expect(sp.Sanitize()).To(Succeed())
+					Expect(sp.CheckDiskPlan()).To(Succeed())
+					sp.Partitions.State.Size = 200
+					err := sp.CheckDiskPlan()
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("does not fit in the target disk"))
+				})
 			})
 		})
 		Describe("ResetSpec sanitize", func() {
