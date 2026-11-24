@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/kairos-io/AuroraBoot/docs"
+	"github.com/kairos-io/kairos/auroraboot/docs"
 )
 
 // swaggerYAMLBytes is the OpenAPI document in YAML form. The generated

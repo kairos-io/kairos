@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/pkg/client"
+	"github.com/kairos-io/kairos/auroraboot/pkg/client"
 )
 
 // Overlays travel through the API by ID only: the SDK uploads files and gets

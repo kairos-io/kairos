@@ -11,8 +11,8 @@ import (
 	. "github.com/onsi/gomega"
 	"gorm.io/gorm"
 
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // rendezvous holds the first two callers until both have arrived, then lets

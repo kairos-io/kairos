@@ -5,7 +5,7 @@ package ui_test
 import (
 	"io/fs"
 
-	"github.com/kairos-io/AuroraBoot/internal/ui"
+	"github.com/kairos-io/kairos/auroraboot/internal/ui"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

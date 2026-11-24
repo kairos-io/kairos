@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gleak"
 
-	"github.com/kairos-io/AuroraBoot/pkg/client"
+	"github.com/kairos-io/kairos/auroraboot/pkg/client"
 )
 
 // endlessReader yields zero bytes forever.

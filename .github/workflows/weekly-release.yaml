@@ -13,8 +13,8 @@ name: weekly-release
 #     the commit contains, whether that release is final, pending approval
 #     or rejected (scripts/release-version.sh); the version counts up from
 #     the highest tag anywhere in the repository
-#   - fails when quay.io/kairos/kairos-init or
-#     quay.io/kairos/kcrypt-challenger already has an image for that
+#   - fails when quay.io/kairos/kairos-init, quay.io/kairos/kcrypt-challenger
+#     or quay.io/kairos/auroraboot already has an image for that
 #     version, which means it was released before and its tag was deleted,
 #     and fails when quay.io cannot answer
 #   - creates the tag and a GitHub prerelease together with
@@ -219,8 +219,8 @@ jobs:
       - name: Check that the version was never released
         # A deleted tag leaves its images on quay.io, and building the
         # same version again would overwrite them. release.yaml pushes
-        # kairos-init and kcrypt-challenger independently, so a failed
-        # release can leave either one behind; the OS images are built
+        # kairos-init, kcrypt-challenger and auroraboot independently, so a
+        # failed release can leave any of them behind; the OS images are built
         # from kairos-init and cannot exist without it. Both
         # repositories are public, so quay.io's tag API needs no login.
         # It answers 200 with an empty `tags` list when the tag is
@@ -238,7 +238,7 @@ jobs:
             echo "::error::$1"
             exit 1
           }
-          for repo in kairos-init kcrypt-challenger; do
+          for repo in kairos-init kcrypt-challenger auroraboot; do
             image="quay.io/kairos/$repo:$VERSION"
             url="https://quay.io/api/v1/repository/kairos/$repo/tag/?specificTag=${VERSION}&onlyActiveTags=true"
             if ! found=$(curl -fsS --retry 3 --retry-all-errors "$url" | jq -e '.tags | if type == "array" then length else error("no tags array") end'); then
@@ -248,7 +248,7 @@ jobs:
               stop "Weekly release stopped: $image already exists, so $VERSION was released before and its tag was deleted. Recreate the tag or release by hand."
             fi
           done
-          echo "Neither \`quay.io/kairos/kairos-init:$VERSION\` nor \`quay.io/kairos/kcrypt-challenger:$VERSION\` exists, so \`$VERSION\` is unused." >> "$GITHUB_STEP_SUMMARY"
+          echo "None of \`quay.io/kairos/kairos-init:$VERSION\`, \`quay.io/kairos/kcrypt-challenger:$VERSION\` and \`quay.io/kairos/auroraboot:$VERSION\` exists, so \`$VERSION\` is unused." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create the tag and the prerelease
         if: steps.version.outputs.outcome == 'release' && inputs.dry_run != true

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
@@ -182,7 +183,32 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
 				target, err := config.Fs.Readlink("/var/lib/kairos/extensions/active/fwupd.sysext.raw")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(target).To(ContainSubstring("fwupd.sysext.raw"))
+				Expect(target).To(Equal("../fwupd.sysext.raw"))
+			})
+
+			It("writes a link that resolves from the initramfs mount at /sysroot", func() {
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink("/var/lib/kairos/extensions/active/fwupd.sysext.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(filepath.IsAbs(target)).To(BeFalse())
+			})
+
+			It("keeps its link when enabled twice", func() {
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink("/var/lib/kairos/extensions/active/fwupd.sysext.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(target).To(Equal("../fwupd.sysext.raw"))
+			})
+
+			It("replaces an absolute link left by an older agent", func() {
+				link := "/var/lib/kairos/extensions/active/fwupd.sysext.raw"
+				Expect(config.Fs.Mkdir("/var/lib/kairos/extensions/active", 0755)).To(Succeed())
+				Expect(config.Fs.Symlink("/var/lib/kairos/extensions/fwupd.sysext.raw", link)).To(Succeed())
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink(link)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(target).To(Equal("../fwupd.sysext.raw"))
 			})
 
 			It("does not resolve a name that does not end on a dot boundary", func() {
@@ -628,6 +654,60 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 					Location: "/var/lib/kairos/extensions/active/valid.raw",
 				},
 			}))
+		})
+		Describe("With now, booted in active", func() {
+			BeforeEach(func() {
+				Expect(config.Fs.WriteFile("/var/lib/kairos/extensions/valid.raw", []byte("valid"), 0644)).ToNot(HaveOccurred())
+				Expect(config.Fs.Mkdir("/run/cos", 0755)).ToNot(HaveOccurred())
+				Expect(config.Fs.WriteFile("/run/cos/active_mode", []byte("true"), 0644)).ToNot(HaveOccurred())
+			})
+			It("enables with now in active an extension already merged from common", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "common", "sysext", true)).ToNot(HaveOccurred())
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				content, err := config.Fs.ReadFile("/run/extensions/valid.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(content)).To(Equal("valid"))
+			})
+			It("keeps the extension merged when disabling active while common still enables it", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "common", "sysext", true)).ToNot(HaveOccurred())
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				runner.ClearCmds()
+				Expect(action.DisableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				extensions, err := action.ListExtensions(config, "active", "sysext")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(extensions).To(BeEmpty())
+				content, err := config.Fs.ReadFile("/run/extensions/valid.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(content)).To(Equal("valid"))
+				Expect(runner.IncludesCmds([][]string{
+					{"systemctl", "restart", "systemd-sysext"},
+				})).To(HaveOccurred())
+			})
+			It("keeps the extension merged when disabling common while active still enables it", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				Expect(action.EnableExtension(config, "valid.raw", "common", "sysext", false)).ToNot(HaveOccurred())
+				Expect(action.DisableExtension(config, "valid.raw", "common", "sysext", true)).ToNot(HaveOccurred())
+				content, err := config.Fs.ReadFile("/run/extensions/valid.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(content)).To(Equal("valid"))
+			})
+			It("unmerges the extension when no other boot state enables it", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				runner.ClearCmds()
+				Expect(action.DisableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				_, err := config.Fs.Lstat("/run/extensions/valid.raw")
+				Expect(err).To(HaveOccurred())
+				Expect(runner.IncludesCmds([][]string{
+					{"systemctl", "restart", "systemd-sysext"},
+				})).ToNot(HaveOccurred())
+			})
+			It("unmerges the extension when only a state not booted enables it", func() {
+				Expect(action.EnableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				Expect(action.EnableExtension(config, "valid.raw", "passive", "sysext", false)).ToNot(HaveOccurred())
+				Expect(action.DisableExtension(config, "valid.raw", "active", "sysext", true)).ToNot(HaveOccurred())
+				_, err := config.Fs.Lstat("/run/extensions/valid.raw")
+				Expect(err).To(HaveOccurred())
+			})
 		})
 	})
 	Describe("Installing extensions", func() {

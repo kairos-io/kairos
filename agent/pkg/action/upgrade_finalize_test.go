@@ -20,6 +20,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
+	"k8s.io/mount-utils"
 )
 
 var _ = Describe("FinalizeContext", func() {
@@ -235,6 +236,37 @@ var _ = Describe("Upgrade finalize handoff", Label("upgrade", "handoff"), func()
 		_, statErr := fs.Stat(ctxPath)
 		Expect(os.IsNotExist(statErr)).To(BeTrue(),
 			"expected finalize context %s to be removed after handoff, got stat err=%v", ctxPath, statErr)
+	})
+
+	It("binds mounted OEM and persistent both under /host and at their standard paths in the target chroot", func() {
+		extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+			if err := fsutils.MkdirAll(fs, filepath.Join(destination, "etc"), constants.DirPerm); err != nil {
+				return err
+			}
+			return fs.WriteFile(filepath.Join(destination, "etc/kairos-release"),
+				[]byte(`KAIROS_INIT_VERSION="v4.3.1"`+"\n"), 0o644)
+		}
+		spec.Partitions.OEM = &sdkPartitions.Partition{Name: "device6", FilesystemLabel: "COS_OEM", FS: "ext4", MountPoint: constants.OEMDir}
+		spec.Partitions.Persistent = &sdkPartitions.Partition{Name: "device7", FilesystemLabel: "COS_PERSISTENT", FS: "ext4", MountPoint: constants.PersistentDir}
+		Expect(mounter.Mount("device6", constants.OEMDir, "auto", []string{"rw"})).To(Succeed())
+		Expect(mounter.Mount("device7", constants.PersistentDir, "auto", []string{"rw"})).To(Succeed())
+
+		upgrade = action.NewUpgradeAction(config, spec)
+		Expect(upgrade.Run()).ToNot(HaveOccurred())
+
+		var targets []string
+		for _, a := range mounter.Interface.(*mount.FakeMounter).GetLog() {
+			if a.Action == mount.FakeActionMount && a.FSType == "bind" {
+				targets = append(targets, a.Target)
+			}
+		}
+		root := spec.Active.MountPoint
+		Expect(targets).To(ContainElements(
+			filepath.Join(root, constants.HandoffHostPrefix, constants.OEMDir),
+			filepath.Join(root, constants.OEMPath),
+			filepath.Join(root, constants.HandoffHostPrefix, constants.PersistentDir),
+			filepath.Join(root, constants.UsrLocalPath),
+		))
 	})
 
 	It("refuses the upgrade and leaves active.img untouched when target KAIROS_INIT_VERSION < current", func() {

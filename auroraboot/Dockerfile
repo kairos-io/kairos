@@ -71,8 +71,15 @@ COPY scripts/retry /usr/local/bin/retry
 # "go install ...@latest" fetched an unpinned CLI on every build, so the
 # generated docs could change with no code change, and a proxy.golang.org
 # hiccup failed the whole image build.
+# go.mod replaces github.com/kairos-io/kairos/v4 with ../, so the root module
+# has to sit next to this one. The build hands the repository root over as the
+# named context "kairos": docker buildx build --build-context kairos=<root>.
+COPY --from=kairos go.mod go.sum /
 COPY go.mod go.sum ./
 RUN retry go build -o /usr/local/bin/swag github.com/swaggo/swag/cmd/swag
+COPY --from=kairos sdk /sdk
+COPY --from=kairos agent /agent
+COPY --from=kairos internal/version /internal/version
 COPY . .
 RUN swag init -g internal/cmd/web.go --output docs --parseDependency --parseInternal --parseDepth 2
 
@@ -87,10 +94,16 @@ WORKDIR /work
 # libpcsclite-dev is required by github.com/go-piv/piv-go/v2 (transitive via sbctl)
 RUN apt-get update && apt-get install -y --no-install-recommends libpcsclite-dev && rm -rf /var/lib/apt/lists/*
 COPY scripts/retry /usr/local/bin/retry
-ADD go.mod .
-ADD go.sum .
+# go.mod replaces github.com/kairos-io/kairos/v4 with ../, so the root module
+# has to sit next to this one. The build hands the repository root over as the
+# named context "kairos": docker buildx build --build-context kairos=<root>.
+COPY --from=kairos go.mod go.sum /
+COPY go.mod go.sum ./
 RUN retry go mod download
-ADD . .
+COPY --from=kairos sdk /sdk
+COPY --from=kairos agent /agent
+COPY --from=kairos internal/version /internal/version
+COPY . .
 COPY --from=js /work/internal/ui/dist ./internal/ui/dist
 COPY --from=swagger /app/docs ./docs
 ENV VERSION=$VERSION

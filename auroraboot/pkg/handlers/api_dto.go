@@ -13,7 +13,7 @@ package handlers
 import (
 	"time"
 
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // --- Error envelope ---

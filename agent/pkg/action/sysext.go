@@ -181,14 +181,16 @@ func GetExtension(cfg *sdkConfig.Config, name, bootState, extType string) (Exten
 }
 
 // ensureSymlink makes link a symlink to target. A symlink that already
-// resolves to target is kept and reported as not created; anything else at
-// link (a dangling or stale symlink, or a plain file) is replaced.
+// holds exactly target and resolves is kept and reported as not created;
+// anything else at link (a dangling or stale symlink, a link to the same
+// image written in another form such as an absolute path, or a plain file)
+// is replaced.
 func ensureSymlink(cfg *sdkConfig.Config, target, link string) (bool, error) {
 	if li, err := cfg.Fs.Lstat(link); err == nil {
 		if li.Mode()&os.ModeSymlink != 0 {
-			linked, lerr := cfg.Fs.Stat(link)
-			wanted, terr := cfg.Fs.Stat(target)
-			if lerr == nil && terr == nil && os.SameFile(linked, wanted) {
+			stored, rerr := cfg.Fs.Readlink(link)
+			_, serr := cfg.Fs.Stat(link)
+			if rerr == nil && serr == nil && stored == target {
 				return false, nil
 			}
 		}
@@ -224,7 +226,14 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 
 	// Link the extension into the target dir, keeping a link that already
 	// points at it. With now it still merges an already enabled extension.
-	created, err := ensureSymlink(cfg, extension.Location, filepath.Join(targetDir, extension.Name))
+	// The link is relative because the initramfs mounts the root filesystem
+	// at /sysroot, where an absolute target does not resolve and immucore
+	// would skip the extension.
+	relTarget, err := filepath.Rel(targetDir, extension.Location)
+	if err != nil {
+		return fmt.Errorf("failed to compute link target for %s: %w", extension.Name, err)
+	}
+	created, err := ensureSymlink(cfg, relTarget, filepath.Join(targetDir, extension.Name))
 	if err != nil {
 		return fmt.Errorf("failed to create symlink for %s: %w", extension.Name, err)
 	}
@@ -274,6 +283,25 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 	return nil
 }
 
+// enabledInCurrentBoot looks for name enabled in a boot state other than skip
+// that applies to the running system: common, or the state it booted in.
+func enabledInCurrentBoot(cfg *sdkConfig.Config, name, skip, extType string) (Extension, bool) {
+	for _, state := range []string{cnst.BootActive, cnst.BootPassive, cnst.BootRecovery, cnst.BootCommon} {
+		if state == skip {
+			continue
+		}
+		if state != cnst.BootCommon {
+			if _, err := cfg.Fs.Stat(fmt.Sprintf("/run/cos/%s_mode", state)); err != nil {
+				continue
+			}
+		}
+		if ext, err := GetExtension(cfg, name, state, extType); err == nil {
+			return ext, true
+		}
+	}
+	return Extension{}, false
+}
+
 // DisableExtension disables a extension that is already in the system for a given bootstate
 // It removes the symlink from the target dir according to the bootstate given
 func DisableExtension(cfg *sdkConfig.Config, ext string, bootState, extType string, now bool) error {
@@ -310,7 +338,15 @@ func DisableExtension(cfg *sdkConfig.Config, ext string, bootState, extType stri
 			// Remove the symlink from /run/extensions if is in there
 			cfg.Logger.Logger.Debug().Str("stat", filepath.Join(linkTarget, extension.Name)).Msg("Checking if symlink exists")
 			_, stat := cfg.Fs.Readlink(filepath.Join(linkTarget, extension.Name))
-			if stat == nil {
+			other, stillEnabled := enabledInCurrentBoot(cfg, extension.Name, bootState, extType)
+			if stat == nil && stillEnabled {
+				// Another boot state of this boot still enables it, so keep it
+				// merged and point the run link at that state's link instead
+				if _, err := ensureSymlink(cfg, other.Location, filepath.Join(linkTarget, extension.Name)); err != nil {
+					return fmt.Errorf("failed to create symlink for %s: %w", extension.Name, err)
+				}
+				cfg.Logger.Infof("Extension %s is still enabled in %s, keeping it in %s", extension.Name, filepath.Base(filepath.Dir(other.Location)), linkTarget)
+			} else if stat == nil {
 				err = cfg.Fs.Remove(filepath.Join(linkTarget, extension.Name))
 				if err != nil {
 					return fmt.Errorf("failed to remove symlink for %s: %w", extension.Name, err)

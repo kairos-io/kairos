@@ -1,6 +1,9 @@
 services:
   auroraboot:
-    build: .
+    build:
+      context: .
+      additional_contexts:
+        kairos: ..
     command: ["web", "--data-dir", "/data", "--listen", ":8080"]
     ports:
       - "${PORT:-9099}:8080"

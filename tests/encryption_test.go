@@ -233,6 +233,112 @@ kcrypt:
 		})
 	})
 
+	// A reinstalled machine gets new partition UUIDs but keeps its labels. The
+	// challenger refuses to reuse the stored passphrase until the operator
+	// removes the stale entry (kairos-io/kairos#6094).
+	When("the SealedVolume holds an entry with the right label and a stale UUID", Label("encryption-remote-stale-entry"), func() {
+		var tpmHash string
+		var volumeName string
+
+		BeforeEach(func() {
+			tpmHash = getTPMHash(vm)
+			volumeName = fmt.Sprintf("stale-%s", tpmHash[:8])
+
+			kubectlApplyYaml(fmt.Sprintf(`---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: %[1]s
+  namespace: default
+type: Opaque
+stringData:
+  pass: "awesome-plaintext-passphrase"
+`, volumeName))
+
+			// Empty PCR values enable deferred PCR enrollment, as in the static keys scenario.
+			kubectlApplyYaml(fmt.Sprintf(`---
+apiVersion: keyserver.kairos.io/v1alpha1
+kind: SealedVolume
+metadata:
+  name: "%[1]s"
+  namespace: default
+spec:
+  TPMHash: "%[2]s"
+  partitions:
+    - label: %[3]s
+      uuid: "00000000-0000-0000-0000-00000000dead"
+      secret:
+        name: "%[1]s"
+        path: pass
+  quarantined: false
+  attestation:
+    pcrValues:
+      pcrs:
+        "0": ""
+        "7": ""
+        "11": ""
+`, volumeName, tpmHash, sdkConstants.PersistentLUKSLabel))
+
+			config = fmt.Sprintf(`#cloud-config
+
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+      hostname: kairos-{{ trunc 4 .Random }}
+
+install:
+  encrypted_partitions:
+  - COS_PERSISTENT
+  grub_options:
+    extra_cmdline: "rd.neednet=1"
+  reboot: false # we will reboot manually
+
+kcrypt:
+  challenger:
+    challenger_server: "http://%s"
+    nv_index: ""
+    c_index: ""
+    tpm_device: ""
+`, os.Getenv("KMS_ADDRESS"))
+		})
+
+		AfterEach(func() {
+			out, err := exec.Command("kubectl", "delete", "sealedvolume", volumeName, "--ignore-not-found").CombinedOutput()
+			Expect(err).ToNot(HaveOccurred(), string(out))
+
+			out, err = exec.Command("kubectl", "delete", "secret", volumeName, "--ignore-not-found").CombinedOutput()
+			Expect(err).ToNot(HaveOccurred(), string(out))
+		})
+
+		It("fails to install until the stale entry is removed", func() {
+			By("expecting the first install to fail and name the SealedVolume")
+			Expect(installError).To(HaveOccurred(), installationOutput)
+			Expect(installationOutput).To(ContainSubstring(volumeName), installationOutput)
+
+			By("removing the stale entry from spec.partitions")
+			out, err := exec.Command("kubectl", "patch", "sealedvolume", volumeName, "--type=json",
+				"-p", `[{"op":"remove","path":"/spec/partitions/0"}]`).CombinedOutput()
+			Expect(err).ToNot(HaveOccurred(), string(out))
+
+			By("installing again")
+			installationOutput, installError = vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
+			Expect(installError).ToNot(HaveOccurred(), installationOutput)
+
+			By("rebooting and checking the partition is encrypted")
+			vm.Reboot()
+			vm.EventuallyConnects(1200)
+			out2, err := vm.Sudo("blkid")
+			Expect(err).ToNot(HaveOccurred(), out2)
+			Expect(out2).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out2)
+			verifyPersistentFstabUsesMapper(vm)
+		})
+	})
+
 	// https://kairos.io/docs/advanced/partition_encryption/#scenario-static-keys
 	When("using a remote key management server (static keys)", Label("encryption-remote-static"), func() {
 		var tpmHash string
