@@ -1076,11 +1076,14 @@ func sealedVolumeData(volume *keyserverv1alpha1.SealedVolume, p keyserverv1alpha
 // findPartitionInVolume checks if a specific partition exists in a SealedVolume.
 //
 // A stored UUID that differs from the requested one rules the entry out,
-// whatever its label or device name say. Otherwise an entry matches on the
-// UUID first, then on the label, then on the device name. The device name
-// only counts when the entry has no label that contradicts the request,
-// because kernel names change between boots and can equal the name stored for
-// another partition.
+// whatever its label or device name say. A stored UUID that equals the
+// requested one is a match on its own: the label and device name are not
+// compared, because a partition keeps its UUID when it is relabeled or when
+// the kernel gives it another device name. Without a UUID match, the label is
+// tried next and then the device name. The device name only counts when the
+// entry has no UUID or label that contradicts the request, because kernel
+// names change between boots and can equal the name stored for another
+// partition.
 //
 // When the only entry with the requested label has a different UUID, the
 // machine was most likely reinstalled and repartitioned. The old passphrase
