@@ -152,6 +152,14 @@ func (i InstallAction) Run() (err error) {
 		return e.UnmountPartitions(i.spec.Partitions.PartitionsByMountPoint(true))
 	})
 
+	// An install without formatting takes the partitions as they are, so
+	// check the images fit them before anything is written.
+	if i.spec.NoFormat {
+		if err = checkPartitionsFitImages(i.cfg, i.spec); err != nil {
+			return err
+		}
+	}
+
 	// Before install hook happens after partitioning but before the image OS is applied
 	progress.EmitStep(agentrun.StepBeforeInstall)
 	err = i.installHook(cnst.BeforeInstallHook, false)

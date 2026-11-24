@@ -470,6 +470,76 @@ var _ = Describe("Install action tests", func() {
 			}
 		})
 
+		Describe("Without formatting, the existing partitions are checked against the images", Label("no-format", "disk"), func() {
+			var restore func()
+			var total, available, allocated int64
+			noImagesWritten := func() {
+				for _, cmd := range runner.Cmds() {
+					Expect(cmd[0]).ToNot(HavePrefix("mkfs"))
+					Expect(cmd[0]).ToNot(Equal("blkdeactivate"))
+				}
+			}
+
+			BeforeEach(func() {
+				spec.NoFormat = true
+				spec.Force = true
+				spec.Target = device
+				spec.Active.Size = 1000
+				spec.Passive.Size = 1000
+				spec.Recovery.Size = 1000
+				total, available, allocated = 100*1024*1024*1024, 100*1024*1024*1024, 0
+				restore = action.SetSpaceProbes(
+					func(string) (int64, int64, error) { return total, available, nil },
+					func(string) int64 { return allocated },
+				)
+			})
+			AfterEach(func() { restore() })
+
+			It("installs when the partitions have room", func() {
+				Expect(installer.Run()).To(Succeed())
+			})
+
+			It("stops before writing anything when the state partition is smaller than active and passive", func() {
+				total = 1500 * 1024 * 1024
+				err := installer.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("the existing state partition is too small"))
+				noImagesWritten()
+			})
+
+			It("stops when the partitions are big enough but have no free space left", func() {
+				total = 4000 * 1024 * 1024
+				available = 500 * 1024 * 1024
+				err := installer.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("the existing state partition has not enough free space"))
+				noImagesWritten()
+			})
+
+			It("counts the images it replaces as free space", func() {
+				total = 4000 * 1024 * 1024
+				available = 500 * 1024 * 1024
+				allocated = 800 * 1024 * 1024
+				Expect(installer.Run()).To(Succeed())
+			})
+
+			It("installs a partition that only fits the current images", func() {
+				total = 2100 * 1024 * 1024
+				available = 2100 * 1024 * 1024
+				Expect(installer.Run()).To(Succeed())
+			})
+
+			It("lets the install go on when a partition cannot be measured", func() {
+				restore()
+				restore = action.SetSpaceProbes(
+					func(string) (int64, int64, error) { return 0, 0, fmt.Errorf("no such device") },
+					func(string) int64 { return 0 },
+				)
+				Expect(installer.Run()).To(Succeed())
+				Expect(memLog.String()).To(ContainSubstring("Not checking the state partition"))
+			})
+		})
+
 		It("Fails to install without formatting if a previous install is detected", Label("no-format", "disk"), func() {
 			spec.NoFormat = true
 			spec.Force = false
