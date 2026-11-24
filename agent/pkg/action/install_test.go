@@ -453,6 +453,25 @@ var _ = Describe("Install action tests", func() {
 			Expect(spec.Partitions.Recovery.Size).To(Equal(uint(450)))
 		})
 
+		It("Stops before partitioning if the sizes from the downloaded ISO do not fit the disk", Label("iso"), func() {
+			// 5MiB of data in the ISO rootfs is measured as 105MiB, which needs
+			// a state partition of 1315MiB. Present a 1GiB disk.
+			fillIsoRootfs(5 * 1024 * 1024)
+			ghwTest.Clean()
+			ghwTest = ghwMock.GhwMock{}
+			ghwTest.AddDisk(sdkPartitions.Disk{Name: "smalldisk", SizeBytes: 1024 * 1024 * 1024 / 512})
+			ghwTest.CreateDevices()
+			fs.Create("cOS.iso")
+			spec.Iso = "http://cOS.iso"
+			spec.Target = "/dev/smalldisk"
+			err := installer.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does not fit in the target disk"))
+			for _, cmd := range runner.Cmds() {
+				Expect(cmd[0]).ToNot(Equal("blkdeactivate"))
+			}
+		})
+
 		It("Stops before partitioning if the downloaded ISO cannot be measured", Label("iso"), func() {
 			// Nothing is put in the ISO rootfs, so there is nothing to measure
 			fs.Create("cOS.iso")
