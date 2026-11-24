@@ -29,6 +29,7 @@ type OCIImageExtractor struct {
 }
 
 var _ imagetypes.ImageExtractor = OCIImageExtractor{}
+var _ imagetypes.DigestResolver = OCIImageExtractor{}
 
 // pullOptions translates the extractor's configuration into GetImage options.
 func (e OCIImageExtractor) pullOptions() []GetOption {
@@ -106,6 +107,11 @@ func (e OCIImageExtractor) extract(imageRef, destination, platformRef string, ex
 		return err
 	}
 	return nil
+}
+
+// ResolveDigest implements imagetypes.DigestResolver.
+func (e OCIImageExtractor) ResolveDigest(imageRef string) (string, error) {
+	return ResolveDigest(imageRef, e.Auth, nil, e.pullOptions()...)
 }
 
 func (e OCIImageExtractor) GetOCIImageSize(imageRef, platformRef string) (int64, error) {

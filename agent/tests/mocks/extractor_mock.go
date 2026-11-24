@@ -26,6 +26,9 @@ type FakeImageExtractor struct {
 	SideEffect     func(imageRef, destination, platformRef string) error
 	SizeSideEffect func(imageRef, platformRef string) (int64, error)
 	ClientCalls    []ExtractCall
+	// DigestSideEffect overrides the digest ResolveDigest returns.
+	DigestSideEffect func(imageRef string) (string, error)
+	ResolveCalls     []string
 }
 
 type ExtractCall struct {
@@ -41,6 +44,19 @@ func (f *FakeImageExtractor) GetOCIImageSize(imageRef, platformRef string) (int6
 	return 0, nil
 }
 
+// ResolveDigest returns a fixed digest for every reference unless DigestSideEffect is set.
+func (f *FakeImageExtractor) ResolveDigest(imageRef string) (string, error) {
+	f.ResolveCalls = append(f.ResolveCalls, imageRef)
+	if f.DigestSideEffect != nil {
+		return f.DigestSideEffect(imageRef)
+	}
+	return FakeDigest, nil
+}
+
+// FakeDigest is what FakeImageExtractor resolves every tag to by default.
+const FakeDigest = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+var _ sdkImages.DigestResolver = &FakeImageExtractor{}
 var _ sdkImages.ImageExtractor = &FakeImageExtractor{}
 
 func NewFakeImageExtractor(logger sdkLogger.KairosLogger) *FakeImageExtractor {

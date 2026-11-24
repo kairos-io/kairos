@@ -97,6 +97,9 @@ func countOpenFDsForPath(path string) int {
 	return count
 }
 
+// noResolveExtractor hides the DigestResolver of the extractor it wraps.
+type noResolveExtractor struct{ sdkImages.ImageExtractor }
+
 var _ = Describe("Elemental", Label("elemental"), func() {
 	var config *sdkConfig.Config
 	var runner *v1mock.FakeRunner
@@ -1005,14 +1008,63 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			config.Cosign = true
 			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
 			Expect(err).To(BeNil())
-			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}})).To(BeNil())
+			Expect(extractor.ResolveCalls).To(Equal([]string{"docker/image:latest"}))
+		})
+		It("Verifies and extracts the digest the tag resolved to, not the tag", Label("docker", "cosign"), func() {
+			config.Cosign = true
+			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
+			Expect(err).To(BeNil())
+			pinned := "index.docker.io/docker/image@" + v1mock.FakeDigest
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", pinned}})).To(BeNil())
+			Expect(extractor.ClientCalls).To(HaveLen(1))
+			Expect(extractor.ClientCalls[0].ImageRef).To(Equal(pinned))
+		})
+		It("Keeps the registry and port of the source when pinning", Label("docker", "cosign"), func() {
+			config.Cosign = true
+			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("localhost:5000/a/b:v1"))
+			Expect(err).To(BeNil())
+			pinned := "localhost:5000/a/b@" + v1mock.FakeDigest
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", pinned}})).To(BeNil())
+			Expect(extractor.ClientCalls[0].ImageRef).To(Equal(pinned))
+		})
+		It("Does not resolve the tag when cosign is off", Label("docker"), func() {
+			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
+			Expect(err).To(BeNil())
+			Expect(extractor.ResolveCalls).To(BeEmpty())
+			Expect(extractor.ClientCalls[0].ImageRef).To(Equal("docker/image:latest"))
+		})
+		It("Verifies a reference that already is a digest as given", Label("docker", "cosign"), func() {
+			config.Cosign = true
+			ref := "docker.io/docker/image@sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc(ref))
+			Expect(err).To(BeNil())
+			Expect(extractor.ResolveCalls).To(BeEmpty())
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", ref}})).To(BeNil())
+			Expect(extractor.ClientCalls[0].ImageRef).To(Equal(ref))
+		})
+		It("Fails without verifying or extracting when the tag does not resolve", Label("docker", "cosign"), func() {
+			config.Cosign = true
+			extractor.DigestSideEffect = func(string) (string, error) { return "", errors.New("resolve error") }
+			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
+			Expect(err).To(MatchError(ContainSubstring("resolve error")))
+			Expect(runner.Cmds()).To(BeEmpty())
+			Expect(extractor.ClientCalls).To(BeEmpty())
+		})
+		It("Fails when the extractor cannot resolve digests", Label("docker", "cosign"), func() {
+			config.Cosign = true
+			config.ImageExtractor = noResolveExtractor{extractor}
+			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
+			Expect(err).To(HaveOccurred())
+			Expect(runner.Cmds()).To(BeEmpty())
+			Expect(extractor.ClientCalls).To(BeEmpty())
 		})
 		It("Fails cosign validation", Label("cosign"), func() {
 			runner.ReturnError = errors.New("cosign error")
 			config.Cosign = true
 			_, err := e.DumpSource(destDir, sdkImages.NewDockerSrc("docker/image:latest"))
 			Expect(err).NotTo(BeNil())
-			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "docker/image:latest"}})).To(BeNil())
+			Expect(runner.CmdsMatch([][]string{{"cosign", "verify", "index.docker.io/docker/image@" + v1mock.FakeDigest}})).To(BeNil())
+			Expect(extractor.ClientCalls).To(BeEmpty())
 		})
 		It("Unpacks a docker save archive to target", Label("docker"), func() {
 			runner.ClearCmds()

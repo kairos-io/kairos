@@ -155,6 +155,13 @@ func NewOCIFileSrc(src string) *ImageSource {
 	return &ImageSource{source: src, srcType: ocifile}
 }
 
+// DigestResolver is implemented by an ImageExtractor that can resolve a tag to
+// the digest the registry currently serves for it. The digest is returned as
+// "sha256:<hex>".
+type DigestResolver interface {
+	ResolveDigest(imageRef string) (string, error)
+}
+
 type ImageExtractor interface {
 	ExtractImage(imageRef, destination, platformRef string, excludes ...string) error
 	GetOCIImageSize(imageRef, platformRef string) (int64, error)

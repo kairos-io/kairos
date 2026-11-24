@@ -421,3 +421,74 @@ var _ = Describe("ExtractOCIImage on an image that unpacks to nothing", func() {
 		Expect(filepath.Join(destDir, "hello.txt")).ToNot(BeAnExistingFile())
 	})
 })
+
+var _ = Describe("OCIImageExtractor digest pinning", func() {
+	var (
+		registry *httptest.Server
+		daemon   *httptest.Server
+		daemonRq int
+		host     string
+		digest   v1.Hash
+		destDir  string
+	)
+
+	BeforeEach(func() {
+		registry = httptest.NewServer(ggcrregistry.New())
+		u, err := url.Parse(registry.URL)
+		Expect(err).ToNot(HaveOccurred())
+		host = u.Host
+
+		img, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+		digest, err = img.Digest()
+		Expect(err).ToNot(HaveOccurred())
+		ref, err := name.ParseReference(host+"/test/pin:latest", name.Insecure)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(remote.Write(ref, img)).To(Succeed())
+
+		// A Docker daemon that records every request, so a spec can tell
+		// whether the image was looked up there.
+		daemonRq = 0
+		daemon = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			daemonRq++
+			http.NotFound(w, r)
+		}))
+		du, err := url.Parse(daemon.URL)
+		Expect(err).ToNot(HaveOccurred())
+		GinkgoT().Setenv("DOCKER_HOST", "tcp://"+du.Host)
+
+		destDir, err = os.MkdirTemp("", "sdk-extractor-*")
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		registry.Close()
+		daemon.Close()
+		Expect(os.RemoveAll(destDir)).To(Succeed())
+	})
+
+	It("resolves a tag to the digest the registry serves", func() {
+		got, err := image.OCIImageExtractor{Insecure: true}.ResolveDigest(host + "/test/pin:latest")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(got).To(Equal(digest.String()))
+	})
+
+	It("fails to resolve a tag the registry does not have", func() {
+		_, err := image.OCIImageExtractor{Insecure: true}.ResolveDigest(host + "/test/pin:missing")
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("does not ask the local daemon for a digest reference", func() {
+		ref := host + "/test/pin@" + digest.String()
+		Expect(image.OCIImageExtractor{Insecure: true}.ExtractImage(ref, destDir, "linux/amd64")).To(Succeed())
+		Expect(daemonRq).To(BeZero())
+		content, err := os.ReadFile(filepath.Join(destDir, "hello.txt"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(content)).To(Equal("hello from the insecure registry"))
+	})
+
+	It("still asks the local daemon for a tag", func() {
+		Expect(image.OCIImageExtractor{Insecure: true}.ExtractImage(host+"/test/pin:latest", destDir, "linux/amd64")).To(Succeed())
+		Expect(daemonRq).To(BeNumerically(">", 0))
+	})
+})
