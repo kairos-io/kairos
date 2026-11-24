@@ -23,7 +23,8 @@ var _ = Describe("findPartitionInVolume", func() {
 	})
 
 	find := func(p PartitionInfo) *SealedVolumeData {
-		data, ok := findPartitionInVolume(volume, p)
+		data, ok, err := findPartitionInVolume(volume, p)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeTrue())
 		return data
 	}
@@ -64,9 +65,48 @@ var _ = Describe("findPartitionInVolume", func() {
 		volume.Spec.Partitions = []keyserverv1alpha1.PartitionSpec{
 			{Label: "COS_OEM", Secret: &keyserverv1alpha1.SecretSpec{Name: "secret-oem"}},
 		}
-		_, ok := findPartitionInVolume(volume, PartitionInfo{Label: "DATA"})
+		_, ok, err := findPartitionInVolume(volume, PartitionInfo{Label: "DATA"})
+		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeFalse())
-		_, ok = findPartitionInVolume(volume, PartitionInfo{})
+		_, ok, err = findPartitionInVolume(volume, PartitionInfo{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeFalse())
+	})
+
+	It("does not match a new partition on a device name stored for another partition", func() {
+		_, ok, err := findPartitionInVolume(volume, PartitionInfo{Label: "NEW", DeviceName: "sda2", UUID: "uuid-new"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeFalse())
+	})
+
+	It("does not match on a device name when the UUID differs", func() {
+		_, ok, err := findPartitionInVolume(volume, PartitionInfo{DeviceName: "sda2", UUID: "uuid-new"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ok).To(BeFalse())
+	})
+
+	It("returns an error naming the stale entry when the label matches but the UUID differs", func() {
+		_, ok, err := findPartitionInVolume(volume, PartitionInfo{Label: "DATA", DeviceName: "sdb2", UUID: "uuid-reinstalled"})
+		Expect(ok).To(BeFalse())
+		Expect(err).To(MatchError(ContainSubstring("tofu-a1b2c3d4")))
+		Expect(err).To(MatchError(ContainSubstring("uuid-data")))
+		Expect(err).To(MatchError(ContainSubstring("remove")))
+	})
+
+	It("matches an operator-written entry that has only a device name", func() {
+		volume.Spec.Partitions = []keyserverv1alpha1.PartitionSpec{
+			{DeviceName: "sda2", Secret: &keyserverv1alpha1.SecretSpec{Name: "secret-manual"}},
+		}
+		data := find(PartitionInfo{Label: "DATA", DeviceName: "sda2", UUID: "uuid-data"})
+		Expect(data.SecretName).To(Equal("secret-manual"))
+	})
+
+	It("does not match two partitions that both lack a UUID on the label alone", func() {
+		volume.Spec.Partitions = []keyserverv1alpha1.PartitionSpec{
+			{Label: "COS_OEM", UUID: "unknown", Secret: &keyserverv1alpha1.SecretSpec{Name: "secret-oem"}},
+		}
+		_, ok, err := findPartitionInVolume(volume, PartitionInfo{Label: "DATA", UUID: "unknown"})
+		Expect(err).ToNot(HaveOccurred())
 		Expect(ok).To(BeFalse())
 	})
 })
