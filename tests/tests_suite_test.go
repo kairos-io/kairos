@@ -84,6 +84,7 @@ func CreateDatasource(userDataFile string) string {
 	rw, err := fs.OpenFile("user-data", os.O_CREATE|os.O_RDWR)
 	Expect(err).ToNot(HaveOccurred())
 	content, err := os.ReadFile(userDataFile)
+	Expect(err).ToNot(HaveOccurred(), "reading the user-data asset %s", userDataFile)
 	_, err = rw.Write(content)
 	Expect(rw.Close()).ToNot(HaveOccurred())
 	Expect(err).ToNot(HaveOccurred())
@@ -344,7 +345,10 @@ const registerTimeout = 10 * time.Minute
 
 // register registers a node with a qrfile
 func register(loglevel, qrfile, configFile, device string, reboot bool) error {
-	b, _ := os.ReadFile(configFile)
+	b, err := os.ReadFile(configFile)
+	if err != nil {
+		return fmt.Errorf("reading the config file %s: %w", configFile, err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
 	defer cancel()
 
@@ -373,7 +377,7 @@ func register(loglevel, qrfile, configFile, device string, reboot bool) error {
 		config["reboot"] = "true"
 	}
 
-	err := nodepair.Send(
+	err = nodepair.Send(
 		ctx,
 		config,
 		nodepair.WithReader(qr.Reader),
