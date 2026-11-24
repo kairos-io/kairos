@@ -443,6 +443,39 @@ var _ = Describe("registry auth", func() {
 		Entry("digest", "registry.example/system@sha256:"+strings.Repeat("a", 64), "registry.example"),
 	)
 
+	It("scopes the credentials to the registries of every container source", func() {
+		reg := func(sources ...*sdkImages.ImageSource) imageextractor.OCIImageExtractor {
+			cfg := registryConfig("install", collector.ConfigValues{"username": "user", "password": "pass"})
+			cfg.ImageExtractor = imageextractor.OCIImageExtractor{}
+			Expect(applyRegistryOptions(cfg, "install", sources...)).To(Succeed())
+			return cfg.ImageExtractor.(imageextractor.OCIImageExtractor)
+		}
+		active := sdkImages.NewDockerSrc("registry.one/system:latest")
+		passive := sdkImages.NewDockerSrc("registry.two:5000/passive:latest")
+		recovery := sdkImages.NewDockerSrc("registry.three/recovery:latest")
+
+		got := reg(active, passive, recovery)
+		Expect(got.AuthRegistry).To(Equal("registry.one"))
+		Expect(got.ExtraAuthRegistries).To(Equal([]string{"registry.two:5000", "registry.three"}))
+		Expect(got.Auth).ToNot(BeNil())
+
+		// Same registry twice is listed once
+		got = reg(active, sdkImages.NewDockerSrc("registry.one/other:latest"), recovery)
+		Expect(got.AuthRegistry).To(Equal("registry.one"))
+		Expect(got.ExtraAuthRegistries).To(Equal([]string{"registry.three"}))
+
+		// A local active source leaves the first container source as primary
+		got = reg(sdkImages.NewDirSrc("/run/rootfsbase"), sdkImages.NewFileSrc("/state/cOS/active.img"), recovery)
+		Expect(got.AuthRegistry).To(Equal("registry.three"))
+		Expect(got.ExtraAuthRegistries).To(BeEmpty())
+		Expect(got.Auth).ToNot(BeNil())
+
+		// An invalid reference on a later source is refused
+		cfg := registryConfig("install", collector.ConfigValues{"username": "user", "password": "pass"})
+		cfg.ImageExtractor = imageextractor.OCIImageExtractor{}
+		Expect(applyRegistryOptions(cfg, "install", active, sdkImages.NewDockerSrc("not a valid:::ref"))).ToNot(Succeed())
+	})
+
 	It("does not attach credentials to local or missing sources", func() {
 		for _, source := range []*sdkImages.ImageSource{nil, sdkImages.NewDirSrc("/system"), sdkImages.NewFileSrc("/system.img"), sdkImages.NewEmptySrc()} {
 			cfg := registryConfig("install", collector.ConfigValues{"username": "user", "password": "pass"})
