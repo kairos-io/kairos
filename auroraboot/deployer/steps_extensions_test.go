@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
-	"github.com/kairos-io/AuroraBoot/pkg/extensions"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/extensions"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 )
 
 // A bundled extension the artifact does not contain cannot be installed from

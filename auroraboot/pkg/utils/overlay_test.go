@@ -20,7 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/AuroraBoot/pkg/utils"
+	"github.com/kairos-io/kairos/auroraboot/pkg/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/otiai10/copy"

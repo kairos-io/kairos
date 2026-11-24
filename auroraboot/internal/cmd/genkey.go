@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/kairos-io/AuroraBoot/pkg/secureboot"
+	"github.com/kairos-io/kairos/auroraboot/pkg/secureboot"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/urfave/cli/v2"
 )

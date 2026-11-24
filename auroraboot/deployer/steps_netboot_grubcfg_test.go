@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 )
 
 // StepExtractNetboot writes the livecd grub config as <iso.name>-grub.cfg, and

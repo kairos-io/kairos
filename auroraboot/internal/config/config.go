@@ -10,9 +10,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/kairos-io/AuroraBoot/deployer"
-	"github.com/kairos-io/AuroraBoot/internal"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/deployer"
+	"github.com/kairos-io/kairos/auroraboot/internal"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
 	"github.com/kairos-io/kairos/v4/sdk/unstructured"
 	"gopkg.in/yaml.v3"
 )

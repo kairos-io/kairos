@@ -15,14 +15,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
-	"github.com/kairos-io/AuroraBoot/deployer"
-	"github.com/kairos-io/AuroraBoot/internal/netbootmgr"
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
-	"github.com/kairos-io/AuroraBoot/pkg/extensions"
-	"github.com/kairos-io/AuroraBoot/pkg/schema"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
-	"github.com/kairos-io/AuroraBoot/pkg/uki"
+	"github.com/kairos-io/kairos/auroraboot/deployer"
+	"github.com/kairos-io/kairos/auroraboot/internal/netbootmgr"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/extensions"
+	"github.com/kairos-io/kairos/auroraboot/pkg/schema"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/uki"
 	sdklogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/spectrocloud-labs/herd"
 )
@@ -176,14 +176,14 @@ func New(baseDir string, deployFunc DeployerFunc, artifactStore store.ArtifactSt
 		platformsFn: dockerBuildxPlatforms,
 		store:       artifactStore,
 
-		kairosInitImage: defaultKairosInitImage + ":" + defaultKairosInitVersion,
+		kairosInitImage: KairosInitImageFor(""),
 	}
 }
 
 // WithKairosInitImage sets the kairos-init image used for builds that do not
 // name one. It becomes a FROM line in the kairosify Dockerfile, so it is
 // validated here, once, rather than on every build. An empty ref keeps the
-// pinned default.
+// default.
 func (b *Builder) WithKairosInitImage(ref string) (*Builder, error) {
 	if ref == "" {
 		return b, nil

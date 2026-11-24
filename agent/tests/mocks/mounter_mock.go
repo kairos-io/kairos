@@ -27,6 +27,9 @@ type ErrorMounter struct {
 	mount.Interface
 	ErrorOnMount   bool
 	ErrorOnUnmount bool
+	// OnMount, when set, runs after every successful mount, so a test can
+	// put the files a real mount would expose under the target.
+	OnMount func(source string, target string) error
 }
 
 // NewErrorMounter returns an ErrorMounter with an instance of FakeMounter inside so we can use its functions
@@ -41,7 +44,13 @@ func (e ErrorMounter) Mount(source string, target string, fstype string, options
 	if e.ErrorOnMount {
 		return errors.New("mount error")
 	}
-	return e.Interface.Mount(source, target, fstype, options)
+	if err := e.Interface.Mount(source, target, fstype, options); err != nil {
+		return err
+	}
+	if e.OnMount != nil {
+		return e.OnMount(source, target)
+	}
+	return nil
 }
 
 // Unmount will return an error if ErrorOnUnmount is true

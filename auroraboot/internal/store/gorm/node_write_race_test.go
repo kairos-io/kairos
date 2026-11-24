@@ -8,8 +8,8 @@ import (
 	. "github.com/onsi/gomega"
 	"gorm.io/gorm"
 
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // A heartbeat or a label edit arrives while the node's upgrade is settled by

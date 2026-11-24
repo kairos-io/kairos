@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kairos-io/AuroraBoot/internal/config"
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
-	"github.com/kairos-io/AuroraBoot/pkg/extensions"
-	"github.com/kairos-io/AuroraBoot/pkg/uki"
+	"github.com/kairos-io/kairos/auroraboot/internal/config"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/extensions"
+	"github.com/kairos-io/kairos/auroraboot/pkg/uki"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/urfave/cli/v2"
 )

@@ -105,6 +105,11 @@ func (i InstallAction) Run() (err error) {
 		if err != nil {
 			return err
 		}
+		// The image and partition sizes were calculated from the sources
+		// the ISO just replaced, so size them again before partitioning.
+		if err = config.ResizeInstallSpecForSource(i.cfg, i.spec); err != nil {
+			return fmt.Errorf("sizing the images from the downloaded ISO: %w", err)
+		}
 	}
 
 	if i.spec.NoFormat {

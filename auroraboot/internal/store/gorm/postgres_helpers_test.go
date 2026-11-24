@@ -11,7 +11,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
 )
 
 // postgresDSNEnv names a PostgreSQL server the suite may create databases on.

@@ -13,8 +13,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/kairos-io/AuroraBoot/pkg/secureboot"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/secureboot"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 	"github.com/labstack/echo/v4"
 )
 

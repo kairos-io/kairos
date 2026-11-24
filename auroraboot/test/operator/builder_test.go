@@ -17,9 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 
-	opbuilder "github.com/kairos-io/AuroraBoot/internal/builder/operator"
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
+	opbuilder "github.com/kairos-io/kairos/auroraboot/internal/builder/operator"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
 )
 
 // memArtifactStore is the minimum ArtifactStore surface the phase-watch

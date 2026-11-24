@@ -15,15 +15,31 @@ published.
    approval or rejected. A breaking change asks for a major bump, `feat` for a
    minor bump and anything else for a patch bump. The version counts up from
    the highest `vX.Y.Z` tag in the repository, release branches included.
-3. The workflow checks that neither `quay.io/kairos/kairos-init:<version>` nor
-   `quay.io/kairos/kcrypt-challenger:<version>` exists. If one does, the
+3. The workflow checks that none of `quay.io/kairos/kairos-init:<version>`,
+   `quay.io/kairos/kcrypt-challenger:<version>` and
+   `quay.io/kairos/auroraboot:<version>` exists. If one does, the
    version was built before and its tag was deleted, so the run fails. It also
    fails when quay.io cannot answer. A maintainer reruns it later, recreates
    the tag or releases by hand.
 4. It creates the tag and a GitHub prerelease on the commit, starts
    `release.yaml` on the tag and posts to Slack that the release is building.
    `release.yaml` builds every image, pushes it to quay.io and attaches the
-   artifacts to the prerelease.
+   artifacts to the prerelease. AuroraBoot is part of that: the same tag gives
+   `quay.io/kairos/auroraboot:<version>`, the `auroraboot_<version>_linux_<arch>`
+   archives on the release, and the Helm chart at
+   `oci://ghcr.io/kairos-io/charts/auroraboot` with the version number
+   without the leading `v`. AuroraBoot has no version line of its own.
+   The image covers amd64 and arm64. A riscv64 image is built on a native
+   riscv64 runner and joins the tag only when that job succeeds, so a stalled
+   runner does not hold the release back.
+   The chart in the repository deploys the `master` image from ghcr.io. The
+   release job points the published chart at `quay.io/kairos/auroraboot` before
+   it packages it.
+   The `kairos-init`, `kcrypt-challenger` and `auroraboot` images get an SBOM
+   at build time, and `_attest-image.yaml` then signs them with cosign and
+   attests their build provenance. The riscv64 AuroraBoot image has provenance
+   but no SBOM. `upload-release` waits for that, so a release whose images could
+   not be signed never reaches the approval step.
 
 The run ends successfully without a release when `master.yaml` did not
 succeed, when no run has finished, when no commit landed since the newest
@@ -46,7 +62,7 @@ release until a maintainer approves the new one.
 
 The `publish` job then marks the release as a full release. When the tag is
 the highest among the final releases plus itself, it also points `:latest` of
-`kairos-init` and `kcrypt-challenger` at the tag and marks the release as
+`kairos-init`, `kcrypt-challenger` and `auroraboot` at the tag and marks the release as
 Latest. An older tag, such as a backport `v4.3.2` cut after `v4.4.0`, becomes a
 full release and leaves `:latest` and Latest alone, provided its release branch
 carries this `release.yaml` (see "Release by hand"). Publishing runs one

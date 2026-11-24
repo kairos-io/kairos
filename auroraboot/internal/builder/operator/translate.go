@@ -5,7 +5,7 @@ import (
 
 	buildv1alpha2 "github.com/kairos-io/kairos-operator/api/v1alpha2"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
 )
 
 // translateBuildOptions maps AuroraBoot BuildOptions to an OSArtifactSpec.

@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/AuroraBoot/internal/config"
+	"github.com/kairos-io/kairos/auroraboot/internal/config"
 )
 
 var _ = Describe("ReadConfig --set handling", func() {

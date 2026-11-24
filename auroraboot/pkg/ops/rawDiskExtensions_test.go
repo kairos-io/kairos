@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/internal"
-	"github.com/kairos-io/AuroraBoot/pkg/extensions"
+	"github.com/kairos-io/kairos/auroraboot/internal"
+	"github.com/kairos-io/kairos/auroraboot/pkg/extensions"
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/mudler/yip/pkg/schema"

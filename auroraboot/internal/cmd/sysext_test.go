@@ -1,7 +1,7 @@
 package cmd_test
 
 import (
-	"github.com/kairos-io/AuroraBoot/internal/cmd"
+	"github.com/kairos-io/kairos/auroraboot/internal/cmd"
 	"github.com/urfave/cli/v2"
 
 	. "github.com/onsi/ginkgo/v2"

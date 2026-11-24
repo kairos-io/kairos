@@ -12,8 +12,13 @@
   <a href="https://github.com/kairos-io/kairos/issues"><img alt="Issues" src="https://img.shields.io/github/issues/kairos-io/kairos"></a>
   <a href="https://kairos.io/docs/" target="_blank"><img alt="docs" src="https://img.shields.io/badge/Documentation-blue"></a>
   <img alt="Made with Go" src="https://img.shields.io/badge/made%20with-Go-blue">
-  <img alt="Go report" src="https://goreportcard.com/badge/github.com/kairos-io/AuroraBoot" />
 </p>
+
+> AuroraBoot lives in the [kairos](https://github.com/kairos-io/kairos)
+> repository under `auroraboot/`, and is released together with Kairos under the
+> same version number. The Go module is
+> `github.com/kairos-io/kairos/auroraboot`. See the
+> [root README](../README.md) for the rest of the layout.
 
 > **Found a bug, or want to request a feature?** Open it on
 > [kairos-io/kairos](https://github.com/kairos-io/kairos/issues), including
@@ -37,8 +42,8 @@ Two ways to run it, same binary:
 ## Getting started with the fleet server
 
 ```bash
-git clone https://github.com/kairos-io/AuroraBoot
-cd AuroraBoot
+git clone https://github.com/kairos-io/kairos
+cd kairos/auroraboot
 docker compose up --build -d
 ```
 
@@ -340,10 +345,11 @@ npm test
 # Regenerate the OpenAPI spec
 make openapi
 
-# Local Docker build
-docker build -t quay.io/kairos/auroraboot:local .
+# Local Docker build, from this directory. go.mod replaces the root Kairos
+# module with ../, so the repository root goes in as the named context "kairos".
+docker buildx build --load --build-context kairos=.. -t quay.io/kairos/auroraboot:local .
 # Skip the Swagger stage for faster iteration:
-docker build --build-arg=SWAGGER_STAGE=without-swagger -t quay.io/kairos/auroraboot:local .
+docker buildx build --load --build-context kairos=.. --build-arg=SWAGGER_STAGE=without-swagger -t quay.io/kairos/auroraboot:local .
 ```
 
 ---

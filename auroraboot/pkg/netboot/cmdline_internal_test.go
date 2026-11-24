@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/pkg/constants"
+	"github.com/kairos-io/kairos/auroraboot/pkg/constants"
 )
 
 // netbootBase is the cmdline StartPixiecore serves when the user set no
 // override, templates and all.
-const netbootBase = `rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "%s" }} netboot install-mode-interactive config_url={{ ID "%s" }} console=tty1 console=ttyS0 console=tty0`
+const netbootBase = `rd.overlay rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "%s" }} netboot install-mode-interactive config_url={{ ID "%s" }} console=tty1 console=ttyS0 console=tty0`
 
 func options(cmdline string) []string {
 	return strings.Fields(pixiecoreTemplate.ReplaceAllString(cmdline, "URL"))

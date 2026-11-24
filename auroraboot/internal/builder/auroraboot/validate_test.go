@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/AuroraBoot/pkg/builder"
+	"github.com/kairos-io/kairos/auroraboot/pkg/builder"
 )
 
 // TestValidateKairosInitValue exercises the allowlist that guards every

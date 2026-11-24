@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	gormstore "github.com/kairos-io/AuroraBoot/internal/store/gorm"
-	"github.com/kairos-io/AuroraBoot/pkg/store"
-	"github.com/kairos-io/AuroraBoot/pkg/ws"
+	gormstore "github.com/kairos-io/kairos/auroraboot/internal/store/gorm"
+	"github.com/kairos-io/kairos/auroraboot/pkg/store"
+	"github.com/kairos-io/kairos/auroraboot/pkg/ws"
 	"github.com/labstack/echo/v4"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -90,6 +90,9 @@ var _ = Describe("WebSocket Handler", func() {
 		finalized chan string
 		phases    chan string
 		booted    chan bootReport
+		// heartbeatBudget is how many heartbeats AllowHeartbeat still lets
+		// through. The default is more than any spec sends.
+		heartbeatBudget *atomic.Int64
 	)
 
 	bg := context.Background()
@@ -141,6 +144,9 @@ var _ = Describe("WebSocket Handler", func() {
 		specPhases := phases
 		booted = make(chan bootReport, 8)
 		specBooted := booted
+		budget := &atomic.Int64{}
+		budget.Store(1 << 30)
+		heartbeatBudget = budget
 		agentHandler := &ws.AgentHandler{
 			Hub:            hub,
 			Nodes:          nodes,
@@ -149,6 +155,9 @@ var _ = Describe("WebSocket Handler", func() {
 			OnCommandPhase: func(_ context.Context, id string) { specPhases <- id },
 			OnNodeBooted: func(_ context.Context, id, bootState string, bootedAt *time.Time) {
 				specBooted <- bootReport{nodeID: id, bootState: bootState, bootedAt: bootedAt}
+			},
+			AllowHeartbeat: func(string) bool {
+				return budget.Add(-1) >= 0
 			},
 		}
 		uiHandler := &ws.UIHandler{Hub: hub}
@@ -220,6 +229,30 @@ var _ = Describe("WebSocket Handler", func() {
 				}
 				return node.Phase
 			}, 10*time.Second, 100*time.Millisecond).Should(Equal(store.PhaseOffline))
+		})
+
+		// kairos-io/kairos#6001: the per-node rate limit of the REST heartbeat
+		// has to hold for heartbeats over the socket too.
+		It("drops the heartbeats AllowHeartbeat refuses", func() {
+			heartbeatBudget.Store(2)
+			conn, _, err := dialWS(server, "/api/v1/ws?token="+apiKey)
+			Expect(err).NotTo(HaveOccurred())
+			defer conn.Close()
+
+			for i := 1; i <= 6; i++ {
+				Expect(sendMsg(conn, "heartbeat", heartbeatData{AgentVersion: fmt.Sprintf("v%d", i)})).To(Succeed())
+			}
+			agentVersion := func() string {
+				node, _ := nodes.GetByID(bg, nodeID)
+				if node == nil {
+					return ""
+				}
+				return node.AgentVersion
+			}
+			Eventually(agentVersion, 10*time.Second, 50*time.Millisecond).Should(Equal("v2"))
+			Consistently(agentVersion, time.Second, 50*time.Millisecond).Should(Equal("v2"))
+			// Each refused heartbeat took no finalize either.
+			Consistently(func() int { return len(finalized) }, 500*time.Millisecond).Should(BeNumerically("<=", 2))
 		})
 
 		// kairos-io/kairos#5784: an agent that reconnects before its old socket

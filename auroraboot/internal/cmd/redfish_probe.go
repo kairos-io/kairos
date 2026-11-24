@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kairos-io/AuroraBoot/pkg/isoserve"
-	"github.com/kairos-io/AuroraBoot/pkg/redfish"
+	"github.com/kairos-io/kairos/auroraboot/pkg/isoserve"
+	"github.com/kairos-io/kairos/auroraboot/pkg/redfish"
 	"github.com/urfave/cli/v2"
 )
 
