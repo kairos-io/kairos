@@ -117,22 +117,15 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	activeImg.FS = sdkConstants.LinuxImgFs
 	activeImg.MountPoint = constants.ActiveDir
 
-	// First try to use the install media source
-	if isoRootExists {
-		activeImg.Source = sdkImages.NewDirSrc(constants.IsoBaseTree)
-	}
-	// Then any user provided source
+	// Any user provided source. The install media is the fallback and is set
+	// after the install config is read, so a legacy install.system.uri can
+	// still take its place.
 	if cfg.Install.Source != "" {
 		src, err := sdkImages.NewSrcFromURI(cfg.Install.Source)
 		if err != nil {
 			return nil, fmt.Errorf("invalid install.source %q: %w", cfg.Install.Source, err)
 		}
 		activeImg.Source = src
-	}
-	// If we dont have any just an empty source so the sanitation fails
-	// TODO: Should we directly fail here if we got no source instead of waiting for the Sanitize() to fail?
-	if !isoRootExists && cfg.Install.Source == "" {
-		activeImg.Source = sdkImages.NewEmptySrc()
 	}
 
 	// The passive and recovery sources are left unset until the install
@@ -173,6 +166,15 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	// unmarshal after sizing still preserves explicitly configured sizes.
 	if err := unmarshallFullSpec(cfg, "install", spec); err != nil {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+	if spec.Active.Source == nil || spec.Active.Source.IsEmpty() {
+		if isoRootExists {
+			spec.Active.Source = sdkImages.NewDirSrc(constants.IsoBaseTree)
+		} else {
+			// If we dont have any just an empty source so the sanitation fails
+			// TODO: Should we directly fail here if we got no source instead of waiting for the Sanitize() to fail?
+			spec.Active.Source = sdkImages.NewEmptySrc()
+		}
 	}
 	if spec.Recovery.Source == nil || spec.Recovery.Source.IsEmpty() {
 		if recoveryExists {
