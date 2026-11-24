@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
@@ -56,7 +57,10 @@ func decodeRegistryAuth(raw interface{}, subkey string) (*registryAuth, error) {
 
 // applyRegistryOptions runs before image sizing and extraction. Update the
 // default extractor without discarding options supplied by its caller.
-func applyRegistryOptions(cfg *sdkConfig.Config, subkey string, source *sdkImages.ImageSource) error {
+// The credentials are sent only to the registries of the given sources, the
+// first container image source decides the primary registry and the others
+// are added to it. Local sources have no registry to authorize.
+func applyRegistryOptions(cfg *sdkConfig.Config, subkey string, sources ...*sdkImages.ImageSource) error {
 	allow, auth, err := readRegistryOptions(cfg, subkey)
 	if err != nil {
 		return err
@@ -71,13 +75,23 @@ func applyRegistryOptions(cfg *sdkConfig.Config, subkey string, source *sdkImage
 			// credentials unscoped on the shared extractor.
 			extractor.Auth = nil
 			extractor.AuthRegistry = ""
-			if source != nil && source.IsDocker() {
+			extractor.ExtraAuthRegistries = nil
+			for _, source := range sources {
+				if source == nil || !source.IsDocker() {
+					continue
+				}
 				ref, err := name.ParseReference(source.Value())
 				if err != nil {
 					return fmt.Errorf("%s registry authentication requires a valid source image", subkey)
 				}
+				host := ref.Context().RegistryStr()
 				extractor.Auth = auth
-				extractor.AuthRegistry = ref.Context().RegistryStr()
+				switch {
+				case extractor.AuthRegistry == "":
+					extractor.AuthRegistry = host
+				case host != extractor.AuthRegistry && !slices.Contains(extractor.ExtraAuthRegistries, host):
+					extractor.ExtraAuthRegistries = append(extractor.ExtraAuthRegistries, host)
+				}
 			}
 		}
 		cfg.ImageExtractor = extractor

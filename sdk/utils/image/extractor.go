@@ -18,21 +18,24 @@ import (
 // When Auth is nil, registry credentials are resolved with the default
 // container keychain. AuthRegistry limits Auth to that registry host; other
 // registries use the default keychain. An empty AuthRegistry preserves the
-// unscoped behavior for callers that supply Auth directly.
+// unscoped behavior for callers that supply Auth directly. ExtraAuthRegistries
+// lists further registry hosts Auth may be sent to, for one set of credentials
+// that covers images from several registries.
 //
 // Set Insecure to allow pulling from registries served over plain HTTP or
 // presenting an untrusted/self-signed TLS certificate (see WithInsecureRegistry).
 type OCIImageExtractor struct {
-	Insecure     bool
-	Auth         *registrytypes.AuthConfig
-	AuthRegistry string
+	Insecure            bool
+	Auth                *registrytypes.AuthConfig
+	AuthRegistry        string
+	ExtraAuthRegistries []string
 }
 
 var _ imagetypes.ImageExtractor = OCIImageExtractor{}
 
 // pullOptions translates the extractor's configuration into GetImage options.
 func (e OCIImageExtractor) pullOptions() []GetOption {
-	opts := []GetOption{WithAuthRegistry(e.AuthRegistry)}
+	opts := []GetOption{WithAuthRegistry(e.AuthRegistry), WithAuthRegistries(e.ExtraAuthRegistries...)}
 	if e.Insecure {
 		opts = append(opts, WithInsecureRegistry())
 	}

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -201,8 +202,9 @@ func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string)
 type GetOption func(*getOptions)
 
 type getOptions struct {
-	insecure     bool
-	authRegistry string
+	insecure       bool
+	authRegistry   string
+	authRegistries []string
 }
 
 // WithAuthRegistry restricts explicit credentials to a registry host, including
@@ -210,6 +212,21 @@ type getOptions struct {
 // explicit credentials unscoped for compatibility with direct SDK callers.
 func WithAuthRegistry(host string) GetOption {
 	return func(o *getOptions) { o.authRegistry = host }
+}
+
+// WithAuthRegistries adds more registry hosts that explicit credentials may be
+// sent to, next to the one given to WithAuthRegistry. Use it when one set of
+// credentials covers images from several registries.
+func WithAuthRegistries(hosts ...string) GetOption {
+	return func(o *getOptions) { o.authRegistries = append(o.authRegistries, hosts...) }
+}
+
+// authAllowed reports whether explicit credentials may be sent to host.
+func (o *getOptions) authAllowed(host string) bool {
+	if o.authRegistry == "" && len(o.authRegistries) == 0 {
+		return true
+	}
+	return host == o.authRegistry || slices.Contains(o.authRegistries, host)
 }
 
 // WithInsecureRegistry allows pulling from registries that serve over plain
@@ -306,7 +323,7 @@ func GetImage(targetImage, targetPlatform string, auth *registrytypes.AuthConfig
 		remote.WithTransport(tr),
 		remote.WithPlatform(*platform),
 	}
-	if auth != nil && (o.authRegistry == "" || ref.Context().RegistryStr() == o.authRegistry) {
+	if auth != nil && o.authAllowed(ref.Context().RegistryStr()) {
 		remoteOpts = append(remoteOpts, remote.WithAuth(staticAuth{auth}))
 	} else {
 		remoteOpts = append(remoteOpts, remote.WithAuthFromKeychain(authn.DefaultKeychain))

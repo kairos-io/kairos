@@ -185,7 +185,7 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 		spec.Passive.Source = sdkImages.NewFileSrc(spec.Active.File)
 	}
 	// Honor install registry options before any image is fetched
-	if err := applyRegistryOptions(cfg, "install", spec.Active.Source); err != nil {
+	if err := applyRegistryOptions(cfg, "install", spec.Active.Source, spec.Passive.Source, spec.Recovery.Source); err != nil {
 		return nil, err
 	}
 
