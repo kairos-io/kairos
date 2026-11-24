@@ -326,6 +326,7 @@ jobs:
           - {test: 'acceptance'}
           - {test: 'install'}
           - {test: 'install-target'}
+          - {test: 'install-iso'}
           - {test: 'insecure-registry'}
           - {test: 'partition-validation'}
           - {test: 'reset'}
