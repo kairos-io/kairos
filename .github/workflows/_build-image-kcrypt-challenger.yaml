@@ -58,6 +58,12 @@ on:
         type: boolean
         required: false
         default: false
+    outputs:
+      digest:
+        description: |
+          Digest of the pushed image index (sha256:<hex>), empty when push
+          is false. Callers pass it to _attest-image.yaml.
+        value: ${{ jobs.image.outputs.digest }}
     secrets:
       QUAY_USERNAME:
         description: 'quay.io user, needed only when pushing to quay.io'
@@ -75,6 +81,8 @@ jobs:
       contents: read
       packages: write
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -127,6 +135,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
 
       - name: Build & (optionally) push kcrypt-challenger
+        id: build
         env:
           REGISTRY: ${{ inputs.image_registry }}
           TAG: ${{ inputs.image_tag }}
@@ -134,8 +143,18 @@ jobs:
           PUSH: ${{ inputs.push }}
         run: |
           set -euo pipefail
+          metadata="$RUNNER_TEMP/kcrypt-challenger-metadata.json"
           args=(--platform "linux/amd64,linux/arm64" -f cmd/kcrypt-challenger/Dockerfile
-                -t "$REGISTRY/kcrypt-challenger:$TAG")
+                -t "$REGISTRY/kcrypt-challenger:$TAG"
+                --metadata-file "$metadata")
           [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/kcrypt-challenger:$EXTRA_TAG")
-          [ "$PUSH" = "true" ] && args+=(--push)
+          [ "$PUSH" = "true" ] && args+=(--push --sbom=true --provenance=mode=max)
           docker buildx build "${args[@]}" .
+          if [ "$PUSH" = "true" ]; then
+            digest=$(jq -r '."containerimage.digest" // empty' "$metadata")
+            if [ -z "$digest" ]; then
+              echo "::error::buildx reported no digest for the pushed image"
+              exit 1
+            fi
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          fi

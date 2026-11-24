@@ -128,3 +128,55 @@ func TestSUSEBasePackagesSELinux(t *testing.T) {
 		})
 	}
 }
+
+// Every Ubuntu release must resolve to exactly one kernel package. Interim
+// releases after 26.04 have no HWE track and use linux-image-generic.
+// See kairos-io/kairos#6054.
+func TestUbuntuKernelPackages(t *testing.T) {
+	cases := []struct {
+		version string
+		want    string
+	}{
+		{version: "20.04", want: "linux-image-generic-hwe-{{.version}}"},
+		{version: "22.04", want: "linux-image-generic-hwe-{{.version}}"},
+		{version: "24.04", want: "linux-image-generic-hwe-{{.version}}"},
+		{version: "24.10", want: "linux-image-generic-hwe-24.04"},
+		{version: "25.04", want: "linux-image-generic-hwe-24.04"},
+		{version: "25.10", want: "linux-image-generic-hwe-24.04"},
+		{version: "26.04", want: "linux-image-generic"},
+		{version: "26.10", want: "linux-image-generic"},
+		{version: "27.04", want: "linux-image-generic"},
+		{version: "27.10", want: "linux-image-generic"},
+		{version: "28.04", want: "linux-image-generic-hwe-{{.version}}"},
+		{version: "28.10", want: "linux-image-generic"},
+	}
+
+	prevModel := config.DefaultConfig.Model
+	prevTB := config.DefaultConfig.TrustedBoot
+	config.DefaultConfig.Model = Generic.String()
+	config.DefaultConfig.TrustedBoot = false
+	t.Cleanup(func() {
+		config.DefaultConfig.Model = prevModel
+		config.DefaultConfig.TrustedBoot = prevTB
+	})
+
+	l := logger.NewKairosLogger("test", "error", false)
+	for _, arch := range []Architecture{ArchAMD64, ArchARM64} {
+		for _, tc := range cases {
+			t.Run(string(arch)+"/"+tc.version, func(t *testing.T) {
+				pkgs, err := GetKernelPackages(System{
+					Distro:  Ubuntu,
+					Family:  DebianFamily,
+					Arch:    arch,
+					Version: tc.version,
+				}, l)
+				if err != nil {
+					t.Fatalf("GetKernelPackages: %v", err)
+				}
+				if len(pkgs) != 1 || pkgs[0] != tc.want {
+					t.Fatalf("want [%s], got %v", tc.want, pkgs)
+				}
+			})
+		}
+	}
+}

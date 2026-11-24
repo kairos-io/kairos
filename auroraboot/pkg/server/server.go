@@ -302,7 +302,11 @@ func New(cfg Config) *echo.Echo {
 	// command groups, so a node draws heartbeats and command polls from a single
 	// bucket keyed on its node ID. A separate instance per group would give each
 	// node two independent buckets and an effective ~2x the configured rate.
-	nodeLimiter := auth.NodeRateLimiter(nodeRateRPS, cfg.NodeRateLimitBurst)
+	limiter := auth.NewNodeLimiter(nodeRateRPS, cfg.NodeRateLimitBurst)
+	nodeLimiter := limiter.Middleware()
+	// Heartbeats over the agent websocket draw from the same bucket as the
+	// REST heartbeats and command polls (kairos-io/kairos#6001).
+	agentWSHandler.AllowHeartbeat = limiter.Allow
 
 	// Agent registration (registration token auth). The per-IP rate limiter runs
 	// BEFORE the token check so it also throttles invalid-token (brute-force)

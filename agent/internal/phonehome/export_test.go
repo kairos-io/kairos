@@ -44,9 +44,17 @@ func SetHostnameFunc(fn func() (string, error)) func() {
 }
 
 // setMetricsSources points gatherMetrics at fake /proc and /sys trees and a fake
-// statfs, and returns a restorer that puts the host defaults back.
+// statfs, treats every path as a mount point, and returns a restorer that puts
+// the host defaults back.
 func setMetricsSources(proc, sys string, statfs func(path string) (uint64, uint64, error)) func() {
-	prevProc, prevSys, prevStatfs := procRoot, sysRoot, statfsFn
+	prevProc, prevSys, prevStatfs, prevMounted := procRoot, sysRoot, statfsFn, mountedFn
 	procRoot, sysRoot, statfsFn = proc, sys, statfs
-	return func() { procRoot, sysRoot, statfsFn = prevProc, prevSys, prevStatfs }
+	mountedFn = func(string) (bool, error) { return true, nil }
+	return func() { procRoot, sysRoot, statfsFn, mountedFn = prevProc, prevSys, prevStatfs, prevMounted }
+}
+
+// setMountedFunc overrides the mount point check. The restorer from
+// setMetricsSources puts the host default back.
+func setMountedFunc(fn func(path string) (bool, error)) {
+	mountedFn = fn
 }

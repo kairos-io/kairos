@@ -199,6 +199,9 @@ func (u *UpgradeAction) Run() (err error) {
 	// If not upgrading recovery and booting from non passive, backup active into passive
 	// We dont want to overwrite passive if we are booting from passive as it could mean that active is broken and we would
 	// be overriding a working passive with a broken/unknown  active
+	// restoreActive puts the backed up active image back in place if the
+	// upgrade fails after the backup, so the system is left as it was
+	restoreActive := func() {}
 	if !u.spec.RecoveryUpgrade() && bootedFrom != state.Passive {
 		// backup current active.img to passive.img before overwriting the active.img
 		u.Info("Backing up current active image")
@@ -222,9 +225,11 @@ func (u *UpgradeAction) Run() (err error) {
 		if err != nil {
 			u.Error("Error while labeling the passive image %s: %s", u.spec.Passive.File, err)
 			u.Debug("Error while labeling the passive image %s, command output: %s", u.spec.Passive.File, out)
+			u.restoreActiveImage(source, false)
 			return err
 		}
 		recordRootfsID(u.config, u.spec.Passive.File, activeID)
+		restoreActive = func() { u.restoreActiveImage(source, true) }
 		syscall.Sync()
 	}
 
@@ -232,6 +237,7 @@ func (u *UpgradeAction) Run() (err error) {
 	err = u.config.Fs.Rename(upgradeImg.File, finalImageFile)
 	if err != nil {
 		u.Error("Failed to move %s to %s: %s", upgradeImg.File, finalImageFile, err)
+		restoreActive()
 		return err
 	}
 	u.Info("Finished moving %s to %s", upgradeImg.File, finalImageFile)
@@ -287,6 +293,26 @@ func (u *UpgradeAction) recordState() {
 	if err != nil {
 		u.config.Logger.Warnf("failed to update kairos state file: %s", err)
 	}
+}
+
+// restoreActiveImage moves the image backed up to the passive path back to
+// activeFile. With relabel set it also gives it the active label again, for
+// when the backup was already labeled as passive. Errors are only logged, the
+// caller is already returning the error that made the upgrade fail.
+func (u *UpgradeAction) restoreActiveImage(activeFile string, relabel bool) {
+	u.Info("Restoring %s to %s", u.spec.Passive.File, activeFile)
+	if err := u.config.Fs.Rename(u.spec.Passive.File, activeFile); err != nil {
+		u.Error("Failed to restore %s to %s: %s", u.spec.Passive.File, activeFile, err)
+		return
+	}
+	if relabel {
+		out, err := u.config.Runner.Run("tune2fs", "-L", u.spec.Active.Label, activeFile)
+		if err != nil {
+			u.Error("Error while labeling the restored active image %s: %s", activeFile, err)
+			u.Debug("Error while labeling the restored active image %s, command output: %s", activeFile, out)
+		}
+	}
+	syscall.Sync()
 }
 
 // remove attempts to remove the given path. Does nothing if it doesn't exist
@@ -376,20 +402,21 @@ func (u *UpgradeAction) handoffFinalizeToTarget(upgradeImg *sdkImages.Image) err
 		}
 		return err
 	}
-	return utils.ChrootedCallback(u.config, upgradeImg.MountPoint, binds, callback)
+	return utils.ChrootedCallbackWithBinds(u.config, upgradeImg.MountPoint, binds, callback)
 }
 
 // finalizeHandoffBinds returns the bind mounts the target chroot needs so
 // the target agent can reach the host filesystem the same way it does under
 // Kubernetes (host at /host), and so the after-upgrade-chroot hook still
-// finds OEM at /oem and persistent at /usr/local inside the chroot.
-func (u *UpgradeAction) finalizeHandoffBinds() map[string]string {
-	binds := map[string]string{}
+// finds OEM at /oem and persistent at /usr/local inside the chroot. A
+// source can appear more than once, bound to several targets.
+func (u *UpgradeAction) finalizeHandoffBinds() []utils.BindMount {
+	var binds []utils.BindMount
 	addBind := func(src, dst string) {
 		if src == "" || dst == "" {
 			return
 		}
-		binds[src] = dst
+		binds = append(binds, utils.BindMount{Source: src, Target: dst})
 	}
 	if u.spec.Partitions.State != nil {
 		addBind(u.spec.Partitions.State.MountPoint, filepath.Join(constants.HandoffHostPrefix, u.spec.Partitions.State.MountPoint))

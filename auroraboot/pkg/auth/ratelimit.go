@@ -48,14 +48,50 @@ const (
 // A non-positive rps disables limiting (the middleware passes through), so the
 // server can turn the limiter off without special-casing the wiring.
 func NodeRateLimiter(rps float64, burst int) echo.MiddlewareFunc {
+	return NewNodeLimiter(rps, burst).Middleware()
+}
+
+// NodeLimiter holds one rate-limit bucket per node. A node reaches the server
+// over REST and over the agent websocket, so the server builds one NodeLimiter
+// and hands it to both: Middleware for the REST routes, Allow for the frames
+// of the websocket. Two limiters would give a node twice the configured rate.
+type NodeLimiter struct {
+	// store is nil when limiting is disabled.
+	store middleware.RateLimiterStore
+}
+
+// NewNodeLimiter returns a NodeLimiter allowing rps requests per second per
+// node, with the given burst (0 picks one, see defaultBurst). A non-positive
+// rps disables limiting.
+func NewNodeLimiter(rps float64, burst int) *NodeLimiter {
 	if rps <= 0 {
-		return passthrough
+		return &NodeLimiter{}
 	}
 	if burst <= 0 {
 		burst = defaultBurst(rps, DefaultNodeRateLimitBurst)
 	}
+	return &NodeLimiter{store: newRateLimiterStore(rps, burst)}
+}
+
+// Allow takes one request from the bucket of nodeID and reports whether it was
+// within the limit. It always allows when limiting is disabled, and for an
+// empty node ID, which is how admin requests are told apart.
+func (l *NodeLimiter) Allow(nodeID string) bool {
+	if l == nil || l.store == nil || nodeID == "" {
+		return true
+	}
+	allowed, err := l.store.Allow(nodeID)
+	return err == nil && allowed
+}
+
+// Middleware returns the middleware that limits the REST requests of nodes
+// with this limiter's buckets. See NodeRateLimiter for where it must run.
+func (l *NodeLimiter) Middleware() echo.MiddlewareFunc {
+	if l == nil || l.store == nil {
+		return passthrough
+	}
 	return middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
-		Store: newRateLimiterStore(rps, burst),
+		Store: l.store,
 		Skipper: func(c echo.Context) bool {
 			// Admin-authenticated requests carry no node ID; never limit them.
 			return AuthNodeID(c) == ""

@@ -93,7 +93,10 @@ stages:
           content: |
             [Unit]
             Description=cOS setup after network
-            After=network-online.target
+            # The boot stage creates the users, and the network stage writes
+            # their github: and gitlab: SSH keys, which fails for a user that
+            # does not exist yet. Without this the two race on a slow boot.
+            After=network-online.target cos-setup-boot.service
 
             [Service]
             Type=oneshot

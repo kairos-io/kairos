@@ -271,9 +271,9 @@ To fetch only what changed since the running release, pass the --diff flag (or s
 
 To check what an upgrade would do before running it, pass the --dry-run flag. It resolves the source (including the cloud config), the image size and where the transition image would be written, checks that the image manifest can be fetched from the registry, prints a summary and exits without changing the system.
 
-To retrieve all the available versions, use "kairos upgrade list-releases". Use the --registry flag to specify a custom registry to retrieve the versions from, otherwise it will default to quay.io/kairos.
+To retrieve all the available versions, use "kairos agent upgrade list-releases". Use the --registry flag to specify a custom registry to retrieve the versions from, otherwise it will default to quay.io/kairos.
 
-$ kairos upgrade list-releases
+$ kairos agent upgrade list-releases
 
 See https://kairos.io/docs/upgrade/manual/ for documentation.
 
@@ -864,7 +864,7 @@ func newInstallCmd() *cobra.Command {
 		Long: `
 Starts kairos in pairing mode.
 
-It will print out a QR code which can be used with "kairos register" to send over a configuration and bootstraping a kairos node.
+It will print out a QR code which can be used with "kairos provider register" to send over a configuration and bootstraping a kairos node.
 
 See also https://kairos.io/docs/installation/qrcode/ for documentation.
 
@@ -907,8 +907,8 @@ func newRecoveryCmd() *cobra.Command {
 		Long: `
 Starts kairos recovery mode.
 
-In recovery mode a QR code will be printed out on the screen which should be used in conjunction with "kairos bridge". Pass by the QR code as snapshot
-to the bridge to connect over the machine which runs the "kairos recovery" command.
+In recovery mode a QR code will be printed out on the screen which should be used in conjunction with "kairos provider bridge". Pass by the QR code as snapshot
+to the bridge to connect over the machine which runs the "kairos agent recovery" command.
 
 See also https://kairos.io/after_install/recovery_mode/ for documentation.
 
@@ -1769,8 +1769,8 @@ func sysextConfextCommands(extType string) []*cobra.Command {
 	enableFlags.add(enable.Flags(),
 		"Enable the system extension for the active boot entry",
 		"Enable the system extension for the passive boot entry",
-		"List the system extensions for the recovery boot entry",
-		"List the system extensions for the common boot entry (applies to all boot states)")
+		"Enable the system extension for the recovery boot entry",
+		"Enable the system extension for the common boot entry (applies to all boot states)")
 	enable.Flags().BoolVar(&enableNow, "now", false, "Enable the system extension now and reload systemd-sysext")
 
 	var disableFlags bootStateFlags
@@ -1816,8 +1816,8 @@ func sysextConfextCommands(extType string) []*cobra.Command {
 	disableFlags.add(disable.Flags(),
 		"Disable the system extension for the active boot entry",
 		"Disable the system extension for the passive boot entry",
-		"List the system extensions for the recovery boot entry",
-		"List the system extensions for the common boot entry (applies to all boot states)")
+		"Disable the system extension for the recovery boot entry",
+		"Disable the system extension for the common boot entry (applies to all boot states)")
 	disable.Flags().BoolVar(&disableNow, "now", false, "Disable the system extension now and reload systemd-sysext")
 
 	var (

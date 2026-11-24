@@ -497,15 +497,46 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 	return info, nil
 }
 
+// pinToDigest returns "<repository>@<digest>" for the digest the registry
+// serves for ref right now. A reference that already is a digest is returned as
+// given.
+func (e *Elemental) pinToDigest(ref string) (string, error) {
+	parsed, err := name.ParseReference(ref)
+	if err != nil {
+		return "", err
+	}
+	if _, ok := parsed.(name.Digest); ok {
+		return ref, nil
+	}
+	resolver, ok := e.config.ImageExtractor.(sdkImages.DigestResolver)
+	if !ok {
+		return "", fmt.Errorf("the image extractor cannot resolve %s to a digest", ref)
+	}
+	digest, err := resolver.ResolveDigest(ref)
+	if err != nil {
+		return "", err
+	}
+	return parsed.Context().Name() + "@" + digest, nil
+}
+
 // DumpSource sets the image data according to the image source type
 func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, excludes ...string) (info interface{}, err error) { // nolint:gocyclo
 	e.config.Logger.Infof("Copying %s source to %s", imgSrc.Value(), target)
 
 	if imgSrc.IsDocker() {
+		ref := imgSrc.Value()
 		if e.config.Cosign {
-			e.config.Logger.Infof("Running cosign verification for %s", imgSrc.Value())
+			// Verify and extract one digest. Passing the tag to both steps
+			// would resolve it twice, and the second time it can name another
+			// image, or the extractor can prefer one from the local daemon.
+			ref, err = e.pinToDigest(ref)
+			if err != nil {
+				e.config.Logger.Errorf("Could not resolve %s to a digest: %s", imgSrc.Value(), err)
+				return nil, err
+			}
+			e.config.Logger.Infof("Running cosign verification for %s", ref)
 			out, err := utils.CosignVerify(
-				e.config.Fs, e.config.Runner, imgSrc.Value(),
+				e.config.Fs, e.config.Runner, ref,
 				e.config.CosignPubKey,
 			)
 			if err != nil {
@@ -513,7 +544,7 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 				return nil, err
 			}
 		}
-		err = e.config.ImageExtractor.ExtractImage(imgSrc.Value(), target, e.config.Platform.String(), excludes...)
+		err = e.config.ImageExtractor.ExtractImage(ref, target, e.config.Platform.String(), excludes...)
 		if err != nil {
 			return nil, err
 		}
@@ -532,11 +563,11 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 			return nil, fmt.Errorf("failed to extract image contents: %w", err)
 		}
 	} else if imgSrc.IsDir() {
-		mergedExcludes := make([]string, 0, len(excludes)+7)
+		mergedExcludes := make([]string, 0, len(excludes)+len(cnst.SourceDirExcludes))
 		for _, exclude := range excludes {
 			mergedExcludes = append(mergedExcludes, path.Clean("/"+exclude))
 		}
-		mergedExcludes = append(mergedExcludes, "/mnt", "/proc", "/sys", "/dev", "/tmp", "/host", "/run")
+		mergedExcludes = append(mergedExcludes, cnst.SourceDirExcludes...)
 		err = utils.SyncData(e.config.Logger, e.config.Runner, e.config.Fs, imgSrc.Value(), target, mergedExcludes...)
 		if err != nil {
 			return nil, err

@@ -25,12 +25,18 @@ func addCloudConfig(cloudConfig, filename string) error {
 		return err
 	}
 
-	oem := runtime.OEM
-	if runtime.OEM.Name == "" {
-		return addLocalCloudConfig(cloudConfig, filename)
-	}
+	partition, subpath := persistentCloudConfigTarget(runtime)
+	return writeCloudConfig(partition, cloudConfig, subpath, filename)
+}
 
-	return writeCloudConfig(oem, cloudConfig, "", filename)
+// persistentCloudConfigTarget returns the partition and subpath that persistent
+// cloud config is written to: the OEM partition root when there is one,
+// otherwise the cloud-config directory on the persistent partition.
+func persistentCloudConfigTarget(runtime state.Runtime) (state.PartitionState, string) {
+	if runtime.OEM.Name == "" {
+		return runtime.Persistent, "cloud-config"
+	}
+	return runtime.OEM, ""
 }
 
 func writeCloudConfig(oem state.PartitionState, cloudConfig, subpath, filename string) error {
@@ -44,7 +50,7 @@ func writeCloudConfig(oem state.PartitionState, cloudConfig, subpath, filename s
 	return os.WriteFile(filepath.Join(mountPath, subpath, fmt.Sprintf("%s.yaml", filename)), []byte(cloudConfig), 0650)
 }
 
-// WriteCloudConfigData adds cloud config data to oem (/oem or /usr/local/cloud-config, depending if OEM partition exists).
+// WritePersistentCloudData adds cloud config data to oem (/oem or /usr/local/cloud-config, depending if OEM partition exists).
 func WritePersistentCloudData(cloudConfig, filename string) Option {
 	return func(c *Changeset) error {
 		if len(cloudConfig) > 0 {
@@ -54,7 +60,7 @@ func WritePersistentCloudData(cloudConfig, filename string) Option {
 	}
 }
 
-// WriteLocalCloudConfigData adds cloud config data to /usr/local/cloud-config.
+// WriteLocalPersistentCloudData adds cloud config data to /usr/local/cloud-config.
 func WriteLocalPersistentCloudData(cloudConfig, filename string) Option {
 	return func(c *Changeset) error {
 		if len(cloudConfig) > 0 {
@@ -70,7 +76,8 @@ func addPersistentCloudConfig(cloudConfig, filename string) error {
 		return err
 	}
 
-	return writeCloudConfig(runtime.State, cloudConfig, "", filename)
+	partition, subpath := persistentCloudConfigTarget(runtime)
+	return writeCloudConfig(partition, cloudConfig, subpath, filename)
 }
 
 func addLocalCloudConfig(cloudConfig, filename string) error {

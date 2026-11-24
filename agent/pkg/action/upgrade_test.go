@@ -402,6 +402,32 @@ var _ = Describe("Upgrade Actions test", func() {
 				err := upgrade.Run()
 				Expect(err).To(HaveOccurred())
 				Expect(memLog.String()).To(ContainSubstring("Error while labeling the passive image"))
+
+				// The running system must still have its active image
+				f, err := fs.ReadFile(activeImg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(f).To(ContainSubstring("active"))
+			})
+			It("Restores the active image if the new image cannot be moved into place", Label("docker"), func() {
+				runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+					if command == "tune2fs" && len(args) > 0 && args[len(args)-1] == spec.Passive.File {
+						// Drop the transition image so the final rename fails
+						Expect(fs.RemoveAll(spec.Active.File)).To(Succeed())
+					}
+					return []byte{}, nil
+				}
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("Failed to move"))
+
+				f, err := fs.ReadFile(activeImg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(f).To(ContainSubstring("active"))
+				Expect(runner.IncludesCmds([][]string{
+					{"tune2fs", "-L", spec.Active.Label, activeImg},
+				})).To(Succeed())
 			})
 			It("Fails if the active image cannot be backed up", Label("docker"), func() {
 				// Replace the active image with a directory so the backup rename fails

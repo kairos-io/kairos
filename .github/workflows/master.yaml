@@ -160,6 +160,48 @@ jobs:
       image_tag: master-scratch
       registry_login: ghcr
 
+  # Sign and attest the images by digest in their own jobs, so the
+  # build jobs never hold an OIDC token. promote-images waits for all
+  # of them, so :master only moves to a signed image.
+  attest-image-kairos-init:
+    needs: build-image-kairos-init
+    uses: ./.github/workflows/_attest-image.yaml
+    permissions:
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      packages: write
+    with:
+      image: ghcr.io/kairos-io/kairos/kairos-init
+      digest: ${{ needs.build-image-kairos-init.outputs.digest }}
+      registry_login: ghcr
+
+  attest-image-kcrypt-challenger:
+    needs: build-image-kcrypt-challenger
+    uses: ./.github/workflows/_attest-image.yaml
+    permissions:
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      packages: write
+    with:
+      image: ghcr.io/kairos-io/kairos/kcrypt-challenger
+      digest: ${{ needs.build-image-kcrypt-challenger.outputs.digest }}
+      registry_login: ghcr
+
+  attest-image-auroraboot:
+    needs: push-image-auroraboot
+    uses: ./.github/workflows/_attest-image.yaml
+    permissions:
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+      packages: write
+    with:
+      image: ghcr.io/kairos-io/kairos/auroraboot
+      digest: ${{ needs.push-image-auroraboot.outputs.digest }}
+      registry_login: ghcr
+
   # ISO matrix split so test-* unblock as soon as the amd64
   # cells they consume are ready. See pr-full.yaml for the rationale.
   # promote-images below waits on build-iso-arm too so a broken
@@ -533,7 +575,19 @@ jobs:
     # qemu suites + arm build gate the kairos-init side; the
     # kcrypt-challenger image is on a parallel pipe and must also be
     # pushed to :master-scratch before this job can promote it.
-    needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger, build-auroraboot, push-image-auroraboot, auroraboot-tests]
+    needs:
+      - test-core
+      - test-standard
+      - test-standard-encryption
+      - test-uki
+      - build-iso-arm
+      - build-image-kcrypt-challenger
+      - build-auroraboot
+      - push-image-auroraboot
+      - auroraboot-tests
+      - attest-image-kairos-init
+      - attest-image-kcrypt-challenger
+      - attest-image-auroraboot
     runs-on: ubuntu-latest
     permissions:
       packages: write

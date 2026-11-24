@@ -138,9 +138,9 @@ jobs:
           persist-credentials: false
       - name: renovate-validate
         env:
-          RENOVATE_VERSION: "35"
+          RENOVATE_VERSION: "44.256.1"
         shell: bash
-        run: docker run -v "$PWD":/work -w /work renovate/renovate renovate-config-validator
+        run: docker run -v "$PWD":/work -w /work "renovate/renovate:${RENOVATE_VERSION}" renovate-config-validator
 
   shellcheck-lint:
     runs-on: ubuntu-latest

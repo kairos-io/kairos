@@ -27,7 +27,7 @@ stages:
           #!/sbin/openrc-run
 
           depend() {
-            after net
+            after net cos-setup-boot
             provide cos-setup-network
           }
 
