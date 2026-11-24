@@ -76,7 +76,9 @@ jobs:
     with:
       oci_artifact: auroraboot-image
 
-  # The AuroraBoot tests run only when the change can affect AuroraBoot.
+  # The AuroraBoot tests run only when the change can affect AuroraBoot. Only
+  # the fast ones (unit tests, vet, Helm chart) run here: the e2e, raw disk, UI
+  # and phone-home jobs boot the image and run on master only (master.yaml).
   auroraboot-tests:
     needs: [changes, build-image-auroraboot]
     if: needs.changes.outputs.auroraboot == 'true'
@@ -85,6 +87,7 @@ jobs:
       contents: read
     with:
       image_artifact: auroraboot-image-amd64
+      e2e: false
 
   # The slim pipeline only builds and tests a non-FIPS amd64 ISO, so the
   # builds below skip arm64 and FIPS (pr-full.yaml keeps both).
