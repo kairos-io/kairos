@@ -32,6 +32,7 @@ COPY dist/linux-${TARGETARCH}/kairos-init /kairos-init
 # them starts to convert, the rules of `kairos-init check` are out of date:
 # update them and move the cell to the supported base images in
 # _build-flavors.yaml.
+# hadolint ignore=DL3006
 FROM ${BASE_IMAGE} AS unsupported
 ARG VERSION=v0.0.1
 ARG EXPECTED_ERROR
@@ -49,8 +50,10 @@ RUN if [ -z "${EXPECTED_ERROR}" ]; then echo "EXPECTED_ERROR is not set" >&2; ex
       echo "kairos-init converts a base image that kairos-init check refuses" >&2; exit 1; \
     fi; \
     cat /kairos-init.log; \
-    tail -n 20 /kairos-init.log | grep -qF "${EXPECTED_ERROR}"
+    tail -n 20 /kairos-init.log >/kairos-init.tail; \
+    grep -qF "${EXPECTED_ERROR}" /kairos-init.tail
 
+# hadolint ignore=DL3006
 FROM ${BASE_IMAGE} AS default
 ARG MODEL=generic
 ARG TRUSTED_BOOT=false
