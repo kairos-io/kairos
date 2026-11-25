@@ -1,12 +1,16 @@
 package imagesum_test
 
 import (
+	"time"
+
 	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
+
+func intp(n int) *int { return &n }
 
 var _ = Describe("policy", func() {
 	DescribeTable("ParseAction",
@@ -36,6 +40,20 @@ var _ = Describe("policy", func() {
 		Expect(c.RequireEnabled()).To(BeFalse())
 	})
 
+	DescribeTable("the verify budget",
+		func(c imagesum.Config, want time.Duration) {
+			Expect(c.VerifyBudget()).To(Equal(want))
+		},
+		Entry("is 60 s when unset", imagesum.Config{}, 60*time.Second),
+		Entry("is what is configured", imagesum.Config{VerifyTimeout: intp(90)}, 90*time.Second),
+		Entry("is no limit for 0", imagesum.Config{VerifyTimeout: intp(0)}, time.Duration(0)),
+	)
+
+	It("carries the verify-timeout into the policy", func() {
+		c := imagesum.Config{Verify: imagesum.Warn, VerifyTimeout: intp(30)}
+		Expect(c.Policy()).To(Equal(imagesum.Policy{Verify: imagesum.Warn, VerifyTimeout: intp(30)}))
+	})
+
 	Describe("policy file", func() {
 		var fs vfs.FS
 		var cleanup func()
@@ -53,6 +71,20 @@ var _ = Describe("policy", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
 			Expect(got).To(Equal(want))
+		})
+		It("round trips the verify-timeout, 0 included", func() {
+			for _, n := range []int{0, 45} {
+				want := imagesum.Policy{Verify: imagesum.Warn, VerifyTimeout: intp(n)}
+				Expect(imagesum.WritePolicy(fs, "/state/cOS", want)).To(Succeed())
+				got, _, err := imagesum.ReadPolicy(fs, "/state/cOS")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(got).To(Equal(want))
+			}
+		})
+		It("errors on a negative verify-timeout", func() {
+			Expect(fs.WriteFile("/state/cOS/"+imagesum.PolicyFile, []byte("verify: warn\nverify-timeout: -1\n"), 0o644)).To(Succeed())
+			_, _, err := imagesum.ReadPolicy(fs, "/state/cOS")
+			Expect(err).To(MatchError(ContainSubstring("verify-timeout")))
 		})
 		It("is absent when nothing was written", func() {
 			_, found, err := imagesum.ReadPolicy(fs, "/state/cOS")

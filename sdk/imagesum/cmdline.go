@@ -13,6 +13,8 @@ const (
 	CmdlineCreate  = "image-checksum.create"
 	CmdlineVerify  = "image-checksum.verify"
 	CmdlineRequire = "image-checksum.require"
+	// CmdlineVerifyTimeout is the hashing budget at boot, in whole seconds, 0 for no limit.
+	CmdlineVerifyTimeout = "image-checksum.verify-timeout"
 )
 
 // Overrides are the values found on the kernel cmdline. A nil field was not
@@ -21,12 +23,14 @@ type Overrides struct {
 	Create  *bool
 	Verify  *Action
 	Require *bool
+	// VerifyTimeout is in seconds.
+	VerifyTimeout *int
 	// Problems lists values that could not be parsed. Such a value is ignored,
 	// so the next source applies, and it is up to the caller to log it.
 	Problems []string
 }
 
-// ParseCmdline reads the three keys from the text of a kernel cmdline. When a key
+// ParseCmdline reads the keys from the text of a kernel cmdline. When a key
 // is given more than once the last one wins.
 func ParseCmdline(cmdline string) Overrides {
 	var o Overrides
@@ -48,6 +52,13 @@ func ParseCmdline(cmdline string) Overrides {
 			} else {
 				o.Require = &b
 			}
+		case CmdlineVerifyTimeout:
+			n, err := strconv.Atoi(val)
+			if err != nil || n < 0 {
+				o.Problems = append(o.Problems, fmt.Sprintf("%s=%s: want a number of seconds, 0 or more", key, val))
+				continue
+			}
+			o.VerifyTimeout = &n
 		case CmdlineVerify:
 			a, ok := ParseAction(val)
 			if !ok {
@@ -70,5 +81,8 @@ func (c *Config) Apply(o Overrides) {
 	}
 	if o.Require != nil {
 		c.Require = o.Require
+	}
+	if o.VerifyTimeout != nil {
+		c.VerifyTimeout = o.VerifyTimeout
 	}
 }

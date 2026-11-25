@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	pkgConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
@@ -55,6 +56,16 @@ var _ = Describe("image-checksum config", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(c.ImageChecksum.CreateEnabled()).To(BeTrue())
 		Expect(c.ImageChecksum.Verify).To(Equal(imagesum.Warn))
+	})
+
+	It("reads verify-timeout from the cloud config and lets the cmdline override it, 0 included", func() {
+		c := scan("#cloud-config\nimage-checksum:\n  verify: warn\n  verify-timeout: 120\n", "")
+		Expect(c.VerifyBudget()).To(Equal(120 * time.Second))
+		c = scan("#cloud-config\nimage-checksum:\n  verify-timeout: 120\n", "image-checksum.verify-timeout=0")
+		Expect(c.VerifyTimeout).ToNot(BeNil())
+		Expect(c.VerifyBudget()).To(BeZero())
+		c = scan("#cloud-config\n", "")
+		Expect(c.VerifyBudget()).To(Equal(imagesum.DefaultVerifyTimeout))
 	})
 
 	It("does not read the old rd.immucore spellings", func() {

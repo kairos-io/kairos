@@ -12,6 +12,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rs/zerolog"
 	"github.com/twpayne/go-vfs/v5"
 )
 
@@ -86,6 +87,76 @@ var _ = Describe("verifyImageFile", func() {
 			good()
 			rot()
 			Expect(verifyImageFile(settings("", false), img, false)).To(Succeed())
+		})
+	})
+
+	Describe("time budget", func() {
+		// a budget this small is spent before the first read: the same as a disk
+		// too slow for the image, without a slow disk
+		spent := func(a imagesum.Action, require bool) internalUtils.VerifySettings {
+			st := settings(a, require)
+			st.Timeout, st.TimeoutSource = time.Nanosecond, internalUtils.SourceCmdline
+			return st
+		}
+		logged := func(fn func()) string {
+			var out strings.Builder
+			orig := internalUtils.KLog.Logger
+			internalUtils.KLog.Logger = zerolog.New(&out)
+			defer func() { internalUtils.KLog.Logger = orig }()
+			fn()
+			return out.String()
+		}
+
+		DescribeTable("skips the check, warns and boots, in warn and in fail",
+			func(a imagesum.Action, require bool) {
+				good()
+				out := logged(func() { Expect(verifyImageFile(spent(a, require), img, false)).To(Succeed()) })
+				Expect(banners).To(BeEmpty(), "a skipped check must not paint the failure screen")
+				Expect(out).To(ContainSubstring("check skipped"))
+				Expect(out).To(ContainSubstring(img))
+				Expect(out).To(ContainSubstring("bytes_hashed"))
+				Expect(out).To(ContainSubstring("took"))
+			},
+			Entry("warn", imagesum.Warn, false),
+			Entry("warn with require", imagesum.Warn, true),
+			Entry("fail", imagesum.Fail, false),
+		)
+
+		It("does not mask a mismatch: an image hashed inside the budget is judged as ever", func() {
+			good()
+			rot()
+			st := settings(imagesum.Fail, false)
+			st.Timeout = time.Minute
+			Expect(verifyImageFile(st, img, false)).To(HaveOccurred())
+			Expect(banners).To(HaveLen(1))
+		})
+
+		It("passes a healthy image inside the budget", func() {
+			good()
+			st := settings(imagesum.Fail, true)
+			st.Timeout = time.Minute
+			out := logged(func() { Expect(verifyImageFile(st, img, false)).To(Succeed()) })
+			Expect(out).To(ContainSubstring("Image checksum verified"))
+			Expect(banners).To(BeEmpty())
+		})
+
+		It("has no limit when the budget is 0", func() {
+			good()
+			Expect(verifyImageFile(settings(imagesum.Fail, true), img, false)).To(Succeed())
+		})
+
+		It("is a failure only for fail with require: the node must not boot an unchecked image then", func() {
+			good()
+			err := verifyImageFile(spent(imagesum.Fail, true), img, false)
+			Expect(err).To(HaveOccurred())
+			Expect(banners).To(HaveLen(1))
+			Expect(banners[0]).To(ContainSubstring("ran out of time"))
+			Expect(banners[0]).To(ContainSubstring("require is on"))
+		})
+
+		It("does not time out an image without a checksum, nothing is read", func() {
+			Expect(verifyImageFile(spent(imagesum.Fail, false), img, false)).To(Succeed())
+			Expect(banners).To(BeEmpty())
 		})
 	})
 

@@ -24,6 +24,7 @@
 package imagesum
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -33,6 +34,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 )
@@ -56,16 +58,43 @@ func SidecarPath(img string) string { return img + Suffix }
 
 // Compute streams the file through sha256 and returns the hex digest.
 func Compute(fs sdkFs.KairosFS, path string) (string, error) {
+	sum, _, err := computeContext(context.Background(), fs, path)
+	return sum, err
+}
+
+// ErrBudgetExceeded is returned (wrapped) when hashing is stopped because the
+// context ended before the whole image was read.
+var ErrBudgetExceeded = errors.New("time budget exceeded")
+
+// computeContext is Compute that stops between two reads once ctx is done. It
+// returns the number of bytes hashed so far either way. A read already in
+// flight is not interrupted, so it overshoots by at most one buffer.
+func computeContext(ctx context.Context, fs sdkFs.KairosFS, path string) (string, int64, error) {
 	f, err := fs.Open(path)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	defer f.Close()
 	h := sha256.New()
-	if _, err := io.CopyBuffer(h, struct{ io.Reader }{f}, make([]byte, hashBufferSize)); err != nil {
-		return "", fmt.Errorf("hashing %s: %w", path, err)
+	buf := make([]byte, hashBufferSize)
+	var n int64
+	for {
+		if ctx.Err() != nil {
+			return "", n, fmt.Errorf("hashing %s: %w", path, ErrBudgetExceeded)
+		}
+		r, rerr := f.Read(buf)
+		if r > 0 {
+			h.Write(buf[:r])
+			n += int64(r)
+		}
+		if rerr == io.EOF {
+			break
+		}
+		if rerr != nil {
+			return "", n, fmt.Errorf("hashing %s: %w", path, rerr)
+		}
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	return hex.EncodeToString(h.Sum(nil)), n, nil
 }
 
 // Write stores sum as the sidecar of img, with the current size and mtime of img.
@@ -184,6 +213,10 @@ const (
 	// (e.g. by an older agent). The checksum says nothing about this image and the
 	// image was not read.
 	Stale
+	// TimedOut means hashing was stopped by the time budget before the whole
+	// image was read, so nothing is known about its content. Report.BytesHashed
+	// says how far it got. It only comes from CheckWithin.
+	TimedOut
 )
 
 func (r Result) String() string {
@@ -196,6 +229,8 @@ func (r Result) String() string {
 		return "mismatch"
 	case Stale:
 		return "stale"
+	case TimedOut:
+		return "timed out"
 	}
 	return "unknown"
 }
@@ -207,12 +242,33 @@ type Report struct {
 	Expected string
 	// Actual is the digest computed from the image, empty if the image was not read.
 	Actual string
+	// BytesHashed is how much of the image was read before a TimedOut result.
+	BytesHashed int64
 }
 
 // Check compares img with its sidecar. With no sidecar, or a stale one, the
 // image is not read. A sidecar that cannot be parsed or an image that cannot be
 // read is an error, not a Mismatch.
 func Check(fs sdkFs.KairosFS, img string) (Report, error) {
+	return CheckContext(context.Background(), fs, img)
+}
+
+// CheckWithin is Check with a time budget for reading the image. When it runs
+// out the hashing stops and the result is TimedOut, not an error: the image is
+// neither good nor bad, it was not checked. A budget of zero or less means no
+// limit.
+func CheckWithin(fs sdkFs.KairosFS, img string, budget time.Duration) (Report, error) {
+	if budget <= 0 {
+		return Check(fs, img)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
+	defer cancel()
+	return CheckContext(ctx, fs, img)
+}
+
+// CheckContext is Check that stops reading the image when ctx is done and then
+// reports TimedOut.
+func CheckContext(ctx context.Context, fs sdkFs.KairosFS, img string) (Report, error) {
 	sum, found, err := Read(fs, img)
 	if err != nil {
 		return Report{}, err
@@ -227,7 +283,10 @@ func Check(fs sdkFs.KairosFS, img string) (Report, error) {
 	if sum.HasMeta && (info.Size() != sum.Size || info.ModTime().UnixNano() != sum.MtimeNs) {
 		return Report{Result: Stale, Expected: sum.Digest}, nil
 	}
-	got, err := Compute(fs, img)
+	got, n, err := computeContext(ctx, fs, img)
+	if errors.Is(err, ErrBudgetExceeded) {
+		return Report{Result: TimedOut, Expected: sum.Digest, BytesHashed: n}, nil
+	}
 	if err != nil {
 		return Report{Expected: sum.Digest}, err
 	}

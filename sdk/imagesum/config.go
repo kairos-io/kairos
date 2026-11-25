@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	"gopkg.in/yaml.v3"
@@ -54,6 +55,29 @@ type Config struct {
 	// systems installed before this feature booting.
 	// A pointer for the same reason as Create.
 	Require *bool `yaml:"require,omitempty" mapstructure:"require" json:"require,omitempty"`
+	// VerifyTimeout is the time budget, in seconds, for hashing an image at boot.
+	// When it runs out the check is skipped and the boot goes on. 0 means no
+	// limit. Unset means DefaultVerifyTimeout. A pointer so an explicit 0
+	// survives the cmdline filter.
+	VerifyTimeout *int `yaml:"verify-timeout,omitempty" mapstructure:"verify-timeout" json:"verify-timeout,omitempty"`
+}
+
+// DefaultVerifyTimeout is the boot time budget when none is configured. It has
+// to stay well under dracut's rd.retry (180 s by default): if the boot waits
+// longer than that for the root device, dracut gives up and the node reboots,
+// in a loop when rd.emergency=reboot is set.
+const DefaultVerifyTimeout = 60 * time.Second
+
+// VerifyBudget returns the boot time hashing budget. Zero means no limit.
+func (c Config) VerifyBudget() time.Duration { return BudgetFromSeconds(c.VerifyTimeout) }
+
+// BudgetFromSeconds converts a verify-timeout value: nil is the default, 0 no
+// limit, a negative value the default.
+func BudgetFromSeconds(s *int) time.Duration {
+	if s == nil || *s < 0 {
+		return DefaultVerifyTimeout
+	}
+	return time.Duration(*s) * time.Second
 }
 
 // CreateEnabled reports whether checksums are to be written. Off when unset.
@@ -64,7 +88,7 @@ func (c Config) RequireEnabled() bool { return c.Require != nil && *c.Require }
 
 // Policy is the part of the Config immucore needs at boot.
 func (c Config) Policy() Policy {
-	return Policy{Verify: c.Verify, Require: c.RequireEnabled()}
+	return Policy{Verify: c.Verify, Require: c.RequireEnabled(), VerifyTimeout: c.VerifyTimeout}
 }
 
 // Policy is the boot time part of the configuration. Immucore runs before the
@@ -73,6 +97,8 @@ func (c Config) Policy() Policy {
 type Policy struct {
 	Verify  Action `yaml:"verify,omitempty"`
 	Require bool   `yaml:"require,omitempty"`
+	// VerifyTimeout in seconds, see Config.VerifyTimeout. Nil means the default.
+	VerifyTimeout *int `yaml:"verify-timeout,omitempty"`
 }
 
 // PolicyFile is the name of the policy file, stored in the same directory as the images.
@@ -110,8 +136,9 @@ func ReadPolicy(fs sdkFs.KairosFS, dir string) (p Policy, found bool, err error)
 		return Policy{}, false, err
 	}
 	var raw struct {
-		Verify  string `yaml:"verify"`
-		Require bool   `yaml:"require"`
+		Verify        string `yaml:"verify"`
+		Require       bool   `yaml:"require"`
+		VerifyTimeout *int   `yaml:"verify-timeout"`
 	}
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return Policy{}, true, fmt.Errorf("parsing %s: %w", path, err)
@@ -120,5 +147,8 @@ func ReadPolicy(fs sdkFs.KairosFS, dir string) (p Policy, found bool, err error)
 	if !ok {
 		return Policy{}, true, fmt.Errorf("parsing %s: unknown verify action %q (want none, warn or fail)", path, raw.Verify)
 	}
-	return Policy{Verify: a, Require: raw.Require}, true, nil
+	if raw.VerifyTimeout != nil && *raw.VerifyTimeout < 0 {
+		return Policy{}, true, fmt.Errorf("parsing %s: verify-timeout must be 0 or more seconds, got %d", path, *raw.VerifyTimeout)
+	}
+	return Policy{Verify: a, Require: raw.Require, VerifyTimeout: raw.VerifyTimeout}, true, nil
 }

@@ -16,7 +16,17 @@ var _ = Describe("Image checksum schema", func() {
   create: true
   verify: fail
   require: true
+  verify-timeout: 90
 `)).To(Succeed())
+	})
+
+	It("accepts a verify-timeout of 0 (no limit)", func() {
+		Expect(validate("image-checksum:\n  verify-timeout: 0\n")).To(Succeed())
+	})
+
+	It("rejects a negative or non numeric verify-timeout", func() {
+		Expect(validate("image-checksum:\n  verify-timeout: -1\n")).ToNot(Succeed())
+		Expect(validate("image-checksum:\n  verify-timeout: soon\n")).ToNot(Succeed())
 	})
 
 	DescribeTable("accepts every verify action",

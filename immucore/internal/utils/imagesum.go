@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	"github.com/twpayne/go-vfs/v5"
@@ -25,9 +26,12 @@ const (
 type VerifySettings struct {
 	Action  imagesum.Action
 	Require bool
-	// ActionSource and RequireSource say where each value was read from.
+	// Timeout is the time budget for hashing the image. Zero means no limit.
+	Timeout time.Duration
+	// ActionSource, RequireSource and TimeoutSource say where each value was read from.
 	ActionSource  string
 	RequireSource string
+	TimeoutSource string
 }
 
 // DefaultVerifyAction is used when neither the cmdline nor the policy file set one.
@@ -41,15 +45,21 @@ const DefaultVerifyAction = imagesum.None
 // root image this check has to run before.
 //
 // A cmdline action that is not none, warn or fail is logged and ignored, so the
-// next source applies. A policy file that cannot be read is logged and ignored.
+// next source applies (the same goes for a bad verify-timeout). A policy file that cannot be read is logged and ignored.
 func ResolveVerifySettings(imageDir string) VerifySettings {
-	s := VerifySettings{Action: DefaultVerifyAction, ActionSource: SourceDefault, RequireSource: SourceDefault}
+	s := VerifySettings{
+		Action: DefaultVerifyAction, ActionSource: SourceDefault, RequireSource: SourceDefault,
+		Timeout: imagesum.DefaultVerifyTimeout, TimeoutSource: SourceDefault,
+	}
 
 	if policy, found, err := imagesum.ReadPolicy(vfs.OSFS, imageDir); err != nil {
 		KLog.Logger.Warn().Err(err).Str("dir", imageDir).Msg("Ignoring the image checksum policy file")
 	} else if found {
 		s.Action, s.Require = policy.Verify, policy.Require
 		s.ActionSource, s.RequireSource = SourcePolicy, SourcePolicy
+		if policy.VerifyTimeout != nil {
+			s.Timeout, s.TimeoutSource = imagesum.BudgetFromSeconds(policy.VerifyTimeout), SourcePolicy
+		}
 	}
 
 	cmdline, _ := os.ReadFile(GetHostProcCmdline())
@@ -62,6 +72,9 @@ func ResolveVerifySettings(imageDir string) VerifySettings {
 	}
 	if o.Require != nil {
 		s.Require, s.RequireSource = *o.Require, SourceCmdline
+	}
+	if o.VerifyTimeout != nil {
+		s.Timeout, s.TimeoutSource = imagesum.BudgetFromSeconds(o.VerifyTimeout), SourceCmdline
 	}
 	return s
 }

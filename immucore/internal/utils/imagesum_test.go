@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/sdk/imagesum"
@@ -82,6 +83,41 @@ var _ = Describe("image checksum settings", func() {
 		s := utils.ResolveVerifySettings(dir)
 		Expect(s.Action).To(Equal(imagesum.Warn))
 		Expect(s.ActionSource).To(Equal(utils.SourcePolicy))
+	})
+
+	Describe("verify-timeout", func() {
+		It("defaults to 60 s", func() {
+			s := utils.ResolveVerifySettings(dir)
+			Expect(s.Timeout).To(Equal(60 * time.Second))
+			Expect(s.TimeoutSource).To(Equal(utils.SourceDefault))
+		})
+		It("reads the policy file the agent wrote", func() {
+			n := 120
+			policy(imagesum.Policy{Verify: imagesum.Warn, VerifyTimeout: &n})
+			s := utils.ResolveVerifySettings(dir)
+			Expect(s.Timeout).To(Equal(120 * time.Second))
+			Expect(s.TimeoutSource).To(Equal(utils.SourcePolicy))
+		})
+		It("lets the cmdline win over the policy file, 0 meaning no limit", func() {
+			n := 120
+			policy(imagesum.Policy{Verify: imagesum.Warn, VerifyTimeout: &n})
+			cmdline("image-checksum.verify-timeout=0")
+			s := utils.ResolveVerifySettings(dir)
+			Expect(s.Timeout).To(BeZero())
+			Expect(s.TimeoutSource).To(Equal(utils.SourceCmdline))
+			cmdline("image-checksum.verify-timeout=15")
+			Expect(utils.ResolveVerifySettings(dir).Timeout).To(Equal(15 * time.Second))
+		})
+		It("keeps the policy value when the cmdline value is bad", func() {
+			n := 45
+			policy(imagesum.Policy{Verify: imagesum.Warn, VerifyTimeout: &n})
+			cmdline("image-checksum.verify-timeout=soon")
+			Expect(utils.ResolveVerifySettings(dir).Timeout).To(Equal(45 * time.Second))
+		})
+		It("uses the default when the policy file has no timeout", func() {
+			policy(imagesum.Policy{Verify: imagesum.Fail})
+			Expect(utils.ResolveVerifySettings(dir).Timeout).To(Equal(imagesum.DefaultVerifyTimeout))
+		})
 	})
 
 	It("ignores a broken policy file", func() {

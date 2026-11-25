@@ -35,6 +35,28 @@ var _ = Describe("cmdline", func() {
 		Expect(o.Problems).To(HaveLen(3))
 	})
 
+	It("reads the verify-timeout in seconds, 0 included", func() {
+		o := imagesum.ParseCmdline("image-checksum.verify-timeout=90")
+		Expect(*o.VerifyTimeout).To(Equal(90))
+		o = imagesum.ParseCmdline("image-checksum.verify-timeout=0")
+		Expect(o.VerifyTimeout).ToNot(BeNil())
+		Expect(*o.VerifyTimeout).To(Equal(0))
+	})
+
+	It("ignores and reports a verify-timeout that is not a number of seconds", func() {
+		o := imagesum.ParseCmdline("image-checksum.verify-timeout=-5 image-checksum.verify-timeout=soon")
+		Expect(o.VerifyTimeout).To(BeNil())
+		Expect(o.Problems).To(HaveLen(2))
+	})
+
+	It("applies the verify-timeout over the config, an explicit 0 included", func() {
+		sixty := 60
+		c := imagesum.Config{VerifyTimeout: &sixty}
+		c.Apply(imagesum.ParseCmdline("image-checksum.verify-timeout=0"))
+		Expect(c.VerifyTimeout).ToNot(BeNil())
+		Expect(c.VerifyBudget()).To(BeZero())
+	})
+
 	It("reads no other spelling", func() {
 		o := imagesum.ParseCmdline("rd.immucore.verify_image=fail rd.immucore.verify_image_require=true imagechecksum.verify=fail")
 		Expect(o.Verify).To(BeNil())

@@ -107,6 +107,16 @@ The immutable rootfs can be configured with the following kernel parameters:
 * `image-checksum.require=true|false`: With `image-checksum.verify=warn|fail`, an image
   with no usable checksum (missing or stale) counts as a problem instead of being skipped.
 
+* `image-checksum.verify-timeout=<seconds>`: Time budget for hashing the image at boot
+  (default 60, `0` for no limit). Hashing a big image on a slow disk can take longer
+  than dracut waits for the root device (`rd.retry`, 180 s by default), after which the
+  node reboots, in a loop with `rd.emergency=reboot`. So when the budget runs out immucore
+  stops hashing, logs a warning (image, bytes hashed, time spent) and boots without the
+  check, in `warn` and in `fail` mode. The one exception is `fail` together with
+  `image-checksum.require=true`, where an unchecked image is a failure by definition.
+  Keep it well under `rd.retry` (or raise `rd.retry` if you use `0` or a larger value).
+  Same precedence as the other keys: cmdline, then `image-checksum.conf`, then the default.
+
 * `rd.cos.disable`/`rd.immucore.disable`: This is a boolean option, true if present, false if not.
   It disables the execution of any immutable rootfs module logic at boot.
 

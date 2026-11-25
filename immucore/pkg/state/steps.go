@@ -158,6 +158,7 @@ func (s *State) verifyImage(image string) error {
 //	malformed / unreadable    -      log error     error screen
 //	mismatch                  -      log error     error screen
 //	match                     -      log info      log info
+//	time budget exceeded      -      log warning   log warning (error screen with require)
 //
 // A problem in warn mode is logged and the boot goes on. In fail mode the boot is
 // stopped with the failure screen, which names the image, the expected (stored)
@@ -178,7 +179,7 @@ func verifyImageFile(settings internalUtils.VerifySettings, image string, rw boo
 	}
 
 	start := time.Now()
-	report, err := imagesum.Check(vfs.OSFS, image)
+	report, err := imagesum.CheckWithin(vfs.OSFS, image, settings.Timeout)
 	took := time.Since(start).Round(time.Millisecond).String()
 
 	var problem *internalUtils.ImageChecksumProblem
@@ -196,6 +197,22 @@ func verifyImageFile(settings internalUtils.VerifySettings, image string, rw boo
 			Image: image, Kind: "checksum mismatch: the image is not what was written",
 			Detail:   "  The image has the size and modification time it was written with but\n  different content: the storage corrupted it.",
 			Expected: report.Expected, Actual: report.Actual,
+		}
+	case report.Result == imagesum.TimedOut:
+		// Not checked, not bad. Dracut gives up on the root device after rd.retry
+		// (180 s by default) and reboots, so a slow disk must never keep us here.
+		// The boot goes on in every action; only fail with require turns the skipped
+		// check into a failure, because that is the explicit "no unchecked image" setting.
+		log.Warn().Str("image", image).Int64("bytes_hashed", report.BytesHashed).Str("took", took).
+			Str("verify_timeout", settings.Timeout.String()).Str("timeout_source", settings.TimeoutSource).
+			Msg("Image checksum check skipped: hashing ran out of its time budget (disk too slow for the image size), the image was not verified. Raise image-checksum.verify-timeout (and rd.retry) or set it to 0 for no limit")
+		if settings.Action != imagesum.Fail || !settings.Require {
+			return nil
+		}
+		problem = &internalUtils.ImageChecksumProblem{
+			Image: image, Kind: "the check ran out of time",
+			Detail:   fmt.Sprintf("  Hashing stopped after %s (%d bytes read) because image-checksum.verify-timeout\n  is %s, so the image was not verified. require is on, so it counts as a failure.", took, report.BytesHashed, settings.Timeout),
+			Expected: report.Expected,
 		}
 	case report.Result == imagesum.Stale:
 		if !settings.Require {
