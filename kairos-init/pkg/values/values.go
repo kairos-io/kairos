@@ -2,6 +2,8 @@ package values
 
 import (
 	"sort"
+
+	semver "github.com/hashicorp/go-version"
 )
 
 // Common Used for packages that are common to whatever key
@@ -108,6 +110,12 @@ type System struct {
 	Family  Family
 	Version string
 	Arch    Architecture
+}
+
+// ParsedVersion parses the version of the system the way the package lists do.
+// A version that does not parse gets no package from them.
+func (s System) ParsedVersion() (*semver.Version, error) {
+	return semver.NewVersion(s.Version)
 }
 
 // GetTemplateParams returns a map of parameters that can be used in a template

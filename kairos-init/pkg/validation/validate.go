@@ -27,6 +27,18 @@ var defaultSystemdSearchPaths = []string{
 	"/lib/systemd/system",
 }
 
+// DistroBinaries are the binaries validate asks for that come from the packages
+// of the distribution. kairos-init installs the other ones itself. The
+// pre-check (kairos-init check) asks for the same ones before the conversion.
+func DistroBinaries(family values.Family) []string {
+	binaries := []string{"sudo", "less"}
+	// Why do we check for "mount.nfs" ?? Is it that required somehow? Do we consider part of the requirements
+	if family != values.HadronFamily {
+		binaries = append(binaries, "mount.nfs")
+	}
+	return binaries
+}
+
 type Validator struct {
 	Log    logger.KairosLogger
 	System values.System
@@ -51,17 +63,9 @@ func NewValidator(logger logger.KairosLogger) *Validator {
 func (v *Validator) Validate() error {
 	var multi *multierror.Error
 
-	binaries := []string{
-		"immucore",
-		"kairos-agent",
-		"sudo",
-		"less",
-		"kcrypt-discovery-challenger",
-	}
-	// Why do we check for "mount.nfs" ?? Is it that required somehow? Do we consider part of the requirements
-	if v.System.Family != values.HadronFamily {
-		binaries = append(binaries, "mount.nfs")
-	}
+	binaries := []string{"immucore", "kairos-agent"}
+	binaries = append(binaries, DistroBinaries(v.System.Family)...)
+	binaries = append(binaries, "kcrypt-discovery-challenger")
 
 	if config.DefaultConfig.Variant == "standard" {
 		binaries = append(binaries, "agent-provider-kairos", "kairos", "edgevpn")

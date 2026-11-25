@@ -33,6 +33,18 @@ func DetectSystem(l logger.KairosLogger) values.System {
 	if err != nil {
 		return s
 	}
+	return DetectFromValues(l, val, runtime.GOARCH)
+}
+
+// DetectFromValues builds a values.System from the key=value pairs of an
+// os-release file and a Go architecture name (amd64, arm64, riscv64). It is the
+// part of DetectSystem that does not touch the file system, so a caller that
+// reads another root filesystem gets the same answer the build would.
+func DetectFromValues(l logger.KairosLogger, val map[string]string, goarch string) values.System {
+	s := values.System{
+		Distro: values.Unknown,
+		Family: values.UnknownFamily,
+	}
 	l.Logger.Trace().Interface("values", val).Msg("Read values from os-release")
 
 	// Resolve distro/family according to os-release precedence:
@@ -41,7 +53,7 @@ func DetectSystem(l logger.KairosLogger) values.System {
 	s.Distro, s.Family = detectFromReleaseIDs(val["ID"], val["ID_LIKE"])
 
 	// Match architecture
-	switch values.Architecture(runtime.GOARCH) {
+	switch values.Architecture(goarch) {
 	case values.ArchAMD64:
 		s.Arch = values.ArchAMD64
 	case values.ArchARM64:

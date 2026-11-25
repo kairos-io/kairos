@@ -1,12 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/check"
 	"gopkg.in/yaml.v3"
 
 	semver "github.com/hashicorp/go-version"
@@ -27,6 +29,7 @@ var (
 	loglevelFlag  = newEnumFlag([]string{"debug", "info", "warn", "error", "trace"}, "info")
 	modelFlag     = newEnumFlag(values.SupportedModelStrings(), values.Generic.String())
 	skipStepsFlag = newEnumSliceFlag(values.GetStepNames(), []string{})
+	skipCheck     bool
 	providers     []string
 )
 
@@ -117,6 +120,77 @@ var validateCmd = &cobra.Command{
 	},
 }
 
+// exitError makes main exit with a status other than 1.
+type exitError struct {
+	code int
+	err  error
+}
+
+func (e *exitError) Error() string { return e.err.Error() }
+func (e *exitError) Unwrap() error { return e.err }
+
+var checkOpts check.Options
+var checkQuiet bool
+
+var checkCmd = &cobra.Command{
+	Use:   "check",
+	Short: "Say whether a system can become a Kairos system",
+	Long: `Say whether the running system, or an unpacked root filesystem, can become a Kairos system.
+
+It prints one line for each requirement: pass, warn or fail. A fail is
+something kairos-init cannot work without. A warn is something Kairos works
+without, but a feature or a boot mode is not available. It changes nothing,
+needs no network and does not need root.
+
+It does not look in the package repositories, so on a distribution nobody built
+before only a build proves that the packages exist. It does not cover the board
+models and FIPS either.
+
+Exit status: 0 when nothing required is missing, 1 when something is, 2 on a
+usage error.`,
+	Args:          cobra.NoArgs,
+	SilenceUsage:  true,
+	SilenceErrors: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		report, err := check.Run(checkOpts)
+		if err != nil {
+			return &exitError{code: 2, err: err}
+		}
+		report.Print(cmd.OutOrStdout(), checkQuiet)
+		if !report.OK() {
+			return &exitError{code: 1, err: errors.New("a required component is missing")}
+		}
+		return nil
+	},
+}
+
+// preCheck runs the check on the system about to be converted, and stops the
+// conversion when something required is missing. The result goes to stderr, so
+// the output of --dry-run stays the yaml.
+func preCheck(l logger.KairosLogger) error {
+	if skipCheck {
+		l.Warn("Skipping the check of the system, as requested")
+		return nil
+	}
+	report, err := check.Run(check.Options{
+		TrustedBoot: config.DefaultConfig.TrustedBoot,
+		Model:       config.DefaultConfig.Model,
+	})
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "Checking that the system can become a Kairos system")
+	report.Print(os.Stderr, true)
+	if !report.OK() {
+		var reasons []string
+		for _, f := range report.Failures() {
+			reasons = append(reasons, f.Message)
+		}
+		return fmt.Errorf("this system cannot become a Kairos system: %s (run 'kairos-init check' for the full list, or pass --skip-check to go on anyway)", strings.Join(reasons, "; "))
+	}
+	return nil
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "kairos-init",
 	Short: "Kairos init tool",
@@ -149,6 +223,10 @@ var rootCmd = &cobra.Command{
 		logger := logger.NewKairosLogger("kairos-init", loglevelFlag.Value, config.DefaultConfig.DryRun)
 		logger.Infof("Starting kairos-init version %s", values.GetVersion())
 		logger.Debug(litter.Sdump(values.GetFullVersion()))
+
+		if err := preCheck(logger); err != nil {
+			return err
+		}
 
 		// Parse the version number
 		sv, err := semver.NewSemver(version)
@@ -242,12 +320,22 @@ func init() {
 	rootCmd.Flags().BoolVarP(&config.DefaultConfig.Extensions, "stage-extensions", "x", false, "enable stage extensions mode")
 	rootCmd.Flags().Var(skipStepsFlag, "skip-step", "Skip one or more steps. Valid values are: "+strings.Join(skipStepsFlag.Allowed, ", ")+". You can pass multiple values separated by commas, for example: --skip-step initrd,workarounds")
 	rootCmd.Flags().BoolVar(&config.DefaultConfig.DryRun, "dry-run", false, "print the resolved yip stages to stdout and exit without running yip stages, copying configs/binaries, or invoking provider hooks (logs may still be written)")
+	rootCmd.Flags().BoolVar(&skipCheck, "skip-check", false, "do not check first that the system can become a Kairos system (see 'kairos-init check')")
+	checkCmd.Flags().StringVar(&checkOpts.Root, "root", "", "check an unpacked root filesystem instead of the running system")
+	checkCmd.Flags().StringVar(&checkOpts.Arch, "arch", "", "architecture of --root, as `uname -m` prints it (default: this machine's)")
+	checkCmd.Flags().BoolVar(&checkOpts.TrustedBoot, "trusted-boot", false, "check for a Trusted Boot (UKI) image, which has no GRUB and no dracut initramfs")
+	checkCmd.Flags().BoolVar(&checkOpts.Converted, "converted", false, "the system already went through kairos-init, so anything missing is missing for good")
+	checkCmd.Flags().BoolVar(&checkQuiet, "quiet", false, "print the warn and fail lines and the result only")
+	checkCmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return &exitError{code: 2, err: err}
+	})
 	// Mark required flags
 	_ = rootCmd.MarkFlagRequired("version")
 
 	addSharedFlags(rootCmd)
 	addSharedFlags(validateCmd)
 
+	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(stepsInfo)
 	rootCmd.AddCommand(versionCmd)
@@ -255,6 +343,13 @@ func init() {
 
 func main() {
 	if err := rootCmd.Execute(); err != nil {
+		var exit *exitError
+		if errors.As(err, &exit) {
+			if exit.code == 2 {
+				fmt.Fprintln(os.Stderr, "kairos-init check:", exit.err)
+			}
+			os.Exit(exit.code)
+		}
 		os.Exit(1)
 	}
 }
