@@ -61,16 +61,17 @@ leech)
     SRC="p2p://172.28.0.16,172.28.0.17,172.28.0.20,172.28.0.21,172.28.0.22,172.28.0.23,172.28.0.24,172.28.0.25,172.28.0.10/active?pin=$PIN" ;;
   esac
   echo "[$NAME] ($ME) fetching $SRC"
-  fetch() { # $@ extra flags; sets rc
+  fetch() { # sets rc
     rc=0
-    kairos-agent p2p fetch --port 42069 --upload-limit "${UPLOAD_KIB:-12288}" $ARGS "$@" \
+    kairos-agent p2p fetch --port 42069 --upload-limit "${UPLOAD_KIB:-12288}" $ARGS \
       --source "$SRC" --output /data/active.img --linger "${LINGER:-25s}" > /data/fetch.log 2>&1 || rc=$?
     grep -v '^EXPERIMENTAL' /data/fetch.log
   }
   if [ "$MODE" = refuse ]; then
     # no pin: the node refuses before it talks to anyone
     fetch
-    [ $rc -ne 0 ] && echo "[$NAME] refused, as it should (exit code $rc)" || { echo "[$NAME] ERROR: it did not refuse"; exit 1; }
+    if [ $rc -eq 0 ]; then echo "[$NAME] ERROR: it did not refuse"; exit 1; fi
+    echo "[$NAME] refused, as it should (exit code $rc)"
     echo "[$NAME] now with the explicit --insecure opt in:"
     ARGS="--insecure"
   fi
