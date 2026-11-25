@@ -150,6 +150,16 @@ func (u *UpgradeAction) Run() (err error) {
 		}
 	}
 
+	// Nothing has been downloaded and no hook has run yet, so this is the last
+	// point where stopping costs nothing. A recovery upgrade writes to the
+	// recovery partition instead.
+	if !u.spec.RecoveryUpgrade() {
+		if err = u.checkStateSpace(); err != nil {
+			u.Error("%s", err)
+			return err
+		}
+	}
+
 	// before upgrade hook happens once partitions are RW mounted, just before image OS is deployed
 	err = u.upgradeHook(constants.BeforeUpgradeHook, false)
 	if err != nil {

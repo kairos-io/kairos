@@ -89,7 +89,7 @@ type Disk struct {
 	BootActive bool `yaml:"boot_active"`
 	// StateSlots sizes COS_STATE for this many system images on boot-active disks (empty means the default of 3); 3 also ships passive.img.
 	StateSlots string `yaml:"state_slots"`
-	// NoRecovery skips the COS_RECOVERY partition on boot-active disks; requires state_slots=1 since upgrades need recovery.
+	// NoRecovery skips the COS_RECOVERY partition on boot-active disks; requires state_slots=1, since one slot leaves no room for the upgrade transition image.
 	NoRecovery bool `yaml:"no_recovery"`
 }
 
@@ -274,7 +274,7 @@ func (c Config) validateBootActive() error {
 		return err
 	}
 	if c.Disk.NoRecovery && slots != MinStateSlots {
-		return fmt.Errorf("disk.no_recovery requires disk.state_slots=%d: kairos-agent upgrade needs a recovery partition", MinStateSlots)
+		return fmt.Errorf("disk.no_recovery requires disk.state_slots=%d: a disk without a recovery partition is a single image node, and one slot leaves no room for the upgrade transition image", MinStateSlots)
 	}
 	if c.Disk.BIOS {
 		return fmt.Errorf("disk.boot_active cannot be combined with disk.bios: only EFI raw disks are supported")

@@ -1,5 +1,13 @@
 package clusterplugin
 
+// Role is a string type and has no custom JSON codec on purpose. The
+// MarshalJSON/UnmarshalJSON pair it used to carry treated the role as raw JSON
+// bytes: encoding through a pointer failed with "invalid character 'w' looking
+// for beginning of value" because worker is not a JSON value, and decoding
+// {"role":"worker"} built the role with the quotes still in it, so every
+// comparison against RoleWorker failed. The default string encoding round-trips
+// the role unchanged. The YAML methods stay because the boot path hands the
+// config over as YAML.
 type Role string
 
 func (n *Role) MarshalYAML() (interface{}, error) {
@@ -12,16 +20,6 @@ func (n *Role) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	*n = Role(val)
-
-	return nil
-}
-
-func (n *Role) MarshalJSON() ([]byte, error) {
-	return []byte(*n), nil
-}
-
-func (n *Role) UnmarshalJSON(val []byte) error {
 	*n = Role(val)
 
 	return nil

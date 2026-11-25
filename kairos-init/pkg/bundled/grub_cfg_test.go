@@ -100,6 +100,57 @@ var _ = Describe("GrubCfg", func() {
 		})
 	})
 
+	// A disk built with disk.no_recovery has no COS_RECOVERY partition. The
+	// recovery and the state reset entries boot an image from it, so on such a
+	// disk they only lead to a GRUB error.
+	Describe("recovery entries", func() {
+		// recoveryBlock returns what sits between the top-level
+		// `if [ "${recovery_blk}" ]; then` and its closing `fi`.
+		recoveryBlock := func() string {
+			start := regexp.MustCompile(`(?m)^if \[ "\$\{recovery_blk\}" \]; then\n`).FindStringIndex(bundled.GrubCfg)
+			Expect(start).ToNot(BeNil(), "the recovery entries are not behind a recovery_blk check")
+			rest := bundled.GrubCfg[start[1]:]
+			end := regexp.MustCompile(`(?m)^fi$`).FindStringIndex(rest)
+			Expect(end).ToNot(BeNil())
+			return rest[:end[0]]
+		}
+
+		It("looks for the COS_RECOVERY partition before the menu entries", func() {
+			search := regexp.MustCompile(`(?m)^search --no-floppy --label --set=recovery_blk COS_RECOVERY$`).FindStringIndex(bundled.GrubCfg)
+			Expect(search).ToNot(BeNil(), "no search for the COS_RECOVERY label")
+			entry := strings.Index(bundled.GrubCfg, `menuentry "${display_name} recovery"`)
+			Expect(entry).To(BeNumerically(">", search[0]))
+		})
+
+		It("clears recovery_blk first so a stale value cannot offer the entries", func() {
+			clear := strings.Index(bundled.GrubCfg, "\nset recovery_blk=\n")
+			search := strings.Index(bundled.GrubCfg, "--set=recovery_blk COS_RECOVERY")
+			Expect(clear).To(BeNumerically(">=", 0))
+			Expect(clear).To(BeNumerically("<", search))
+		})
+
+		It("offers the recovery and the state reset entries only behind that check", func() {
+			block := recoveryBlock()
+			Expect(block).To(ContainSubstring(`menuentry "${display_name} recovery" --id recovery {`))
+			Expect(block).To(ContainSubstring(`menuentry "${display_name} state reset (auto)" --id statereset {`))
+		})
+
+		It("always offers the active and the fallback entries", func() {
+			block := recoveryBlock()
+			Expect(block).ToNot(ContainSubstring("--id cos {"))
+			Expect(block).ToNot(ContainSubstring("--id fallback {"))
+			Expect(bundled.GrubCfg).To(ContainSubstring(`menuentry "${display_name}" --id cos {`))
+			Expect(bundled.GrubCfg).To(ContainSubstring(`menuentry "${display_name} (fallback)" --id fallback {`))
+		})
+
+		It("still sources the custom menu and the custom config after the entries", func() {
+			block := recoveryBlock()
+			after := bundled.GrubCfg[strings.Index(bundled.GrubCfg, block)+len(block):]
+			Expect(after).To(ContainSubstring(`source "(${menu_blk})${custom_menu}"`))
+			Expect(after).To(ContainSubstring(`source "(${custom_blk})${custom}"`))
+		})
+	})
+
 	It("passes grub-script-check", func() {
 		check, err := exec.LookPath("grub-script-check")
 		if err != nil {
