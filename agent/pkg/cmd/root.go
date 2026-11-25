@@ -203,7 +203,7 @@ func usageError(cmd *cobra.Command, msg string) error {
 }
 
 func addSourceFlag(flags *pflag.FlagSet, source *string) {
-	flags.StringVar(source, "source", "", "Source for upgrade. Composed of `type:address`. Accepts `file:`,`dir:` `oci:`,or `ocifile:` for the type of source.\nFor example `ocifile:/var/share/myimage.tar`, `dir:/tmp/extracted` or `oci:repo/image:tag`")
+	flags.StringVar(source, "source", "", "Source for upgrade. Composed of `type:address`. Accepts `file:`,`dir:` `oci:`, `ocifile:` or `p2p://` (experimental, see `kairos-agent p2p --help`) for the type of source.\nFor example `ocifile:/var/share/myimage.tar`, `dir:/tmp/extracted` or `oci:repo/image:tag`")
 }
 
 func addAllowInsecureRegistriesFlag(flags *pflag.FlagSet, insecure *bool) {

@@ -24,7 +24,7 @@ func RequireExperimental(flag bool) error {
 	case "1", "true", "yes":
 		return nil
 	}
-	return fmt.Errorf("the p2p image source is EXPERIMENTAL and disabled by default: set p2p-source.experimental: true in the cloud-config, pass --experimental, or set %s=1", EnvExperimental)
+	return fmt.Errorf("the p2p image source is EXPERIMENTAL and disabled by default: set p2p-source.experimental: true in the cloud-config, pass --experimental (p2p seed, p2p fetch) or --experimental-p2p (upgrade), or set %s=1", EnvExperimental)
 }
 
 // NetConfig holds the knobs shared by seeders and downloaders.
@@ -124,7 +124,7 @@ func (a Auth) CheckTarget(t images.P2PTarget) error {
 		return nil
 	}
 	return fmt.Errorf("refusing p2p source %s: it has no pin, so any host on the network could make this node install anything. "+
-		"Use the source kairos agent p2p seed prints (it carries ?pin=), or add ?sha256=<sha256 of the image>, or (dangerous) set p2p-source.insecure: true", t.String())
+		"Use the source kairos agent p2p seed prints (it carries ?pin=), or add ?sha256=<sha256 of the image>, or (dangerous) set p2p-source.insecure: true in the cloud-config, or pass --p2p-insecure to upgrade (--insecure to p2p fetch)", t.String())
 }
 
 // PinURI returns the source that fetches an image served at host:port, with

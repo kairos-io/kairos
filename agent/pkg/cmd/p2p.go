@@ -101,6 +101,12 @@ allows it, and then any host on the network can make the node install anything).
 
 p2p:// sources also work in the cloud-config (install.system.source,
 upgrade.system.source, reset.system.source) once p2p-source.experimental is set.
+manual-install and reset have no experimental flag: set p2p-source.experimental in
+the cloud-config (upgrade has --experimental-p2p, p2p seed and fetch --experimental).
+
+The seeding service the agent installs (p2p-source.enabled) offers the active and
+passive images only. The recovery image is offered by running
+"kairos agent p2p seed --recovery-dir <dir with cOS/recovery.img>" yourself.
 
 See https://kairos.io/docs/upgrade/p2p-experimental/ (experimental).`,
 	}
@@ -119,7 +125,9 @@ func newP2PSeedCmd() *cobra.Command {
 		Long: p2pBanner + `
 
 Serves whichever of active.img, passive.img and recovery.img exist, read only,
-over HTTP on one port (a manifest with chunk hashes, and byte ranges). Images are
+over HTTP on one port (a manifest with chunk hashes, and byte ranges). The recovery
+image is only served with --recovery-dir: the service the agent installs does not
+mount the recovery partition. Images are
 re-checked periodically: a changed image (an upgrade) is dropped and served again
 once it is stable. Run it from the unit the agent installs when the cloud-config
 has p2p-source.enabled: true and p2p-source.experimental: true.`,
@@ -234,7 +242,7 @@ func newP2PFetchCmd() *cobra.Command {
 	nf.register(cmd.Flags())
 	cmd.Flags().StringVar(&source, "source", "", "p2p://[peer[,peer]/]active|passive|recovery?pin=<hex>")
 	cmd.Flags().StringVar(&output, "output", "", "where to write the image")
-	cmd.Flags().DurationVar(&linger, "linger", 0, "after the download, offer the finished image to other nodes for this long (off by default)")
+	cmd.Flags().DurationVar(&linger, "linger", 0, "after the download, offer the finished image to other nodes for this long (off by default). Listens on a random port unless --port 42069 is set, and only the peer it fetched from is allowed unless --allow-cidr is set: use --port 42069 --allow-cidr <subnet> so the other nodes can find it")
 	_ = cmd.MarkFlagRequired("source")
 	_ = cmd.MarkFlagRequired("output")
 	return cmd

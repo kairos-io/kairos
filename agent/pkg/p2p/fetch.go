@@ -173,7 +173,7 @@ func (a Auth) evaluate(t images.P2PTarget, m *Manifest) (verdict, error) {
 		return verdict{trustImage, "image sha256 pin"}, nil
 	}
 	if !a.Insecure {
-		return verdict{}, fmt.Errorf("the source has no pin and p2p-source.insecure is not set")
+		return verdict{}, fmt.Errorf("the source has no pin and insecure mode is not set (p2p-source.insecure in the cloud-config, --p2p-insecure on upgrade)")
 	}
 	return verdict{trustNone, "none (insecure mode)"}, nil
 }

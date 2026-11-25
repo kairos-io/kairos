@@ -50,6 +50,30 @@ func TestP2PSeedRefusesWithoutOptIn(t *testing.T) {
 	}
 }
 
+func TestP2PHelpAndErrorsNameTheRightFlags(t *testing.T) {
+	t.Setenv("KAIROS_P2P_EXPERIMENTAL", "")
+	err := p2p.RequireExperimental(false)
+	if err == nil {
+		t.Fatal("RequireExperimental(false) = nil")
+	}
+	for _, w := range []string{"p2p-source.experimental", "--experimental-p2p", "--experimental "} {
+		if !strings.Contains(err.Error(), w) {
+			t.Errorf("opt-in error %q does not mention %q", err, w)
+		}
+	}
+	for _, n := range []string{"upgrade", "install", "manual-install"} {
+		if u := findCommand(t, n).Flags().Lookup("source").Usage; !strings.Contains(u, "p2p://") {
+			t.Errorf("%s --source help does not list p2p://: %q", n, u)
+		}
+	}
+	if u := newP2PCmd().Long; !strings.Contains(u, "--recovery-dir") {
+		t.Error("p2p help does not say the recovery image needs seed --recovery-dir")
+	}
+	if u := newP2PFetchCmd().Flags().Lookup("linger").Usage; !strings.Contains(u, "--port 42069 --allow-cidr") {
+		t.Errorf("--linger help does not say how to be reachable: %q", u)
+	}
+}
+
 func capture(t *testing.T, fn func()) string {
 	t.Helper()
 	old := os.Stdout

@@ -199,6 +199,7 @@ var _ = Describe("p2p security regressions", func() {
 			rogue := serveFake("127.0.0.2", env, content, "")
 			_, err := fetchWith(p2p.Auth{}, tgt("", peerOf("127.0.0.1", s), rogue.addr), "127.0.0.3", "dl.img", nil)
 			Expect(err).To(MatchError(ContainSubstring("refusing p2p source")))
+			Expect(err).To(MatchError(ContainSubstring("--p2p-insecure")))
 			Expect(err).To(MatchError(ContainSubstring("p2p-source.insecure")))
 			Expect(rogue.manifestReq.Load()).To(BeZero())
 			Expect(filepath.Join(dir, "out", "dl.img")).ToNot(BeAnExistingFile())
