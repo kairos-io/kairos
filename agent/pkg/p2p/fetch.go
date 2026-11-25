@@ -670,7 +670,7 @@ func Fetch(ctx context.Context, cfg FetchConfig) (*Result, error) {
 		cfg.Logf = logf
 	}
 	t := cfg.Target
-	if err := cfg.Auth.CheckTarget(t); err != nil {
+	if err := cfg.CheckTarget(t); err != nil {
 		return nil, err
 	}
 	if t.Pin == "" && t.SHA256 != "" {
@@ -810,6 +810,8 @@ func fetchDeadline(parent context.Context, to time.Duration, err error) error {
 
 // fetchGroup downloads the image from the peers of one manifest. wasted is the
 // number of bytes it fetched, whatever came of them.
+//
+// nolint:gocyclo // one linear download pipeline (space check, resume, workers, verify, finish) where every step can fail and each failure picks its own cleanup; splitting it would scatter the cleanup rules.
 func fetchGroup(ctx context.Context, cfg FetchConfig, p *prepared, g *group, etaBound time.Duration) (res *Result, wasted int64, err error) {
 	logf := cfg.Logf
 	t := cfg.Target
@@ -1165,6 +1167,8 @@ func (ft *fetcher) slowHoldersLocked() int {
 // held only by demoted peers are taken by peers that are not demoted. Near the
 // end the chunks in flight at other (maybe slow) peers are requested from this
 // one too: the first answer wins.
+//
+// nolint:gocyclo // the selection rules (done, in flight, failed, demoted, endgame) are one scan over the chunks and read best together.
 func (ft *fetcher) pick(ps *peerState, rng *rand.Rand) (int, bool) {
 	ps.mu.Lock()
 	have := ps.have

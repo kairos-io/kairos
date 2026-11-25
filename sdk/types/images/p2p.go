@@ -127,6 +127,8 @@ func NewP2PSrc(t P2PTarget) *ImageSource {
 // parseP2PString parses what follows p2p://: the peers (each with an optional
 // port, comma separated), the image, and the query. url.Parse cannot be used
 // on the whole thing, it refuses a port in the middle of a host list.
+//
+// nolint:gocyclo // a flat sequence of syntax checks on one string; each rejects one malformed form with its own message.
 func parseP2PString(s string) (P2PTarget, error) {
 	var t P2PTarget
 	if strings.Contains(s, "#") || strings.ContainsAny(s, " \t\r\n") {

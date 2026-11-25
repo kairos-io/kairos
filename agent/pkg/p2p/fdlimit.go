@@ -17,7 +17,7 @@ func fitFDLimit(maxConns int, logf func(string, ...any)) int {
 		if syscall.Setrlimit(syscall.RLIMIT_NOFILE, &nl) == nil {
 			rl = nl
 		} else {
-			want, conns = planFDLimit(rl.Cur, rl.Cur, maxConns)
+			_, conns = planFDLimit(rl.Cur, rl.Cur, maxConns)
 		}
 	}
 	if conns < maxConns {

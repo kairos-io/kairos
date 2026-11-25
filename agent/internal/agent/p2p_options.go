@@ -31,6 +31,10 @@ func LoadP2POptionsFromDirs(dirs []string) (sdkImages.P2POptions, error) {
 
 // P2PCacheDir is where the seeder keeps its computed manifests, the only
 // place the hardened unit may write to.
+// systemctlBin is the command the units of the p2p and phone-home services are
+// enabled with.
+const systemctlBin = "systemctl"
+
 const P2PCacheDir = "/usr/local/.kairos/p2p-cache"
 
 // p2pServiceUnit is the seeding unit. The seeder only reads the images and the
@@ -111,9 +115,9 @@ func enableP2PIfConfigured(c *sdkConfig.Config) {
 		return
 	}
 	for _, args := range [][]string{
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "enable", P2PServiceName},
-		{"systemctl", "start", P2PServiceName},
+		{systemctlBin, "daemon-reload"},
+		{systemctlBin, "enable", P2PServiceName},
+		{systemctlBin, "start", P2PServiceName},
 	} {
 		// args is a literal slice defined just above, no user input reaches exec.Command.
 		cmd := exec.Command(args[0], args[1:]...) //nosec G204 -- fixed command and arguments

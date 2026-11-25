@@ -635,6 +635,27 @@ func setUpgradeSourceSize(cfg *sdkConfig.Config, spec *spec.UpgradeSpec) error {
 	return nil
 }
 
+// applyResetP2PSource measures a p2p reset.system.source, as the sizes of the
+// spec came from the recovery image.
+func applyResetP2PSource(cfg *sdkConfig.Config, spec *spec.ResetSpec) error {
+	if err := applyP2POptions(cfg, spec.Active.Source); err != nil {
+		return err
+	}
+	if err := checkP2PImage(spec.Active.Source, false); err != nil {
+		return err
+	}
+	if spec.Active.Source != nil && spec.Active.Source.IsP2P() {
+		size, err := GetSourceSize(cfg, spec.Active.Source)
+		if err != nil {
+			return fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
+		}
+		cfg.Logger.Infof("Setting image size to %dMiB", size)
+		spec.Active.Size = uint(size)
+		spec.Passive.Size = uint(size)
+	}
+	return nil
+}
+
 // NewResetSpec returns a ResetSpec struct all based on defaults and current host state
 func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	var imgSource *sdkImages.ImageSource
@@ -749,22 +770,8 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
 	}
 
-	// reset.system.source can name a p2p source, which is measured here, as the
-	// sizes above came from the recovery image.
-	if err := applyP2POptions(cfg, spec.Active.Source); err != nil {
+	if err := applyResetP2PSource(cfg, spec); err != nil {
 		return nil, err
-	}
-	if err := checkP2PImage(spec.Active.Source, false); err != nil {
-		return nil, err
-	}
-	if spec.Active.Source != nil && spec.Active.Source.IsP2P() {
-		size, err := GetSourceSize(cfg, spec.Active.Source)
-		if err != nil {
-			return nil, fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
-		}
-		cfg.Logger.Infof("Setting image size to %dMiB", size)
-		spec.Active.Size = uint(size)
-		spec.Passive.Size = uint(size)
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
