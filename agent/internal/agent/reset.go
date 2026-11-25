@@ -20,6 +20,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 
 	"github.com/mudler/go-pluggable"
@@ -37,7 +38,20 @@ func Reset(reboot, unattended, resetOem, strictValidations bool, dir ...string) 
 	}
 }
 
+// recoveryPartition finds the recovery partition of the running machine. It is
+// a variable so tests can stand in for a machine with and without one.
+var recoveryPartition = func() *sdkPartitions.Partition {
+	return action.FindRecoveryPartition(config.NewConfig())
+}
+
 func reset(reboot, unattended, resetOem, strictValidations bool, dir ...string) error {
+	// Reset runs from the recovery system, so say so before the confirmation
+	// wait rather than after it. The UKI path does not come through here, its
+	// machines never have a COS_RECOVERY partition.
+	if err := action.CheckResetSupported(recoveryPartition()); err != nil {
+		return err
+	}
+
 	cfg, err := sharedReset(reboot, unattended, resetOem, strictValidations, dir...)
 	if err != nil {
 		return err
