@@ -58,7 +58,7 @@ usage() {
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --root) [ "$#" -ge 2 ] && [ -n "$2" ] || usage; ROOT="${2%/}"; shift ;;
+    --root) if [ "$#" -lt 2 ] || [ -z "$2" ]; then usage; fi; ROOT="${2%/}"; shift ;;
     --arch) [ "$#" -ge 2 ] || usage; ARCH="$2"; shift ;;
     --trusted-boot) TRUSTED_BOOT=true ;;
     --converted) CONVERTED=true ;;
