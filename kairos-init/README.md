@@ -48,7 +48,9 @@ The check asks the code of kairos-init for the distribution family, the package
 manager (yip), the kernel packages and the stages that build the initramfs, so it
 does not carry lists of its own for those. kairos-init runs the same check
 before it converts a system, and stops with the lines that failed. Pass
-`--skip-check` to go on anyway. The conversion passes its `--stage`, `--skip-step`, `--model`, `--stage-extensions`
+`--skip-check` to go on anyway.
+
+The conversion passes its `--stage`, `--skip-step`, `--model`, `--stage-extensions`
 and `-t` to the check, and `kairos-init check` accepts the same flags, so run it
 with them to see what the conversion sees. When the step that installs the
 packages does not run, the tools it would bring (including `sudo`, `less` and
@@ -56,8 +58,8 @@ packages does not run, the tools it would bring (including `sudo`, `less` and
 `--stage-extensions` a missing tool or kernel package is a warning, since an
 extension may bring it; the other failures stay. With `--model`, the kernel
 packages and modules of a board are not judged as generic ones, and its package
-lists are not checked.
-repositories, and does not cover FIPS, and the board models only as described below.
+lists are not checked. The check does not look in the package repositories, and
+does not cover FIPS.
 
 ## Dry-run
 
