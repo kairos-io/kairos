@@ -190,9 +190,18 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	if err := applyRegistryOptions(cfg, "install", spec.Active.Source, spec.Passive.Source, spec.Recovery.Source); err != nil {
 		return nil, err
 	}
+	if err := applyP2POptions(cfg, spec.Active.Source, spec.Passive.Source, spec.Recovery.Source); err != nil {
+		return nil, err
+	}
+	if err := checkP2PInstallImages(spec.Active.Source, spec.Passive.Source, spec.Recovery.Source); err != nil {
+		return nil, err
+	}
 
 	// Get the actual source size to calculate the image size and partitions size
 	size, err := GetSourceSize(cfg, spec.Active.Source)
+	if err != nil && spec.Active.Source.IsP2P() {
+		return nil, fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
+	}
 	if err != nil {
 		cfg.Logger.Warnf("Failed to infer size for images: %s", err.Error())
 	} else {
@@ -569,6 +578,12 @@ func NewUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeSpec, error) {
 	if err := applyRegistryOptions(cfg, "upgrade", source); err != nil {
 		return nil, err
 	}
+	if err := applyP2POptions(cfg, source); err != nil {
+		return nil, err
+	}
+	if err := checkP2PImage(source, spec.RecoveryUpgrade()); err != nil {
+		return nil, err
+	}
 	err = setUpgradeSourceSize(cfg, spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed calculating size: %w", err)
@@ -732,6 +747,24 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	err = unmarshallFullSpec(cfg, "reset", spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+
+	// reset.system.source can name a p2p source, which is measured here, as the
+	// sizes above came from the recovery image.
+	if err := applyP2POptions(cfg, spec.Active.Source); err != nil {
+		return nil, err
+	}
+	if err := checkP2PImage(spec.Active.Source, false); err != nil {
+		return nil, err
+	}
+	if spec.Active.Source != nil && spec.Active.Source.IsP2P() {
+		size, err := GetSourceSize(cfg, spec.Active.Source)
+		if err != nil {
+			return nil, fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
+		}
+		cfg.Logger.Infof("Setting image size to %dMiB", size)
+		spec.Active.Size = uint(size)
+		spec.Passive.Size = uint(size)
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
@@ -937,6 +970,9 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
 	}
 	// Honor install registry options before any image is fetched
+	if spec.Active.Source != nil && spec.Active.Source.IsP2P() {
+		return nil, fmt.Errorf("a p2p source is not supported on trusted boot")
+	}
 	if err := applyRegistryOptions(cfg, "install", spec.Active.Source); err != nil {
 		return nil, err
 	}
@@ -1007,6 +1043,9 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 		return nil, fmt.Errorf(constants.UpgradeNoSourceError)
 	}
 	// Honor upgrade registry options before any image is fetched
+	if spec.Active.Source.IsP2P() {
+		return nil, fmt.Errorf("a p2p source is not supported on trusted boot")
+	}
 	if err := applyRegistryOptions(cfg, "upgrade", spec.Active.Source); err != nil {
 		return nil, err
 	}
@@ -1177,6 +1216,11 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 		// Similar to Docker images but more conservative since it's a local file
 		size = int64(float64(file.Size()) * 2.0)
 
+	case source.IsP2P():
+		size, err = p2pSourceSize(config, source)
+		if err != nil {
+			return 0, err
+		}
 	case source.IsFile():
 		file, err := config.Fs.Stat(source.Value())
 		if err != nil {

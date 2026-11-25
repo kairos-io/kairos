@@ -248,6 +248,7 @@ func upgradeArgs(cmd *cobra.Command, args []string) error {
 func newUpgradeCmd(global *globalFlags) *cobra.Command {
 	var (
 		image, source, bootEntry string
+		p2pFlagsSet              func()
 		recovery, insecure       bool
 		dryRun                   bool
 		excludePaths             []string
@@ -277,6 +278,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 `,
 		Args: upgradeArgs,
 		PreRunE: func(*cobra.Command, []string) error {
+			p2pFlagsSet()
 			return checkUpgrade(source)
 		},
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -322,6 +324,17 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 	flags.StringSliceVar(&excludePaths, "exclude-path", nil, "Path in the new image to leave out of the upgrade, from the image root, e.g. /var/lib/foo or etc/*.conf. A leading / is optional, an excluded directory drops its contents, and * and ? are globs that do not cross /. Can be specified multiple times.")
 	addAllowInsecureRegistriesFlag(flags, &insecure)
 	flags.BoolVar(&dryRun, "dry-run", false, "Resolve the upgrade and print a summary of what would be done, without changing the system")
+	var p2pFlags agent.ExtraConfigP2PSource
+	flags.BoolVar(&p2pFlags.Experimental, "experimental-p2p", false, "EXPERIMENTAL: opt in to the p2p:// source (or set p2p-source.experimental in the cloud config)")
+	flags.StringVar(&p2pFlags.Bind, "p2p-bind", "", "EXPERIMENTAL: local IP to bind the p2p client to")
+	flags.StringSliceVar(&p2pFlags.Allow, "p2p-allow-cidr", nil, "EXPERIMENTAL: networks p2p peers must belong to (default: the listed peers, or the local subnet when discovering)")
+	flags.IntVar(&p2pFlags.Port, "p2p-port", 0, "EXPERIMENTAL: p2p port while downloading (0 = random)")
+	flags.BoolVar(&p2pFlags.Insecure, "p2p-insecure", false, "EXPERIMENTAL, DANGEROUS: allow a p2p source without a ?pin= or ?sha256= pin")
+	p2pFlagsSet = func() {
+		if p2pFlags.Experimental || p2pFlags.Insecure || p2pFlags.Bind != "" || p2pFlags.Port != 0 || len(p2pFlags.Allow) > 0 {
+			agent.UpgradeP2PFlags = &p2pFlags
+		}
+	}
 
 	cmd.AddCommand(newListReleasesCmd())
 	return cmd
@@ -1987,6 +2000,7 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		newLogsCmd(),
 		newKcryptCmd(),
 		newPhoneHomeCmd(),
+		newP2PCmd(),
 	)
 
 	stopFlagsAtFirstArgument(root)
@@ -2132,12 +2146,12 @@ func validateSource(source string) error {
 		return nil
 	}
 
-	r, err := regexp.Compile(`^oci:|^dir:|^file:|^ocifile:`)
+	r, err := regexp.Compile(`^oci:|^dir:|^file:|^ocifile:|^p2p://`)
 	if err != nil {
 		return err
 	}
 	if !r.MatchString(source) {
-		return fmt.Errorf("source %s does not match any of oci:, dir:, file: or ocifile: ", source)
+		return fmt.Errorf("source %s does not match any of oci:, dir:, file:, ocifile: or p2p:// (experimental)", source)
 	}
 
 	return nil

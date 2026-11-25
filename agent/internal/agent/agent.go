@@ -68,6 +68,8 @@ func Run(opts ...Option) error {
 
 	// If phonehome config is present in cloud-config, install+start the service.
 	enablePhoneHomeIfConfigured(c)
+	// Opt-in, experimental p2p seeding unit (p2p-source.enabled + p2p-source.experimental).
+	enableP2PIfConfigured(c)
 
 	if o.Restart && err != nil {
 		fmt.Println("Warning: Agent failed, restarting: ", err.Error())

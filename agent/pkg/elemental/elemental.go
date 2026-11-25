@@ -422,7 +422,7 @@ func (e *Elemental) DeployImageNodirs(img *sdkImages.Image, leaveMounted bool, e
 // for a running system. This is so we can reuse this method for creating random images, not only system ones
 func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStructure bool, excludes ...string) (info interface{}, err error) {
 	target := img.MountPoint
-	if !img.Source.IsFile() {
+	if !img.Source.IsRawImage() {
 		if img.FS != cnst.SquashFs {
 			err = e.CreateFileSystemImage(img)
 			if err != nil {
@@ -453,7 +453,7 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 		_ = e.UnmountImage(img)
 		return nil, err
 	}
-	if !img.Source.IsFile() {
+	if !img.Source.IsRawImage() {
 		if createDirStructure {
 			err = utils.CreateDirStructure(e.config.Fs, target)
 			if err != nil {
@@ -482,7 +482,7 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 			return nil, err
 		}
 	}
-	if leaveMounted && img.Source.IsFile() {
+	if leaveMounted && img.Source.IsRawImage() {
 		err = e.MountImage(img, "rw")
 		if err != nil {
 			return nil, err
@@ -579,6 +579,10 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 		}
 		err = utils.CopyFile(e.config.Fs, imgSrc.Value(), target)
 		if err != nil {
+			return nil, err
+		}
+	} else if imgSrc.IsP2P() {
+		if err := e.fetchP2PImage(target, imgSrc); err != nil {
 			return nil, err
 		}
 	} else {
