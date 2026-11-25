@@ -73,7 +73,11 @@ func (r *Report) Failures() []Finding {
 // Summary is the closing text of the report.
 func (r *Report) Summary() string {
 	if r.fails > 0 {
-		out := fmt.Sprintf("Result: this system cannot become a Kairos system as it is (%d fail, %d warn).\n", r.fails, r.warns)
+		verdict := "this system cannot become a Kairos system as it is"
+		if r.converted {
+			verdict = "this system does not have what Kairos needs"
+		}
+		out := fmt.Sprintf("Result: %s (%d fail, %d warn).\n", verdict, r.fails, r.warns)
 		if r.installs && r.identityFails == r.fails {
 			out += fmt.Sprintf("The %s family can. If this one has the same packages, all that stops it is that the Kairos tools do not recognize its name or version.\n", r.Family)
 		}

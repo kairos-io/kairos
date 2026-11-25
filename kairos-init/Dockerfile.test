@@ -61,7 +61,8 @@ ARG FIPS=false
 ARG VALIDATE=true
 
 COPY --from=kairos-init-bin /kairos-init /kairos-init
-RUN if [ "${TRUSTED_BOOT}" = "true" ]; then set -- --trusted-boot; fi; \
+RUN set -- --model "${MODEL}"; \
+    if [ "${TRUSTED_BOOT}" = "true" ]; then set -- "$@" --trusted-boot; fi; \
     /kairos-init check "$@"
 # Build the flag list so cells without a provider don't pass
 # `--provider ""` (which kairos-init reads as StandardVariant with an

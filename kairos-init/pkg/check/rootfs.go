@@ -5,7 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"strings"
-	"syscall"
 )
 
 // maxLinkHops is how many symbolic links a path may go through. It is the
@@ -34,9 +33,15 @@ func newRootFS(root string) rootFS {
 
 // note keeps a path that could not be read for a reason other than not being there.
 func (r rootFS) note(path string, err error) {
-	if err != nil && !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENOTDIR) && r.denied != nil {
-		*r.denied = append(*r.denied, path)
+	if err == nil || !errors.Is(err, fs.ErrPermission) || r.denied == nil {
+		return
 	}
+	for _, known := range *r.denied {
+		if known == path {
+			return
+		}
+	}
+	*r.denied = append(*r.denied, path)
 }
 
 // host is whether this is the running system and not an unpacked one.
@@ -116,6 +121,7 @@ func (r rootFS) regular(path string) (string, error) {
 	}
 	info, err := os.Stat(full)
 	if err != nil {
+		r.note(full, err)
 		return "", err
 	}
 	if !info.Mode().IsRegular() || info.Size() > maxFileSize {
@@ -134,7 +140,9 @@ func (r rootFS) open(path string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	return os.Open(full)
+	f, err := os.Open(full)
+	r.note(full, err)
+	return f, err
 }
 
 // readFile reads a regular file of the root.
@@ -143,7 +151,9 @@ func (r rootFS) readFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return os.ReadFile(full)
+	data, err := os.ReadFile(full)
+	r.note(full, err)
+	return data, err
 }
 
 // findBin gives the path in the root of the first of the commands that is

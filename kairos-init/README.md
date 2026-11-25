@@ -48,7 +48,7 @@ The check asks the code of kairos-init for the distribution family, the package
 manager (yip), the kernel packages and the stages that build the initramfs, so it
 does not carry lists of its own for those. kairos-init runs the same check
 before it converts a system, and stops with the lines that failed. Pass
-`--skip-check` to go on anyway. The check follows `--skip-step`, `--stage` and `--stage-extensions`: when the step that installs the packages does not run, the tools it would bring (including `sudo`, `less` and `mount.nfs`, which `validate` asks for) have to be on the system already. The check does not look in the package
+`--skip-check` to go on anyway. The conversion passes its `--stage`, `--skip-step`, `--model`, `--stage-extensions` and `-t` to the check, and `kairos-init check` accepts the same flags, so run it with them to see what the conversion sees. When the step that installs the packages does not run, the tools it would bring (including `sudo`, `less` and `mount.nfs`, which `validate` asks for) have to be on the system already. The check does not look in the package
 repositories, and does not cover the board models and FIPS.
 
 ## Dry-run

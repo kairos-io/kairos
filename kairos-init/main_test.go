@@ -141,3 +141,15 @@ func TestPreCheckSkipped(t *testing.T) {
 		t.Fatalf("--skip-check has to skip the check: %v", err)
 	}
 }
+
+// check takes the flags of the conversion that change what it asks for.
+func TestCheckCommandHasTheFlagsOfTheConversion(t *testing.T) {
+	for _, name := range []string{"model", "stage", "skip-step", "stage-extensions", "trusted", "trusted-boot", "root", "arch", "converted", "quiet"} {
+		if checkCmd.Flags().Lookup(name) == nil {
+			t.Errorf("check has no --%s", name)
+		}
+	}
+	if got := stepsNotRun("init", []string{"initrd"}); !reflect.DeepEqual(got, []string{"initrd", "install"}) {
+		t.Errorf("steps not run: %v", got)
+	}
+}

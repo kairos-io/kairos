@@ -98,7 +98,7 @@ func TestVerdicts(t *testing.T) {
 		{name: "SLES through ID_LIKE=suse", d: distro{"sles", "suse", "16.0", "SUSE Linux Enterprise Server 16.0", []string{"zypper"}}, ok: true, wants: []string{"need a subscription"}},
 		{name: "rhel", d: distro{"rhel", "fedora", "9.6", "Red Hat Enterprise Linux 9.6 (Plow)", []string{"dnf"}}, ok: true, wants: []string{"need a subscription"}},
 		{name: "debian without all packages", d: debian("11"), wants: []string{"Debian 12 or newer"}},
-		{name: "leap without all packages", d: leap("15.6"), wants: []string{"Leap 16 or newer"}},
+		{name: "leap without all packages", d: leap("15.6"), ok: true, wants: []string{"warn  packages: openSUSE Leap 15.6 may not", "Leap 16 or newer"}},
 
 		// Derivatives.
 		{name: "centos, a derivative both tools know", d: distro{"centos", "rhel fedora", "10", "CentOS Stream 10 (Coughlan)", []string{"dnf"}}, ok: true, wants: []string{"as a derivative of rhel", "a UEFI install fails"}},
@@ -701,7 +701,89 @@ func TestUnreadableDirectory(t *testing.T) {
 	must(t, os.Chmod(filepath.Join(root, "boot"), 0o000))
 	t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "boot"), 0o755) })
 	_, out := output(t, root, Options{Converted: true})
-	if !strings.Contains(out, "cannot be read by this user") {
+	if !strings.Contains(out, "cannot be accessed by this user") {
 		t.Errorf("no warning about the unreadable /boot:\n%s", out)
+	}
+}
+
+func TestUnreadableFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	root := completeSystem(t)
+	dep := filepath.Join(root, "lib/modules/6.8.0/modules.dep")
+	must(t, os.Chmod(dep, 0o000))
+	t.Cleanup(func() { _ = os.Chmod(dep, 0o644) })
+	_, out := output(t, root, Options{Converted: true})
+	if !strings.Contains(out, "cannot be accessed by this user") {
+		t.Errorf("no warning about the unreadable modules.dep:\n%s", out)
+	}
+	if n := strings.Count(out, dep); n != 1 {
+		t.Errorf("the path is named %d times, want once:\n%s", n, out)
+	}
+}
+
+func TestRootSlashIsTheRunningSystem(t *testing.T) {
+	r, err := Run(Options{Root: "/"})
+	must(t, err)
+	var out bytes.Buffer
+	r.Print(&out, false)
+	if strings.Contains(out.String(), "--arch is not given") {
+		t.Errorf("--root / is the running system:\n%s", out.String())
+	}
+}
+
+// Trusted Boot has no dracut initramfs, so SLES alone in the name is enough.
+func TestTrustedBootDoesNotNeedTheImmucoreStages(t *testing.T) {
+	root := build(t, distro{"mylinux", "suse", "16.0", "SLES based", []string{"zypper"}})
+	if r, out := output(t, root, Options{TrustedBoot: true}); !r.OK() {
+		t.Errorf("Trusted Boot with SLES in the name:\n%s", out)
+	}
+}
+
+// What nothing installs is not left to the packages.
+func TestArchHasNoPackageList(t *testing.T) {
+	_, out := output(t, build(t, distro{"arch", "", "1", "Arch Linux", []string{"pacman"}}), Options{})
+	if strings.Contains(out, "left to the packages") || strings.Contains(out, "VERSION_ID has to be") {
+		t.Errorf("contradicting lines for Arch:\n%s", out)
+	}
+}
+
+func TestConvertedSummary(t *testing.T) {
+	_, out := output(t, build(t, ubuntu("24.04")), Options{Converted: true})
+	if !strings.Contains(out, "does not have what Kairos needs") || strings.Contains(out, "cannot become") {
+		t.Errorf("a converted system that is not complete:\n%s", out)
+	}
+}
+
+// Without packages to install, an unparseable version leaves the kernel list empty.
+func TestUnparseableVersionLeavesNoKernel(t *testing.T) {
+	d := distro{"debian", "", "", "Debian GNU/Linux forky/sid", []string{"apt-get"}}
+	_, out := output(t, build(t, d), Options{SkipSteps: []string{"installPackages"}})
+	if !strings.Contains(out, "kairos-init has none for Debian") {
+		t.Errorf("no kernel package for a version that does not parse:\n%s", out)
+	}
+}
+
+func TestInitParserOnlyWhenItRuns(t *testing.T) {
+	d := distro{"ubuntu", "debian", "", "Ubuntu", nil}
+	_, out := output(t, build(t, d), Options{SkipSteps: []string{"installPackages", "initramfsConfigs"}})
+	if strings.Contains(out, "is not a version") {
+		t.Errorf("nothing parses the version:\n%s", out)
+	}
+	_, out = output(t, build(t, d), Options{SkipSteps: []string{"installPackages"}, TrustedBoot: true})
+	if strings.Contains(out, "is not a version") {
+		t.Errorf("Trusted Boot does not write the initramfs files:\n%s", out)
+	}
+}
+
+// A relative link that climbs above the root stays in it.
+func TestLinkAboveTheRoot(t *testing.T) {
+	root := build(t, distro{})
+	write(t, filepath.Join(root, "usr/lib/os-release"), "ID=ubuntu\nPRETTY_NAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\n", 0o644)
+	must(t, os.MkdirAll(filepath.Join(root, "etc"), 0o755))
+	must(t, os.Symlink("../../../../../usr/lib/os-release", filepath.Join(root, "etc/os-release")))
+	if _, out := output(t, root, Options{}); !strings.Contains(out, "ID=ubuntu") {
+		t.Errorf("the link is followed inside the root:\n%s", out)
 	}
 }

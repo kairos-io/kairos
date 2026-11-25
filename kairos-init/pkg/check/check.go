@@ -188,8 +188,7 @@ func (c *checker) access() {
 	if len(denied) > 3 {
 		denied = append(denied[:3:3], "...")
 	}
-	c.warn("%d path(s) exist but cannot be read by this user (%s), so what is reported missing may be there: run the check as root", len(*c.fs.denied), strings.Join(denied, " "))
-	c.report.uefiMissing = false
+	c.warn("%d path(s) cannot be accessed by this user (%s), so what is reported missing may be there: run the check as root", len(*c.fs.denied), strings.Join(denied, " "))
 }
 
 // --- reporting ---------------------------------------------------------------
@@ -345,6 +344,8 @@ func (c *checker) packages() {
 	}
 	if !hasPackageList(c.sys) {
 		c.fail("packages: kairos-init has no package list for the %s family", titleCase(c.family))
+		// Nothing brings the tools, so they are judged as they are.
+		c.report.installs, c.kernelComes = false, false
 		return
 	}
 	installer := packageManager(c.fs)
@@ -375,32 +376,34 @@ func (c *checker) versions() {
 	// kairos-init stops on a VERSION_ID that does not parse in two places: the
 	// install packages step (GetInstallStage parses it, for every family but
 	// Hadron) and the init stage, which parses it for Ubuntu and the Red Hat
-	// family. Elsewhere the package lists give no package for it and go on.
-	installs := c.report.installs || c.kernelComes
-	versionOK := true
-	if c.family != "" && c.sys.Family != values.HadronFamily {
+	// family when it writes the initramfs files (not under Trusted Boot, and not
+	// with --skip-step initramfsConfigs). Elsewhere the package lists give no
+	// package for it and go on.
+	parses := true
+	if c.family != "" && c.sys.Family != values.HadronFamily && !c.opts.Converted {
 		_, errSemver := semver.NewSemver(c.sys.Version)
 		_, errVersion := c.sys.ParsedVersion()
-		stops := (c.report.installs && errSemver != nil) ||
-			((c.sys.Distro == values.Ubuntu || c.sys.Family == values.RedHatFamily) && errVersion != nil)
-		switch {
-		case stops:
-			versionOK = false
+		parses = errVersion == nil
+		initParses := (c.sys.Distro == values.Ubuntu || c.sys.Family == values.RedHatFamily) &&
+			!c.opts.TrustedBoot && !c.opts.skipped(values.InitramfsConfigsStep, values.InitStage)
+		if (c.report.installs && errSemver != nil) || (initParses && errVersion != nil) {
 			c.failIdentity("version: VERSION_ID=%s is not a version, kairos-init stops on it", orNone(c.version, "none"))
-		case errVersion != nil:
-			versionOK = false
-		default:
+			return
+		}
+		if parses {
 			c.pass("version: %s", c.version)
 		}
 	}
-	if !versionOK || c.opts.Converted || c.family == "" {
+	if c.opts.Converted || c.family == "" {
 		return
 	}
 
+	// The kernel list gives no package for a version that does not parse, which
+	// kernelPackage reports.
 	if c.kernelComes && c.sys.Arch != "" && c.kernelPackageNeeded() {
 		c.kernelPackage()
 	}
-	if !c.report.installs || !installs {
+	if !c.report.installs || !parses {
 		return
 	}
 	// Releases the package lists do not fit. A derivative counts its own
@@ -412,7 +415,7 @@ func (c *checker) versions() {
 		// Debian 11 does not have.
 		c.fail("packages: Debian %s does not have all of them (polkitd, systemd-resolved), Debian 12 or newer does", c.version)
 	case c.sys.Distro == values.OpenSUSELeap && c.id == "opensuse-leap" && major < 16:
-		c.fail("packages: openSUSE Leap %s does not have all of them, Leap 16 or newer does", c.version)
+		c.warn("packages: openSUSE Leap %s may not have all of them, Leap 16 or newer does", c.version)
 	case c.sys.Distro == values.SLES && c.id == "sles" && major < 16:
 		c.warn("packages: SLES %s does not have all of them in its public repositories, a registered system with its subscription repositories may", c.version)
 	}
@@ -440,6 +443,7 @@ func (c *checker) newestKernel() (string, bool) {
 	}
 	name, err := kernel.GetLatestFromPath(dir, c.opts.Model, c.log)
 	if err != nil || name == "" {
+		c.fs.note(dir, err)
 		return "", false
 	}
 	return "/lib/modules/" + name, true
@@ -513,9 +517,9 @@ func (c *checker) initramfsStages() {
 	initrd := regexp.MustCompile(stages.InitrdDracutOS).MatchString(c.pretty)
 	alpine := regexp.MustCompile(values.AlpineRegex).MatchString(c.pretty)
 	switch {
-	case !dracut && initrd:
+	case !dracut && initrd && !c.opts.TrustedBoot:
 		c.failIdentity("build steps: PRETTY_NAME=%s matches the stage that builds the initramfs, but not the stages that put immucore into it", c.pretty)
-	case !dracut && !alpine:
+	case !dracut && !alpine && (!initrd || !c.opts.TrustedBoot):
 		c.failIdentity("build steps: no kairos-init stage matches PRETTY_NAME=%s, so it builds no initramfs and does not enable the network and ssh services", orNone(c.pretty, "none"))
 	case c.opts.TrustedBoot:
 		c.pass("build steps: PRETTY_NAME matches")
@@ -541,7 +545,7 @@ func (c *checker) platform() {
 	given := c.opts.Arch
 	if given == "" {
 		given = hostArch()
-		if c.opts.Root != "" {
+		if !c.fs.host() {
 			c.warn("architecture: --arch is not given with --root, so the root is taken to have the architecture of this machine (%s)", given)
 		}
 	}
@@ -607,7 +611,8 @@ func (c *checker) kernelSection() {
 	c.section = "Kernel"
 
 	// The kernel and the initramfs steps are the ones that look at the kernel.
-	if c.opts.skipped(values.KernelStep, values.InitStage) && c.opts.skipped(values.InitrdStep, values.InitStage) && !c.opts.Converted {
+	initrdLooks := !c.opts.TrustedBoot && !c.opts.skipped(values.InitrdStep, values.InitStage)
+	if c.opts.skipped(values.KernelStep, values.InitStage) && !initrdLooks && !c.opts.Converted {
 		c.pass("kernel: the steps that use it do not run")
 		return
 	}
@@ -662,7 +667,8 @@ func (c *checker) module(level, why, name string) {
 		level = levelOptional
 	}
 	// kairos-init runs depmod before it builds the initramfs, which writes the list.
-	if !c.opts.Converted && level == levelRequired && !c.fs.exists(c.kernelDir+"/modules.dep") {
+	depmod := !c.opts.TrustedBoot && !c.opts.skipped(values.InitrdStep, values.InitStage)
+	if depmod && !c.opts.Converted && level == levelRequired && !c.fs.exists(c.kernelDir+"/modules.dep") {
 		level = levelOptional
 	}
 	pattern := regexp.MustCompile("/" + strings.ReplaceAll(regexp.QuoteMeta(name), "_", "[-_]") + `\.ko`)

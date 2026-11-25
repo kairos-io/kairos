@@ -133,6 +133,13 @@ func (e *exitError) Unwrap() error { return e.err }
 var checkOpts check.Options
 var checkQuiet bool
 
+// The flags of kairos-init that change what the check asks for.
+var (
+	checkStage = newEnumFlag([]string{"init", "install", "all"}, "all")
+	checkModel = newEnumFlag(values.SupportedModelStrings(), values.Generic.String())
+	checkSkip  = newEnumSliceFlag(values.GetStepNames(), []string{})
+)
+
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Say whether a system can become a Kairos system",
@@ -167,6 +174,8 @@ usage error.`,
 		if strings.ToLower(trusted) == "true" || trusted == "1" {
 			checkOpts.TrustedBoot = true
 		}
+		checkOpts.Model = checkModel.Value
+		checkOpts.SkipSteps = stepsNotRun(checkStage.Value, checkSkip.Value)
 		report, err := check.Run(checkOpts)
 		if err != nil {
 			return &exitError{code: 2, err: err}
@@ -197,7 +206,17 @@ func preCheck(l logger.KairosLogger) error {
 // preCheckOptions says what the conversion is going to do, so that the check
 // only asks for what the steps that run will not bring themselves.
 func preCheckOptions(stage string) check.Options {
-	skip := append([]string{}, config.DefaultConfig.SkipSteps...)
+	return check.Options{
+		TrustedBoot: config.DefaultConfig.TrustedBoot,
+		Model:       config.DefaultConfig.Model,
+		SkipSteps:   stepsNotRun(stage, config.DefaultConfig.SkipSteps),
+		Extensions:  config.DefaultConfig.Extensions,
+	}
+}
+
+// stepsNotRun are the steps that do not run, from --skip-step and --stage.
+func stepsNotRun(stage string, skipped []string) []string {
+	skip := append([]string{}, skipped...)
 	switch stage {
 	case "init":
 		// The install stage ran before, in an earlier layer.
@@ -206,12 +225,7 @@ func preCheckOptions(stage string) check.Options {
 		// The init stage runs later: it builds the initramfs and enables the services.
 		skip = append(skip, values.InitStage)
 	}
-	return check.Options{
-		TrustedBoot: config.DefaultConfig.TrustedBoot,
-		Model:       config.DefaultConfig.Model,
-		SkipSteps:   skip,
-		Extensions:  config.DefaultConfig.Extensions,
-	}
+	return skip
 }
 
 // runPreCheck runs the check and prints it to w. It gives an error when
@@ -233,7 +247,7 @@ func runPreCheck(w io.Writer, opts check.Options, dryRun bool) error {
 		for _, f := range report.Failures() {
 			reasons = append(reasons, f.Message)
 		}
-		return fmt.Errorf("this system cannot become a Kairos system: %s (run 'kairos-init check' for the full list, or pass --skip-check to go on anyway)", strings.Join(reasons, "; "))
+		return fmt.Errorf("this system cannot become a Kairos system: %s (run 'kairos-init check' with the same --stage, --skip-step, --model, --stage-extensions and -t for the full list, or pass --skip-check to go on anyway)", strings.Join(reasons, "; "))
 	}
 	return nil
 }
@@ -374,6 +388,10 @@ func init() {
 	checkCmd.Flags().StringVar(&checkOpts.Arch, "arch", "", "architecture of --root, as uname -m prints it (needs --root)")
 	checkCmd.Flags().BoolVar(&checkOpts.TrustedBoot, "trusted-boot", false, "check for a Trusted Boot (UKI) image, which has no GRUB and no dracut initramfs")
 	checkCmd.Flags().BoolVar(&checkOpts.Converted, "converted", false, "the system already went through kairos-init, so anything missing is missing for good")
+	checkCmd.Flags().VarP(checkModel, "model", "m", fmt.Sprintf("model to build for (%s)", strings.Join(checkModel.Allowed, ", ")))
+	checkCmd.Flags().VarP(checkStage, "stage", "s", fmt.Sprintf("the stage kairos-init is going to run (%s)", strings.Join(checkStage.Allowed, ", ")))
+	checkCmd.Flags().Var(checkSkip, "skip-step", "the steps kairos-init is going to skip, as for kairos-init itself")
+	checkCmd.Flags().BoolVarP(&checkOpts.Extensions, "stage-extensions", "x", false, "kairos-init is going to run with stage extensions")
 	checkCmd.Flags().BoolVar(&checkQuiet, "quiet", false, "print the warn and fail lines and the result only")
 	checkCmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return &exitError{code: 2, err: err}
