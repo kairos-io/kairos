@@ -279,22 +279,22 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// The flags are fine: an error from here on is not about how it was called.
-		cmd.SilenceUsage = true
 		// In dry-run, silence the console logger so stdout stays machine-readable.
 		// Logs still land in journald / /var/log/kairos/kairos-init.log.
 		logger := logger.NewKairosLogger("kairos-init", loglevelFlag.Value, config.DefaultConfig.DryRun)
 		logger.Infof("Starting kairos-init version %s", values.GetVersion())
 		logger.Debug(litter.Sdump(values.GetFullVersion()))
 
-		if err := preCheck(logger); err != nil {
-			return err
-		}
-
 		// Parse the version number
 		sv, err := semver.NewSemver(version)
 		if err != nil {
 			return fmt.Errorf("error parsing version: %w", err)
+		}
+
+		// The flags are fine: an error from here on is not about how it was called.
+		cmd.SilenceUsage = true
+		if err := preCheck(logger); err != nil {
+			return err
 		}
 
 		config.DefaultConfig.KairosVersion = *sv

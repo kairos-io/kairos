@@ -189,6 +189,8 @@ func (c *checker) access() {
 		denied = append(denied[:3:3], "...")
 	}
 	c.warn("%d path(s) cannot be accessed by this user (%s), so what is reported missing may be there: run the check as root", len(*c.fs.denied), strings.Join(denied, " "))
+	// The files for a UEFI install may be among them.
+	c.report.uefiMissing = false
 }
 
 // --- reporting ---------------------------------------------------------------
@@ -240,7 +242,7 @@ func (c *checker) missing(level, what, why string) {
 	switch {
 	case brought:
 		c.pass("%s (%s): not installed yet, left to the packages for the %s family", what, why, c.family)
-	case level == levelRequired && c.opts.Extensions:
+	case level == levelRequired && c.opts.Extensions && !c.opts.Converted:
 		c.warn("%s is missing (%s), a stage extension may bring it", what, why)
 	case level == levelRequired:
 		c.fail("%s is missing (%s)", what, why)
@@ -332,9 +334,12 @@ func (c *checker) packages() {
 	// What the install steps bring. A step that does not run brings nothing.
 	c.report.installs = !c.opts.Converted && !c.opts.skipped(values.InstallPackagesStep, values.InstallStage)
 	c.kernelComes = !c.opts.Converted && !c.opts.skipped(values.InstallKernelStep, values.InstallStage)
-	if c.opts.Model != values.Generic.String() && !c.opts.Converted && c.report.installs {
-		// The kernel of a board model is in the base packages of some of them.
-		c.kernelComes = true
+	if c.opts.Model != values.Generic.String() && !c.opts.Converted {
+		// The kernel of a board model is in its own list, or in the base packages
+		// of the model (the DGX Spark one is there).
+		listed, _ := values.GetKernelPackagesFor(c.sys, c.opts.TrustedBoot, c.opts.Model, c.log)
+		c.kernelComes = (len(listed) > 0 && !c.opts.skipped(values.InstallKernelStep, values.InstallStage)) ||
+			(c.report.installs && c.baseHasKernel())
 	}
 	if !c.report.installs && !c.kernelComes {
 		if !c.opts.Converted {
@@ -348,10 +353,10 @@ func (c *checker) packages() {
 		c.report.installs, c.kernelComes = false, false
 		return
 	}
-	installer := packageManager(c.fs)
+	installer, installerErr := packageManager(c.fs)
 	switch {
 	case installer == "":
-		c.failIdentity("packages: yip cannot tell the package manager from ID=%s, kairos-init stops with \"unknown package manager\"", c.id)
+		c.failIdentity("packages: yip cannot tell the package manager from ID=%s, kairos-init stops with \"unknown package manager\" (%v)", c.id, installerErr)
 	case !c.hasBin(installer):
 		c.fail("packages: %s is missing, kairos-init cannot install packages", installer)
 	default:
@@ -364,6 +369,25 @@ func (c *checker) packages() {
 			c.warn("packages: the kernel and other packages are in repositories that need a subscription")
 		}
 	}
+}
+
+var kernelPackageName = regexp.MustCompile(`^(linux-image|kernel)`)
+
+// baseHasKernel is whether the base packages of the board model hold a kernel.
+func (c *checker) baseHasKernel() bool {
+	model := values.Model(c.opts.Model)
+	for _, distro := range []values.DistroFamilyInterface{c.sys.Distro, c.sys.Family} {
+		for _, arch := range []values.Architecture{values.ArchCommon, c.sys.Arch} {
+			for _, pkgs := range values.BasePackagesModels[distro][arch][model] {
+				for _, pkg := range pkgs {
+					if kernelPackageName.MatchString(pkg) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (c *checker) hasBin(name string) bool {
@@ -465,7 +489,7 @@ func (c *checker) kernelPackage() {
 			c.pass("kernel package: kairos-init has none for %s %s, the kernel of the system is used", titleCase(c.distro), c.version)
 			return
 		}
-		c.kernelFail(true, "kernel package: kairos-init has none for %s %s, VERSION_ID has to be a release it knows", titleCase(c.distro), c.version)
+		c.kernelFail(c.distro != c.id, "kernel package: kairos-init has none for %s %s, VERSION_ID has to be a release it knows", titleCase(c.distro), c.version)
 		return
 	}
 	// A package that names the release it comes from does not exist before it.
@@ -497,7 +521,7 @@ func (c *checker) kernelPackage() {
 // may bring the kernel, so it is only a warning then.
 func (c *checker) kernelFail(identity bool, format string, args ...any) {
 	switch {
-	case c.opts.Extensions:
+	case c.opts.Extensions && !c.opts.Converted:
 		c.warn(format+", a stage extension may bring a kernel", args...)
 	case identity:
 		c.failIdentity(format, args...)
@@ -519,7 +543,7 @@ func (c *checker) initramfsStages() {
 	switch {
 	case !dracut && initrd && !c.opts.TrustedBoot:
 		c.failIdentity("build steps: PRETTY_NAME=%s matches the stage that builds the initramfs, but not the stages that put immucore into it", c.pretty)
-	case !dracut && !alpine && (!initrd || !c.opts.TrustedBoot):
+	case !dracut && !alpine && !initrd:
 		c.failIdentity("build steps: no kairos-init stage matches PRETTY_NAME=%s, so it builds no initramfs and does not enable the network and ssh services", orNone(c.pretty, "none"))
 	case c.opts.TrustedBoot:
 		c.pass("build steps: PRETTY_NAME matches")
@@ -866,7 +890,7 @@ func (c *checker) tools() {
 		c.missing(levelOptional, "systemd-networkd or NetworkManager", "network")
 	}
 	c.component(c.encryption, "encryption bound to the TPM", "systemd-cryptenroll")
-	if c.fs.exists("/usr/lib/systemd/systemd-cryptsetup") {
+	if c.fs.exists("/usr/lib/systemd/systemd-cryptsetup") || c.fs.exists("/lib/systemd/systemd-cryptsetup") {
 		c.pass("systemd-cryptsetup (encryption bound to the TPM)")
 	} else {
 		c.missing(c.encryption, "systemd-cryptsetup", "encryption bound to the TPM")

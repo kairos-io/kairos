@@ -28,7 +28,9 @@ COPY dist/linux-${TARGETARCH}/kairos-init /kairos-init
 # Base images kairos-init cannot convert. EXPECTED_ERROR is the text it has to
 # stop with, among the last lines of its log where the final error is, so that a
 # mirror that is down does not count as a refusal. The check has to refuse with a
-# fail line of its own. If one of
+# fail line of its own. The two sides need not refuse for the same reason: the
+# Arch base has no kernel, which is the conversion's error, and no package list,
+# which is the check's. If one of
 # them starts to convert, the rules of `kairos-init check` are out of date:
 # update them and move the cell to the supported base images in
 # _build-flavors.yaml.
@@ -51,7 +53,7 @@ RUN if [ -z "${EXPECTED_ERROR}" ]; then echo "EXPECTED_ERROR is not set" >&2; ex
     fi; \
     cat /kairos-init.log; \
     tail -n 20 /kairos-init.log >/kairos-init.tail; \
-    grep -qF "${EXPECTED_ERROR}" /kairos-init.tail
+    grep -qF "${EXPECTED_ERROR}" /kairos-init.tail || { echo "kairos-init stopped, but not with: ${EXPECTED_ERROR}" >&2; exit 1; }
 
 # hadolint ignore=DL3006
 FROM ${BASE_IMAGE} AS default

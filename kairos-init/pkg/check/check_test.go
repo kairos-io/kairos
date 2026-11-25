@@ -201,11 +201,11 @@ func TestPackageManagers(t *testing.T) {
 		"almalinux": "dnf", "rhel": "dnf", "alpine": "apk", "opensuse-leap": "zypper", "opensuse-tumbleweed": "zypper",
 	} {
 		root := build(t, distro{id: pair, version: "1.0", pretty: "none"})
-		if got := packageManager(newRootFS(root)); got != want {
+		if got, _ := packageManager(newRootFS(root)); got != want {
 			t.Errorf("%s: package manager %q, want %q", pair, got, want)
 		}
 	}
-	if got := packageManager(newRootFS(build(t, distro{id: "kali", idLike: "debian", version: "1", pretty: "Kali"}))); got != "" {
+	if got, err := packageManager(newRootFS(build(t, distro{id: "kali", idLike: "debian", version: "1", pretty: "Kali"}))); got != "" || err == nil {
 		t.Errorf("kali: package manager %q, want none", got)
 	}
 }
@@ -482,7 +482,7 @@ func TestOptions(t *testing.T) {
 		wants []string
 	}{
 		{"a release outside the kernel list is refused", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{}, "", false, []string{"kairos-init has none for Ubuntu"}},
-		{"a board model is not judged by the generic kernel list", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{Model: "rpi4"}, "", true, nil},
+		{"a board model is not judged by the generic kernel list", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{Model: "rpi4"}, "aarch64", true, nil},
 		{"nvidia-dgx-spark on arm64", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{Model: "nvidia-dgx-spark"}, "aarch64", true, nil},
 		{"a kernel that is already installed is judged as it is", func(t *testing.T) string {
 			root := kernelRoot(t)
@@ -785,5 +785,64 @@ func TestLinkAboveTheRoot(t *testing.T) {
 	must(t, os.Symlink("../../../../../usr/lib/os-release", filepath.Join(root, "etc/os-release")))
 	if _, out := output(t, root, Options{}); !strings.Contains(out, "ID=ubuntu") {
 		t.Errorf("the link is followed inside the root:\n%s", out)
+	}
+}
+
+// The summary does not claim a UEFI problem when paths could not be read.
+func TestUnreadableEFIPathsMakeNoUEFIClaim(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	root := build(t, alpine)
+	must(t, os.MkdirAll(filepath.Join(root, "boot/efi"), 0o755))
+	must(t, os.Chmod(filepath.Join(root, "boot/efi"), 0o000))
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "boot/efi"), 0o755) })
+	_, out := output(t, root, Options{})
+	if strings.Contains(out, "It cannot be installed on a UEFI machine") {
+		t.Errorf("a claim about UEFI next to an access warning:\n%s", out)
+	}
+}
+
+// --converted means anything missing is missing for good, also with extensions.
+func TestConvertedIgnoresExtensions(t *testing.T) {
+	r, out := output(t, build(t, ubuntu("24.04")), Options{Converted: true, Extensions: true})
+	if r.OK() || strings.Contains(out, "a stage extension may bring") {
+		t.Errorf("--converted with extensions:\n%s", out)
+	}
+}
+
+// The family hint is for names the tools do not know, not for a release that has no kernel.
+func TestNoFamilyHintForARealUbuntu(t *testing.T) {
+	_, out := output(t, build(t, ubuntu("18.04")), Options{})
+	if strings.Contains(out, "family can") {
+		t.Errorf("hint for ubuntu 18.04:\n%s", out)
+	}
+	_, out = output(t, build(t, distro{"linuxmint", "ubuntu debian", "22", "Linux Mint 22", []string{"apt-get"}}), Options{})
+	if !strings.Contains(out, "family can") {
+		t.Errorf("no hint for a derivative:\n%s", out)
+	}
+}
+
+// The kernel of a board model comes from where its lists put it.
+func TestBoardModelKernelSource(t *testing.T) {
+	// rpi4 has its own kernel list; dgx spark has its kernel in the base packages.
+	tests := []struct {
+		name string
+		opts Options
+		ok   bool
+	}{
+		{"rpi4 with the kernel step skipped and no kernel", Options{Model: "rpi4", SkipSteps: []string{"installKernel"}}, false},
+		{"rpi4 with nothing skipped", Options{Model: "rpi4"}, true},
+		{"dgx spark with the package step skipped and no kernel", Options{Model: "nvidia-dgx-spark", SkipSteps: []string{"installPackages"}}, false},
+		{"dgx spark with nothing skipped", Options{Model: "nvidia-dgx-spark"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.opts.Arch = "aarch64"
+			r, out := output(t, build(t, ubuntu("24.04")), tt.opts)
+			if r.OK() != tt.ok {
+				t.Errorf("OK is %v, want %v:\n%s", r.OK(), tt.ok, out)
+			}
+		})
 	}
 }

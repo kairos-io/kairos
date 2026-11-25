@@ -72,7 +72,11 @@ func (r rootFS) resolve(path string) (string, bool) {
 		}
 		full := r.root + done + "/" + part
 		info, err := os.Lstat(full)
-		r.note(full, err)
+		if err != nil && errors.Is(err, fs.ErrPermission) {
+			// Nothing below can be read either: note it once and stop.
+			r.note(full, err)
+			return "", false
+		}
 		if err == nil && info.Mode()&fs.ModeSymlink != 0 {
 			hops++
 			if hops > maxLinkHops {

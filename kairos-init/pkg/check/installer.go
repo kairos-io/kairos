@@ -85,13 +85,16 @@ func (c *recordingConsole) RunTemplate([]string, string) error { return nil }
 // kairos-init installs packages with. It asks yip's own package step, so the
 // answer is the one a build gets, and it runs nothing. It is empty when yip
 // stops with "unknown package manager".
-func packageManager(root rootFS) string {
+func packageManager(root rootFS) (string, error) {
 	console := &recordingConsole{}
 	stage := schema.Stage{Packages: schema.Packages{Install: []string{"kairos-check"}}}
 	err := plugins.Packages(logger.NewNullLogger(), stage, rootVFS{root: root}, console)
-	if err != nil || len(console.commands) == 0 {
-		return ""
+	if err != nil {
+		return "", err
+	}
+	if len(console.commands) == 0 {
+		return "", errors.New("no command")
 	}
 	name, _, _ := strings.Cut(console.commands[0], " ")
-	return name
+	return name, nil
 }
