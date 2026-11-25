@@ -13,6 +13,9 @@ type Options struct {
 	StrictValidation bool
 	Readers          []io.Reader
 	Overwrites       string
+	// NoConfigURLFetch leaves every config_url unfetched and lists it in
+	// UnmergedConfigURLs, for callers that can't wait for the network.
+	NoConfigURLFetch bool
 }
 
 type Option func(o *Options) error
@@ -38,6 +41,11 @@ func (o *Options) Apply(opts ...Option) error {
 			return err
 		}
 	}
+	return nil
+}
+
+var NoConfigURLFetch Option = func(o *Options) error {
+	o.NoConfigURLFetch = true
 	return nil
 }
 

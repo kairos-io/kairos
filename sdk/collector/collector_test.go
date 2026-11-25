@@ -515,6 +515,24 @@ info:
 				Expect(c.MergeConfigURL()).To(Succeed())
 			})
 		})
+
+		It("lists config_url as unmerged without fetching it under NoConfigURLFetch", func() {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				_, _ = w.Write([]byte("#cloud-config\nname: remote\n"))
+			}))
+			DeferCleanup(server.Close)
+
+			o := &Options{}
+			Expect(o.Apply(Readers(strings.NewReader("config_url: "+server.URL+"/config.yaml\nname: local\n")), NoConfigURLFetch)).To(Succeed())
+			c, err := Scan(o, nil)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(requests.Load()).To(BeZero())
+			Expect(c.Values).To(HaveKeyWithValue("name", "local"))
+			Expect(c.UnmergedConfigURLs).To(Equal([]string{server.URL + "/config.yaml"}))
+		})
 	})
 
 	Describe("Readers", func() {

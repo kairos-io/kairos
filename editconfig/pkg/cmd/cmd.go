@@ -168,7 +168,9 @@ func editCloudInitWithSignals(path, editor string, output io.Writer, signals <-c
 // loads its configuration. They span files (ssh_hardening in one file, the
 // user's ssh_authorized_keys in another), so they run on the merge of every
 // scanned config, with the draft at tempPath standing in for the file at
-// path.
+// path. Only the scanned files are checked. The install flows also merge the
+// kernel command line (filtered with FilterKeys), so a draft that relies on
+// keys given there can be rejected although install would accept it.
 func validateMergedSemantics(path, tempPath string) error {
 	// Match the scan entry by path rather than by file identity: when path
 	// is a symlink, the walk reports the link itself, and saving replaces
@@ -200,13 +202,14 @@ func validateMergedSemantics(path, tempPath string) error {
 		files = append(files, tempPath)
 	}
 
-	merged, err := collector.Scan(&collector.Options{ScanDir: files, NoLogs: true}, nil)
+	// Failures of the check itself never block a save. The agent reports
+	// them when it loads the configuration.
+	merged, err := collector.Scan(&collector.Options{ScanDir: files, NoLogs: true, NoConfigURLFetch: true}, nil)
 	if err != nil || len(merged.UnmergedConfigURLs) > 0 {
-		// A config_url that cannot be fetched leaves out whatever it
-		// provides, such as the only ssh_authorized_keys, so the merge is
-		// not what the agent will see. The agent reports the fetch itself,
-		// and refusing the save would keep the user from fixing the URL or
-		// editing offline.
+		// A config_url can provide anything, such as the only
+		// ssh_authorized_keys, so without it the merge is not what the
+		// agent will see. It is not fetched, because a fetch to an
+		// unreachable host holds up each save for close to a minute.
 		return nil
 	}
 	content, err := merged.String()

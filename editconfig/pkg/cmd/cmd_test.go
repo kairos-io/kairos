@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -156,9 +157,10 @@ fi`)
 			Expect(output.String()).To(ContainSubstring("Invalid draft discarded"))
 		})
 
-		It("accepts it when a config_url cannot be merged", func() {
+		It("accepts it without a fetch when another config sets config_url", func() {
+			var requests atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_, _ = w.Write([]byte("not_a_cloud_config: true\n"))
+				requests.Add(1)
 			}))
 			DeferCleanup(server.Close)
 			Expect(os.WriteFile(filepath.Join(dir, "10_remote.yaml"), []byte("#cloud-config\nconfig_url: "+server.URL+"/keys.yaml\n"), 0644)).To(Succeed())
@@ -169,6 +171,32 @@ fi`)
 			content, err := os.ReadFile(path)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(content)).To(Equal(hardenedCloudConfig))
+			Expect(requests.Load()).To(BeZero())
+		})
+
+		It("accepts it when a later config turns ssh_hardening off", func() {
+			Expect(os.WriteFile(filepath.Join(dir, "95_override.yaml"), []byte("#cloud-config\ninstall:\n  ssh_hardening: false\n"), 0644)).To(Succeed())
+			path := writeCloudConfig(dir, validCloudConfig, 0644)
+			editor := writeEditor(dir, "hardening-editor", "printf '%s' '"+hardenedCloudConfig+"' > \"$1\"")
+
+			Expect(editCloudInit(path, editor, &bytes.Buffer{})).To(Succeed())
+			content, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(content)).To(Equal(hardenedCloudConfig))
+		})
+
+		It("checks a file outside the config directories after them", func() {
+			Expect(os.WriteFile(filepath.Join(dir, "95_override.yaml"), []byte("#cloud-config\ninstall:\n  ssh_hardening: false\n"), 0644)).To(Succeed())
+			outside := GinkgoT().TempDir()
+			path := writeCloudConfig(outside, validCloudConfig, 0644)
+			editor := writeEditor(outside, "hardening-editor", "printf '%s' '"+hardenedCloudConfig+"' > \"$1\"")
+			var output bytes.Buffer
+
+			Expect(editCloudInit(path, editor, &output)).To(Succeed())
+			content, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(content)).To(Equal(validCloudConfig))
+			Expect(output.String()).To(ContainSubstring("Invalid draft discarded"))
 		})
 	})
 

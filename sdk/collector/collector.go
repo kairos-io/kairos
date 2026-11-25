@@ -103,8 +103,9 @@ type Config struct {
 // config file in the chain because we replace values when we merge.
 // NOTE: a remote body without one of ValidFileHeaders, and a fetch that fails
 // after its retries, are both silently dropped: fetchRemoteConfig returns an
-// empty config and a nil error. Both are marked TODO there, and the URL is
-// recorded in UnmergedConfigURLs.
+// empty config and a nil error. Both are marked TODO there. Each dropped URL
+// is recorded in UnmergedConfigURLs so a caller can tell the merge is
+// incomplete.
 func (c *Config) MergeConfigURL() error {
 	// If there is no config_url, just return (do nothing)
 	configURL := c.ConfigURL()
@@ -360,10 +361,20 @@ func (c *Config) String() (string, error) {
 }
 
 func (cs Configs) Merge() (*Config, error) {
+	return cs.merge(true)
+}
+
+// merge merges cs in order. With fetch false, each config_url is listed in
+// UnmergedConfigURLs instead of being fetched.
+func (cs Configs) merge(fetch bool) (*Config, error) {
 	result := &Config{}
 
 	for _, c := range cs {
-		if err := c.MergeConfigURL(); err != nil {
+		if !fetch {
+			if url := c.ConfigURL(); url != "" {
+				result.UnmergedConfigURLs = append(result.UnmergedConfigURLs, url)
+			}
+		} else if err := c.MergeConfigURL(); err != nil {
 			return result, err
 		}
 
@@ -389,7 +400,7 @@ func Scan(o *Options, filter func(d []byte) ([]byte, error)) (*Config, error) {
 		}
 	}
 
-	mergedConfig, err := configs.Merge()
+	mergedConfig, err := configs.merge(!o.NoConfigURLFetch)
 	if err != nil {
 		return mergedConfig, err
 	}
