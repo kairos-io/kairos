@@ -5,7 +5,11 @@ name: Build flavors (kairos-init base-image smoke matrix)
 # verifies:
 #   1. kairos-init succeeds against BASE_IMAGE with the given
 #      MODEL / TRUSTED_BOOT / PROVIDER / FIPS knobs, and
-#   2. `kairos-init validate` passes on the produced rootfs.
+#   2. `kairos-init validate` passes on the produced rootfs, and
+#   3. scripts/check-base-image.sh agrees, before and after kairos-init.
+#
+# The cells with "unsupported" set are the reverse: base images that both
+# check-base-image.sh and kairos-init have to refuse, the latter with that error.
 #
 # The kairos-init binary comes from the per-arch tarball artifact
 # _build-kairos-init.yaml uploads ("kairos-init-linux-<arch>"), so
@@ -113,7 +117,9 @@ jobs:
             {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.6.3"},
             {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main"},
             {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.6.3","model":"rpi4","fips":false},
-            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main","model":"rpi4","fips":false}
+            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main","model":"rpi4","fips":false},
+            {"platform":"amd64","base_image":"archlinux:latest","unsupported":"open /lib/modules: no such file or directory"},
+            {"platform":"amd64","base_image":"kalilinux/kali-rolling","unsupported":"unknown package manager"}
           ]'
           cells=$(jq -c --argjson e "$extras" '. + $e' <<<"$cells")
           if [[ "$SCOPE" == "full" ]]; then
@@ -151,6 +157,8 @@ jobs:
         matrix.trusted_boot == 'true' && ' +uki' || ''
       }}${{
         matrix.fips == true && ' +fips' || ''
+      }}${{
+        matrix.unsupported && ' (unsupported)' || ''
       }}
     steps:
       - name: Checkout
@@ -209,6 +217,7 @@ jobs:
         with:
           context: .
           file: kairos-init/Dockerfile.test
+          target: ${{ matrix.unsupported && 'unsupported' || 'default' }}
           platforms: linux/${{ matrix.platform }}
           push: false
           # Local-only tag; nothing consumes this image, the RUN steps
@@ -221,6 +230,7 @@ jobs:
             PROVIDER_NAME=${{ matrix.kubernetes_provider || '' }}
             PROVIDER_VERSION=${{ matrix.kubernetes_version || '' }}
             VERSION=${{ env.VERSION }}
+            EXPECTED_ERROR=${{ matrix.unsupported || '' }}
             FIPS=${{ matrix.fips || false }}
             TRUSTED_BOOT=${{ matrix.trusted_boot || 'false' }}
             MODEL=${{ matrix.model || 'generic' }}

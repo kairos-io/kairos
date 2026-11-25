@@ -6,6 +6,12 @@
 # PROVIDER / FIPS knobs) and that `kairos-init validate` passes on
 # the result. No ISO, no push.
 #
+# scripts/check-base-image.sh, which tells users whether their distribution can
+# become a Kairos system, runs on the same image. A cell fails when that script
+# and kairos-init disagree, in either direction: the "default" stage is for base
+# images that have to convert, the "unsupported" stage for base images that both
+# have to refuse.
+#
 # The kairos-init binary itself is not built here; it is copied from
 # the per-arch dist/linux-<TARGETARCH>/ directory the caller workflow
 # unpacks into the build context, matching the consumer shape used
@@ -17,6 +23,27 @@ FROM scratch AS kairos-init-bin
 ARG TARGETARCH
 COPY dist/linux-${TARGETARCH}/kairos-init /kairos-init
 
+# Base images kairos-init cannot convert. EXPECTED_ERROR is the text it has to
+# stop with, so that a mirror that is down does not count as a refusal. If one of
+# them starts to convert, the rules in scripts/check-base-image.sh are out of
+# date: update them and move the cell to the supported base images in
+# _build-flavors.yaml.
+FROM ${BASE_IMAGE} AS unsupported
+ARG VERSION=v0.0.1
+ARG EXPECTED_ERROR
+COPY scripts/check-base-image.sh /check-base-image.sh
+COPY --from=kairos-init-bin /kairos-init /kairos-init
+RUN rc=0; /check-base-image.sh || rc=$?; \
+    if [ "$rc" -ne 1 ]; then \
+      echo "check-base-image.sh exits $rc on a base image it has to refuse" >&2; exit 1; \
+    fi
+RUN if [ -z "${EXPECTED_ERROR}" ]; then echo "EXPECTED_ERROR is not set" >&2; exit 1; fi; \
+    if /kairos-init -l debug --version "${VERSION}" >/kairos-init.log 2>&1; then \
+      echo "kairos-init converts a base image that check-base-image.sh refuses" >&2; exit 1; \
+    fi; \
+    cat /kairos-init.log; \
+    grep -qF "${EXPECTED_ERROR}" /kairos-init.log
+
 FROM ${BASE_IMAGE} AS default
 ARG MODEL=generic
 ARG TRUSTED_BOOT=false
@@ -26,6 +53,9 @@ ARG VERSION=v0.0.1
 ARG FIPS=false
 ARG VALIDATE=true
 
+COPY scripts/check-base-image.sh /check-base-image.sh
+RUN if [ "${TRUSTED_BOOT}" = "true" ]; then set -- --trusted-boot; fi; \
+    /check-base-image.sh "$@"
 COPY --from=kairos-init-bin /kairos-init /kairos-init
 # Build the flag list so cells without a provider don't pass
 # `--provider ""` (which kairos-init reads as StandardVariant with an
@@ -41,4 +71,10 @@ RUN set -- -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}"; \
     fi; \
     /kairos-init "$@"
 RUN if [ "${VALIDATE}" = 'true' ]; then /kairos-init validate -t "${TRUSTED_BOOT}"; fi
-RUN rm /kairos-init
+# The board kernels of the other models are built for one board and leave out
+# drivers the generic images need.
+RUN if [ "${VALIDATE}" = "true" ] && [ "${MODEL}" = "generic" ]; then \
+      if [ "${TRUSTED_BOOT}" = "true" ]; then set -- --trusted-boot; fi; \
+      /check-base-image.sh --converted "$@"; \
+    fi
+RUN rm /kairos-init /check-base-image.sh

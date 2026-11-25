@@ -207,6 +207,8 @@ jobs:
         run: scripts/auroraboot-release-values_test.sh
       - name: Test the factory base_image parsing
         run: scripts/factory-base-image_test.sh
+      - name: Test the base image check script
+        run: scripts/check-base-image_test.sh
 
   # Per-PR ISO size signal against the last green master run. It is an
   # informational report and never gates the PR. This run builds no UKI
