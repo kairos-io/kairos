@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -148,10 +149,21 @@ models and FIPS either.
 
 Exit status: 0 when nothing required is missing, 1 when something is, 2 on a
 usage error.`,
-	Args:          cobra.NoArgs,
+	Args: func(cmd *cobra.Command, args []string) error {
+		if err := cobra.NoArgs(cmd, args); err != nil {
+			return &exitError{code: 2, err: fmt.Errorf("%w (to check an unpacked image, pass --root)", err)}
+		}
+		return nil
+	},
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if checkOpts.Arch != "" && checkOpts.Root == "" {
+			return &exitError{code: 2, err: errors.New("--arch needs --root: the running system has the architecture of this machine")}
+		}
+		if strings.ToLower(trusted) == "true" || trusted == "1" {
+			checkOpts.TrustedBoot = true
+		}
 		report, err := check.Run(checkOpts)
 		if err != nil {
 			return &exitError{code: 2, err: err}
@@ -172,15 +184,38 @@ func preCheck(l logger.KairosLogger) error {
 		l.Warn("Skipping the check of the system, as requested")
 		return nil
 	}
-	report, err := check.Run(check.Options{
+	return runPreCheck(os.Stderr, preCheckOptions(stageFlag.Value), config.DefaultConfig.DryRun)
+}
+
+// preCheckOptions says what the conversion is going to do, so that the check
+// only asks for what the steps that run will not bring themselves.
+func preCheckOptions(stage string) check.Options {
+	skip := append([]string{}, config.DefaultConfig.SkipSteps...)
+	if stage == "init" {
+		// The install stage ran before, in an earlier layer.
+		skip = append(skip, values.InstallStage)
+	}
+	return check.Options{
 		TrustedBoot: config.DefaultConfig.TrustedBoot,
 		Model:       config.DefaultConfig.Model,
-	})
+		SkipSteps:   skip,
+	}
+}
+
+// runPreCheck runs the check and prints it to w. It gives an error when
+// something required is missing, except for a dry run, which only prints what it
+// would do and has to work on any machine.
+func runPreCheck(w io.Writer, opts check.Options, dryRun bool) error {
+	report, err := check.Run(opts)
 	if err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintln(os.Stderr, "Checking that the system can become a Kairos system")
-	report.Print(os.Stderr, true)
+	_, _ = fmt.Fprintln(w, "Checking that the system can become a Kairos system")
+	report.Print(w, true)
+	if !report.OK() && dryRun {
+		_, _ = fmt.Fprintln(w, "This is a dry run, so it goes on.")
+		return nil
+	}
 	if !report.OK() {
 		var reasons []string
 		for _, f := range report.Failures() {
@@ -322,7 +357,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&config.DefaultConfig.DryRun, "dry-run", false, "print the resolved yip stages to stdout and exit without running yip stages, copying configs/binaries, or invoking provider hooks (logs may still be written)")
 	rootCmd.Flags().BoolVar(&skipCheck, "skip-check", false, "do not check first that the system can become a Kairos system (see 'kairos-init check')")
 	checkCmd.Flags().StringVar(&checkOpts.Root, "root", "", "check an unpacked root filesystem instead of the running system")
-	checkCmd.Flags().StringVar(&checkOpts.Arch, "arch", "", "architecture of --root, as `uname -m` prints it (default: this machine's)")
+	checkCmd.Flags().StringVar(&checkOpts.Arch, "arch", "", "architecture of --root, as uname -m prints it (needs --root)")
 	checkCmd.Flags().BoolVar(&checkOpts.TrustedBoot, "trusted-boot", false, "check for a Trusted Boot (UKI) image, which has no GRUB and no dracut initramfs")
 	checkCmd.Flags().BoolVar(&checkOpts.Converted, "converted", false, "the system already went through kairos-init, so anything missing is missing for good")
 	checkCmd.Flags().BoolVar(&checkQuiet, "quiet", false, "print the warn and fail lines and the result only")
@@ -334,6 +369,7 @@ func init() {
 
 	addSharedFlags(rootCmd)
 	addSharedFlags(validateCmd)
+	addSharedFlags(checkCmd)
 
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(validateCmd)

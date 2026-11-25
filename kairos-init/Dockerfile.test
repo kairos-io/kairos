@@ -10,8 +10,9 @@
 # Kairos system, runs on the same image. A cell fails when the check and the
 # conversion disagree, in either direction: the "default" stage is for base
 # images that have to convert, the "unsupported" stage for base images that both
-# have to refuse. The conversion runs the same check first, so it stops with the
-# line of the check that failed.
+# have to refuse. The conversion runs the same check first. The "unsupported"
+# stage turns that off with --skip-check for the conversion, so that its own
+# error is what the cell looks for and the check does not judge itself.
 #
 # The kairos-init binary itself is not built here; it is copied from
 # the per-arch dist/linux-<TARGETARCH>/ directory the caller workflow
@@ -38,7 +39,7 @@ RUN rc=0; /kairos-init check || rc=$?; \
       echo "kairos-init check exits $rc on a base image it has to refuse" >&2; exit 1; \
     fi
 RUN if [ -z "${EXPECTED_ERROR}" ]; then echo "EXPECTED_ERROR is not set" >&2; exit 1; fi; \
-    if /kairos-init -l debug --version "${VERSION}" >/kairos-init.log 2>&1; then \
+    if /kairos-init --skip-check -l debug --version "${VERSION}" >/kairos-init.log 2>&1; then \
       echo "kairos-init converts a base image that kairos-init check refuses" >&2; exit 1; \
     fi; \
     cat /kairos-init.log; \

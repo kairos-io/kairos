@@ -1,9 +1,12 @@
 package check
 
 import (
+	"errors"
 	"io/fs"
+	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/yip/pkg/plugins"
@@ -11,16 +14,53 @@ import (
 	"github.com/twpayne/go-vfs/v5"
 )
 
+// closedFS is a file system that refuses everything. rootVFS builds on it, so
+// that a method of yip's that is not redirected into the root fails and never
+// reads the host.
+type closedFS struct{}
+
+var errClosed = errors.New("not available when checking a root filesystem")
+
+func (closedFS) Chmod(string, fs.FileMode) error                     { return errClosed }
+func (closedFS) Chown(string, int, int) error                        { return errClosed }
+func (closedFS) Chtimes(string, time.Time, time.Time) error          { return errClosed }
+func (closedFS) Create(string) (*os.File, error)                     { return nil, errClosed }
+func (closedFS) Glob(string) ([]string, error)                       { return nil, errClosed }
+func (closedFS) Lchown(string, int, int) error                       { return errClosed }
+func (closedFS) Link(string, string) error                           { return errClosed }
+func (closedFS) Lstat(string) (fs.FileInfo, error)                   { return nil, errClosed }
+func (closedFS) Mkdir(string, fs.FileMode) error                     { return errClosed }
+func (closedFS) Open(string) (fs.File, error)                        { return nil, errClosed }
+func (closedFS) OpenFile(string, int, fs.FileMode) (*os.File, error) { return nil, errClosed }
+func (closedFS) PathSeparator() rune                                 { return '/' }
+func (closedFS) RawPath(string) (string, error)                      { return "", errClosed }
+func (closedFS) ReadDir(string) ([]fs.DirEntry, error)               { return nil, errClosed }
+func (closedFS) ReadFile(string) ([]byte, error)                     { return nil, errClosed }
+func (closedFS) Readlink(string) (string, error)                     { return "", errClosed }
+func (closedFS) Remove(string) error                                 { return errClosed }
+func (closedFS) RemoveAll(string) error                              { return errClosed }
+func (closedFS) Rename(string, string) error                         { return errClosed }
+func (closedFS) Stat(string) (fs.FileInfo, error)                    { return nil, errClosed }
+func (closedFS) Symlink(string, string) error                        { return errClosed }
+func (closedFS) Truncate(string, int64) error                        { return errClosed }
+func (closedFS) WriteFile(string, []byte, fs.FileMode) error         { return errClosed }
+
 // rootVFS gives yip the os-release of the root. yip opens /etc/os-release to
 // choose the package manager, and an absolute link in an unpacked image has to
-// point into the image.
+// point into the image. Reads go into the root, everything else is refused.
 type rootVFS struct {
-	vfs.FS
+	closedFS
 	root rootFS
 }
 
+var _ vfs.FS = rootVFS{}
+
 func (v rootVFS) Open(name string) (fs.File, error) {
 	return v.root.open(name)
+}
+
+func (v rootVFS) ReadFile(name string) ([]byte, error) {
+	return v.root.readFile(name)
 }
 
 // recordingConsole is a yip console that runs nothing and keeps the commands.
@@ -44,7 +84,7 @@ func (c *recordingConsole) RunTemplate([]string, string) error { return nil }
 func packageManager(root rootFS) string {
 	console := &recordingConsole{}
 	stage := schema.Stage{Packages: schema.Packages{Install: []string{"kairos-check"}}}
-	err := plugins.Packages(logger.NewNullLogger(), stage, rootVFS{FS: vfs.OSFS, root: root}, console)
+	err := plugins.Packages(logger.NewNullLogger(), stage, rootVFS{root: root}, console)
 	if err != nil || len(console.commands) == 0 {
 		return ""
 	}

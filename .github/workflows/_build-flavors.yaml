@@ -9,7 +9,8 @@ name: Build flavors (kairos-init base-image smoke matrix)
 #   3. `kairos-init check` agrees, before and after kairos-init.
 #
 # The cells with "unsupported" set are the reverse: base images that both
-# `kairos-init check` and kairos-init have to refuse, the latter with that error.
+# `kairos-init check` and kairos-init have to refuse. kairos-init runs with
+# --skip-check there and has to stop with that error of its own.
 #
 # The kairos-init binary comes from the per-arch tarball artifact
 # _build-kairos-init.yaml uploads ("kairos-init-linux-<arch>"), so
@@ -118,7 +119,7 @@ jobs:
             {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main"},
             {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.6.3","model":"rpi4","fips":false},
             {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main","model":"rpi4","fips":false},
-            {"platform":"amd64","base_image":"archlinux:latest","unsupported":"no package list for the Arch family"},
+            {"platform":"amd64","base_image":"archlinux:latest","unsupported":"open /lib/modules: no such file or directory"},
             {"platform":"amd64","base_image":"kalilinux/kali-rolling","unsupported":"unknown package manager"}
           ]'
           cells=$(jq -c --argjson e "$extras" '. + $e' <<<"$cells")

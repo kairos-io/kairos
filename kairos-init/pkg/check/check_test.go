@@ -93,7 +93,7 @@ func TestVerdicts(t *testing.T) {
 		{name: "alpine with the busybox init", d: distro{"alpine", "", "3.23.8", "Alpine Linux v3.23", []string{"apk", "/sbin/init", "/etc/inittab"}}, ok: true},
 		{name: "alpine edge", d: distro{"alpine", "", "3.24.0_alpha20261001", "Alpine Linux edge", []string{"apk"}}, ok: true},
 		{name: "opensuse leap", d: leap("16.0"), ok: true},
-		{name: "SLES without all packages", d: distro{"sles", "suse", "15.7", "SUSE Linux Enterprise Server 15 SP7", []string{"zypper"}}, wants: []string{"in its public repositories"}},
+		{name: "SLES without all packages in its public repositories", d: distro{"sles", "suse", "15.7", "SUSE Linux Enterprise Server 15 SP7", []string{"zypper"}}, ok: true, wants: []string{"warn  packages: SLES 15.7", "subscription"}},
 		{name: "SLES through ID_LIKE=suse", d: distro{"sles", "suse", "16.0", "SUSE Linux Enterprise Server 16.0", []string{"zypper"}}, ok: true, wants: []string{"need a subscription"}},
 		{name: "rhel", d: distro{"rhel", "fedora", "9.6", "Red Hat Enterprise Linux 9.6 (Plow)", []string{"dnf"}}, ok: true, wants: []string{"need a subscription"}},
 		{name: "debian without all packages", d: debian("11"), wants: []string{"Debian 12 or newer"}},
@@ -467,5 +467,105 @@ func TestDracutModuleCommands(t *testing.T) {
 	}
 	if strings.Contains(got, "immucore") {
 		t.Errorf("immucore is not a tool of the distribution: %s", got)
+	}
+}
+
+func TestOptions(t *testing.T) {
+	kernelRoot := func(t *testing.T) string {
+		root := build(t, ubuntu("18.04"))
+		write(t, filepath.Join(root, "lib/modules/5.4.0/modules.builtin"), "", 0o644)
+		return root
+	}
+	tests := []struct {
+		name  string
+		root  func(t *testing.T) string
+		opts  Options
+		arch  string
+		ok    bool
+		wants []string
+	}{
+		{"a release outside the kernel list is refused", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{}, "", false, []string{"kairos-init has none for Ubuntu"}},
+		{"a board model is not judged by the generic kernel list", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{Model: "rpi4"}, "", true, nil},
+		{"nvidia-dgx-spark on arm64", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{Model: "nvidia-dgx-spark"}, "aarch64", true, nil},
+		{"a kernel that is already installed", kernelRoot, Options{}, "", true, []string{"kernel: 5.4.0"}},
+		{"installKernel is skipped", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{SkipSteps: []string{"installKernel"}}, "", true, nil},
+		{"the install stage is skipped", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{SkipSteps: []string{"install"}}, "", false, []string{"fail  rsync is missing"}},
+		{"installPackages is skipped, so nothing brings the tools", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{SkipSteps: []string{"installPackages"}}, "", false, []string{"fail  rsync is missing"}},
+		{"installPackages is skipped on a family without a list", func(t *testing.T) string {
+			return build(t, distro{"arch", "", "1", "Arch Linux", []string{"pacman"}})
+		}, Options{SkipSteps: []string{"installPackages"}}, "", false, []string{"fail  rsync is missing"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.opts.Arch = tt.arch
+			r, out := output(t, tt.root(t), tt.opts)
+			if r.OK() != tt.ok {
+				t.Errorf("OK is %v, want %v:\n%s", r.OK(), tt.ok, out)
+			}
+			for _, want := range tt.wants {
+				if !strings.Contains(out, want) {
+					t.Errorf("the output does not hold %q:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
+
+// The stages match on PRETTY_NAME alone: NAME does not count.
+func TestNameIsNotPrettyName(t *testing.T) {
+	root := build(t, ubuntu("24.04"))
+	write(t, filepath.Join(root, "etc/os-release"), "NAME=\"Ubuntu\"\nID=ubuntu\nID_LIKE=debian\nVERSION_ID=\"24.04\"\n", 0o644)
+	r, out := output(t, root, Options{})
+	if r.OK() || !strings.Contains(out, "no kairos-init stage matches PRETTY_NAME=none") {
+		t.Errorf("an os-release with NAME only:\n%s", out)
+	}
+}
+
+// A link inside the root that points at the host is not followed.
+func TestModuleFilesStayInTheRoot(t *testing.T) {
+	root := completeSystem(t)
+	dep := filepath.Join(root, "lib/modules/6.8.0/modules.dep")
+	must(t, os.Remove(dep))
+	must(t, os.Symlink("/dev/zero", dep))
+	r, out := output(t, root, Options{Converted: true})
+	if r.OK() || !strings.Contains(out, "module overlay is missing") {
+		t.Errorf("a modules.dep that is a link to a device:\n%s", out)
+	}
+}
+
+func TestKernelDirectoryWithoutKernel(t *testing.T) {
+	root := build(t, ubuntu("24.04"))
+	must(t, os.MkdirAll(filepath.Join(root, "lib/modules"), 0o755))
+	_, out := output(t, root, Options{Converted: true})
+	if !strings.Contains(out, "a kernel under /lib/modules is missing") {
+		t.Errorf("an empty /lib/modules:\n%s", out)
+	}
+}
+
+func TestSystemdVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		version int
+		err     error
+		tb      bool
+		status  Status
+	}{
+		{"new enough", 256, nil, true, Pass},
+		{"the limit", 252, nil, false, Pass},
+		{"old, optional", 249, nil, false, Warn},
+		{"old with Trusted Boot", 249, nil, true, Fail},
+		{"unreadable", 0, os.ErrNotExist, false, Warn},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			old := systemdVersion
+			t.Cleanup(func() { systemdVersion = old })
+			systemdVersion = func(string) (int, error) { return tt.version, tt.err }
+			c := &checker{opts: Options{TrustedBoot: tt.tb}, report: &Report{}, systemd: "/usr/bin/systemctl"}
+			c.systemdVersion()
+			if got := c.report.Findings[0].Status; got != tt.status {
+				t.Errorf("status %s, want %s", got, tt.status)
+			}
+		})
 	}
 }

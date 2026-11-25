@@ -101,6 +101,26 @@ func (r rootFS) open(path string) (*os.File, error) {
 	return os.Open(full)
 }
 
+// maxFileSize is how much of a file of the root is read. The module lists of a
+// kernel are a few hundred kilobytes.
+const maxFileSize = 64 << 20
+
+// readFile reads a file of the root, which has to be a regular file.
+func (r rootFS) readFile(path string) ([]byte, error) {
+	full, ok := r.resolve(path)
+	if !ok {
+		return nil, fs.ErrNotExist
+	}
+	info, err := os.Stat(full)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Size() > maxFileSize {
+		return nil, fs.ErrInvalid
+	}
+	return os.ReadFile(full)
+}
+
 // findBin gives the path in the root of the first of the commands that is
 // there as an executable file.
 func (r rootFS) findBin(names ...string) (string, bool) {

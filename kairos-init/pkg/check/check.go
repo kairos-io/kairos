@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -62,8 +63,23 @@ type Options struct {
 	// Converted says the system already went through kairos-init, so anything
 	// missing is missing for good.
 	Converted bool
-	// Model is the model kairos-init builds for. Empty means generic.
+	// Model is the model kairos-init builds for. Empty means generic. The
+	// package lists of a board model are not judged: only the generic model is.
 	Model string
+	// SkipSteps are the steps of kairos-init that will not run (--skip-step). A
+	// requirement that only a skipped step would meet is judged on the system
+	// as it is.
+	SkipSteps []string
+}
+
+// skipped is whether a step will not run: the step itself or the stage it is in.
+func (o Options) skipped(step string, stage string) bool {
+	for _, s := range o.SkipSteps {
+		if s == step || s == stage {
+			return true
+		}
+	}
+	return false
 }
 
 // ErrNotDirectory is returned when Options.Root is not a directory.
@@ -111,7 +127,13 @@ type checker struct {
 func Run(opts Options) (*Report, error) {
 	if opts.Root != "" {
 		info, err := os.Stat(opts.Root)
-		if err != nil || !info.IsDir() {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, fmt.Errorf("%s: %w", opts.Root, ErrNotDirectory)
+			}
+			return nil, err
+		}
+		if !info.IsDir() {
 			return nil, fmt.Errorf("%s: %w", opts.Root, ErrNotDirectory)
 		}
 	}
@@ -222,13 +244,12 @@ func (c *checker) identity() {
 	}
 	c.id = vals["ID"]
 	c.version = vals["VERSION_ID"]
+	// The stages match on PRETTY_NAME alone, with no fallback to NAME.
 	c.pretty = vals["PRETTY_NAME"]
 	c.report.ID = c.id
 
 	c.arch = normalizeArch(c.opts.Arch)
-	goarch := c.arch
-	c.sys = system.DetectFromValues(c.log, vals, goarch)
-	c.pretty = c.sys.Name
+	c.sys = system.DetectFromValues(c.log, vals, c.arch)
 
 	if c.id == "" {
 		if parseErr != nil {
@@ -268,11 +289,16 @@ func (c *checker) packages() {
 	case c.sys.Family == values.HadronFamily:
 		c.pass("packages: Hadron ships everything, kairos-init installs no package on it")
 		return
-	case !hasPackageList(c.sys):
+	case !hasPackageList(c.sys) && !c.opts.skipped(values.InstallPackagesStep, values.InstallStage):
 		c.fail("packages: kairos-init has no package list for the %s family", titleCase(c.family))
 		return
 	}
-	c.report.installs = !c.opts.Converted
+	c.report.installs = !c.opts.Converted && !c.opts.skipped(values.InstallPackagesStep, values.InstallStage)
+	if !c.report.installs && !c.opts.Converted {
+		// Nothing installs the packages, so the system has to have what they bring.
+		c.pass("packages: kairos-init is told not to install any, the system is judged as it is")
+		return
+	}
 	installer := packageManager(c.fs)
 	switch {
 	case installer == "":
@@ -315,7 +341,7 @@ func (c *checker) versions() {
 
 	// Releases the package lists do not fit. A derivative counts its own
 	// versions, so only the distribution itself can be judged by its number.
-	if c.report.installs && c.sys.Arch != "" {
+	if c.report.installs && c.sys.Arch != "" && c.kernelPackageNeeded() {
 		c.kernelPackage()
 	}
 	major := c.majorVersion()
@@ -325,8 +351,37 @@ func (c *checker) versions() {
 	case c.sys.Distro == values.OpenSUSELeap && c.id == "opensuse-leap" && major < 16:
 		c.fail("packages: openSUSE Leap %s does not have all of them, Leap 16 or newer does", c.version)
 	case c.sys.Distro == values.SLES && c.id == "sles" && major < 16:
-		c.fail("packages: SLES %s does not have all of them in its public repositories", c.version)
+		c.warn("packages: SLES %s does not have all of them in its public repositories, a registered system with its subscription repositories may", c.version)
 	}
+}
+
+// kernelPackageNeeded is whether the kernel comes from a package list that can
+// be judged: not for a board model, whose kernel is in lists this check does not
+// read, not when the kernel steps will not run, and not when the system has a
+// kernel already, which kairos-init then finds on disk.
+func (c *checker) kernelPackageNeeded() bool {
+	if c.opts.Model != values.Generic.String() {
+		return false
+	}
+	if c.opts.skipped(values.InstallKernelStep, values.InstallStage) {
+		return false
+	}
+	_, found := c.newestKernel()
+	return !found
+}
+
+// newestKernel is the in-root directory of the newest kernel, as kairos-init
+// chooses it.
+func (c *checker) newestKernel() (string, bool) {
+	dir, ok := c.fs.resolve("/lib/modules")
+	if !ok {
+		return "", false
+	}
+	name, err := kernel.GetLatestFromPath(dir, c.opts.Model, c.log)
+	if err != nil || name == "" {
+		return "", false
+	}
+	return "/lib/modules/" + name, true
 }
 
 var plainRelease = regexp.MustCompile(`^\d+\.\d+$`)
@@ -458,16 +513,18 @@ func (c *checker) kernelSection() {
 	c.section = "Kernel"
 
 	// The newest kernel, as kairos-init chooses it.
-	if dir, ok := c.fs.resolve("/lib/modules"); ok {
-		if name, err := kernel.GetLatestFromPath(dir, c.opts.Model, c.log); err == nil && name != "" {
-			c.kernelDir = dir + "/" + name
-		}
+	if dir, found := c.newestKernel(); found {
+		c.kernelDir = dir
 	}
 	if c.kernelDir == "" {
-		c.missing(levelRequired, "/lib/modules", "kernel")
+		if c.fs.exists("/lib/modules") {
+			c.missing(levelRequired, "a kernel under /lib/modules", "kernel")
+		} else {
+			c.missing(levelRequired, "/lib/modules", "kernel")
+		}
 		return
 	}
-	c.pass("kernel: %s", c.kernelDir[strings.LastIndex(c.kernelDir, "/")+1:])
+	c.pass("kernel: %s", path.Base(c.kernelDir))
 	c.module(levelRequired, "read-only system, writable paths", "overlay")
 	c.module(levelRequired, "install media and recovery image", "squashfs")
 	c.module(levelRequired, "system images", "loop")
@@ -501,7 +558,7 @@ func (c *checker) convertedFile(path string) {
 func (c *checker) module(level, why, name string) {
 	pattern := regexp.MustCompile("/" + strings.ReplaceAll(regexp.QuoteMeta(name), "_", "[-_]") + `\.ko`)
 	for _, file := range []string{"modules.builtin", "modules.dep"} {
-		if data, err := os.ReadFile(c.kernelDir + "/" + file); err == nil && pattern.Match(data) {
+		if data, err := c.fs.readFile(c.kernelDir + "/" + file); err == nil && pattern.Match(data) {
 			c.pass("module %s (%s)", name, why)
 			return
 		}
