@@ -19,7 +19,6 @@ package config
 import (
 	"fmt"
 	"io/fs"
-	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1225,11 +1224,6 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 		size, err = sshSourceSize(config, source)
 		if err != nil {
 			return 0, err
-		}
-		// The size comes from the remote node. It ends up in uint fields, so
-		// refuse what they cannot hold.
-		if size/1024/1024 > math.MaxUint32 {
-			return 0, fmt.Errorf("the image on the remote node is implausibly large (%d bytes)", size)
 		}
 	case source.IsFile():
 		file, err := config.Fs.Stat(source.Value())

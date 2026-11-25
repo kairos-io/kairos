@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"math"
 	"reflect"
 	"strings"
 	"time"
@@ -153,5 +154,15 @@ func sshSourceSize(cfg *sdkConfig.Config, source *sdkImages.ImageSource) (int64,
 	if err != nil {
 		return 0, err
 	}
-	return h.Size, nil
+	// The size comes from the remote node and ends up in uint fields of the
+	// specs, in MiB. Bound it here, on the very value that is returned, so
+	// nothing the remote node says can overflow them.
+	mib := h.Size >> 20
+	if h.Size&(1<<20-1) != 0 {
+		mib++
+	}
+	if mib < 0 || mib > math.MaxUint32 {
+		return 0, fmt.Errorf("the image on the remote node is implausibly large (%d bytes)", h.Size)
+	}
+	return mib << 20, nil
 }
