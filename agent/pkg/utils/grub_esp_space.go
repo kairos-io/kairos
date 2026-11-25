@@ -50,7 +50,7 @@ func CheckESPRefresh(fs sdkFS.KairosFS, arch, sourceDir, efiDir string) error {
 		return err
 	}
 
-	free, err := freeBytesOn(fs, efiDir)
+	free, err := FreeBytesOn(fs, efiDir)
 	if err != nil {
 		return err
 	}
@@ -181,10 +181,10 @@ func sizeOrZero(fs sdkFS.KairosFS, path string) (int64, error) {
 	return st.Size(), nil
 }
 
-// freeBytesOn returns the bytes still writable on the filesystem that holds
+// FreeBytesOn returns the bytes still writable on the filesystem that holds
 // path. It reports Bavail rather than Bfree, so it does not count blocks that
 // only root may use.
-func freeBytesOn(fs sdkFS.KairosFS, path string) (int64, error) {
+func FreeBytesOn(fs sdkFS.KairosFS, path string) (int64, error) {
 	realPath, err := fs.RawPath(path)
 	if err != nil {
 		return 0, fmt.Errorf("resolving %s: %w", path, err)

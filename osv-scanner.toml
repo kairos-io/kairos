@@ -33,7 +33,7 @@
 
 # ---------------------------------------------------------------------------
 # no-fix-available -- no fixed version published upstream.
-# All reached transitively through provider-kairos except x/crypto.
+# All reached transitively through provider-kairos.
 # ---------------------------------------------------------------------------
 
 [[IgnoredVulns]]
@@ -46,20 +46,23 @@ id = "GHSA-q7pp-wcgr-pffx"
 ignoreUntil = 2027-02-08
 reason = "no-fix-available: CVE-2023-36308, github.com/disintegration/imaging. No fixed version published; upstream is effectively unmaintained."
 
-[[IgnoredVulns]]
-id = "GO-2026-5298"
-ignoreUntil = 2027-02-08
-reason = "no-fix-available: CVE-2026-12681, github.com/google/go-attestation. No fixed version published."
+# ---------------------------------------------------------------------------
+# edgevpn -- the one prebuilt binary in the bundle. kairos-init downloads
+# mudler/edgevpn (kairos-init/EDGEVPN_VERSION, v0.37.1) instead of building it
+# from this tree, so its module versions are whatever that release pinned. The
+# latest edgevpn release, v0.37.2, still pins both modules below, so there is
+# no edgevpn version to bump to yet.
+# ---------------------------------------------------------------------------
 
 [[IgnoredVulns]]
-id = "GO-2026-4736"
-ignoreUntil = 2027-02-08
-reason = "no-fix-available: CVE-2026-30405, github.com/osrg/gobgp (v4 4.9.0 in the bundle). No fixed version published, latest is v4.11.0. Re-checked 2026-11-10."
+id = "GO-2026-6278"
+ignoreUntil = 2026-12-09
+reason = "prerelease-only-fix: GHSA-w67g-5rqw-f597, gorilla/websocket weak PRNG for the mask key. In the bundle via edgevpn (websocket v1.5.3; provider-kairos is already on 1.5.4-0.20250319132907). Fixed only in an untagged commit after v1.5.3 (1.5.4-0.20240701034025-d67f41855da4 or later); no tagged release carries it. edgevpn v0.37.2 still pins v1.5.3. Bump edgevpn once it moves off it."
 
 [[IgnoredVulns]]
 id = "GO-2026-5932"
-ignoreUntil = 2026-11-24
-reason = "prerelease-only-fix: golang.org/x/crypto/openpgp. Fixed only in the untagged x/crypto commit 2f1f834330b2 (0.58.1-0.20261009181718); no tagged release after v0.58.0 yet. Bump x/crypto once a release is tagged."
+ignoreUntil = 2026-12-25
+reason = "upstream-fix-pending: golang.org/x/crypto/openpgp is unmaintained. In the bundle via edgevpn (x/crypto v0.58.0; provider-kairos is already on v0.59.0, which carries the fix). edgevpn v0.37.2, the latest release, still pins v0.58.0 and has no open PR bumping it. Bump edgevpn once it releases with x/crypto v0.59.0 or later."
 
 
 # ---------------------------------------------------------------------------
