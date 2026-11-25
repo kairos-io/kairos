@@ -2,12 +2,14 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -78,6 +80,8 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	if err != nil {
 		return result, err
 	}
+
+	applyImageChecksumCmdline(result, o.BootCMDLineFile)
 
 	// A key with no value, `install:` or `install: ~`, unmarshals as null
 	// and replaces the default block with nil. Treat it as an empty block.
@@ -278,4 +282,23 @@ func kairosVersion(fs sdkFs.KairosFS, paths ...string) string {
 	}
 
 	return ""
+}
+
+// applyImageChecksumCmdline lets the image-checksum.* keys on the kernel cmdline
+// win over the cloud config, in every action that scans the config. The cmdline
+// is read for these keys whether or not the scan merges the whole cmdline, as
+// upgrade and reset do not.
+func applyImageChecksumCmdline(c *sdkConfig.Config, file string) {
+	if file == "" {
+		file = "/proc/cmdline"
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return
+	}
+	o := imagesum.ParseCmdline(string(data))
+	for _, p := range o.Problems {
+		c.Logger.Warnf("ignoring an image checksum setting on the kernel cmdline: %s", p)
+	}
+	c.ImageChecksum.Apply(o)
 }

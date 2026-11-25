@@ -33,6 +33,7 @@ import (
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	sdkBundles "github.com/kairos-io/kairos/v4/sdk/types/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -224,6 +225,37 @@ var _ = Describe("Install action tests", func() {
 			Expect(os.RemoveAll(device)).ToNot(HaveOccurred())
 			ghwTest.Clean()
 			Expect(os.RemoveAll(tmpdir)).ToNot(HaveOccurred())
+		})
+
+		It("Records a valid sha256 next to every image and the policy when create is on", Label("imagesum"), func() {
+			yes := true
+			config.ImageChecksum = imagesum.Config{Create: &yes, Verify: imagesum.Warn}
+			spec.Target = device
+			Expect(installer.Run()).To(Succeed())
+			for _, img := range []string{spec.Active.File, spec.Passive.File, spec.Recovery.File} {
+				r, err := imagesum.Check(fs, img)
+				Expect(err).ToNot(HaveOccurred(), img)
+				Expect(r.Result).To(Equal(imagesum.OK), "checksum of %s: %s", img, r.Result)
+			}
+			for _, img := range []string{spec.Active.File, spec.Recovery.File} {
+				p, found, err := imagesum.ReadPolicy(fs, filepath.Dir(img))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeTrue(), filepath.Dir(img))
+				Expect(p.Verify).To(Equal(imagesum.Warn))
+			}
+		})
+
+		It("Writes no checksums and no policy by default", Label("imagesum"), func() {
+			spec.Target = device
+			Expect(installer.Run()).To(Succeed())
+			for _, img := range []string{spec.Active.File, spec.Passive.File, spec.Recovery.File} {
+				_, found, err := imagesum.Read(fs, img)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(found).To(BeFalse(), img)
+			}
+			_, found, err := imagesum.ReadPolicy(fs, filepath.Dir(spec.Active.File))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeFalse())
 		})
 
 		It("Successfully installs", func() {

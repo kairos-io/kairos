@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
@@ -30,6 +31,7 @@ import (
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -526,6 +528,56 @@ var _ = Describe("Upgrade Actions test", func() {
 				_, err = fs.Stat(spec.Active.File)
 				Expect(err).To(HaveOccurred())
 
+			})
+			Describe("image checksums", Label("directory", "imagesum"), func() {
+				var dirSrc string
+				BeforeEach(func() {
+					dirSrc, _ = fsutils.TempDir(fs, "", "elementalupgrade")
+					Expect(fs.WriteFile(fmt.Sprintf("%s/file.file", dirSrc), []byte("something"), constants.FilePerm)).To(Succeed())
+					spec.Active.Source = sdkImages.NewDirSrc(dirSrc)
+					// Checksums written by a previous install/upgrade, now stale
+					Expect(fs.WriteFile(activeImg+".sha256", []byte(strings.Repeat("0", 64)+"  active.img\n"), constants.FilePerm)).To(Succeed())
+					Expect(fs.WriteFile(passiveImg+".sha256", []byte(strings.Repeat("1", 64)+"  passive.img\n"), constants.FilePerm)).To(Succeed())
+				})
+				AfterEach(func() {
+					_ = fs.RemoveAll(dirSrc)
+					_ = fs.Remove(activeImg + ".sha256")
+					_ = fs.Remove(passiveImg + ".sha256")
+					_ = fs.Remove(constants.RunningStateDir + "/cOS/" + imagesum.PolicyFile)
+				})
+				It("writes valid checksums for the new active and the rotated passive when create is on", func() {
+					yes := true
+					config.ImageChecksum = imagesum.Config{Create: &yes, Verify: imagesum.Fail}
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+
+					for _, img := range []string{activeImg, passiveImg} {
+						r, err := imagesum.Check(fs, img)
+						Expect(err).ToNot(HaveOccurred(), img)
+						Expect(r.Result).To(Equal(imagesum.OK), "checksum of %s: %s", img, r.Result)
+					}
+					// no transition image checksum left around
+					_, err := fs.Stat(spec.Active.File + ".sha256")
+					Expect(err).To(HaveOccurred())
+					// the boot time policy follows the config
+					p, found, err := imagesum.ReadPolicy(fs, constants.RunningStateDir+"/cOS")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(found).To(BeTrue())
+					Expect(p.Verify).To(Equal(imagesum.Fail))
+				})
+				It("drops stale checksums and writes none by default", func() {
+					upgrade = action.NewUpgradeAction(config, spec)
+					Expect(upgrade.Run()).To(Succeed())
+
+					for _, img := range []string{activeImg, passiveImg} {
+						_, found, err := imagesum.Read(fs, img)
+						Expect(err).ToNot(HaveOccurred())
+						Expect(found).To(BeFalse(), "stale checksum left for %s", img)
+					}
+					_, found, err := imagesum.ReadPolicy(fs, constants.RunningStateDir+"/cOS")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(found).To(BeFalse())
+				})
 			})
 			It("Sets next_entry to cos after a system upgrade", Label("bootentry"), func() {
 				Expect(fsutils.MkdirAll(fs, "/etc/cos", constants.DirPerm)).To(Succeed())
