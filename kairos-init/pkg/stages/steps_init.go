@@ -53,6 +53,10 @@ const (
 	dracutModulesDir      = "usr/lib/dracut/modules.d"
 )
 
+// InitrdDracutOS is the yip OnlyIfOs value of the stage that builds the initramfs
+// with dracut. It also matches SLES, which OSDracutFamilies leaves out.
+const InitrdDracutOS = "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|SLES.*|[Oo]penSUSE.*|SUSE.*|Hadron.*"
+
 // GetInitrdStage Returns the initrd stage
 // This stage cleans up any existing initrd files and creates a new one
 // In the case of Trusted boot systems, we dont do anything but remove the initrd files as the initrd is created and
@@ -108,7 +112,7 @@ func GetInitrdStage(_ values.System, logger logger.KairosLogger) ([]schema.Stage
 		stage = append(stage, []schema.Stage{
 			{
 				Name:     "Create new initrd",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|SLES.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: InitrdDracutOS,
 				Commands: []string{
 					fmt.Sprintf("depmod -a %s", kernel),
 					dracutCmd,

@@ -70,6 +70,9 @@ type Options struct {
 	// requirement that only a skipped step would meet is judged on the system
 	// as it is.
 	SkipSteps []string
+	// Extensions is --stage-extensions: stage extensions on disk can bring tools
+	// the check cannot see, so a missing tool is a warning.
+	Extensions bool
 }
 
 // skipped is whether a step will not run: the step itself or the stage it is in.
@@ -121,6 +124,8 @@ type checker struct {
 	systemd    string
 	openrc     string
 	kernelDir  string
+	// kernelComes is whether the kernel steps install the kernel.
+	kernelComes bool
 }
 
 // Run checks the system.
@@ -186,6 +191,10 @@ func (c *checker) failIdentity(format string, args ...any) {
 // there.
 func (c *checker) missing(level, what, why string) {
 	brought := c.report.installs
+	// The kernel and its modules come from the kernel step.
+	if what == "/lib/modules" || what == "a kernel under /lib/modules" || strings.HasPrefix(what, "module ") {
+		brought = c.kernelComes
+	}
 	// What the package lists leave out.
 	switch what {
 	case "systemd-cryptenroll", "systemd-sysext":
@@ -203,6 +212,8 @@ func (c *checker) missing(level, what, why string) {
 	switch {
 	case brought:
 		c.pass("%s (%s): not installed yet, left to the packages for the %s family", what, why, c.family)
+	case level == levelRequired && c.opts.Extensions:
+		c.warn("%s is missing (%s), a stage extension may bring it", what, why)
 	case level == levelRequired:
 		c.fail("%s is missing (%s)", what, why)
 	default:
@@ -289,21 +300,25 @@ func (c *checker) packages() {
 	case c.sys.Family == values.HadronFamily:
 		c.pass("packages: Hadron ships everything, kairos-init installs no package on it")
 		return
-	case !hasPackageList(c.sys) && !c.opts.skipped(values.InstallPackagesStep, values.InstallStage):
-		c.fail("packages: kairos-init has no package list for the %s family", titleCase(c.family))
+	}
+	// What the install steps bring. A step that does not run brings nothing.
+	c.report.installs = !c.opts.Converted && !c.opts.skipped(values.InstallPackagesStep, values.InstallStage)
+	c.kernelComes = !c.opts.Converted && !c.opts.skipped(values.InstallKernelStep, values.InstallStage)
+	if !c.report.installs && !c.kernelComes {
+		if !c.opts.Converted {
+			c.pass("packages: kairos-init is told not to install any, the system is judged as it is")
+		}
 		return
 	}
-	c.report.installs = !c.opts.Converted && !c.opts.skipped(values.InstallPackagesStep, values.InstallStage)
-	if !c.report.installs && !c.opts.Converted {
-		// Nothing installs the packages, so the system has to have what they bring.
-		c.pass("packages: kairos-init is told not to install any, the system is judged as it is")
+	if !hasPackageList(c.sys) {
+		c.fail("packages: kairos-init has no package list for the %s family", titleCase(c.family))
 		return
 	}
 	installer := packageManager(c.fs)
 	switch {
 	case installer == "":
 		c.failIdentity("packages: yip cannot tell the package manager from ID=%s, kairos-init stops with \"unknown package manager\"", c.id)
-	case !c.opts.Converted && !c.hasBin(installer):
+	case !c.hasBin(installer):
 		c.fail("packages: %s is missing, kairos-init cannot install packages", installer)
 	default:
 		c.pass("packages: %s", installer)
@@ -311,7 +326,7 @@ func (c *checker) packages() {
 	switch c.sys.Distro {
 	case values.RedHat, values.SLES, values.SLEMicroRancher:
 		// CentOS Stream is a derivative of rhel with public repositories.
-		if c.sys.Distro.String() == c.id && !c.opts.Converted {
+		if c.sys.Distro.String() == c.id {
 			c.warn("packages: the kernel and other packages are in repositories that need a subscription")
 		}
 	}
@@ -324,13 +339,17 @@ func (c *checker) hasBin(name string) bool {
 
 // versions checks that the version of the system fits the package lists.
 func (c *checker) versions() {
-	// The version filters the package lists, and one that does not parse stops
-	// kairos-init. Hadron installs no package, so its version is not parsed.
+	// The version filters the package lists, and one that does not parse gets no
+	// package from them. Hadron installs no package, so its version is not parsed.
+	// The init stage parses it for Ubuntu and the Red Hat family as well.
+	installs := c.report.installs || c.kernelComes
 	versionOK := true
 	if c.family != "" && c.sys.Family != values.HadronFamily {
 		if _, err := c.sys.ParsedVersion(); err != nil {
 			versionOK = false
-			c.failIdentity("version: VERSION_ID=%s is not a version, kairos-init stops on it", orNone(c.version, "none"))
+			if installs || c.sys.Distro == values.Ubuntu || c.sys.Family == values.RedHatFamily {
+				c.failIdentity("version: VERSION_ID=%s is not a version, kairos-init stops on it", orNone(c.version, "none"))
+			}
 		} else {
 			c.pass("version: %s", c.version)
 		}
@@ -339,11 +358,14 @@ func (c *checker) versions() {
 		return
 	}
 
-	// Releases the package lists do not fit. A derivative counts its own
-	// versions, so only the distribution itself can be judged by its number.
-	if c.report.installs && c.sys.Arch != "" && c.kernelPackageNeeded() {
+	if c.kernelComes && c.sys.Arch != "" && c.kernelPackageNeeded() {
 		c.kernelPackage()
 	}
+	if !c.report.installs {
+		return
+	}
+	// Releases the package lists do not fit. A derivative counts its own
+	// versions, so only the distribution itself can be judged by its number.
 	major := c.majorVersion()
 	switch {
 	case c.sys.Distro == values.Debian && c.id == "debian" && major < 12:
@@ -357,8 +379,7 @@ func (c *checker) versions() {
 
 // kernelPackageNeeded is whether the kernel comes from a package list that can
 // be judged: not for a board model, whose kernel is in lists this check does not
-// read, not when the kernel steps will not run, and not when the system has a
-// kernel already, which kairos-init then finds on disk.
+// read, and not when the kernel step will not run.
 func (c *checker) kernelPackageNeeded() bool {
 	if c.opts.Model != values.Generic.String() {
 		return false
@@ -366,8 +387,7 @@ func (c *checker) kernelPackageNeeded() bool {
 	if c.opts.skipped(values.InstallKernelStep, values.InstallStage) {
 		return false
 	}
-	_, found := c.newestKernel()
-	return !found
+	return true
 }
 
 // newestKernel is the in-root directory of the newest kernel, as kairos-init
@@ -392,6 +412,14 @@ var hweKernel = regexp.MustCompile(`-hwe-(\d+\.\d+)$`)
 func (c *checker) kernelPackage() {
 	packages, _ := values.GetKernelPackagesFor(c.sys, c.opts.TrustedBoot, c.opts.Model, c.log)
 	known := len(packages) > 0
+	if !known {
+		// No package, so the step installs nothing. A kernel the system has is
+		// then the one kairos-init finds.
+		if _, found := c.newestKernel(); found {
+			c.pass("kernel package: kairos-init has none for %s %s, the kernel of the system is used", titleCase(c.distro), c.version)
+			return
+		}
+	}
 	// A kernel that names the release it comes from does not exist before it.
 	// The Trusted Boot list names the 24.04 kernel for every Ubuntu release.
 	if v, err := c.sys.ParsedVersion(); err == nil {
@@ -421,9 +449,16 @@ func (c *checker) kernelPackage() {
 // initramfsStages checks that the stages that build the initramfs run on this
 // system. They match on PRETTY_NAME.
 func (c *checker) initramfsStages() {
+	if c.opts.skipped(values.InitrdStep, values.InitStage) {
+		c.pass("build steps: the initramfs is not built, so PRETTY_NAME is not looked at")
+		return
+	}
 	dracut := regexp.MustCompile(stages.OSDracutFamilies).MatchString(c.pretty)
+	initrd := regexp.MustCompile(stages.InitrdDracutOS).MatchString(c.pretty)
 	alpine := regexp.MustCompile(values.AlpineRegex).MatchString(c.pretty)
 	switch {
+	case !dracut && initrd:
+		c.failIdentity("build steps: PRETTY_NAME=%s matches the stage that builds the initramfs, but not the stages that put immucore into it", c.pretty)
 	case !dracut && !alpine:
 		c.failIdentity("build steps: no kairos-init stage matches PRETTY_NAME=%s, so it builds no initramfs and does not enable the network and ssh services", orNone(c.pretty, "none"))
 	case c.opts.TrustedBoot:
@@ -556,6 +591,11 @@ func (c *checker) convertedFile(path string) {
 // module checks that the driver is a module or is built into the kernel. File
 // names use dashes and underscores alike.
 func (c *checker) module(level, why, name string) {
+	// The kernel of a board is built for that board and leaves out drivers the
+	// generic images need, so its modules are not required.
+	if c.opts.Model != values.Generic.String() && level == levelRequired {
+		level = levelOptional
+	}
 	pattern := regexp.MustCompile("/" + strings.ReplaceAll(regexp.QuoteMeta(name), "_", "[-_]") + `\.ko`)
 	for _, file := range []string{"modules.builtin", "modules.dep"} {
 		if data, err := c.fs.readFile(c.kernelDir + "/" + file); err == nil && pattern.Match(data) {
@@ -665,7 +705,10 @@ func agentKnowsRedHat(id string) bool {
 	return false
 }
 
-var instCheck = regexp.MustCompile(`(?m)^\s+inst_check_multiple (\S.*)$`)
+var (
+	instCheck   = regexp.MustCompile(`(?m)^\s+inst_check_multiple ([^|;&\\\n]+)`)
+	commandName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
+)
 
 // dracutModuleCommands are the commands the immucore dracut module insists on,
 // from the module itself.
@@ -673,7 +716,7 @@ func dracutModuleCommands() []string {
 	var out []string
 	for _, m := range instCheck.FindAllStringSubmatch(bundled.ImmucoreModuleSetupDracut, -1) {
 		for _, command := range strings.Fields(m[1]) {
-			if command != "immucore" {
+			if command != "immucore" && commandName.MatchString(command) {
 				out = append(out, command)
 			}
 		}

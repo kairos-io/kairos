@@ -68,6 +68,7 @@ func TestCheckCommandExitStatus(t *testing.T) {
 	}{
 		{"an argument", []string{"/some/dir"}, check.Options{}, 2},
 		{"--arch without --root", nil, check.Options{Arch: "aarch64"}, 2},
+		{"--arch with --root /", nil, check.Options{Arch: "aarch64", Root: "/"}, 2},
 		{"a root that is not there", nil, check.Options{Root: filepath.Join(empty, "missing")}, 2},
 		{"a root with nothing in it", nil, check.Options{Root: empty}, 1},
 	}
@@ -125,6 +126,9 @@ func TestPreCheckOptions(t *testing.T) {
 		t.Fatalf("skipped steps %v, want %v", got, want)
 	}
 	if got := preCheckOptions("all").SkipSteps; !reflect.DeepEqual(got, []string{"installKernel"}) {
+		t.Fatalf("skipped steps %v", got)
+	}
+	if got := preCheckOptions("install").SkipSteps; !reflect.DeepEqual(got, []string{"installKernel", "init"}) {
 		t.Fatalf("skipped steps %v", got)
 	}
 }

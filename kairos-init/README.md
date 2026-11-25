@@ -67,6 +67,8 @@ The output is a full `schema.YipConfig` (commands, files, packages,
 services, etc.). Nothing is written to `/etc/kairos` and no binary copy,
 `yip` execution, or provider hook runs during a dry run.
 
+The check that runs before the conversion prints its result to stderr, also in a dry run, so the yaml on stdout stays clean. A dry run goes on when the check fails.
+
 ## CIS L1 Hardening
 
 kairos-init applies the CIS Distribution Independent Linux v2.0.0 L1 controls

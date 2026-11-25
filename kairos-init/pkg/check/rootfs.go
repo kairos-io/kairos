@@ -92,17 +92,25 @@ func (r rootFS) exists(path string) bool {
 	return ok
 }
 
-// open opens a file of the root.
+// open opens a regular file of the root. A device, a pipe or a huge file is
+// refused: an unpacked image can hold anything under that name.
 func (r rootFS) open(path string) (*os.File, error) {
 	full, ok := r.resolve(path)
 	if !ok {
 		return nil, fs.ErrNotExist
 	}
+	info, err := os.Stat(full)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Size() > maxFileSize {
+		return nil, fs.ErrInvalid
+	}
 	return os.Open(full)
 }
 
-// maxFileSize is how much of a file of the root is read. The module lists of a
-// kernel are a few hundred kilobytes.
+// maxFileSize is the biggest file of the root that is read. The module lists of
+// a kernel are a few hundred kilobytes.
 const maxFileSize = 64 << 20
 
 // readFile reads a file of the root, which has to be a regular file.

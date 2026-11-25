@@ -56,7 +56,11 @@ type rootVFS struct {
 var _ vfs.FS = rootVFS{}
 
 func (v rootVFS) Open(name string) (fs.File, error) {
-	return v.root.open(name)
+	f, err := v.root.open(name)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 func (v rootVFS) ReadFile(name string) ([]byte, error) {

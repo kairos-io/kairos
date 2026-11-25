@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
@@ -459,14 +460,10 @@ func TestNotADirectory(t *testing.T) {
 
 // The commands of the immucore dracut module are read from the module itself.
 func TestDracutModuleCommands(t *testing.T) {
-	got := strings.Join(dracutModuleCommands(), " ")
-	for _, want := range []string{"sync", "gawk", "awk", "rsync", "mkfs.vfat"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("%s is not among the dracut module commands: %s", want, got)
-		}
-	}
-	if strings.Contains(got, "immucore") {
-		t.Errorf("immucore is not a tool of the distribution: %s", got)
+	// When the module changes, this list and the tools of the check change with it.
+	want := "sync udevadm blkid lsblk e2fsck mount umount rsync cryptsetup gawk awk mkfs.ext2 mkfs.ext3 mkfs.ext4 mkfs.vfat"
+	if got := strings.Join(dracutModuleCommands(), " "); got != want {
+		t.Errorf("the dracut module commands are %q, want %q", got, want)
 	}
 }
 
@@ -488,7 +485,33 @@ func TestOptions(t *testing.T) {
 		{"a board model is not judged by the generic kernel list", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{Model: "rpi4"}, "", true, nil},
 		{"nvidia-dgx-spark on arm64", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{Model: "nvidia-dgx-spark"}, "aarch64", true, nil},
 		{"a kernel that is already installed", kernelRoot, Options{}, "", true, []string{"kernel: 5.4.0"}},
-		{"installKernel is skipped", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{SkipSteps: []string{"installKernel"}}, "", true, nil},
+		{"installKernel is skipped and the system has no kernel", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{SkipSteps: []string{"installKernel"}}, "", false, []string{"fail  /lib/modules is missing"}},
+		{"installKernel is skipped and the system has a kernel with its modules", func(t *testing.T) string {
+			root := kernelRoot(t)
+			dep := ""
+			for _, m := range []string{"overlay", "squashfs", "loop", "ext4", "vfat", "isofs", "dm_mod", "dm_crypt"} {
+				dep += "kernel/" + m + ".ko:\n"
+			}
+			write(t, filepath.Join(root, "lib/modules/5.4.0/modules.dep"), dep, 0o644)
+			return root
+		}, Options{SkipSteps: []string{"installKernel"}}, "", true, nil},
+		{"installPackages is skipped and installKernel brings the kernel", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{SkipSteps: []string{"installPackages"}}, "", false, []string{"pass  /lib/modules (kernel): not installed yet", "fail  rsync is missing"}},
+		{"Trusted Boot on a release without its kernel, with a kernel installed", func(t *testing.T) string {
+			root := build(t, ubuntu("22.04"))
+			write(t, filepath.Join(root, "lib/modules/5.15.0/modules.builtin"), "", 0o644)
+			return root
+		}, Options{TrustedBoot: true}, "", false, []string{"kairos-init has none for Ubuntu 22.04"}},
+		{"debian 11 with installPackages skipped", func(t *testing.T) string { return build(t, debian("11")) }, Options{SkipSteps: []string{"installPackages"}}, "", false, []string{"fail  rsync is missing"}},
+		{"initrd is skipped, so PRETTY_NAME does not matter", func(t *testing.T) string {
+			return build(t, distro{"ubuntu", "debian", "24.04", "", []string{"apt-get"}})
+		}, Options{SkipSteps: []string{"initrd"}}, "", true, []string{"the initramfs is not built"}},
+		{"the init stage is skipped (--stage install)", func(t *testing.T) string {
+			return build(t, distro{"ubuntu", "debian", "24.04", "", []string{"apt-get"}})
+		}, Options{SkipSteps: []string{"init"}}, "", true, nil},
+		{"a stage extension may bring a tool", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{SkipSteps: []string{"installPackages"}, Extensions: true}, "", true, []string{"a stage extension may bring it"}},
+		{"only SLES in the name", func(t *testing.T) string {
+			return build(t, distro{"mylinux", "suse", "16.0", "SLES based", []string{"zypper"}})
+		}, Options{}, "", false, []string{"but not the stages that put immucore into it"}},
 		{"the install stage is skipped", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{SkipSteps: []string{"install"}}, "", false, []string{"fail  rsync is missing"}},
 		{"installPackages is skipped, so nothing brings the tools", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{SkipSteps: []string{"installPackages"}}, "", false, []string{"fail  rsync is missing"}},
 		{"installPackages is skipped on a family without a list", func(t *testing.T) string {
@@ -567,5 +590,31 @@ func TestSystemdVersion(t *testing.T) {
 				t.Errorf("status %s, want %s", got, tt.status)
 			}
 		})
+	}
+}
+
+// A board model's kernel is built for the board: its modules are not required.
+func TestBoardModelModules(t *testing.T) {
+	root := build(t, ubuntu("24.04"))
+	write(t, filepath.Join(root, "lib/modules/6.8.0/modules.builtin"), "", 0o644)
+	opts := Options{Model: "rpi4", SkipSteps: []string{"install"}, Arch: "aarch64"}
+	_, out := output(t, root, opts)
+	if strings.Contains(out, "fail  module") {
+		t.Errorf("a missing module of a board kernel is not a fail:\n%s", out)
+	}
+	opts.Model = ""
+	if _, out = output(t, root, opts); !strings.Contains(out, "fail  module overlay is missing") {
+		t.Errorf("the generic kernel needs its modules:\n%s", out)
+	}
+}
+
+// A pipe in place of os-release does not block the check.
+func TestOSReleaseIsAPipe(t *testing.T) {
+	root := build(t, distro{})
+	must(t, os.MkdirAll(filepath.Join(root, "etc"), 0o755))
+	must(t, syscall.Mkfifo(filepath.Join(root, "etc/os-release"), 0o644))
+	r, out := output(t, root, Options{})
+	if r.OK() || !strings.Contains(out, "has no ID") {
+		t.Errorf("a pipe as os-release:\n%s", out)
 	}
 }

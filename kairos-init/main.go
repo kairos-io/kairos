@@ -158,7 +158,7 @@ usage error.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if checkOpts.Arch != "" && checkOpts.Root == "" {
+		if checkOpts.Arch != "" && strings.Trim(checkOpts.Root, "/") == "" {
 			return &exitError{code: 2, err: errors.New("--arch needs --root: the running system has the architecture of this machine")}
 		}
 		if strings.ToLower(trusted) == "true" || trusted == "1" {
@@ -191,14 +191,19 @@ func preCheck(l logger.KairosLogger) error {
 // only asks for what the steps that run will not bring themselves.
 func preCheckOptions(stage string) check.Options {
 	skip := append([]string{}, config.DefaultConfig.SkipSteps...)
-	if stage == "init" {
+	switch stage {
+	case "init":
 		// The install stage ran before, in an earlier layer.
 		skip = append(skip, values.InstallStage)
+	case "install":
+		// The init stage runs later: it builds the initramfs and enables the services.
+		skip = append(skip, values.InitStage)
 	}
 	return check.Options{
 		TrustedBoot: config.DefaultConfig.TrustedBoot,
 		Model:       config.DefaultConfig.Model,
 		SkipSteps:   skip,
+		Extensions:  config.DefaultConfig.Extensions,
 	}
 }
 
@@ -253,6 +258,8 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// The flags are fine: an error from here on is not about how it was called.
+		cmd.SilenceUsage = true
 		// In dry-run, silence the console logger so stdout stays machine-readable.
 		// Logs still land in journald / /var/log/kairos/kairos-init.log.
 		logger := logger.NewKairosLogger("kairos-init", loglevelFlag.Value, config.DefaultConfig.DryRun)
