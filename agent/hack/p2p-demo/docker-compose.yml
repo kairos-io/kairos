@@ -1,0 +1,115 @@
+# EXPERIMENTAL demo: a seed, hostile peers and five leechers on an internal docker
+# network (no gateway, no internet). No keys.
+# leech1: mDNS + pin, leech2: static list + pin, leech3: the URI the seed printed,
+# leech4: no pin (refused, then --insecure), leech5: a stalling peer and a peer that
+# lies about the size are listed FIRST, with the pin: the honest seed still wins.
+# Run ./run.sh
+name: kairos-p2p-demo
+x-leech: &leech
+  build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+  image: kairos-agent-p2p-demo
+  user: "1000:1000"
+  tmpfs: [ "/data:uid=1000,gid=1000,size=1g" ]
+  volumes: [ "shared:/shared" ]
+  depends_on: [ seed ]
+  environment: &leechenv
+    ROLE: leech
+    PEER_IPS: "172.28.0.10 172.28.0.11 172.28.0.12 172.28.0.13 172.28.0.14"
+    UPLOAD_KIB: "12288"
+services:
+  seed:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    tmpfs: [ "/data:uid=1000,gid=1000,size=1g" ]
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: seed, NAME: seed, IMAGE_MB: "256", UPLOAD_KIB: "12288" }
+    networks: { p2p: { ipv4_address: 172.28.0.10 } }
+  leech1:
+    <<: *leech
+    environment: { <<: *leechenv, NAME: leech1, MODE: mdns }
+    networks: { p2p: { ipv4_address: 172.28.0.11 } }
+  leech2:
+    <<: *leech
+    environment: { <<: *leechenv, NAME: leech2, MODE: static }
+    networks: { p2p: { ipv4_address: 172.28.0.12 } }
+  leech3:
+    <<: *leech
+    environment: { <<: *leechenv, NAME: leech3, MODE: copied }
+    networks: { p2p: { ipv4_address: 172.28.0.13 } }
+  rogue:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    tmpfs: [ "/data:uid=1000,gid=1000,size=1g" ]
+    environment: { ROLE: rogue, NAME: rogue }
+    networks: { p2p: { ipv4_address: 172.28.0.14 } }
+  leech4:
+    <<: *leech
+    environment: { <<: *leechenv, NAME: leech4, MODE: refuse }
+    networks: { p2p: { ipv4_address: 172.28.0.15 } }
+  stall:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: stall, NAME: stall }
+    networks: { p2p: { ipv4_address: 172.28.0.16 } }
+  lie:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: lie, NAME: lie }
+    networks: { p2p: { ipv4_address: 172.28.0.17 } }
+  fake1:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: fake, NAME: fake1 }
+    networks: { p2p: { ipv4_address: 172.28.0.20 } }
+  fake2:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: fake, NAME: fake2 }
+    networks: { p2p: { ipv4_address: 172.28.0.21 } }
+  fake3:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: fake, NAME: fake3 }
+    networks: { p2p: { ipv4_address: 172.28.0.22 } }
+  fake4:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: fake, NAME: fake4 }
+    networks: { p2p: { ipv4_address: 172.28.0.23 } }
+  fake5:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: fake, NAME: fake5 }
+    networks: { p2p: { ipv4_address: 172.28.0.24 } }
+  fake6:
+    build: { context: ../../.., dockerfile: agent/hack/p2p-demo/Dockerfile }
+    image: kairos-agent-p2p-demo
+    user: "1000:1000"
+    volumes: [ "shared:/shared" ]
+    environment: { ROLE: fake, NAME: fake6 }
+    networks: { p2p: { ipv4_address: 172.28.0.25 } }
+  leech5:
+    <<: *leech
+    environment: { <<: *leechenv, NAME: leech5, MODE: hostile }
+    networks: { p2p: { ipv4_address: 172.28.0.18 } }
+volumes: { shared: {} }
+networks:
+  p2p:
+    internal: true   # no route out: the nodes cannot reach the internet
+    ipam: { config: [ { subnet: 172.28.0.0/24 } ] }
