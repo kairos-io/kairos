@@ -224,7 +224,12 @@ var _ = Describe("verifyImageFile on a real ext4 image", Label("ext4"), func() {
 		Expect(err).ToNot(HaveOccurred())
 		f, err := os.OpenFile(img, os.O_RDWR, 0)
 		Expect(err).ToNot(HaveOccurred())
-		_, err = f.WriteAt([]byte{0xff}, 4096*3)
+		// flip every bit of a byte: a constant could equal what is already there
+		// (with 4096 byte blocks that offset is a bitmap and already 0xff)
+		orig := make([]byte, 1)
+		_, err = f.ReadAt(orig, 4096*3)
+		Expect(err).ToNot(HaveOccurred())
+		_, err = f.WriteAt([]byte{^orig[0]}, 4096*3)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(f.Close()).To(Succeed())
 		Expect(os.Chtimes(img, info.ModTime(), info.ModTime())).To(Succeed())
