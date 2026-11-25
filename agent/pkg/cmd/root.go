@@ -470,6 +470,41 @@ change between releases.
 	return cmd
 }
 
+func newVerifyImagesCmd() *cobra.Command {
+	var dirs []string
+
+	cmd := &cobra.Command{
+		Use:   "verify-images",
+		Short: "check the OS images against their recorded sha256",
+		Long: `
+Checks the active, passive and recovery images against the <image>.sha256 files
+kairos-agent writes next to them when image-checksum.create is on, and prints the
+expected (stored) and actual (computed) sha256 of each. It only reads: nothing is
+mounted, written or removed.
+
+By default it looks in the cOS directory of the state and recovery partitions the
+booted system has mounted. Use --dir to check another directory.
+
+An image with a mismatch, or a checksum file or image that cannot be read, fails
+the command. An image with no checksum, or one that was replaced after its checksum
+was written, is reported and skipped unless image-checksum.require is on, which makes
+it a failure too, as it is for immucore at boot. The image-checksum.* keys are read
+from the cloud config and the kernel cmdline.
+
+The exit code is non-zero when any image failed.`,
+		Args: cobra.NoArgs,
+		PreRunE: func(*cobra.Command, []string) error {
+			return checkRoot()
+		},
+		RunE: func(c *cobra.Command, _ []string) error {
+			return agent.VerifyImages(c.OutOrStdout(), dirs)
+		},
+	}
+
+	cmd.Flags().StringArrayVar(&dirs, "dir", nil, "Directory holding the images to check. Can be given more than once. Defaults to the cOS directory of the mounted state and recovery partitions.")
+	return cmd
+}
+
 func newNotifyCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "notify <event> <config dir>...",
@@ -1963,6 +1998,7 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		newUpgradeCmd(&global),
 		newUpgradeFinalizeCmd(),
 		newNotifyCmd(),
+		newVerifyImagesCmd(),
 		newStartCmd(),
 		newInstallBundleCmd(),
 		newUUIDCmd(),
