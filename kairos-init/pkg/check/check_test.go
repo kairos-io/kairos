@@ -484,7 +484,18 @@ func TestOptions(t *testing.T) {
 		{"a release outside the kernel list is refused", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{}, "", false, []string{"kairos-init has none for Ubuntu"}},
 		{"a board model is not judged by the generic kernel list", func(t *testing.T) string { return build(t, ubuntu("18.04")) }, Options{Model: "rpi4"}, "", true, nil},
 		{"nvidia-dgx-spark on arm64", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{Model: "nvidia-dgx-spark"}, "aarch64", true, nil},
-		{"a kernel that is already installed", kernelRoot, Options{}, "", true, []string{"kernel: 5.4.0"}},
+		{"a kernel that is already installed is judged as it is", func(t *testing.T) string {
+			root := kernelRoot(t)
+			write(t, filepath.Join(root, "lib/modules/5.4.0/modules.dep"), "kernel/loop.ko:\n", 0o644)
+			return root
+		}, Options{}, "", false, []string{"kernel: 5.4.0", "fail  module overlay is missing"}},
+		{"a kernel without modules.dep is not judged before depmod", func(t *testing.T) string {
+			root := build(t, ubuntu("24.04"))
+			write(t, filepath.Join(root, "lib/modules/6.8.0/modules.builtin"), "", 0o644)
+			return root
+		}, Options{SkipSteps: []string{"install"}}, "", false, []string{"warn  module overlay is missing"}},
+		{"the kernel steps are skipped", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{SkipSteps: []string{"installKernel", "kernel", "initrd"}}, "", true, []string{"the steps that use it do not run"}},
+		{"nvidia-dgx-spark with installPackages skipped has no kernel", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{Model: "nvidia-dgx-spark", SkipSteps: []string{"installPackages", "installKernel"}}, "aarch64", false, []string{"fail  /lib/modules is missing"}},
 		{"installKernel is skipped and the system has no kernel", func(t *testing.T) string { return build(t, ubuntu("24.04")) }, Options{SkipSteps: []string{"installKernel"}}, "", false, []string{"fail  /lib/modules is missing"}},
 		{"installKernel is skipped and the system has a kernel with its modules", func(t *testing.T) string {
 			root := kernelRoot(t)
@@ -597,6 +608,7 @@ func TestSystemdVersion(t *testing.T) {
 func TestBoardModelModules(t *testing.T) {
 	root := build(t, ubuntu("24.04"))
 	write(t, filepath.Join(root, "lib/modules/6.8.0/modules.builtin"), "", 0o644)
+	write(t, filepath.Join(root, "lib/modules/6.8.0/modules.dep"), "kernel/loop.ko:\n", 0o644)
 	opts := Options{Model: "rpi4", SkipSteps: []string{"install"}, Arch: "aarch64"}
 	_, out := output(t, root, opts)
 	if strings.Contains(out, "fail  module") {

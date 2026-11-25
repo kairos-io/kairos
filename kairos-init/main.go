@@ -158,6 +158,9 @@ usage error.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Flags().Changed("root") && strings.Trim(checkOpts.Root, " ") == "" {
+			return &exitError{code: 2, err: errors.New("--root is empty: pass the directory of the unpacked image")}
+		}
 		if checkOpts.Arch != "" && strings.Trim(checkOpts.Root, "/") == "" {
 			return &exitError{code: 2, err: errors.New("--arch needs --root: the running system has the architecture of this machine")}
 		}

@@ -90,6 +90,8 @@ var ErrNotDirectory = errors.New("not a directory")
 
 // systemdVersion asks a systemd binary of the running system for its version.
 // It is a variable for the tests.
+var leadingDigits = regexp.MustCompile(`^\d+`)
+
 var systemdVersion = func(path string) (int, error) {
 	out, err := exec.Command(path, "--version").Output()
 	if err != nil {
@@ -99,7 +101,11 @@ var systemdVersion = func(path string) (int, error) {
 	if len(fields) < 2 {
 		return 0, fmt.Errorf("unexpected output %q", out)
 	}
-	return strconv.Atoi(strings.TrimRight(fields[1], "abcdefghijklmnopqrstuvwxyz~-"))
+	digits := leadingDigits.FindString(fields[1])
+	if digits == "" {
+		return 0, fmt.Errorf("unexpected version %q", fields[1])
+	}
+	return strconv.Atoi(digits)
 }
 
 type checker struct {
@@ -304,6 +310,10 @@ func (c *checker) packages() {
 	// What the install steps bring. A step that does not run brings nothing.
 	c.report.installs = !c.opts.Converted && !c.opts.skipped(values.InstallPackagesStep, values.InstallStage)
 	c.kernelComes = !c.opts.Converted && !c.opts.skipped(values.InstallKernelStep, values.InstallStage)
+	if c.opts.Model != values.Generic.String() && !c.opts.Converted && c.report.installs {
+		// The kernel of a board model is in the base packages of some of them.
+		c.kernelComes = true
+	}
 	if !c.report.installs && !c.kernelComes {
 		if !c.opts.Converted {
 			c.pass("packages: kairos-init is told not to install any, the system is judged as it is")
@@ -416,6 +426,8 @@ func (c *checker) kernelPackage() {
 		// No package, so the step installs nothing. A kernel the system has is
 		// then the one kairos-init finds.
 		if _, found := c.newestKernel(); found {
+			// Nothing installs a kernel, so the kernel and its modules are judged as they are.
+			c.kernelComes = false
 			c.pass("kernel package: kairos-init has none for %s %s, the kernel of the system is used", titleCase(c.distro), c.version)
 			return
 		}
@@ -547,6 +559,12 @@ func (c *checker) systemdVersion() {
 func (c *checker) kernelSection() {
 	c.section = "Kernel"
 
+	// The kernel and the initramfs steps are the ones that look at the kernel.
+	if c.opts.skipped(values.KernelStep, values.InitStage) && c.opts.skipped(values.InitrdStep, values.InitStage) && !c.opts.Converted {
+		c.pass("kernel: the steps that use it do not run")
+		return
+	}
+
 	// The newest kernel, as kairos-init chooses it.
 	if dir, found := c.newestKernel(); found {
 		c.kernelDir = dir
@@ -594,6 +612,10 @@ func (c *checker) module(level, why, name string) {
 	// The kernel of a board is built for that board and leaves out drivers the
 	// generic images need, so its modules are not required.
 	if c.opts.Model != values.Generic.String() && level == levelRequired {
+		level = levelOptional
+	}
+	// kairos-init runs depmod before it builds the initramfs, which writes the list.
+	if !c.opts.Converted && level == levelRequired && !c.fs.exists(c.kernelDir+"/modules.dep") {
 		level = levelOptional
 	}
 	pattern := regexp.MustCompile("/" + strings.ReplaceAll(regexp.QuoteMeta(name), "_", "[-_]") + `\.ko`)
