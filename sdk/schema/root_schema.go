@@ -24,6 +24,7 @@ type RootSchema struct {
 	Options            map[string]string `json:"options,omitempty" description:"Various options, as key/value pairs."`
 	Upgrade            UpgradeSchema     `json:"upgrade,omitempty"`
 	Reset              ResetSchema       `json:"reset,omitempty"`
+	SSHSource          *SSHSourceSchema  `json:"ssh-source,omitempty" nullable:"true" description:"How to authenticate to the node an ssh:// source of install, upgrade or reset points to. A block inside one of them overrides it key by key."`
 	// Users is not required. An admin user may instead be defined in a yip
 	// stage (stages.<stage>[].users) or waived with install.nousers, and the
 	// agent enforces that at install time (see CheckConfigForUsers in

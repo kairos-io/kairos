@@ -15,6 +15,7 @@ const (
 	file    = "file"
 	dir     = "dir"
 	ocifile = "ocifile"
+	ssh     = "ssh"
 )
 
 // Image struct represents a file system image with its commonly configurable values, size in MiB.
@@ -53,6 +54,17 @@ func (i ImageSource) IsFile() bool {
 
 func (i ImageSource) IsOCIFile() bool {
 	return i.srcType == ocifile
+}
+
+// IsSSH reports whether the image is fetched from another node over SSH.
+func (i ImageSource) IsSSH() bool {
+	return i.srcType == ssh
+}
+
+// IsRawImage reports whether the source is a ready made filesystem image file,
+// copied as it is instead of being unpacked into a freshly created one.
+func (i ImageSource) IsRawImage() bool {
+	return i.srcType == file || i.srcType == ssh
 }
 
 func (i ImageSource) IsEmpty() bool {
@@ -95,6 +107,9 @@ func (i *ImageSource) updateFromURI(uri string) error {
 		return err
 	}
 	scheme := u.Scheme
+	if scheme == ssh {
+		return i.parseSSHURI(uri, u)
+	}
 	value := u.Opaque
 	if value == "" {
 		value = filepath.Join(u.Host, u.Path)
@@ -149,6 +164,10 @@ func NewFileSrc(src string) *ImageSource {
 
 func NewDirSrc(src string) *ImageSource {
 	return &ImageSource{source: src, srcType: dir}
+}
+
+func NewSSHSrc(target SSHTarget) *ImageSource {
+	return &ImageSource{source: target.value(), srcType: ssh}
 }
 
 func NewOCIFileSrc(src string) *ImageSource {
