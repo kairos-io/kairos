@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/user"
 	"path/filepath"
 	"time"
@@ -77,6 +78,11 @@ var _ = Describe("fetching over ssh", func() {
 	}
 
 	BeforeEach(func() {
+		for _, tool := range []string{"ssh", "ssh-keyscan", "ssh-keygen"} {
+			if _, err := exec.LookPath(tool); err != nil {
+				Skip(tool + " is not installed, the ssh source needs the OpenSSH client")
+			}
+		}
 		dir = GinkgoT().TempDir()
 		state = filepath.Join(dir, "state")
 		Expect(os.MkdirAll(filepath.Join(state, "cOS"), 0o755)).To(Succeed())

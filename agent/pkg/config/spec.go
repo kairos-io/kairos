@@ -19,6 +19,7 @@ package config
 import (
 	"fmt"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -633,6 +634,26 @@ func setUpgradeSourceSize(cfg *sdkConfig.Config, spec *spec.UpgradeSpec) error {
 	return nil
 }
 
+// applyResetSSHSource reads the ssh options for reset.system.source when it
+// names an ssh source, and measures it: the sizes set before the source could
+// be overridden came from the recovery image.
+func applyResetSSHSource(cfg *sdkConfig.Config, spec *spec.ResetSpec) error {
+	if err := applySSHOptions(cfg, "reset", spec.Active.Source); err != nil {
+		return err
+	}
+	if spec.Active.Source == nil || !spec.Active.Source.IsSSH() {
+		return nil
+	}
+	size, err := GetSourceSize(cfg, spec.Active.Source)
+	if err != nil {
+		return fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
+	}
+	cfg.Logger.Infof("Setting image size to %dMiB", size)
+	spec.Active.Size = uint(size)
+	spec.Passive.Size = uint(size)
+	return nil
+}
+
 // NewResetSpec returns a ResetSpec struct all based on defaults and current host state
 func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	var imgSource *sdkImages.ImageSource
@@ -747,19 +768,8 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
 	}
 
-	// reset.system.source can name an ssh source, which is measured here, as the
-	// sizes above came from the recovery image.
-	if err := applySSHOptions(cfg, "reset", spec.Active.Source); err != nil {
+	if err := applyResetSSHSource(cfg, spec); err != nil {
 		return nil, err
-	}
-	if spec.Active.Source != nil && spec.Active.Source.IsSSH() {
-		size, err := GetSourceSize(cfg, spec.Active.Source)
-		if err != nil {
-			return nil, fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
-		}
-		cfg.Logger.Infof("Setting image size to %dMiB", size)
-		spec.Active.Size = uint(size)
-		spec.Passive.Size = uint(size)
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
@@ -1215,6 +1225,11 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 		size, err = sshSourceSize(config, source)
 		if err != nil {
 			return 0, err
+		}
+		// The size comes from the remote node. It ends up in uint fields, so
+		// refuse what they cannot hold.
+		if size/1024/1024 > math.MaxUint32 {
+			return 0, fmt.Errorf("the image on the remote node is implausibly large (%d bytes)", size)
 		}
 	case source.IsFile():
 		file, err := config.Fs.Stat(source.Value())
