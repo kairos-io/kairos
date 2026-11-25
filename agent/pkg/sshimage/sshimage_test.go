@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -347,5 +349,61 @@ var _ = Describe("fetching over ssh", func() {
 		cancel()
 		_, err := sshimage.Fetch(ctx, opts, target, dst)
 		Expect(err).To(HaveOccurred())
+	})
+})
+
+type recordingLogger struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (l *recordingLogger) add(f string, a ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.lines = append(l.lines, fmt.Sprintf(f, a...))
+}
+func (l *recordingLogger) Infof(f string, a ...interface{})  { l.add(f, a...) }
+func (l *recordingLogger) Warnf(f string, a ...interface{})  { l.add(f, a...) }
+func (l *recordingLogger) Debugf(f string, a ...interface{}) { l.add(f, a...) }
+
+var _ = Describe("progress", func() {
+	It("advances with the transfer, not only with time", func() {
+		for _, tool := range []string{"ssh", "ssh-keyscan", "ssh-keygen"} {
+			if _, err := exec.LookPath(tool); err != nil {
+				Skip(tool + " is not installed, the ssh source needs the OpenSSH client")
+			}
+		}
+		dir := GinkgoT().TempDir()
+		Expect(os.MkdirAll(filepath.Join(dir, "state", "cOS"), 0o755)).To(Succeed())
+		img := make([]byte, 20<<20)
+		_, _ = rand.Read(img)
+		Expect(os.WriteFile(filepath.Join(dir, "state", "cOS", "active.img"), img, 0o644)).To(Succeed())
+		DeferCleanup(sshimage.SetRemoteLayout("/proc/cmdline", filepath.Join(dir, "state")))
+		signer, priv := newSigner()
+		key := writeKey(dir, priv, 0o600)
+		node := startNode(signer.PublicKey())
+		DeferCleanup(node.Close)
+		kh := filepath.Join(dir, "known_hosts")
+		Expect(os.WriteFile(kh, []byte(knownhosts.Line([]string{fmt.Sprintf("[127.0.0.1]:%s", node.Port())}, node.hostKey.PublicKey())+"\n"), 0o600)).To(Succeed())
+		dst, err := os.OpenFile(filepath.Join(dir, "out"), os.O_RDWR|os.O_CREATE, 0o600)
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(func() { dst.Close() })
+
+		log := &recordingLogger{}
+		// the time based line never fires within this transfer
+		_, err = sshimage.Fetch(context.Background(), sshimage.Options{
+			SSHSourceOptions: images.SSHSourceOptions{IdentityFile: key, KnownHostsFile: kh},
+			Logger:           log,
+			ProgressEvery:    time.Hour,
+		}, images.SSHTarget{User: "root", Host: "127.0.0.1", Port: node.Port(), Path: "/active"}, dst)
+		Expect(err).ToNot(HaveOccurred())
+		var progress []string
+		for _, l := range log.lines {
+			if strings.HasPrefix(l, "Transferred") {
+				progress = append(progress, l)
+			}
+		}
+		Expect(len(progress)).To(BeNumerically(">=", 3), "%v", log.lines)
+		Expect(progress[len(progress)-1]).To(ContainSubstring("100%"))
 	})
 })

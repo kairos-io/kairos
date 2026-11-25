@@ -32,7 +32,8 @@ type Options struct {
 	Reconnects int
 	// Backoff is the wait before a reconnect, doubled each time. Default 2s.
 	Backoff time.Duration
-	// ProgressEvery is the minimum time between progress lines. Default 10s.
+	// ProgressEvery is how often a progress line is written at the latest.
+	// A line is also written every 10% of the image. Default 10s.
 	ProgressEvery time.Duration
 }
 
@@ -94,7 +95,8 @@ func Fetch(ctx context.Context, o Options, t images.SSHTarget, dst *os.File) (He
 		received int64
 		attempt  int
 		backoff  = o.Backoff
-		lastLog  time.Time
+		lastLog  = time.Now()
+		lastStep int64
 	)
 	logf := func(format string, a ...interface{}) {
 		if o.Logger != nil {
@@ -131,8 +133,9 @@ func Fetch(ctx context.Context, o Options, t images.SSHTarget, dst *os.File) (He
 				}
 			}
 			return receive(ctx, c, hdr, dst, hasher, &received, func() {
-				if time.Since(lastLog) >= o.ProgressEvery {
-					lastLog = time.Now()
+				step := received * 10 / hdr.Size
+				if step > lastStep || time.Since(lastLog) >= o.ProgressEvery {
+					lastStep, lastLog = step, time.Now()
 					logf("Transferred %d of %d MiB (%d%%)", received>>20, hdr.Size>>20, received*100/hdr.Size)
 				}
 			})
