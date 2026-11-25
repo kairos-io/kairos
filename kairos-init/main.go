@@ -187,7 +187,11 @@ func preCheck(l logger.KairosLogger) error {
 		l.Warn("Skipping the check of the system, as requested")
 		return nil
 	}
-	return runPreCheck(os.Stderr, preCheckOptions(stageFlag.Value), config.DefaultConfig.DryRun)
+	err := runPreCheck(os.Stderr, preCheckOptions(stageFlag.Value), config.DefaultConfig.DryRun)
+	if err != nil {
+		l.Error(err)
+	}
+	return err
 }
 
 // preCheckOptions says what the conversion is going to do, so that the check
@@ -379,7 +383,7 @@ func init() {
 
 	addSharedFlags(rootCmd)
 	addSharedFlags(validateCmd)
-	addSharedFlags(checkCmd)
+	checkCmd.Flags().StringVarP(&trusted, "trusted", "t", "false", "same as --trusted-boot, spelled as on the other commands")
 
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(validateCmd)

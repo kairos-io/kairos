@@ -8,7 +8,7 @@
 // the same code: the distribution and its family from system.DetectFromValues,
 // the package manager from yip's package step, the kernel packages from
 // values.GetKernelPackagesFor, the stages that build the initramfs from
-// stages.OSDracutFamilies, the files the agent copies to the EFI partition
+// stages.OSDracutFamilies and stages.InitrdDracutOS, the files the agent copies to the EFI partition
 // from sdk/utils, and the GRUB modules from the agent constants. What is left
 // in this package is what no other code states: which tools and kernel modules
 // the Kairos components need, and which releases of a distribution lack
@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	semver "github.com/hashicorp/go-version"
 	"github.com/joho/godotenv"
 	agentconstants "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
@@ -88,16 +89,12 @@ func (o Options) skipped(step string, stage string) bool {
 // ErrNotDirectory is returned when Options.Root is not a directory.
 var ErrNotDirectory = errors.New("not a directory")
 
-// systemdVersion asks a systemd binary of the running system for its version.
-// It is a variable for the tests.
 var leadingDigits = regexp.MustCompile(`^\d+`)
 
-var systemdVersion = func(path string) (int, error) {
-	out, err := exec.Command(path, "--version").Output()
-	if err != nil {
-		return 0, err
-	}
-	fields := strings.Fields(string(out))
+// parseSystemdVersion reads the version from the output of `systemctl --version`,
+// "systemd 256 (256.7-1)" or "systemd 256~rc3".
+func parseSystemdVersion(out string) (int, error) {
+	fields := strings.Fields(out)
 	if len(fields) < 2 {
 		return 0, fmt.Errorf("unexpected output %q", out)
 	}
@@ -106,6 +103,16 @@ var systemdVersion = func(path string) (int, error) {
 		return 0, fmt.Errorf("unexpected version %q", fields[1])
 	}
 	return strconv.Atoi(digits)
+}
+
+// systemdVersion asks a systemd binary of the running system for its version.
+// It is a variable for the tests.
+var systemdVersion = func(path string) (int, error) {
+	out, err := exec.Command(path, "--version").Output()
+	if err != nil {
+		return 0, err
+	}
+	return parseSystemdVersion(string(out))
 }
 
 type checker struct {
@@ -166,7 +173,23 @@ func Run(opts Options) (*Report, error) {
 	c.kernelSection()
 	c.boot()
 	c.tools()
+	c.access()
 	return c.report, nil
+}
+
+// access says when the verdict may be wrong because this user cannot read part
+// of the system.
+func (c *checker) access() {
+	denied := *c.fs.denied
+	if len(denied) == 0 {
+		return
+	}
+	c.section = "Access"
+	if len(denied) > 3 {
+		denied = append(denied[:3:3], "...")
+	}
+	c.warn("%d path(s) exist but cannot be read by this user (%s), so what is reported missing may be there: run the check as root", len(*c.fs.denied), strings.Join(denied, " "))
+	c.report.uefiMissing = false
 }
 
 // --- reporting ---------------------------------------------------------------
@@ -349,18 +372,24 @@ func (c *checker) hasBin(name string) bool {
 
 // versions checks that the version of the system fits the package lists.
 func (c *checker) versions() {
-	// The version filters the package lists, and one that does not parse gets no
-	// package from them. Hadron installs no package, so its version is not parsed.
-	// The init stage parses it for Ubuntu and the Red Hat family as well.
+	// kairos-init stops on a VERSION_ID that does not parse in two places: the
+	// install packages step (GetInstallStage parses it, for every family but
+	// Hadron) and the init stage, which parses it for Ubuntu and the Red Hat
+	// family. Elsewhere the package lists give no package for it and go on.
 	installs := c.report.installs || c.kernelComes
 	versionOK := true
 	if c.family != "" && c.sys.Family != values.HadronFamily {
-		if _, err := c.sys.ParsedVersion(); err != nil {
+		_, errSemver := semver.NewSemver(c.sys.Version)
+		_, errVersion := c.sys.ParsedVersion()
+		stops := (c.report.installs && errSemver != nil) ||
+			((c.sys.Distro == values.Ubuntu || c.sys.Family == values.RedHatFamily) && errVersion != nil)
+		switch {
+		case stops:
 			versionOK = false
-			if installs || c.sys.Distro == values.Ubuntu || c.sys.Family == values.RedHatFamily {
-				c.failIdentity("version: VERSION_ID=%s is not a version, kairos-init stops on it", orNone(c.version, "none"))
-			}
-		} else {
+			c.failIdentity("version: VERSION_ID=%s is not a version, kairos-init stops on it", orNone(c.version, "none"))
+		case errVersion != nil:
+			versionOK = false
+		default:
 			c.pass("version: %s", c.version)
 		}
 	}
@@ -371,7 +400,7 @@ func (c *checker) versions() {
 	if c.kernelComes && c.sys.Arch != "" && c.kernelPackageNeeded() {
 		c.kernelPackage()
 	}
-	if !c.report.installs {
+	if !c.report.installs || !installs {
 		return
 	}
 	// Releases the package lists do not fit. A derivative counts its own
@@ -379,7 +408,9 @@ func (c *checker) versions() {
 	major := c.majorVersion()
 	switch {
 	case c.sys.Distro == values.Debian && c.id == "debian" && major < 12:
-		c.fail("packages: Debian %s does not have all of them, Debian 12 or newer does", c.version)
+		// The base packages of Debian hold polkitd and systemd-resolved, which
+		// Debian 11 does not have.
+		c.fail("packages: Debian %s does not have all of them (polkitd, systemd-resolved), Debian 12 or newer does", c.version)
 	case c.sys.Distro == values.OpenSUSELeap && c.id == "opensuse-leap" && major < 16:
 		c.fail("packages: openSUSE Leap %s does not have all of them, Leap 16 or newer does", c.version)
 	case c.sys.Distro == values.SLES && c.id == "sles" && major < 16:
@@ -421,8 +452,7 @@ var hweKernel = regexp.MustCompile(`-hwe-(\d+\.\d+)$`)
 // kernelPackage checks that kairos-init has a kernel package for the system.
 func (c *checker) kernelPackage() {
 	packages, _ := values.GetKernelPackagesFor(c.sys, c.opts.TrustedBoot, c.opts.Model, c.log)
-	known := len(packages) > 0
-	if !known {
+	if len(packages) == 0 {
 		// No package, so the step installs nothing. A kernel the system has is
 		// then the one kairos-init finds.
 		if _, found := c.newestKernel(); found {
@@ -431,15 +461,18 @@ func (c *checker) kernelPackage() {
 			c.pass("kernel package: kairos-init has none for %s %s, the kernel of the system is used", titleCase(c.distro), c.version)
 			return
 		}
+		c.kernelFail(true, "kernel package: kairos-init has none for %s %s, VERSION_ID has to be a release it knows", titleCase(c.distro), c.version)
+		return
 	}
-	// A kernel that names the release it comes from does not exist before it.
+	// A package that names the release it comes from does not exist before it.
 	// The Trusted Boot list names the 24.04 kernel for every Ubuntu release.
 	if v, err := c.sys.ParsedVersion(); err == nil {
 		for _, pkg := range packages {
 			// A package name that holds the version of the system needs one of the
 			// form 24.04 to name a package.
 			if strings.Contains(pkg, "{{") && !plainRelease.MatchString(c.version) {
-				known = false
+				c.kernelFail(true, "kernel package: %s needs a VERSION_ID like 24.04 to name a package, not %s", pkg, c.version)
+				return
 			}
 			m := hweKernel.FindStringSubmatch(pkg)
 			if m == nil {
@@ -447,15 +480,26 @@ func (c *checker) kernelPackage() {
 			}
 			floor := values.System{Version: m[1]}
 			if need, err := floor.ParsedVersion(); err == nil && v.LessThan(need) {
-				known = false
+				c.kernelFail(false, "kernel package: kairos-init installs %s, which %s %s does not have", pkg, titleCase(c.distro), c.version)
+				return
 			}
 		}
 	}
-	if known {
-		c.pass("kernel package: kairos-init has one for %s %s", titleCase(c.distro), c.version)
-		return
+	c.pass("kernel package: kairos-init has one for %s %s", titleCase(c.distro), c.version)
+}
+
+// kernelFail reports a kernel package that cannot be installed. identity says
+// whether it is about the name and the version the tools see. A stage extension
+// may bring the kernel, so it is only a warning then.
+func (c *checker) kernelFail(identity bool, format string, args ...any) {
+	switch {
+	case c.opts.Extensions:
+		c.warn(format+", a stage extension may bring a kernel", args...)
+	case identity:
+		c.failIdentity(format, args...)
+	default:
+		c.fail(format, args...)
 	}
-	c.failIdentity("kernel package: kairos-init has none for %s %s, VERSION_ID has to be a release it knows", titleCase(c.distro), c.version)
 }
 
 // initramfsStages checks that the stages that build the initramfs run on this
@@ -497,6 +541,9 @@ func (c *checker) platform() {
 	given := c.opts.Arch
 	if given == "" {
 		given = hostArch()
+		if c.opts.Root != "" {
+			c.warn("architecture: --arch is not given with --root, so the root is taken to have the architecture of this machine (%s)", given)
+		}
 	}
 	switch c.arch {
 	case archAMD64, archARM64, archRISCV64:
@@ -735,8 +782,15 @@ var (
 // dracutModuleCommands are the commands the immucore dracut module insists on,
 // from the module itself.
 func dracutModuleCommands() []string {
+	return commandsOf(bundled.ImmucoreModuleSetupDracut)
+}
+
+// commandsOf reads the commands of the inst_check_multiple lines of a dracut
+// module, with the lines that continue after a backslash.
+func commandsOf(text string) []string {
 	var out []string
-	for _, m := range instCheck.FindAllStringSubmatch(bundled.ImmucoreModuleSetupDracut, -1) {
+	module := strings.ReplaceAll(text, "\\\n", " ")
+	for _, m := range instCheck.FindAllStringSubmatch(module, -1) {
 		for _, command := range strings.Fields(m[1]) {
 			if command != "immucore" && commandName.MatchString(command) {
 				out = append(out, command)

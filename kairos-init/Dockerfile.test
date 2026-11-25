@@ -26,7 +26,9 @@ ARG TARGETARCH
 COPY dist/linux-${TARGETARCH}/kairos-init /kairos-init
 
 # Base images kairos-init cannot convert. EXPECTED_ERROR is the text it has to
-# stop with, so that a mirror that is down does not count as a refusal. If one of
+# stop with, among the last lines of its log where the final error is, so that a
+# mirror that is down does not count as a refusal. The check has to refuse with a
+# fail line of its own. If one of
 # them starts to convert, the rules of `kairos-init check` are out of date:
 # update them and move the cell to the supported base images in
 # _build-flavors.yaml.
@@ -34,16 +36,20 @@ FROM ${BASE_IMAGE} AS unsupported
 ARG VERSION=v0.0.1
 ARG EXPECTED_ERROR
 COPY --from=kairos-init-bin /kairos-init /kairos-init
-RUN rc=0; /kairos-init check || rc=$?; \
+RUN rc=0; /kairos-init check >/check.log 2>&1 || rc=$?; \
+    cat /check.log; \
     if [ "$rc" -ne 1 ]; then \
       echo "kairos-init check exits $rc on a base image it has to refuse" >&2; exit 1; \
+    fi; \
+    if ! grep -q '^  fail  ' /check.log; then \
+      echo "kairos-init check exits 1 without a fail line" >&2; exit 1; \
     fi
 RUN if [ -z "${EXPECTED_ERROR}" ]; then echo "EXPECTED_ERROR is not set" >&2; exit 1; fi; \
     if /kairos-init --skip-check -l debug --version "${VERSION}" >/kairos-init.log 2>&1; then \
       echo "kairos-init converts a base image that kairos-init check refuses" >&2; exit 1; \
     fi; \
     cat /kairos-init.log; \
-    grep -qF "${EXPECTED_ERROR}" /kairos-init.log
+    tail -n 20 /kairos-init.log | grep -qF "${EXPECTED_ERROR}"
 
 FROM ${BASE_IMAGE} AS default
 ARG MODEL=generic

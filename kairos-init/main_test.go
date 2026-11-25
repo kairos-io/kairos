@@ -11,6 +11,7 @@ import (
 
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/check"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 func TestEnumSliceSetAccumulates(t *testing.T) {
@@ -130,5 +131,13 @@ func TestPreCheckOptions(t *testing.T) {
 	}
 	if got := preCheckOptions("install").SkipSteps; !reflect.DeepEqual(got, []string{"installKernel", "init"}) {
 		t.Fatalf("skipped steps %v", got)
+	}
+}
+
+func TestPreCheckSkipped(t *testing.T) {
+	skipCheck = true
+	t.Cleanup(func() { skipCheck = false })
+	if err := preCheck(logger.NewNullLogger()); err != nil {
+		t.Fatalf("--skip-check has to skip the check: %v", err)
 	}
 }

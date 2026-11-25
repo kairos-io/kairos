@@ -1,9 +1,11 @@
 package check
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"strings"
+	"syscall"
 )
 
 // maxLinkHops is how many symbolic links a path may go through. It is the
@@ -21,10 +23,20 @@ type rootFS struct {
 	// root is the directory of the root filesystem without a trailing slash.
 	// It is empty for the running system.
 	root string
+	// denied collects the paths that exist but cannot be read by this user. They
+	// are not "missing", and the report says so.
+	denied *[]string
 }
 
 func newRootFS(root string) rootFS {
-	return rootFS{root: strings.TrimRight(root, "/")}
+	return rootFS{root: strings.TrimRight(root, "/"), denied: &[]string{}}
+}
+
+// note keeps a path that could not be read for a reason other than not being there.
+func (r rootFS) note(path string, err error) {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) && !errors.Is(err, syscall.ENOTDIR) && r.denied != nil {
+		*r.denied = append(*r.denied, path)
+	}
 }
 
 // host is whether this is the running system and not an unpacked one.
@@ -55,6 +67,7 @@ func (r rootFS) resolve(path string) (string, bool) {
 		}
 		full := r.root + done + "/" + part
 		info, err := os.Lstat(full)
+		r.note(full, err)
 		if err == nil && info.Mode()&fs.ModeSymlink != 0 {
 			hops++
 			if hops > maxLinkHops {
@@ -81,6 +94,7 @@ func (r rootFS) resolve(path string) (string, bool) {
 		full = "/"
 	}
 	if _, err := os.Stat(full); err != nil {
+		r.note(full, err)
 		return "", false
 	}
 	return full, true
@@ -92,39 +106,42 @@ func (r rootFS) exists(path string) bool {
 	return ok
 }
 
-// open opens a regular file of the root. A device, a pipe or a huge file is
-// refused: an unpacked image can hold anything under that name.
-func (r rootFS) open(path string) (*os.File, error) {
+// regular gives the host path of a regular file of the root that is not
+// oversized: a device, a pipe or a huge file can be under any name in an
+// unpacked image.
+func (r rootFS) regular(path string) (string, error) {
 	full, ok := r.resolve(path)
 	if !ok {
-		return nil, fs.ErrNotExist
+		return "", fs.ErrNotExist
 	}
 	info, err := os.Stat(full)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	if !info.Mode().IsRegular() || info.Size() > maxFileSize {
-		return nil, fs.ErrInvalid
+		return "", fs.ErrInvalid
 	}
-	return os.Open(full)
+	return full, nil
 }
 
 // maxFileSize is the biggest file of the root that is read. The module lists of
 // a kernel are a few hundred kilobytes.
 const maxFileSize = 64 << 20
 
-// readFile reads a file of the root, which has to be a regular file.
-func (r rootFS) readFile(path string) ([]byte, error) {
-	full, ok := r.resolve(path)
-	if !ok {
-		return nil, fs.ErrNotExist
-	}
-	info, err := os.Stat(full)
+// open opens a regular file of the root.
+func (r rootFS) open(path string) (*os.File, error) {
+	full, err := r.regular(path)
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() || info.Size() > maxFileSize {
-		return nil, fs.ErrInvalid
+	return os.Open(full)
+}
+
+// readFile reads a regular file of the root.
+func (r rootFS) readFile(path string) ([]byte, error) {
+	full, err := r.regular(path)
+	if err != nil {
+		return nil, err
 	}
 	return os.ReadFile(full)
 }

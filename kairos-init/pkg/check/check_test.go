@@ -132,14 +132,14 @@ func TestVerdicts(t *testing.T) {
 		{name: "ubuntu 23.10", d: ubuntu("23.10"), wants: []string{"kairos-init has none for Ubuntu"}},
 		{name: "ubuntu 26.03", d: ubuntu("26.03"), wants: []string{"kairos-init has none for Ubuntu"}},
 		{name: "ubuntu 22.04.5", d: ubuntu("22.04.5"), wants: []string{"kairos-init has none for Ubuntu"}},
-		{name: "ubuntu v24.04", d: distro{"ubuntu", "debian", "v24.04", "Ubuntu", []string{"apt-get"}}, wants: []string{"kairos-init has none"}},
+		{name: "ubuntu v24.04", d: distro{"ubuntu", "debian", "v24.04", "Ubuntu", []string{"apt-get"}}, wants: []string{"needs a VERSION_ID like 24.04"}},
 		{name: "ubuntu 26.04-beta", d: distro{"ubuntu", "debian", "26.04-beta", "Ubuntu", []string{"apt-get"}}, wants: []string{"kairos-init has none"}},
 		{name: "ubuntu on riscv64, whose kernel list has no release", d: ubuntu("23.10"), arch: "riscv64", ok: true},
 		{name: "ubuntu 24.04 with Trusted Boot", d: ubuntu("24.04"), opts: Options{TrustedBoot: true}, ok: true},
 		{name: "ubuntu 25.10 with Trusted Boot", d: ubuntu("25.10"), opts: Options{TrustedBoot: true}, ok: true},
 		{name: "ubuntu 26.04 with Trusted Boot", d: ubuntu("26.04"), opts: Options{TrustedBoot: true}, ok: true},
-		{name: "ubuntu 22.04 with Trusted Boot", d: ubuntu("22.04"), opts: Options{TrustedBoot: true}, wants: []string{"kairos-init has none"}},
-		{name: "ubuntu 20.04 with Trusted Boot", d: ubuntu("20.04"), opts: Options{TrustedBoot: true}, wants: []string{"kairos-init has none"}},
+		{name: "ubuntu 22.04 with Trusted Boot", d: ubuntu("22.04"), opts: Options{TrustedBoot: true}, wants: []string{"kairos-init installs linux-image-generic-hwe-24.04, which Ubuntu 22.04 does not have"}, nots: []string{"family can"}},
+		{name: "ubuntu 20.04 with Trusted Boot", d: ubuntu("20.04"), opts: Options{TrustedBoot: true}, wants: []string{"does not have"}},
 
 		// Systems no list covers.
 		{name: "arch", d: distro{"arch", "", "20261122.0.629543", "Arch Linux", []string{"pacman"}}, wants: []string{"no package list for the Arch family"}},
@@ -511,7 +511,7 @@ func TestOptions(t *testing.T) {
 			root := build(t, ubuntu("22.04"))
 			write(t, filepath.Join(root, "lib/modules/5.15.0/modules.builtin"), "", 0o644)
 			return root
-		}, Options{TrustedBoot: true}, "", false, []string{"kairos-init has none for Ubuntu 22.04"}},
+		}, Options{TrustedBoot: true}, "", false, []string{"which Ubuntu 22.04 does not have"}},
 		{"debian 11 with installPackages skipped", func(t *testing.T) string { return build(t, debian("11")) }, Options{SkipSteps: []string{"installPackages"}}, "", false, []string{"fail  rsync is missing"}},
 		{"initrd is skipped, so PRETTY_NAME does not matter", func(t *testing.T) string {
 			return build(t, distro{"ubuntu", "debian", "24.04", "", []string{"apt-get"}})
@@ -628,5 +628,80 @@ func TestOSReleaseIsAPipe(t *testing.T) {
 	r, out := output(t, root, Options{})
 	if r.OK() || !strings.Contains(out, "has no ID") {
 		t.Errorf("a pipe as os-release:\n%s", out)
+	}
+}
+
+func TestSystemdVersionOutput(t *testing.T) {
+	for out, want := range map[string]int{"systemd 256 (256.7-1.fc41)\n+PAM": 256, "systemd 256~rc3": 256, "systemd 252": 252} {
+		if got, err := parseSystemdVersion(out); err != nil || got != want {
+			t.Errorf("%q: %d, %v, want %d", out, got, err, want)
+		}
+	}
+	for _, out := range []string{"", "systemd", "systemd beta"} {
+		if _, err := parseSystemdVersion(out); err == nil {
+			t.Errorf("%q: no error", out)
+		}
+	}
+}
+
+func TestCommandsOfContinuationLines(t *testing.T) {
+	text := "    inst_check_multiple immucore\n    inst_check_multiple sync udevadm \\\n        blkid || return 1\n    inst_check_multiple foo; bar\n"
+	if got := strings.Join(commandsOf(text), " "); got != "sync udevadm blkid foo" {
+		t.Errorf("commands %q", got)
+	}
+}
+
+// An unparseable VERSION_ID stops kairos-init where it parses it: in the install
+// packages step, and in the init stage for Ubuntu and the Red Hat family.
+func TestUnparseableVersion(t *testing.T) {
+	sid := distro{"debian", "", "", "Debian GNU/Linux forky/sid", []string{"apt-get"}}
+	tests := []struct {
+		name  string
+		d     distro
+		opts  Options
+		stops bool
+	}{
+		{"debian, the packages are installed", sid, Options{}, true},
+		{"debian, the packages are not installed", sid, Options{SkipSteps: []string{"installPackages"}}, false},
+		{"ubuntu, the packages are not installed", distro{"ubuntu", "debian", "", "Ubuntu", nil}, Options{SkipSteps: []string{"installPackages"}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, out := output(t, build(t, tt.d), tt.opts)
+			if got := strings.Contains(out, "is not a version"); got != tt.stops {
+				t.Errorf("stops %v, want %v:\n%s", got, tt.stops, out)
+			}
+		})
+	}
+}
+
+func TestStageExtensionsMayBringTheKernel(t *testing.T) {
+	r, out := output(t, build(t, ubuntu("23.10")), Options{Extensions: true})
+	if !r.OK() || !strings.Contains(out, "a stage extension may bring a kernel") {
+		t.Errorf("ubuntu 23.10 with extensions:\n%s", out)
+	}
+}
+
+func TestArchNotGivenWithRoot(t *testing.T) {
+	r, err := Run(Options{Root: build(t, ubuntu("24.04"))})
+	must(t, err)
+	var out bytes.Buffer
+	r.Print(&out, false)
+	if !strings.Contains(out.String(), "--arch is not given with --root") {
+		t.Errorf("no warning:\n%s", out.String())
+	}
+}
+
+// A path this user cannot read is not reported as missing without a word.
+func TestUnreadableDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	root := completeSystem(t)
+	must(t, os.Chmod(filepath.Join(root, "boot"), 0o000))
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "boot"), 0o755) })
+	_, out := output(t, root, Options{Converted: true})
+	if !strings.Contains(out, "cannot be read by this user") {
+		t.Errorf("no warning about the unreadable /boot:\n%s", out)
 	}
 }
