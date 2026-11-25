@@ -69,7 +69,7 @@ type OEMFileSchema struct {
 // instead", so `source` is the key to offer and `uri` the one to retire.
 type Image struct {
 	Size          uint   `json:"size,omitempty"`
-	Source        string `json:"source,omitempty" description:"Container image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest"`
+	Source        string `json:"source,omitempty" description:"Container image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest. p2p://peer/active fetches the image from other Kairos nodes (EXPERIMENTAL), see p2p-source"`
 	URIDeprecated string `json:"uri,omitempty" deprecated:"true" description:"Deprecated: use source instead. Still honoured on system, recovery-system and passive"`
 }
 

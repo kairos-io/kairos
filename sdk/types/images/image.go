@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/distribution/reference"
 	"gopkg.in/yaml.v3"
@@ -12,6 +13,7 @@ import (
 const (
 	docker  = "docker"
 	oci     = "oci"
+	p2p     = "p2p"
 	file    = "file"
 	dir     = "dir"
 	ocifile = "ocifile"
@@ -41,6 +43,12 @@ func (i ImageSource) Value() string {
 
 func (i ImageSource) IsDocker() bool {
 	return i.srcType == oci
+}
+
+// IsRawImage reports whether the source is a ready made filesystem image file,
+// copied as it is instead of being unpacked into a freshly created one.
+func (i ImageSource) IsRawImage() bool {
+	return i.srcType == file || i.srcType == p2p
 }
 
 func (i ImageSource) IsDir() bool {
@@ -90,6 +98,10 @@ func (i *ImageSource) CustomUnmarshal(data interface{}) (bool, error) {
 }
 
 func (i *ImageSource) updateFromURI(uri string) error {
+	// the peer list of a p2p source is not a URL host: it is parsed apart
+	if strings.HasPrefix(uri, p2p+"://") {
+		return i.parseP2PURI(uri)
+	}
 	u, err := url.Parse(uri)
 	if err != nil {
 		return err

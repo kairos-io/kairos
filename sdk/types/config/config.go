@@ -45,6 +45,7 @@ type Config struct {
 	ImageExtractor            images.ImageExtractor           `yaml:"-"`
 	Client                    http.Client                     `yaml:"-"`
 	Platform                  *platform.Platform              `yaml:"-"`
+	P2PSource                 *images.P2POptions              `yaml:"-"` // how this node shares and fetches images with the experimental p2p source
 	Cosign                    bool                            `yaml:"cosign,omitempty" mapstructure:"cosign"`
 	Verify                    bool                            `yaml:"verify,omitempty" mapstructure:"verify"`
 	CosignPubKey              string                          `yaml:"cosign-key,omitempty" mapstructure:"cosign-key"`
