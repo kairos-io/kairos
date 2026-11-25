@@ -34,6 +34,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
+	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkUtils "github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
@@ -2132,12 +2133,22 @@ func validateSource(source string) error {
 		return nil
 	}
 
+	// An ssh source goes through the parser the config uses, so the CLI and the
+	// config accept the same URIs. Its errors never repeat the value, it may
+	// carry a password that was put there by mistake.
+	if strings.HasPrefix(source, "ssh:") {
+		if _, err := sdkImages.NewSrcFromURI(source); err != nil {
+			return fmt.Errorf("invalid ssh source: use ssh://[user@]host[:port][/active|/passive|/absolute/path]")
+		}
+		return nil
+	}
+
 	r, err := regexp.Compile(`^oci:|^dir:|^file:|^ocifile:`)
 	if err != nil {
 		return err
 	}
 	if !r.MatchString(source) {
-		return fmt.Errorf("source %s does not match any of oci:, dir:, file: or ocifile: ", source)
+		return fmt.Errorf("source %s does not match any of oci:, dir:, file:, ocifile: or ssh://", source)
 	}
 
 	return nil
