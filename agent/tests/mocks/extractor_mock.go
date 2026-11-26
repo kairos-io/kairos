@@ -17,6 +17,8 @@ limitations under the License.
 package mocks
 
 import (
+	"slices"
+
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
@@ -35,6 +37,7 @@ type ExtractCall struct {
 	ImageRef    string
 	Destination string
 	PlatformRef string
+	Excludes    []string
 }
 
 func (f *FakeImageExtractor) GetOCIImageSize(imageRef, platformRef string) (int64, error) {
@@ -67,7 +70,7 @@ func NewFakeImageExtractor(logger sdkLogger.KairosLogger) *FakeImageExtractor {
 
 func (f *FakeImageExtractor) ExtractImage(imageRef, destination, platformRef string, excludes ...string) error {
 	f.Logger.Debugf("extracting %s to %s in platform %s", imageRef, destination, platformRef)
-	f.ClientCalls = append(f.ClientCalls, ExtractCall{ImageRef: imageRef, Destination: destination, PlatformRef: platformRef})
+	f.ClientCalls = append(f.ClientCalls, ExtractCall{ImageRef: imageRef, Destination: destination, PlatformRef: platformRef, Excludes: excludes})
 	if f.SideEffect != nil {
 		f.Logger.Debugf("running side effect")
 		return f.SideEffect(imageRef, destination, platformRef)
@@ -87,10 +90,11 @@ func (f *FakeImageExtractor) WasCalledWithImageRef(imageRef string) bool {
 }
 
 // WasCalledWithExtractCall is a helper method to confirm that the client was called with the given extract call
-// This matches exactly the calls made to the client in all fields.
+// This matches exactly the calls made to the client in all fields. A nil and an empty Excludes are equal.
 func (f *FakeImageExtractor) WasCalledWithExtractCall(call ExtractCall) bool {
 	for _, c := range f.ClientCalls {
-		if c == call {
+		if c.ImageRef == call.ImageRef && c.Destination == call.Destination &&
+			c.PlatformRef == call.PlatformRef && slices.Equal(c.Excludes, call.Excludes) {
 			return true
 		}
 	}

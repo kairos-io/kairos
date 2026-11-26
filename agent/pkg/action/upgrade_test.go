@@ -373,6 +373,16 @@ var _ = Describe("Upgrade Actions test", func() {
 				_, err = fs.Stat(spec.Active.File)
 				Expect(err).To(HaveOccurred())
 			})
+			It("Passes the excluded paths to the image extractor", Label("docker"), func() {
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				spec.ExcludedPaths = []string{"/var/lib/foo", "/home"}
+				upgrade = action.NewUpgradeAction(config, spec)
+				Expect(upgrade.Run()).To(Succeed())
+
+				Expect(extractor.ClientCalls).To(HaveLen(1))
+				Expect(extractor.ClientCalls[0].ImageRef).To(Equal("alpine"))
+				Expect(extractor.ClientCalls[0].Excludes).To(Equal([]string{"/var/lib/foo", "/home"}))
+			})
 			It("Successfully reboots after upgrade from docker image", Label("docker"), func() {
 				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
 				upgrade = action.NewUpgradeAction(config, spec)
