@@ -95,6 +95,18 @@ func (i *InstallSpec) Sanitize() error {
 	return checkPartitionsFitTargetDisk(i.Target, targetDisk, i.Partitions.PartitionsByInstallOrder(i.ExtraPartitions))
 }
 
+// CheckDiskPlan makes sure the partitions of the spec still fit the target
+// disk. Sanitize already does it when the spec is built, so this is for a spec
+// whose partition sizes changed afterwards, for example when the images were
+// measured again from a downloaded ISO.
+func (i *InstallSpec) CheckDiskPlan() error {
+	targetDisk, err := lookupTargetDisk(i.Target)
+	if err != nil {
+		return err
+	}
+	return checkPartitionsFitTargetDisk(i.Target, targetDisk, i.Partitions.PartitionsByInstallOrder(i.ExtraPartitions))
+}
+
 // gptMetadataOverhead is the disk space the partitioner reserves and that the
 // partitions cannot use: 1MiB of alignment before the first partition plus 1MiB
 // at the end of the disk for the backup GPT header (see

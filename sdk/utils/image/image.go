@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -201,8 +202,9 @@ func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string)
 type GetOption func(*getOptions)
 
 type getOptions struct {
-	insecure     bool
-	authRegistry string
+	insecure       bool
+	authRegistry   string
+	authRegistries []string
 }
 
 // WithAuthRegistry restricts explicit credentials to a registry host, including
@@ -210,6 +212,21 @@ type getOptions struct {
 // explicit credentials unscoped for compatibility with direct SDK callers.
 func WithAuthRegistry(host string) GetOption {
 	return func(o *getOptions) { o.authRegistry = host }
+}
+
+// WithAuthRegistries adds more registry hosts that explicit credentials may be
+// sent to, next to the one given to WithAuthRegistry. Use it when one set of
+// credentials covers images from several registries.
+func WithAuthRegistries(hosts ...string) GetOption {
+	return func(o *getOptions) { o.authRegistries = append(o.authRegistries, hosts...) }
+}
+
+// authAllowed reports whether explicit credentials may be sent to host.
+func (o *getOptions) authAllowed(host string) bool {
+	if o.authRegistry == "" && len(o.authRegistries) == 0 {
+		return true
+	}
+	return host == o.authRegistry || slices.Contains(o.authRegistries, host)
 }
 
 // WithInsecureRegistry allows pulling from registries that serve over plain
@@ -273,11 +290,7 @@ func ResolveDigest(targetImage string, auth *registrytypes.AuthConfig, t http.Ro
 		transport.WithRetryPredicate(defaultRetryPredicate),
 	)
 	remoteOpts := []remote.Option{remote.WithTransport(tr)}
-	if auth != nil && (o.authRegistry == "" || ref.Context().RegistryStr() == o.authRegistry) {
-		remoteOpts = append(remoteOpts, remote.WithAuth(staticAuth{auth}))
-	} else {
-		remoteOpts = append(remoteOpts, remote.WithAuthFromKeychain(authn.DefaultKeychain))
-	}
+	remoteOpts = append(remoteOpts, remoteAuth(ref, auth, o))
 
 	desc, err := remote.Head(ref, remoteOpts...)
 	if err != nil {
@@ -369,10 +382,10 @@ func GetImage(targetImage, targetPlatform string, auth *registrytypes.AuthConfig
 }
 
 // remoteAuth picks the credentials for ref: auth when it is given and scoped
-// to ref's registry, or not scoped at all, and the default keychain
+// to ref's registry (see authAllowed), or not scoped at all, and the default keychain
 // otherwise.
 func remoteAuth(ref name.Reference, auth *registrytypes.AuthConfig, o *getOptions) remote.Option {
-	if auth != nil && (o.authRegistry == "" || ref.Context().RegistryStr() == o.authRegistry) {
+	if auth != nil && o.authAllowed(ref.Context().RegistryStr()) {
 		return remote.WithAuth(staticAuth{auth})
 	}
 	return remote.WithAuthFromKeychain(authn.DefaultKeychain)

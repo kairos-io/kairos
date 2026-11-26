@@ -738,6 +738,11 @@ menuentry "${display_name} (fallback)" --id fallback {
   initrd (loop0)$initramfs
 }
 
+# The recovery entries boot an image from the COS_RECOVERY partition. A disk
+# built with a single system image has none, so only offer them when it exists.
+set recovery_blk=
+search --no-floppy --label --set=recovery_blk COS_RECOVERY
+if [ "${recovery_blk}" ]; then
 menuentry "${display_name} recovery" --id recovery {
   search --no-floppy --label --set=root COS_RECOVERY
   if [ test -s /cOS/recovery.squashfs ]; then
@@ -775,6 +780,7 @@ menuentry "${display_name} state reset (auto)" --id statereset {
   linux (loop0)$kernel $kernelcmd ${extra_cmdline} ${extra_recovery_cmdline} vga=795 nomodeset kairos.reset
   initrd (loop0)$initramfs
 }
+fi
 
 if [ "${menu_blk}" ]; then
   source "(${menu_blk})${custom_menu}"

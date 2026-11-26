@@ -3,7 +3,9 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"time"
 
+	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -34,5 +36,37 @@ var _ = Describe("scanResetConfig", func() {
 		c, err := scanResetConfig("{}", false, dir)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(c.Install.Device).To(Equal("sda"))
+	})
+})
+
+var _ = Describe("reset on a node without a recovery partition", func() {
+	withRecoveryPartition := func(p *sdkPartitions.Partition) {
+		orig := recoveryPartition
+		recoveryPartition = func() *sdkPartitions.Partition { return p }
+		DeferCleanup(func() { recoveryPartition = orig })
+	}
+
+	It("refuses before the confirmation wait", func() {
+		withRecoveryPartition(nil)
+
+		start := time.Now()
+		// Interactive on purpose: without the guard this sits in the 60 second wait.
+		err := reset(false, false, false, false)
+
+		Expect(err).To(MatchError(ContainSubstring("This node has no recovery partition")))
+		Expect(err).To(MatchError(ContainSubstring("Replace the node with a fresh disk")))
+		Expect(time.Since(start)).To(BeNumerically("<", 5*time.Second))
+	})
+
+	It("does not refuse a node that has a recovery partition", func() {
+		withRecoveryPartition(&sdkPartitions.Partition{FilesystemLabel: "COS_RECOVERY"})
+
+		// Unattended skips the wait. The reset then fails on the test machine for
+		// its own reasons, which must not be the no recovery refusal.
+		err := reset(false, true, false, false)
+
+		if err != nil {
+			Expect(err.Error()).ToNot(ContainSubstring("no recovery partition"))
+		}
 	})
 })

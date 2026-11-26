@@ -110,6 +110,14 @@ func (i InstallAction) Run() (err error) {
 		if err = config.ResizeInstallSpecForSource(i.cfg, i.spec); err != nil {
 			return fmt.Errorf("sizing the images from the downloaded ISO: %w", err)
 		}
+		// The new sizes can push the partitions past the end of the disk.
+		// Refuse before the disk is touched, a formatting install is about
+		// to wipe it.
+		if !i.spec.NoFormat {
+			if err = i.spec.CheckDiskPlan(); err != nil {
+				return fmt.Errorf("the disk plan after sizing from the downloaded ISO: %w", err)
+			}
+		}
 	}
 
 	if i.spec.NoFormat {
@@ -151,6 +159,14 @@ func (i InstallAction) Run() (err error) {
 	cleanup.Push(func() error {
 		return e.UnmountPartitions(i.spec.Partitions.PartitionsByMountPoint(true))
 	})
+
+	// An install without formatting takes the partitions as they are, so
+	// check the images fit them before anything is written.
+	if i.spec.NoFormat {
+		if err = checkPartitionsFitImages(i.cfg, i.spec); err != nil {
+			return err
+		}
+	}
 
 	// Before install hook happens after partitioning but before the image OS is applied
 	progress.EmitStep(agentrun.StepBeforeInstall)

@@ -85,6 +85,32 @@ var _ = Describe("OCIImageExtractor registry authentication", func() {
 		expectPullsSucceed(extractor, imageRef)
 	})
 
+	It("sends explicit credentials to every registry it is scoped to", func() {
+		second := httptest.NewServer(requireBasicAuth(ggcrregistry.New(), testRegistryUser, testRegistryPass))
+		DeferCleanup(second.Close)
+		secondRef := seedRegistryImage(second, false)
+		third := httptest.NewServer(requireBasicAuth(ggcrregistry.New(), testRegistryUser, testRegistryPass))
+		DeferCleanup(third.Close)
+		thirdRef := seedRegistryImage(third, false)
+
+		extractor := image.OCIImageExtractor{
+			Insecure:            true,
+			Auth:                testAuth(),
+			AuthRegistry:        serverHost(server),
+			ExtraAuthRegistries: []string{serverHost(second)},
+		}
+		expectPullsSucceed(extractor, imageRef)
+		expectPullsSucceed(extractor, secondRef)
+
+		// A registry that is not listed still gets no explicit credentials
+		destDir, err := os.MkdirTemp("", "sdk-image-auth-dest-*")
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(os.RemoveAll, destDir)
+		expectUnauthorized(extractor.ExtractImage(thirdRef, destDir, "linux/amd64"))
+		_, err = extractor.GetOCIImageSize(thirdRef, "linux/amd64")
+		expectUnauthorized(err)
+	})
+
 	It("fails extraction and size when auth is absent or wrong", func() {
 		for _, extractor := range []image.OCIImageExtractor{
 			{Insecure: true},

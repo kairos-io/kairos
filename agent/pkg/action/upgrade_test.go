@@ -34,6 +34,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -250,6 +251,83 @@ var _ = Describe("Upgrade Actions test", func() {
 				Expect(err).To(HaveOccurred())
 				// Make sure is a cloud init error!
 				Expect(err.Error()).To(ContainSubstring("cloud init"))
+			})
+			Describe("free space on the state partition", Label("state-space"), func() {
+				const imageBytes = 1 << 20
+				transitionImg := fmt.Sprintf("%s/cOS/%s", constants.RunningStateDir, constants.TransitionImgFile)
+				singleImageReason := "This node was built with a single system image and no recovery partition, so there is no room for the upgrade image. Replace the node with a fresh disk."
+
+				freeBytes := func(n int64) {
+					restore := action.SetFreeBytesFunc(func(_ sdkFS.KairosFS, _ string) (int64, error) { return n, nil })
+					DeferCleanup(restore)
+				}
+
+				BeforeEach(func() {
+					// The new image is about as big as the one it replaces, so the
+					// active image is what the check measures.
+					Expect(fs.WriteFile(activeImg, bytes.Repeat([]byte("a"), imageBytes), constants.FilePerm)).To(Succeed())
+					spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				})
+
+				It("fails before downloading anything when the transition image does not fit", func() {
+					freeBytes(imageBytes / 2)
+					upgrade = action.NewUpgradeAction(config, spec)
+
+					err := upgrade.Run()
+
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("not enough free space"))
+					Expect(err.Error()).ToNot(ContainSubstring("single system image"))
+					Expect(extractor.ClientCalls).To(BeEmpty())
+					_, statErr := fs.Stat(transitionImg)
+					Expect(statErr).To(HaveOccurred())
+				})
+
+				It("adds why when the node has no recovery partition", func() {
+					spec.Partitions.Recovery = nil
+					freeBytes(imageBytes / 2)
+					upgrade = action.NewUpgradeAction(config, spec)
+
+					err := upgrade.Run()
+
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("not enough free space"))
+					Expect(err.Error()).To(ContainSubstring(singleImageReason))
+					Expect(extractor.ClientCalls).To(BeEmpty())
+				})
+
+				It("does not run the before-upgrade hook when it fails", func() {
+					freeBytes(imageBytes / 2)
+					upgrade = action.NewUpgradeAction(config, spec)
+
+					Expect(upgrade.Run()).To(HaveOccurred())
+					Expect(cloudInit.ExecStages).ToNot(ContainElement(constants.BeforeUpgradeHook))
+				})
+
+				It("upgrades when the transition image fits", func() {
+					freeBytes(2 * imageBytes)
+					upgrade = action.NewUpgradeAction(config, spec)
+
+					Expect(upgrade.Run()).To(Succeed())
+				})
+
+				It("counts a transition image left by an earlier failed upgrade as free", func() {
+					Expect(fs.WriteFile(transitionImg, bytes.Repeat([]byte("t"), imageBytes), constants.FilePerm)).To(Succeed())
+					freeBytes(imageBytes / 2)
+					upgrade = action.NewUpgradeAction(config, spec)
+
+					Expect(upgrade.Run()).To(Succeed())
+				})
+
+				It("does not stop an upgrade it cannot measure", func() {
+					restore := action.SetFreeBytesFunc(func(_ sdkFS.KairosFS, _ string) (int64, error) {
+						return 0, fmt.Errorf("statfs failed")
+					})
+					DeferCleanup(restore)
+					upgrade = action.NewUpgradeAction(config, spec)
+
+					Expect(upgrade.Run()).To(Succeed())
+				})
 			})
 			It("Successfully upgrades a machine with no recovery partition", Label("docker"), func() {
 				// A system upgrade never writes to the recovery partition, so
