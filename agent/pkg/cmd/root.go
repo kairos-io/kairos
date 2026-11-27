@@ -34,6 +34,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
+	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkUtils "github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
@@ -203,7 +204,7 @@ func usageError(cmd *cobra.Command, msg string) error {
 }
 
 func addSourceFlag(flags *pflag.FlagSet, source *string) {
-	flags.StringVar(source, "source", "", "Source for upgrade. Composed of `type:address`. Accepts `file:`,`dir:` `oci:`,or `ocifile:` for the type of source.\nFor example `ocifile:/var/share/myimage.tar`, `dir:/tmp/extracted` or `oci:repo/image:tag`")
+	flags.StringVar(source, "source", "", "Source for upgrade. Composed of `type:address`. Accepts `file:`,`dir:` `oci:`,`ocifile:`, `ssh:` or `p2p://` (experimental, see `kairos-agent p2p --help`) for the type of source.\nFor example `ocifile:/var/share/myimage.tar`, `dir:/tmp/extracted`, `oci:repo/image:tag` or `ssh://root@10.0.0.5` to take the image another node booted from (needs upgrade.ssh-source in the cloud config)")
 }
 
 func addAllowInsecureRegistriesFlag(flags *pflag.FlagSet, insecure *bool) {
@@ -248,6 +249,7 @@ func upgradeArgs(cmd *cobra.Command, args []string) error {
 func newUpgradeCmd(global *globalFlags) *cobra.Command {
 	var (
 		image, source, bootEntry string
+		p2pFlagsSet              func()
 		recovery, insecure       bool
 		dryRun, diff             bool
 		diffSource               string
@@ -280,6 +282,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 `,
 		Args: upgradeArgs,
 		PreRunE: func(*cobra.Command, []string) error {
+			p2pFlagsSet()
 			return checkUpgrade(source)
 		},
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -327,6 +330,17 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 	flags.BoolVar(&dryRun, "dry-run", false, "Resolve the upgrade and print a summary of what would be done, without changing the system")
 	flags.BoolVar(&diff, "diff", false, "Experimental. Apply only the changes from the running release, fetched from the source tag with .diff appended. Falls back to the full image")
 	flags.StringVar(&diffSource, "diff-source", "", "Experimental. The diff to apply, as an image source (oci:, ocifile:, dir:). Implies --diff")
+	var p2pFlags agent.ExtraConfigP2PSource
+	flags.BoolVar(&p2pFlags.Experimental, "experimental-p2p", false, "EXPERIMENTAL: opt in to the p2p:// source (or set p2p-source.experimental in the cloud config)")
+	flags.StringVar(&p2pFlags.Bind, "p2p-bind", "", "EXPERIMENTAL: local IP to bind the p2p client to")
+	flags.StringSliceVar(&p2pFlags.Allow, "p2p-allow-cidr", nil, "EXPERIMENTAL: networks p2p peers must belong to (default: the listed peers, or the local subnet when discovering)")
+	flags.IntVar(&p2pFlags.Port, "p2p-port", 0, "EXPERIMENTAL: p2p port while downloading (0 = random)")
+	flags.BoolVar(&p2pFlags.Insecure, "p2p-insecure", false, "EXPERIMENTAL, DANGEROUS: allow a p2p source without a ?pin= or ?sha256= pin")
+	p2pFlagsSet = func() {
+		if p2pFlags.Experimental || p2pFlags.Insecure || p2pFlags.Bind != "" || p2pFlags.Port != 0 || len(p2pFlags.Allow) > 0 {
+			agent.UpgradeP2PFlags = &p2pFlags
+		}
+	}
 
 	cmd.AddCommand(newListReleasesCmd())
 	return cmd
@@ -2070,6 +2084,7 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		newLogsCmd(),
 		newKcryptCmd(),
 		newPhoneHomeCmd(),
+		newP2PCmd(),
 	)
 
 	stopFlagsAtFirstArgument(root)
@@ -2215,12 +2230,22 @@ func validateSource(source string) error {
 		return nil
 	}
 
-	r, err := regexp.Compile(`^oci:|^dir:|^file:|^ocifile:`)
+	// An ssh source goes through the parser the config uses, so the CLI and the
+	// config accept the same URIs. Its errors never repeat the value, it may
+	// carry a password that was put there by mistake.
+	if strings.HasPrefix(source, "ssh:") {
+		if _, err := sdkImages.NewSrcFromURI(source); err != nil {
+			return fmt.Errorf("invalid ssh source: use ssh://[user@]host[:port][/active|/passive|/absolute/path]")
+		}
+		return nil
+	}
+
+	r, err := regexp.Compile(`^oci:|^dir:|^file:|^ocifile:|^p2p://`)
 	if err != nil {
 		return err
 	}
 	if !r.MatchString(source) {
-		return fmt.Errorf("source %s does not match any of oci:, dir:, file: or ocifile: ", source)
+		return fmt.Errorf("source %s does not match any of oci:, dir:, file:, ocifile:, ssh:// or p2p:// (experimental)", source)
 	}
 
 	return nil

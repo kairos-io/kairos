@@ -79,6 +79,18 @@ var _ = Describe("upgrade dry run summary", func() {
 		Expect(out.String()).ToNot(ContainSubstring("Diff source"))
 	})
 
+	It("says an ssh source was reached and verified", func() {
+		s := newSpec()
+		src, err := sdkImages.NewSrcFromURI("ssh://root@node1:2222/active")
+		Expect(err).ToNot(HaveOccurred())
+		s.Active.Source = src
+		writeUpgradeSummary(out, s)
+
+		Expect(out.String()).To(MatchRegexp(`Source:\s+ssh://root@node1:2222/active`))
+		Expect(out.String()).To(ContainSubstring("host key verified"))
+		Expect(out.String()).ToNot(ContainSubstring("manifest"))
+	})
+
 	It("reports the recovery image when the recovery entry is the target", func() {
 		s := newSpec()
 		s.Entry = constants.BootEntryRecovery

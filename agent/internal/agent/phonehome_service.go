@@ -56,9 +56,9 @@ func enablePhoneHomeIfConfigured(c *sdkConfig.Config) {
 	}
 
 	for _, args := range [][]string{
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "enable", phonehome.ServiceName},
-		{"systemctl", "start", phonehome.ServiceName},
+		{systemctlBin, "daemon-reload"},
+		{systemctlBin, "enable", phonehome.ServiceName},
+		{systemctlBin, "start", phonehome.ServiceName},
 	} {
 		// args is a literal slice defined just above — no user input reaches exec.Command.
 		cmd := exec.Command(args[0], args[1:]...) //nosec G204 -- fixed command and arguments

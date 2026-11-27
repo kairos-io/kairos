@@ -26,6 +26,7 @@ type UpgradeSchema struct {
 	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
 	Diff                    SpecBool            `json:"diff,omitempty" description:"Experimental. Apply only the changes from the running release to the target onto a copy of the booted image, instead of pulling the full image. Falls back to the full image when no matching diff can be applied. Not supported on Trusted Boot or for recovery upgrades"`
 	DiffSource              string              `json:"diff-source,omitempty" description:"Experimental. The diff to apply, as an image source such as oci:quay.io/kairos/hadron:v1.2.0.diff. Implies diff. Defaults to the tag of the full image with .diff appended" examples:"[\"oci:quay.io/kairos/hadron:v1.2.0.diff\"]"`
+	SSHSource               *SSHSourceSchema    `json:"ssh-source,omitempty" nullable:"true" description:"How to authenticate to the node an ssh:// source points to. Overrides the root ssh-source block key by key."`
 }
 
 var _ jsonschemago.Preparer = UpgradeSchema{}

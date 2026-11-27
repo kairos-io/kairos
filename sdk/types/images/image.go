@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/distribution/reference"
 	"gopkg.in/yaml.v3"
@@ -12,9 +13,11 @@ import (
 const (
 	docker  = "docker"
 	oci     = "oci"
+	p2p     = "p2p"
 	file    = "file"
 	dir     = "dir"
 	ocifile = "ocifile"
+	ssh     = "ssh"
 )
 
 // Image struct represents a file system image with its commonly configurable values, size in MiB.
@@ -55,6 +58,17 @@ func (i ImageSource) IsOCIFile() bool {
 	return i.srcType == ocifile
 }
 
+// IsSSH reports whether the image is fetched from another node over SSH.
+func (i ImageSource) IsSSH() bool {
+	return i.srcType == ssh
+}
+
+// IsRawImage reports whether the source is a ready made filesystem image file,
+// copied as it is instead of being unpacked into a freshly created one.
+func (i ImageSource) IsRawImage() bool {
+	return i.srcType == file || i.srcType == ssh || i.srcType == p2p
+}
+
 func (i ImageSource) IsEmpty() bool {
 	if i.srcType == "" {
 		return true
@@ -90,11 +104,18 @@ func (i *ImageSource) CustomUnmarshal(data interface{}) (bool, error) {
 }
 
 func (i *ImageSource) updateFromURI(uri string) error {
+	// the peer list of a p2p source is not a URL host: it is parsed apart
+	if strings.HasPrefix(uri, p2p+"://") {
+		return i.parseP2PURI(uri)
+	}
 	u, err := url.Parse(uri)
 	if err != nil {
 		return err
 	}
 	scheme := u.Scheme
+	if scheme == ssh {
+		return i.parseSSHURI(uri, u)
+	}
 	value := u.Opaque
 	if value == "" {
 		value = filepath.Join(u.Host, u.Path)
@@ -149,6 +170,10 @@ func NewFileSrc(src string) *ImageSource {
 
 func NewDirSrc(src string) *ImageSource {
 	return &ImageSource{source: src, srcType: dir}
+}
+
+func NewSSHSrc(target SSHTarget) *ImageSource {
+	return &ImageSource{source: target.value(), srcType: ssh}
 }
 
 func NewOCIFileSrc(src string) *ImageSource {

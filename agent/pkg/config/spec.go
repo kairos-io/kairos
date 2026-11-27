@@ -190,9 +190,18 @@ func NewInstallSpec(cfg *sdkConfig.Config) (*spec.InstallSpec, error) {
 	if err := applyRegistryOptions(cfg, "install", spec.Active.Source, spec.Passive.Source, spec.Recovery.Source); err != nil {
 		return nil, err
 	}
+	if err := applyNodeSourceOptions(cfg, "install", spec.Active.Source, spec.Passive.Source, spec.Recovery.Source); err != nil {
+		return nil, err
+	}
+	if err := checkP2PInstallImages(spec.Active.Source, spec.Passive.Source, spec.Recovery.Source); err != nil {
+		return nil, err
+	}
 
 	// Get the actual source size to calculate the image size and partitions size
 	size, err := GetSourceSize(cfg, spec.Active.Source)
+	if err != nil && (spec.Active.Source.IsSSH() || spec.Active.Source.IsP2P()) {
+		return nil, fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
+	}
 	if err != nil {
 		cfg.Logger.Warnf("Failed to infer size for images: %s", err.Error())
 	} else {
@@ -569,6 +578,19 @@ func NewUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeSpec, error) {
 	if err := applyRegistryOptions(cfg, "upgrade", source); err != nil {
 		return nil, err
 	}
+	if source != nil && source.IsSSH() && spec.RecoveryUpgrade() {
+		// The recovery image is another filesystem than the one a node serves.
+		return nil, fmt.Errorf("an ssh source can only upgrade the active system, the recovery system is not served")
+	}
+	if err := applySSHOptions(cfg, "upgrade", source); err != nil {
+		return nil, err
+	}
+	if err := applyP2POptions(cfg, source); err != nil {
+		return nil, err
+	}
+	if err := checkP2PImage(source, spec.RecoveryUpgrade()); err != nil {
+		return nil, err
+	}
 	err = setUpgradeSourceSize(cfg, spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed calculating size: %w", err)
@@ -627,6 +649,64 @@ func setUpgradeSourceSize(cfg *sdkConfig.Config, spec *spec.UpgradeSpec) error {
 	cfg.Logger.Infof("Setting image size to %dMiB", targetSpec.Size)
 
 	return nil
+}
+
+// applyResetSSHSource reads the ssh options for reset.system.source when it
+// names an ssh source, and measures it: the sizes set before the source could
+// be overridden came from the recovery image.
+func applyResetSSHSource(cfg *sdkConfig.Config, spec *spec.ResetSpec) error {
+	if err := applySSHOptions(cfg, "reset", spec.Active.Source); err != nil {
+		return err
+	}
+	if spec.Active.Source == nil || !spec.Active.Source.IsSSH() {
+		return nil
+	}
+	size, err := GetSourceSize(cfg, spec.Active.Source)
+	if err != nil {
+		return fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
+	}
+	cfg.Logger.Infof("Setting image size to %dMiB", size)
+	spec.Active.Size = uint(size)
+	spec.Passive.Size = uint(size)
+	return nil
+}
+
+// applyResetP2PSource measures a p2p reset.system.source, as the sizes of the
+// spec came from the recovery image.
+func applyResetP2PSource(cfg *sdkConfig.Config, spec *spec.ResetSpec) error {
+	if err := applyP2POptions(cfg, spec.Active.Source); err != nil {
+		return err
+	}
+	if err := checkP2PImage(spec.Active.Source, false); err != nil {
+		return err
+	}
+	if spec.Active.Source != nil && spec.Active.Source.IsP2P() {
+		size, err := GetSourceSize(cfg, spec.Active.Source)
+		if err != nil {
+			return fmt.Errorf("could not read the size of %s: %w", spec.Active.Source.String(), err)
+		}
+		cfg.Logger.Infof("Setting image size to %dMiB", size)
+		spec.Active.Size = uint(size)
+		spec.Passive.Size = uint(size)
+	}
+	return nil
+}
+
+// applyNodeSourceOptions reads the options of the sources that come from other
+// nodes, ssh and p2p. A source of any other type is left alone.
+func applyNodeSourceOptions(cfg *sdkConfig.Config, action string, sources ...*sdkImages.ImageSource) error {
+	if err := applySSHOptions(cfg, action, sources...); err != nil {
+		return err
+	}
+	return applyP2POptions(cfg, sources...)
+}
+
+// applyResetNodeSource measures a reset.system.source that is an ssh or p2p one.
+func applyResetNodeSource(cfg *sdkConfig.Config, spec *spec.ResetSpec) error {
+	if err := applyResetSSHSource(cfg, spec); err != nil {
+		return err
+	}
+	return applyResetP2PSource(cfg, spec)
 }
 
 // NewResetSpec returns a ResetSpec struct all based on defaults and current host state
@@ -741,6 +821,10 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	err = unmarshallFullSpec(cfg, "reset", spec)
 	if err != nil {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
+	}
+
+	if err := applyResetNodeSource(cfg, spec); err != nil {
+		return nil, err
 	}
 
 	if ep.OEM == nil && spec.FormatOEM {
@@ -946,6 +1030,12 @@ func NewUkiInstallSpec(cfg *sdkConfig.Config) (*spec.InstallUkiSpec, error) {
 		return nil, fmt.Errorf("failed unmarshalling the full spec: %w", err)
 	}
 	// Honor install registry options before any image is fetched
+	if spec.Active.Source != nil && spec.Active.Source.IsSSH() {
+		return nil, fmt.Errorf("an ssh source is not supported on trusted boot")
+	}
+	if spec.Active.Source != nil && spec.Active.Source.IsP2P() {
+		return nil, fmt.Errorf("a p2p source is not supported on trusted boot")
+	}
 	if err := applyRegistryOptions(cfg, "install", spec.Active.Source); err != nil {
 		return nil, err
 	}
@@ -1016,6 +1106,12 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 		return nil, fmt.Errorf(constants.UpgradeNoSourceError)
 	}
 	// Honor upgrade registry options before any image is fetched
+	if spec.Active.Source.IsSSH() {
+		return nil, fmt.Errorf("an ssh source is not supported on trusted boot")
+	}
+	if spec.Active.Source.IsP2P() {
+		return nil, fmt.Errorf("a p2p source is not supported on trusted boot")
+	}
 	if err := applyRegistryOptions(cfg, "upgrade", spec.Active.Source); err != nil {
 		return nil, err
 	}
@@ -1026,7 +1122,7 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 	// other source types a size error is non-fatal and we fall back to a default.
 	size, err := GetSourceSize(cfg, spec.Active.Source)
 	if err != nil {
-		if spec.Active.Source.IsDocker() {
+		if spec.Active.Source.IsDocker() || spec.Active.Source.IsSSH() {
 			return nil, fmt.Errorf("could not resolve image %s: %w", spec.Active.Source.Value(), err)
 		}
 		cfg.Logger.Warnf("Failed to infer size for images: %s", err.Error())
@@ -1186,6 +1282,16 @@ func GetSourceSize(config *sdkConfig.Config, source *sdkImages.ImageSource) (int
 		// Similar to Docker images but more conservative since it's a local file
 		size = int64(float64(file.Size()) * 2.0)
 
+	case source.IsSSH():
+		size, err = sshSourceSize(config, source)
+		if err != nil {
+			return 0, err
+		}
+	case source.IsP2P():
+		size, err = p2pSourceSize(config, source)
+		if err != nil {
+			return 0, err
+		}
 	case source.IsFile():
 		file, err := config.Fs.Stat(source.Value())
 		if err != nil {

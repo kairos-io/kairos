@@ -37,6 +37,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/partitioner"
+	"github.com/kairos-io/kairos/v4/agent/pkg/sshimage"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils/loop"
@@ -48,6 +49,9 @@ import (
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 	sdkImage "github.com/kairos-io/kairos/v4/sdk/utils/image"
 )
+
+// fetchSSH is a variable so tests can fetch without a server.
+var fetchSSH = sshimage.Fetch
 
 // Elemental is the struct meant to self-contain most utils and actions related to Elemental, like installing or applying selinux
 type Elemental struct {
@@ -422,7 +426,7 @@ func (e *Elemental) DeployImageNodirs(img *sdkImages.Image, leaveMounted bool, e
 // for a running system. This is so we can reuse this method for creating random images, not only system ones
 func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStructure bool, excludes ...string) (info interface{}, err error) {
 	target := img.MountPoint
-	if !img.Source.IsFile() {
+	if !img.Source.IsRawImage() {
 		if img.FS != cnst.SquashFs {
 			err = e.CreateFileSystemImage(img)
 			if err != nil {
@@ -453,7 +457,7 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 		_ = e.UnmountImage(img)
 		return nil, err
 	}
-	if !img.Source.IsFile() {
+	if !img.Source.IsRawImage() {
 		if createDirStructure {
 			err = utils.CreateDirStructure(e.config.Fs, target)
 			if err != nil {
@@ -482,7 +486,7 @@ func (e *Elemental) deployImage(img *sdkImages.Image, leaveMounted, createDirStr
 			return nil, err
 		}
 	}
-	if leaveMounted && img.Source.IsFile() {
+	if leaveMounted && img.Source.IsRawImage() {
 		err = e.MountImage(img, "rw")
 		if err != nil {
 			return nil, err
@@ -581,11 +585,56 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 		if err != nil {
 			return nil, err
 		}
+	} else if imgSrc.IsSSH() {
+		if err := e.fetchSSHImage(target, imgSrc); err != nil {
+			return nil, err
+		}
+	} else if imgSrc.IsP2P() {
+		if err := e.fetchP2PImage(target, imgSrc); err != nil {
+			return nil, err
+		}
 	} else {
 		return nil, fmt.Errorf("unknown image source type")
 	}
 	e.config.Logger.Infof("Finished copying %s into %s", imgSrc.Value(), target)
 	return info, nil
+}
+
+// fetchSSHImage copies the image another node serves over SSH into target.
+// A partial file is removed, an image that failed verification must never be
+// mistaken for an image that was only copied.
+func (e *Elemental) fetchSSHImage(target string, imgSrc *sdkImages.ImageSource) (err error) {
+	t, err := imgSrc.SSHTarget()
+	if err != nil {
+		return err
+	}
+	var opts sdkImages.SSHSourceOptions
+	if e.config.SSHSource != nil {
+		opts = *e.config.SSHSource
+	}
+	if err = fsutils.MkdirAll(e.config.Fs, filepath.Dir(target), cnst.DirPerm); err != nil {
+		return err
+	}
+	f, err := e.config.Fs.OpenFile(target, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+		if err != nil {
+			_ = e.config.Fs.Remove(target)
+		}
+	}()
+	_, err = fetchSSH(context.Background(), sshimage.Options{
+		SSHSourceOptions: opts,
+		Logger:           e.config.Logger,
+	}, t, f)
+	if err != nil {
+		e.config.Logger.Errorf("Could not fetch %s: %s", imgSrc.String(), err)
+	}
+	return err
 }
 
 // imageFromArchive reads a local image archive. It understands the docker save
