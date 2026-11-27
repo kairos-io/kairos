@@ -120,6 +120,11 @@ type Credentials struct {
 	// registration. The name matches the secret-pattern detector by design —
 	// this field *is* the session credential — but it is not a hardcoded value.
 	APIKey string `yaml:"api_key" json:"apiKey"` //nosec G101 -- legitimate credential carrier, populated at runtime
+	// ServerURL is the phonehome.url that issued NodeID and APIKey. A node
+	// whose configured url no longer matches registers again rather than
+	// presenting a key the new server never issued. Empty in files written
+	// before it was recorded; those are trusted until the server refuses them.
+	ServerURL string `yaml:"server_url,omitempty" json:"-"`
 }
 
 // NodeAddress is one of the node's reported network addresses. It mirrors the
