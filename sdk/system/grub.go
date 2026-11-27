@@ -21,7 +21,6 @@ func SetGRUBOptions(opts map[string]string) Option {
 
 func setGRUBOptions(opts map[string]string) error {
 	mountPath := "/tmp/oem"
-	defer mounts.Umount(state.PartitionState{Mounted: true, MountPoint: mountPath}) //nolint:errcheck
 	runtime, err := state.NewRuntime()
 	if err != nil {
 		return err
@@ -35,6 +34,10 @@ func setGRUBOptions(opts map[string]string) error {
 	if err := mounts.PrepareWrite(oem, mountPath); err != nil {
 		return err
 	}
+	// Paired with PrepareWrite rather than deferred before it. A partition
+	// found mounted read only is read write from here until this runs, and
+	// there is nothing to undo until PrepareWrite has succeeded.
+	defer mounts.FinishWrite(oem, mountPath) //nolint:errcheck
 
 	editenv := utils.FindCommand("grub2-editenv", []string{"grub2-editenv", "grub-editenv"})
 	return setGRUBEnv(opts, func(k, v string) (string, error) {
