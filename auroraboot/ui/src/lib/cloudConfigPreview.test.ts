@@ -7,7 +7,7 @@ import { PHONEHOME_SAFE_DEFAULTS } from "./buildConfig";
 const base: Parameters<typeof buildCloudConfigPreview>[0] = {
   autoInstall: true,
   registerAuroraBoot: true,
-  groupName: "production",
+  groupId: "grp-1",
   allowedCommands: [...PHONEHOME_SAFE_DEFAULTS],
   variant: "standard",
   kubernetesDistro: "k3s",
@@ -94,6 +94,12 @@ describe("buildCloudConfigPreview", () => {
     const phonehome = doc.phonehome as Record<string, unknown>;
     expect(phonehome.url).toBe("<server-url>");
     expect(phonehome.registration_token).toBe("<token>");
+  });
+
+  it("shows the group ID in phonehome.group, as the built image carries it", () => {
+    const doc = docBody(buildCloudConfigPreview(base));
+    const phonehome = doc.phonehome as Record<string, unknown>;
+    expect(phonehome.group).toBe("grp-1");
   });
 
   it("uses the real url and token when provided", () => {
