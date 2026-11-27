@@ -80,7 +80,8 @@ func DefaultDeployerFunc(ctx context.Context, config schema.Config, artifact sch
 // (netbootmgr.ErrAlreadyRunning while an earlier build is still served)
 // reaches CollectErrors instead of racing it. Web builds never start the
 // long-running HTTP server, and the netboot manager returns once pixiecore
-// is spawned, so waiting does not block the build.
+// has run for a couple of seconds without exiting, so waiting does not block
+// the build.
 func NewDeployer(config schema.Config, artifact schema.ReleaseArtifact) *deployer.Deployer {
 	return deployer.NewDeployer(config, artifact, herd.EnableInit, herd.CollectOrphans)
 }

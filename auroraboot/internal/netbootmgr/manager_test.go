@@ -257,6 +257,7 @@ func TestStartWithPathsSharesStateWithStart(t *testing.T) {
 		filepath.Join(netbootDir, "kairos-initrd"),
 		filepath.Join(netbootDir, "kairos-kernel"),
 		"", // no livecd grub config
+		"", // the manager's port
 	)
 	if err != nil {
 		t.Fatalf("StartWithPaths: %v", err)
@@ -274,7 +275,7 @@ func TestStartWithPathsSharesStateWithStart(t *testing.T) {
 	// Same guard Start has: a second start while one is already running is
 	// rejected, not queued or silently collided with -- this is the bug that
 	// prompted StartWithPaths to exist, reproduced directly.
-	if err := m.StartWithPaths(artifactID, "", "x", "y", "z", ""); !errors.Is(err, ErrAlreadyRunning) {
+	if err := m.StartWithPaths(artifactID, "", "x", "y", "z", "", ""); !errors.Is(err, ErrAlreadyRunning) {
 		t.Errorf("StartWithPaths while already running: got %v, want ErrAlreadyRunning", err)
 	}
 }
@@ -372,6 +373,7 @@ func TestStartWithPathsDropsAGrubCfgThatIsNotThere(t *testing.T) {
 		filepath.Join(netbootDir, "kairos-initrd"),
 		filepath.Join(netbootDir, "kairos-kernel"),
 		filepath.Join(netbootDir, "kairos-grub.cfg"),
+		"",
 	)
 	if err != nil {
 		t.Fatalf("StartWithPaths: %v", err)
@@ -400,8 +402,8 @@ func stubAurorabootRecordingArgs(t *testing.T) string {
 	return recorded
 }
 
-// readRecordedArgs waits for the stub to have written its argv. The Manager
-// returns as soon as cmd.Start succeeds, so the child may not have run yet.
+// readRecordedArgs waits for the stub to have written its argv, in case the
+// child has not run yet when the Manager returns.
 func readRecordedArgs(t *testing.T, path string) string {
 	t.Helper()
 	for i := 0; i < 200; i++ {

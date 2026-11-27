@@ -100,7 +100,8 @@ var WebCMD = cli.Command{
 		&cli.StringFlag{Name: "tls-cert", Usage: "Path to the TLS certificate for the API server. Both --tls-cert and --tls-key must be set to enable HTTPS", EnvVars: []string{"AURORABOOT_TLS_CERT"}},
 		&cli.StringFlag{Name: "tls-key", Usage: "Path to the TLS private key for the API server. Both --tls-cert and --tls-key must be set to enable HTTPS", EnvVars: []string{"AURORABOOT_TLS_KEY"}},
 		&cli.StringFlag{Name: "redfish-serve-url", Usage: "Advertised base URL a BMC fetches an artifact ISO from for Redfish deploys (default: --url). The BMC management network may differ from the UI network", EnvVars: []string{"AURORABOOT_REDFISH_SERVE_URL"}},
-		&cli.StringFlag{Name: "redfish-serve-addr", Usage: "Bind address for the Redfish ISO-serve (e.g. 10.0.0.5:8090). Required to enable serving local artifact ISOs to a BMC", EnvVars: []string{"AURORABOOT_REDFISH_SERVE_ADDR"}},
+		&cli.StringFlag{Name: "redfish-serve-addr", Usage: "Bind address for the Redfish ISO-serve (e.g. 10.0.0.5:8091). Must not use the netboot port (--netboot-port). Required to enable serving local artifact ISOs to a BMC", EnvVars: []string{"AURORABOOT_REDFISH_SERVE_ADDR"}},
+		&cli.StringFlag{Name: "netboot-port", Value: netbootmgr.DefaultPort, Usage: "Port the netboot server started from the dashboard listens on, on every interface. A build's netboot_http_port overrides it for that build", EnvVars: []string{"AURORABOOT_NETBOOT_PORT"}},
 		&cli.StringFlag{Name: "redfish-serve-tls-cert", Usage: "TLS certificate for the Redfish ISO-serve (opt-in HTTPS; requires a BMC-trusted cert)"},
 		&cli.StringFlag{Name: "redfish-serve-tls-key", Usage: "TLS key for the Redfish ISO-serve"},
 		&cli.StringFlag{Name: "redfish-quirks-dir", Usage: "Directory of operator-supplied *.yaml/*.yml Redfish quirk profiles, loaded once at server start (not hot-reloaded). A BMCTarget's vendor resolves to a profile by name; an operator profile named the same as a built-in overrides it (logged). A malformed profile is skipped, not fatal", EnvVars: []string{redfishQuirksDirEnv}},
@@ -143,6 +144,11 @@ func runWeb(c *cli.Context) error {
 	redfishServeTLSKey := c.String("redfish-serve-tls-key")
 	redfishQuirksDir := c.String("redfish-quirks-dir")
 	resetTimeout := c.Duration("reset-timeout")
+	netbootPort := c.String("netboot-port")
+	if err := netbootmgr.ValidatePort(netbootPort); err != nil {
+		return fmt.Errorf("--netboot-port: %w", err)
+	}
+
 	trustedProxies, err := server.ParseTrustedProxies(c.StringSlice("trusted-proxy"))
 	if err != nil {
 		return fmt.Errorf("--trusted-proxy: %w", err)
@@ -241,7 +247,7 @@ func runWeb(c *cli.Context) error {
 	// rewrites externalURL to this container's own hostname, which is exactly
 	// the value nodes cannot resolve. With no --url the manager is better off
 	// finding a local interface address itself.
-	netbootManager := netbootmgr.NewManager(c.String("url"), wsHub.UI)
+	netbootManager := netbootmgr.NewManager(c.String("url"), wsHub.UI).WithPort(netbootPort)
 
 	var artifactBuilder builder.ArtifactBuilder
 	var systemInfo handlers.APISystemBuilder
