@@ -177,6 +177,10 @@ func (r ResetAction) Run() (err error) {
 	}
 	cleanup.Push(func() error { return e.UnmountPartition(r.spec.Partitions.State) })
 
+	// The images are about to be rewritten, drop the checksums of the old ones
+	invalidateImageSum(r.cfg, r.spec.Active.File)
+	invalidateImageSum(r.cfg, r.spec.Passive.File)
+
 	// Deploy active image
 	_, err = e.DeployImage(&r.spec.Active, true)
 	if err != nil {
@@ -254,6 +258,7 @@ func (r ResetAction) Run() (err error) {
 	if err != nil {
 		return err
 	}
+	recordImageSum(r.cfg, r.spec.Active.File)
 
 	// Install Passive
 	_, err = e.DeployImage(&r.spec.Passive, false)
@@ -262,6 +267,8 @@ func (r ResetAction) Run() (err error) {
 	}
 	// passive.img is created after SelinuxRelabel runs, so label it here
 	e.LabelStateImage(r.spec.Passive.File)
+	recordImageSum(r.cfg, r.spec.Passive.File)
+	recordChecksumPolicy(r.cfg, r.spec.Active.File)
 
 	err = r.resetHook(cnst.AfterResetHook, false)
 	if err != nil {

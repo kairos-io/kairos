@@ -254,12 +254,14 @@ func (i InstallAction) Run() (err error) {
 	if err != nil {
 		return err
 	}
+	recordImageSum(i.cfg, i.spec.Active.File)
 	// Install Recovery
 	progress.EmitStep(agentrun.StepRecovery)
 	_, err = e.DeployImage(&i.spec.Recovery, false)
 	if err != nil {
 		return err
 	}
+	recordImageSum(i.cfg, i.spec.Recovery.File)
 	// Install Passive
 	progress.EmitStep(agentrun.StepPassive)
 	_, err = e.DeployImage(&i.spec.Passive, false)
@@ -268,6 +270,8 @@ func (i InstallAction) Run() (err error) {
 	}
 	// passive.img is created after SelinuxRelabel runs, so label it here
 	e.LabelStateImage(i.spec.Passive.File)
+	recordImageSum(i.cfg, i.spec.Passive.File)
+	recordChecksumPolicy(i.cfg, i.spec.Active.File, i.spec.Recovery.File)
 
 	err = hook.Run(*i.cfg, i.spec, hook.PostInstall...)
 	if err != nil {
