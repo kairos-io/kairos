@@ -206,7 +206,7 @@ func newerReleases(registry string) (versioneer.TagList, error) {
 // generateUpgradeConfForCLIArgs creates a kairos configuration for `--source` and `--recovery` and `--excluded-paths`
 // command line arguments. It will be added to the rest of the configurations.
 func generateUpgradeConfForCLIArgs(source, upgradeEntry string, allowInsecureRegistries bool, excludes ...string) (string, error) {
-	upgradeConfig := ExtraConfigUpgrade{}
+	upgradeConfig := ExtraConfigUpgrade{P2PSource: UpgradeP2PFlags}
 
 	upgradeConfig.Upgrade.Entry = upgradeEntry
 	upgradeConfig.Upgrade.AllowInsecureRegistries = allowInsecureRegistries
@@ -241,4 +241,19 @@ type ExtraConfigUpgrade struct {
 		ExcludedPaths           []string `json:"excluded-paths,omitempty"`
 		AllowInsecureRegistries bool     `json:"allow-insecure-registries,omitempty"`
 	} `json:"upgrade,omitempty"`
+	// P2PSource carries the (experimental) --p2p-* flags, it is merged under
+	// the p2p-source block of the cloud-config files.
+	P2PSource *ExtraConfigP2PSource `json:"p2p-source,omitempty"`
+}
+
+// UpgradeP2PFlags holds the (experimental) --p2p-* flags of `upgrade`, set by the command.
+var UpgradeP2PFlags *ExtraConfigP2PSource
+
+// ExtraConfigP2PSource is the p2p-source block built from command line flags.
+type ExtraConfigP2PSource struct {
+	Experimental bool     `json:"experimental,omitempty"`
+	Bind         string   `json:"bind,omitempty"`
+	Port         int      `json:"port,omitempty"`
+	Allow        []string `json:"allow,omitempty"`
+	Insecure     bool     `json:"insecure,omitempty"`
 }

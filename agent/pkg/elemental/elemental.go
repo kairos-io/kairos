@@ -589,6 +589,10 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 		if err := e.fetchSSHImage(target, imgSrc); err != nil {
 			return nil, err
 		}
+	} else if imgSrc.IsP2P() {
+		if err := e.fetchP2PImage(target, imgSrc); err != nil {
+			return nil, err
+		}
 	} else {
 		return nil, fmt.Errorf("unknown image source type")
 	}

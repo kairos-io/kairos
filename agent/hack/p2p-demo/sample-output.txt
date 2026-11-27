@@ -1,0 +1,131 @@
+== proving the network is isolated (the request must fail) ==
+no internet: ok
+== starting 1 seed, a rogue seeder, 8 hostile peers and 5 leechers ==
+
+================ seed ================
+[seed] creating 256 MiB active.img and a 16 MiB passive.img
+p2p: no allowlist configured, allowing the local subnet [172.28.0.0/24]
+EXPERIMENTAL: kairos agent p2p is alpha software, opt-in, and only meant for isolated, trusted networks.
+p2p: active: hashing /data/state/cOS/active.img (268435456 bytes)
+p2p: serving active sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856 (64 chunks of 4194304 bytes)
+p2p: passive: hashing /data/state/cOS/passive.img (16777216 bytes)
+p2p: serving passive sha256 48edae071fffd04d7cf921e4329143b9a54f95c0a443a8822510f0b4e1655f18 (4 chunks of 4194304 bytes)
+p2p seeder listening on 172.28.0.10:42069, serving [active passive]
+use these sources on the other nodes (the ?pin= is the hash of the image's manifest, the strongest pin; prefer it to ?sha256=):
+  p2p://172.28.0.10/active?pin=62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+  p2p://172.28.0.10/passive?pin=4e2e58f63a2ce2b1a066a110ef498751ac7d2b69f92b8a6ee1945cd734d49326
+
+================ rogue ================
+[rogue] (172.28.0.14) rogue seeder: a different active.img
+p2p: no allowlist configured, allowing the local subnet [172.28.0.0/24]
+EXPERIMENTAL: kairos agent p2p is alpha software, opt-in, and only meant for isolated, trusted networks.
+p2p: active: hashing /data/state/cOS/active.img (33554432 bytes)
+p2p: serving active sha256 3a28d5478fe52f283d22f440a53a736af3759f6f8ea046aa0fd0ce3fdeadfe8a (8 chunks of 4194304 bytes)
+p2p seeder listening on 172.28.0.14:42069, serving [active]
+use these sources on the other nodes (the ?pin= is the hash of the image's manifest, the strongest pin; prefer it to ?sha256=):
+  p2p://172.28.0.14/active?pin=91cc790467f0c2d95b3d285327d22ff1adc12b90ade2c193f7d4134ea4c565c4
+
+================ stall ================
+[stall] hostile peer on 172.28.0.16: announces image sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856, 268435456 bytes
+
+================ lie ================
+[lie] hostile peer on 172.28.0.17: announces image sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856, 12884901888 bytes
+
+================ fake1 ================
+[fake] hostile peer on 172.28.0.20: announces image sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856, 268435456 bytes
+
+================ fake2 ================
+[fake] hostile peer on 172.28.0.21: announces image sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856, 268435456 bytes
+
+================ fake3 ================
+[fake] hostile peer on 172.28.0.22: announces image sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856, 268435456 bytes
+
+================ fake4 ================
+[fake] hostile peer on 172.28.0.23: announces image sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856, 268435456 bytes
+
+================ fake5 ================
+[fake] hostile peer on 172.28.0.24: announces image sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856, 268435456 bytes
+
+================ fake6 ================
+[fake] hostile peer on 172.28.0.25: announces image sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856, 268435456 bytes
+
+================ leech1 ================
+[leech1] (172.28.0.11) fetching p2p://active?pin=62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: binding to 172.28.0.11
+p2p: allowing the local subnet [172.28.0.0/24]
+p2p: discovering peers with mDNS (5s)
+p2p: discovered [172.28.0.14:42069 172.28.0.10:42069]
+p2p: ignoring the manifest of 172.28.0.14:42069: its manifest root is 91cc790467f0c2d95b3d285327d22ff1adc12b90ade2c193f7d4134ea4c565c4, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: using the active manifest 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a (268435456 bytes in 64 chunks, image checked against: manifest pin), from 1 peer(s)
+p2p: dropping peer 172.28.0.14:42069: sent a malformed chunk map
+p2p: dropping peer 172.28.0.15:42069: sent a malformed chunk map
+p2p: peer 172.28.0.18:42069 failed 5 times in a row (Get "http://172.28.0.18:42069/active/have": EOF), pausing it for 10s
+256/256 MiB (100%) peers=1
+downloaded sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856 (268435456 bytes, 0 chunks resumed), checked against: manifest pin
+  served by 172.28.0.10      268435456 bytes    64 chunks  0 failures
+  served by 172.28.0.14              0 bytes     0 chunks  0 failures
+  served by 172.28.0.15              0 bytes     0 chunks  0 failures
+  served by 172.28.0.18              0 bytes     0 chunks  5 failures
+[leech1] on disk b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856  /data/active.img
+
+================ leech2 ================
+[leech2] (172.28.0.12) fetching p2p://172.28.0.10,172.28.0.11,172.28.0.13,172.28.0.14/active?pin=62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: binding to 172.28.0.12
+p2p: ignoring the manifest of 172.28.0.11:42069: status 0, Get "http://172.28.0.11:42069/active/manifest": dial tcp 172.28.0.12:0->172.28.0.11:42069: connect: connection refused
+p2p: ignoring the manifest of 172.28.0.13:42069: status 0, Get "http://172.28.0.13:42069/active/manifest": dial tcp 172.28.0.12:0->172.28.0.13:42069: connect: connection refused
+p2p: ignoring the manifest of 172.28.0.14:42069: its manifest root is 91cc790467f0c2d95b3d285327d22ff1adc12b90ade2c193f7d4134ea4c565c4, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: using the active manifest 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a (268435456 bytes in 64 chunks, image checked against: manifest pin), from 1 peer(s)
+256/256 MiB (100%) peers=1
+downloaded sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856 (268435456 bytes, 0 chunks resumed), checked against: manifest pin
+  served by 172.28.0.10      268435456 bytes    64 chunks  0 failures
+[leech2] on disk b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856  /data/active.img
+
+================ leech3 ================
+[leech3] (172.28.0.13) fetching p2p://172.28.0.10/active?pin=62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: binding to 172.28.0.13
+p2p: using the active manifest 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a (268435456 bytes in 64 chunks, image checked against: manifest pin), from 1 peer(s)
+256/256 MiB (100%) peers=1
+downloaded sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856 (268435456 bytes, 0 chunks resumed), checked against: manifest pin
+  served by 172.28.0.10      268435456 bytes    64 chunks  0 failures
+[leech3] on disk b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856  /data/active.img
+
+================ leech4 ================
+[leech4] (172.28.0.15) fetching p2p://active
+refusing p2p source p2p://active: it has no pin, so any host on the network could make this node install anything. Use the source kairos agent p2p seed prints (it carries ?pin=), or add ?sha256=<sha256 of the image>, or (dangerous
+[leech4] refused, as it should (exit code 1)
+[leech4] now with the explicit --insecure opt in:
+p2p: WARNING insecure mode: the source has no sha256 pin, any host that can reach this node could make it install a different image
+p2p: binding to 172.28.0.15
+p2p: allowing the local subnet [172.28.0.0/24]
+p2p: discovering peers with mDNS (5s)
+p2p: discovered [172.28.0.14:42069 172.28.0.10:42069]
+p2p: using the active manifest 91cc790467f0c2d95b3d285327d22ff1adc12b90ade2c193f7d4134ea4c565c4 (33554432 bytes in 8 chunks, image checked against: none (insecure mode)), from 1 peer(s)
+32/32 MiB (100%) peers=1
+downloaded sha256 3a28d5478fe52f283d22f440a53a736af3759f6f8ea046aa0fd0ce3fdeadfe8a (33554432 bytes, 0 chunks resumed), checked against: none (insecure mode)
+  served by 172.28.0.14       33554432 bytes     8 chunks  0 failures
+[leech4] on disk 3a28d5478fe52f283d22f440a53a736af3759f6f8ea046aa0fd0ce3fdeadfe8a  /data/active.img
+
+================ leech5 ================
+wget: can't connect to remote host (172.28.0.16): Connection refused
+[leech5] (172.28.0.18) fetching p2p://172.28.0.16,172.28.0.17,172.28.0.20,172.28.0.21,172.28.0.22,172.28.0.23,172.28.0.24,172.28.0.25,172.28.0.10/active?pin=62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: binding to 172.28.0.18
+p2p: ignoring the manifest of 172.28.0.16:42069: its manifest root is 1bde6abe653785550be2618b3e92ed3a1d9298b65bcb8dcbf27a9b6efc7c770a, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: ignoring the manifest of 172.28.0.17:42069: its manifest root is a853f281937f74db44970ffec3610864798d78392c4c12d223a5c6b2b78e648a, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: ignoring the manifest of 172.28.0.20:42069: its manifest root is 8c2e095d3db8f2e379b60d1e2bf6f657e68787e12a519e3113f11c10ebcefcca, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: ignoring the manifest of 172.28.0.21:42069: its manifest root is 8c2e095d3db8f2e379b60d1e2bf6f657e68787e12a519e3113f11c10ebcefcca, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: ignoring the manifest of 172.28.0.22:42069: its manifest root is 8c2e095d3db8f2e379b60d1e2bf6f657e68787e12a519e3113f11c10ebcefcca, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: ignoring the manifest of 172.28.0.23:42069: its manifest root is 8c2e095d3db8f2e379b60d1e2bf6f657e68787e12a519e3113f11c10ebcefcca, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: ignoring the manifest of 172.28.0.24:42069: its manifest root is 8c2e095d3db8f2e379b60d1e2bf6f657e68787e12a519e3113f11c10ebcefcca, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: ignoring the manifest of 172.28.0.25:42069: its manifest root is 8c2e095d3db8f2e379b60d1e2bf6f657e68787e12a519e3113f11c10ebcefcca, the source pins 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a
+p2p: using the active manifest 62654bcd7f2fee82ffc3578d7df4cde7a4867cbed63fd5af8b9589fd1537b24a (268435456 bytes in 64 chunks, image checked against: manifest pin), from 1 peer(s)
+256/256 MiB (100%) peers=1
+p2p: dropped connection from 172.28.0.11:41923 (not in allowlist)
+downloaded sha256 b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856 (268435456 bytes, 0 chunks resumed), checked against: manifest pin
+  served by 172.28.0.10      268435456 bytes    64 chunks  0 failures
+[leech5] on disk b09efe151802aaf071a8def4ce7ff226c1010132bf53bb8554376a7b22878856  /data/active.img
+
+leech1 exit code: 0
+leech2 exit code: 0
+leech3 exit code: 0
+leech4 exit code: 0
+leech5 exit code: 0

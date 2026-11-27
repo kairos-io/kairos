@@ -44,6 +44,7 @@ import (
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/agent/pkg/p2p"
 	"github.com/kairos-io/kairos/v4/agent/pkg/partitioner"
 	"github.com/kairos-io/kairos/v4/agent/pkg/sshimage"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
@@ -1011,6 +1012,67 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			cmdFail = "mkfs.ext2"
 			_, err := el.DeployImage(img, true)
 			Expect(err).NotTo(BeNil())
+		})
+		Describe("with a p2p source", Label("p2p"), func() {
+			var p2pSrc *sdkImages.ImageSource
+			var fetched []p2p.FetchConfig
+			BeforeEach(func() {
+				var err error
+				p2pSrc, err = sdkImages.NewSrcFromURI("p2p://10.0.0.2,10.0.0.3/active")
+				Expect(err).ToNot(HaveOccurred())
+				config.P2PSource = &sdkImages.P2POptions{Experimental: true, Bind: "10.0.0.9", Allow: []string{"10.0.0.0/24"}, UploadLimit: 100}
+				fetched = nil
+				DeferCleanup(elemental.SetFetchP2PForTest(func(_ context.Context, c p2p.FetchConfig) (*p2p.Result, error) {
+					fetched = append(fetched, c)
+					Expect(fs.WriteFile(c.DestPath, []byte("image"), 0o600)).To(Succeed())
+					return &p2p.Result{Size: 5, Peers: []p2p.PeerStat{{Addr: "10.0.0.2", Bytes: 5, Chunks: 1}}}, nil
+				}))
+				destDir, err := fsutils.TempDir(fs, "", "elemental")
+				Expect(err).To(BeNil())
+				img.Source = p2pSrc
+				img.MountPoint = destDir
+			})
+			It("downloads straight into the image file, labels and mounts it", func() {
+				_, err := el.DeployImage(img, true)
+				Expect(err).To(BeNil())
+				Expect(fetched).To(HaveLen(1))
+				Expect(fetched[0].DestPath).To(Equal(img.File))
+				Expect(fetched[0].Target.Peers).To(Equal([]string{"10.0.0.2:42069", "10.0.0.3:42069"}))
+				Expect(fetched[0].Target.Image).To(Equal("active"))
+				Expect(fetched[0].NetConfig.ListenHost).To(Equal("10.0.0.9"))
+				Expect(fetched[0].NetConfig.UploadBytesPerSec).To(Equal(100 * 1024))
+				Expect(fetched[0].NetConfig.Allow).To(HaveLen(1))
+				// the install never offers the image to others: that is the seeding service's job
+				Expect(fetched[0].Serve).To(BeFalse())
+				Expect(fetched[0].Auth.Insecure).To(BeFalse())
+				// a ready made filesystem is not created again
+				for _, c := range runner.Cmds() {
+					Expect(c[0]).ToNot(HavePrefix("mkfs"))
+				}
+				Expect(runner.CmdsMatch([][]string{{"tune2fs", "-L", img.Label, img.File}})).To(BeNil())
+			})
+			It("hands the limits and the insecure opt in of the block to the fetch", func() {
+				config.P2PSource.Insecure = true
+				config.P2PSource.MaxImageSize = 100
+				_, err := el.DeployImage(img, true)
+				Expect(err).To(BeNil())
+				Expect(fetched[0].Auth.Insecure).To(BeTrue())
+				Expect(fetched[0].Auth.MaxImageSize).To(BeEquivalentTo(100 << 20))
+			})
+			It("fetches with the defaults when no options were read", func() {
+				config.P2PSource = nil
+				_, err := el.DeployImage(img, true)
+				Expect(err).To(BeNil())
+				Expect(fetched[0].NetConfig.ListenHost).To(BeEmpty())
+			})
+			It("fails the deployment when the fetch fails, and never labels or mounts", func() {
+				DeferCleanup(elemental.SetFetchP2PForTest(func(context.Context, p2p.FetchConfig) (*p2p.Result, error) {
+					return nil, errors.New("sha256 mismatch")
+				}))
+				_, err := el.DeployImage(img, true)
+				Expect(err).To(MatchError(ContainSubstring("sha256 mismatch")))
+				Expect(runner.CmdsMatch([][]string{{"tune2fs", "-L", img.Label, img.File}})).ToNot(BeNil())
+			})
 		})
 		It("Fails mounting the image", func() {
 			mounter.ErrorOnMount = true

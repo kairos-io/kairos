@@ -47,6 +47,7 @@ type Config struct {
 	Client                    http.Client                     `yaml:"-"`
 	SSHSource                 *images.SSHSourceOptions        `yaml:"-"` // how to authenticate when an image is fetched from another node over SSH
 	Platform                  *platform.Platform              `yaml:"-"`
+	P2PSource                 *images.P2POptions              `yaml:"-"` // how this node shares and fetches images with the experimental p2p source
 	Cosign                    bool                            `yaml:"cosign,omitempty" mapstructure:"cosign"`
 	Verify                    bool                            `yaml:"verify,omitempty" mapstructure:"verify"`
 	CosignPubKey              string                          `yaml:"cosign-key,omitempty" mapstructure:"cosign-key"`
