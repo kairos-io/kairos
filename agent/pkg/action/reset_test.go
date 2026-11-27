@@ -30,12 +30,14 @@ import (
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 
 	"path/filepath"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -197,6 +199,28 @@ var _ = Describe("Reset action tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(activeID).To(HavePrefix("sha256:"))
 				Expect(diffupgrade.RecordedID(fs, spec.Passive.File)).To(Equal(activeID))
+			})
+			It("Replaces stale checksums with valid ones for active and passive when create is on", Label("imagesum"), func() {
+				yes := true
+				config.ImageChecksum = imagesum.Config{Create: &yes}
+				Expect(fsutils.MkdirAll(fs, filepath.Dir(spec.Active.File), constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(spec.Active.File+".sha256", []byte(strings.Repeat("0", 64)+"  active.img\n"), constants.FilePerm)).To(Succeed())
+				Expect(reset.Run()).To(Succeed())
+				for _, img := range []string{spec.Active.File, spec.Passive.File} {
+					r, err := imagesum.Check(fs, img)
+					Expect(err).ToNot(HaveOccurred(), img)
+					Expect(r.Result).To(Equal(imagesum.OK), "checksum of %s: %s", img, r.Result)
+				}
+			})
+			It("Drops the stale checksum and writes none by default", Label("imagesum"), func() {
+				Expect(fsutils.MkdirAll(fs, filepath.Dir(spec.Active.File), constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(spec.Active.File+".sha256", []byte(strings.Repeat("0", 64)+"  active.img\n"), constants.FilePerm)).To(Succeed())
+				Expect(reset.Run()).To(Succeed())
+				for _, img := range []string{spec.Active.File, spec.Passive.File} {
+					_, found, err := imagesum.Read(fs, img)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(found).To(BeFalse(), img)
+				}
 			})
 			It("Successfully resets on non-squashfs recovery including persistent data", func() {
 				spec.FormatPersistent = true

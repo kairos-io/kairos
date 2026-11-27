@@ -12,12 +12,13 @@ import (
 
 // RootSchema groups all the different schema of the Kairos configuration together.
 type RootSchema struct {
-	_                  struct{}         `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
-	Bundles            []BundleSchema   `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	ConfigURL          string           `json:"config_url,omitempty" description:"URL download configuration from."`
-	Env                []string         `json:"env,omitempty"`
-	Extensions         ExtensionsSchema `json:"extensions,omitempty"`
-	FailOnBundleErrors bool             `json:"fail_on_bundles_errors,omitempty"`
+	_                  struct{}            `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
+	Bundles            []BundleSchema      `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	ConfigURL          string              `json:"config_url,omitempty" description:"URL download configuration from."`
+	Env                []string            `json:"env,omitempty"`
+	Extensions         ExtensionsSchema    `json:"extensions,omitempty"`
+	ImageChecksum      ImageChecksumSchema `json:"image-checksum,omitempty"`
+	FailOnBundleErrors bool                `json:"fail_on_bundles_errors,omitempty"`
 	GrubOptionsSchema  `json:"grub_options,omitempty"`
 	Install            InstallSchema     `json:"install,omitempty"`
 	Kcrypt             KcryptSchema      `json:"kcrypt,omitempty"`

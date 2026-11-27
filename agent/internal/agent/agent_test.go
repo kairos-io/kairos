@@ -36,6 +36,14 @@ var _ = Describe("Bootstrap provider", func() {
 doo: bar`), 0655)
 			Expect(err).ToNot(HaveOccurred())
 
+			// The provider file is removed when the spec ends, but a provider
+			// registered on the global bus stays there. Any later spec that
+			// publishes an event would exec the missing file and the bus
+			// exits the process, so hand the bus back clean.
+			orig := bus.Manager
+			bus.Manager = bus.NewBus()
+			DeferCleanup(func() { bus.Manager = orig })
+
 			bus.Manager.Initialize()
 			err = Run(WithDirectory(f))
 

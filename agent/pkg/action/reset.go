@@ -177,6 +177,10 @@ func (r ResetAction) Run() (err error) {
 	}
 	cleanup.Push(func() error { return e.UnmountPartition(r.spec.Partitions.State) })
 
+	// The images are about to be rewritten, drop the checksums of the old ones
+	invalidateImageSum(r.cfg, r.spec.Active.File)
+	invalidateImageSum(r.cfg, r.spec.Passive.File)
+
 	// Deploy active image
 	_, err = e.DeployImage(&r.spec.Active, true)
 	if err != nil {
@@ -256,6 +260,7 @@ func (r ResetAction) Run() (err error) {
 		return err
 	}
 	recordRootfsID(r.cfg, r.spec.Active.File, activeID)
+	recordImageSum(r.cfg, r.spec.Active.File)
 
 	// Install Passive
 	_, err = e.DeployImage(&r.spec.Passive, false)
@@ -266,6 +271,8 @@ func (r ResetAction) Run() (err error) {
 	e.LabelStateImage(r.spec.Passive.File)
 	// passive.img is a copy of active.img, so it holds the same release.
 	recordRootfsID(r.cfg, r.spec.Passive.File, activeID)
+	recordImageSum(r.cfg, r.spec.Passive.File)
+	recordChecksumPolicy(r.cfg, r.spec.Active.File)
 
 	err = r.resetHook(cnst.AfterResetHook, false)
 	if err != nil {

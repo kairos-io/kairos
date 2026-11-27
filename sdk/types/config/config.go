@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	"github.com/kairos-io/kairos/v4/sdk/types/bundles"
 	"github.com/kairos-io/kairos/v4/sdk/types/cloudinitrunner"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
@@ -56,4 +57,5 @@ type Config struct {
 	BindPublicPCRs            []string                        `yaml:"bind-public-pcrs,omitempty" mapstructure:"bind-public-pcrs"`
 	Logs                      *log.LogsConfig                 `yaml:"logs,omitempty"`
 	Extensions                extensiontypes.Config           `yaml:"extensions,omitempty" mapstructure:"extensions"`
+	ImageChecksum             imagesum.Config                 `yaml:"image-checksum,omitempty" mapstructure:"image-checksum"`
 }

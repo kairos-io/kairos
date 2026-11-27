@@ -206,6 +206,10 @@ func (u *UpgradeAction) Run() (err error) {
 		return err
 	}
 
+	// The image is final now (hooks, relabel and rebrand are done), hash it
+	// while it still has the transition name. It is stored once moved in place.
+	newImageSum := hashImage(u.config, upgradeImg.File)
+
 	// If not upgrading recovery and booting from non passive, backup active into passive
 	// We dont want to overwrite passive if we are booting from passive as it could mean that active is broken and we would
 	// be overriding a working passive with a broken/unknown  active
@@ -224,6 +228,10 @@ func (u *UpgradeAction) Run() (err error) {
 			u.Debug("Not carrying a rootfs ID over to passive: %s", idErr)
 		}
 		u.Info("Moving %s to %s", source, u.spec.Passive.File)
+		// Both checksums go away before the images move so a crash in between
+		// leaves unverified images instead of a stale checksum.
+		invalidateImageSum(u.config, source)
+		invalidateImageSum(u.config, u.spec.Passive.File)
 		err = u.config.Fs.Rename(source, u.spec.Passive.File)
 		if err != nil {
 			u.Error("Failed to move %s to %s: %s", source, u.spec.Passive.File, err)
@@ -240,10 +248,13 @@ func (u *UpgradeAction) Run() (err error) {
 		}
 		recordRootfsID(u.config, u.spec.Passive.File, activeID)
 		restoreActive = func() { u.restoreActiveImage(source, true) }
+		// Relabeling rewrote the superblock, so passive needs a fresh checksum
+		recordImageSum(u.config, u.spec.Passive.File)
 		syscall.Sync()
 	}
 
 	u.Info("Moving %s to %s", upgradeImg.File, finalImageFile)
+	invalidateImageSum(u.config, finalImageFile)
 	err = u.config.Fs.Rename(upgradeImg.File, finalImageFile)
 	if err != nil {
 		u.Error("Failed to move %s to %s: %s", upgradeImg.File, finalImageFile, err)
@@ -254,6 +265,8 @@ func (u *UpgradeAction) Run() (err error) {
 	if !u.spec.RecoveryUpgrade() {
 		recordRootfsID(u.config, finalImageFile, newID)
 	}
+	storeImageSum(u.config, finalImageFile, newImageSum)
+	recordChecksumPolicy(u.config, finalImageFile)
 
 	syscall.Sync()
 
