@@ -404,7 +404,16 @@ func (s *State) MountCustomOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) 
 				func(_ context.Context) error {
 					var multierr *multierror.Error
 					internalUtils.KLog.Logger.Debug().Strs("dirs", s.OverlayDirs).Msg("Mounting overlays")
+					// A block device base keeps the overlay across boots
+					unmoved := op.MigrateStateDirs(s.OverlayDirs, func(name string) string {
+						return filepath.Join(cnst.OverlayBaseDir, name)
+					})
 					for _, p := range s.OverlayDirs {
+						if err := unmoved[p]; err != nil {
+							internalUtils.KLog.Logger.Err(err).Str("what", p).Msg("overlay state dir rename")
+							multierr = multierror.Append(multierr, err)
+							continue
+						}
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Overlay mount start")
 						operation := op.MountWithBaseOverlay(p, s.Rootdir, cnst.OverlayBaseDir)
 						err := operation.Run()
@@ -556,7 +565,16 @@ func (s *State) mountCustomBinds(_ context.Context) error {
 	var err *multierror.Error
 	internalUtils.KLog.Logger.Debug().Strs("mounts", s.BindMounts).Msg("Mounting binds")
 
-	for _, p := range s.SortedBindMounts() {
+	binds := s.SortedBindMounts()
+	unmoved := op.MigrateStateDirs(binds, func(name string) string {
+		return filepath.Join(s.Rootdir, s.StateDir, name+".bind")
+	})
+	for _, p := range binds {
+		if err2 := unmoved[p]; err2 != nil {
+			internalUtils.KLog.Logger.Err(err2).Str("what", p).Msg("bind state dir rename")
+			err = multierror.Append(err, err2)
+			continue
+		}
 		internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Bind mount start")
 		operation, err2 := bindMountFn(p, s.Rootdir, s.StateDir)
 		// A mountpoint that is a symlink is refused rather than followed, but
