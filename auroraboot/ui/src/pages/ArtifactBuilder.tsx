@@ -1333,12 +1333,13 @@ export function ArtifactBuilder() {
   // pkg/handlers/artifacts.go. The backend is the source of truth at build
   // time; this function only powers the Review-step preview.
   const cloudConfigPreview = useMemo(() => {
-    const groupName =
-      groups.find((g) => g.id === form.provisioning.targetGroupId)?.name || "";
+    // Like the backend, only a group that still exists ends up in the config.
+    const groupId =
+      groups.find((g) => g.id === form.provisioning.targetGroupId)?.id || "";
     return buildCloudConfigPreview({
       autoInstall: form.provisioning.autoInstall,
       registerAuroraBoot: form.provisioning.registerAuroraBoot,
-      groupName,
+      groupId,
       allowedCommands: form.provisioning.allowedCommands ?? [],
       variant: form.variant,
       kubernetesDistro: form.kubernetesDistro || "",

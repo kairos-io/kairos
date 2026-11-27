@@ -6,7 +6,9 @@ type YamlValue = unknown;
 export interface CloudConfigPreviewInput {
   autoInstall: boolean;
   registerAuroraBoot: boolean;
-  groupName: string;
+  // The backend writes the group ID, not the name, so a group rename does not
+  // break registration.
+  groupId: string;
   allowedCommands: readonly string[];
   variant: string;
   kubernetesDistro: string;
@@ -78,7 +80,7 @@ export function buildCloudConfigPreview(input: CloudConfigPreviewInput): string 
     doc.phonehome = {
       url: input.registrationUrl || "<server-url>",
       registration_token: input.registrationToken || "<token>",
-      group: input.groupName,
+      group: input.groupId,
       allowed_commands: [...input.allowedCommands],
     };
   }
