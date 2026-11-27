@@ -11,15 +11,16 @@ import (
 // (agent/pkg/implementations/spec), which is where the block is read:
 // unmarshallFullSpec(cfg, "reset", spec).
 type ResetSchema struct {
-	_                struct{} `title:"Kairos Schema: Reset block" description:"The reset block configures what happens when reset is called."`
-	FormatPersistent SpecBool `json:"reset-persistent,omitempty" description:"Format the oem and persistent partitions, discarding everything on them"`
-	FormatOEM        SpecBool `json:"reset-oem,omitempty" description:"Format the oem partition"`
-	Reboot           SpecBool `json:"reboot,omitempty" description:"Reboot after the reset"`
-	PowerOff         SpecBool `json:"poweroff,omitempty" description:"Power off after the reset"`
-	GrubDefEntry     string   `json:"grub-entry-name,omitempty" description:"Override the GRUB menu entry name"`
-	Tty              string   `json:"tty,omitempty" description:"Console the reset writes its output to" examples:"[\"ttyS0\",\"tty1\"]"`
-	ExtraDirsRootfs  []string `json:"extra-dirs-rootfs,omitempty" description:"Directories to create in the reset rootfs, so a read-only system can still offer them as mount points"`
-	Active           Image    `json:"system,omitempty" description:"The image the system is reset to"`
+	_                struct{}         `title:"Kairos Schema: Reset block" description:"The reset block configures what happens when reset is called."`
+	FormatPersistent SpecBool         `json:"reset-persistent,omitempty" description:"Format the oem and persistent partitions, discarding everything on them"`
+	FormatOEM        SpecBool         `json:"reset-oem,omitempty" description:"Format the oem partition"`
+	Reboot           SpecBool         `json:"reboot,omitempty" description:"Reboot after the reset"`
+	PowerOff         SpecBool         `json:"poweroff,omitempty" description:"Power off after the reset"`
+	GrubDefEntry     string           `json:"grub-entry-name,omitempty" description:"Override the GRUB menu entry name"`
+	Tty              string           `json:"tty,omitempty" description:"Console the reset writes its output to" examples:"[\"ttyS0\",\"tty1\"]"`
+	ExtraDirsRootfs  []string         `json:"extra-dirs-rootfs,omitempty" description:"Directories to create in the reset rootfs, so a read-only system can still offer them as mount points"`
+	Active           Image            `json:"system,omitempty" description:"The image the system is reset to"`
+	SSHSource        *SSHSourceSchema `json:"ssh-source,omitempty" nullable:"true" description:"How to authenticate to the node an ssh:// source points to. Overrides the root ssh-source block key by key."`
 }
 
 var _ jsonschemago.Preparer = ResetSchema{}

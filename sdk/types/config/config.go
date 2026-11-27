@@ -45,6 +45,7 @@ type Config struct {
 	CloudInitRunner           cloudinitrunner.CloudInitRunner `yaml:"-"`
 	ImageExtractor            images.ImageExtractor           `yaml:"-"`
 	Client                    http.Client                     `yaml:"-"`
+	SSHSource                 *images.SSHSourceOptions        `yaml:"-"` // how to authenticate when an image is fetched from another node over SSH
 	Platform                  *platform.Platform              `yaml:"-"`
 	Cosign                    bool                            `yaml:"cosign,omitempty" mapstructure:"cosign"`
 	Verify                    bool                            `yaml:"verify,omitempty" mapstructure:"verify"`

@@ -71,6 +71,9 @@ func writeSourceNotes(w io.Writer, src *sdkImages.ImageSource, allowInsecure boo
 		if allowInsecure {
 			fmt.Fprintln(w, "  Insecure registries: allowed")
 		}
+	case src.IsSSH():
+		fmt.Fprintln(w, "  Serving node:        reached, host key verified, image size read")
+		fmt.Fprintln(w, "  Note:                the image is hashed and transferred by a real upgrade, nothing is copied now")
 	case src.IsDir():
 		fmt.Fprintln(w, "  Note:                the size of a directory source is measured now and can change before a real upgrade")
 	}
