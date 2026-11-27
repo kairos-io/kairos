@@ -130,6 +130,41 @@ var _ = Describe("agentrun", func() {
 				func(agentrun.ProgressEvent) {}, func(string) {})
 			Expect(err).To(HaveOccurred())
 		})
+		// The agent can print a single very long line, e.g. the whole config
+		// logged by `debug: true`. It must not cost the events after it, nor
+		// stall the agent on a full pipe and leave the install guard held.
+		It("keeps streaming events past a stdout line over 1 MiB", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "kairos-agent")
+			script := "#!/bin/sh\n" +
+				`echo '{"event":"step","step":"partition"}'` + "\n" +
+				"head -c 1050000 /dev/zero | tr '\\0' x; echo\n" +
+				"head -c 1200000 /dev/zero | tr '\\0' y; echo\n" +
+				`echo '{"event":"step","step":"done"}'` + "\n" +
+				"exit 0\n"
+			Expect(os.WriteFile(bin, []byte(script), 0o755)).To(Succeed())
+
+			var steps []string
+			var logLens []int
+			done := make(chan error, 1)
+			go func() {
+				defer GinkgoRecover()
+				done <- agentrun.Run(bin, "/tmp/cc.yaml", "", "nothing",
+					func(ev agentrun.ProgressEvent) { steps = append(steps, ev.Step) },
+					func(line string) { logLens = append(logLens, len(line)) },
+				)
+			}()
+			var err error
+			Eventually(done, "30s").Should(Receive(&err))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(steps).To(Equal([]string{"partition", "done"}))
+			Expect(logLens).To(Equal([]int{1050000, 1200000}))
+
+			quick := filepath.Join(dir, "quick-agent")
+			Expect(os.WriteFile(quick, []byte("#!/bin/sh\nexit 0\n"), 0o755)).To(Succeed())
+			Expect(agentrun.Run(quick, "/tmp/cc.yaml", "", "nothing",
+				func(agentrun.ProgressEvent) {}, func(string) {})).To(Succeed())
+		})
 	})
 
 	Describe("RunWithOutput", func() {
