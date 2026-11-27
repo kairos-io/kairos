@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ type DockerBuildArgs struct {
 	Tag             string
 	DockerfilePath  string
 	BuildContextDir string
+	Arch            string    // target architecture; empty means the host default
 	Logger          io.Writer // when non-nil, stdout+stderr fan into this
 }
 
@@ -53,6 +55,7 @@ type ExtensionBuilder struct {
 	artifacts       store.ArtifactStore // used to resolve Source.SourceArtifactID
 	dockerBuildFn   DockerBuildFunc
 	aurorabootCLIFn AurorabootCLIFunc
+	platformsFn     PlatformsFunc
 	logBroadcaster  builder.LogBroadcaster
 
 	mu     sync.RWMutex
@@ -72,6 +75,7 @@ func NewExtensionBuilder(baseDir string, s store.ExtensionStore) *ExtensionBuild
 		store:           s,
 		dockerBuildFn:   DefaultDockerBuildFunc,
 		aurorabootCLIFn: DefaultAurorabootCLIFunc,
+		platformsFn:     dockerBuildxPlatforms,
 		builds:          make(map[string]*extBuildState),
 	}
 }
@@ -79,6 +83,13 @@ func NewExtensionBuilder(baseDir string, s store.ExtensionStore) *ExtensionBuild
 // WithDockerBuildFunc swaps the docker-build seam (test entry point).
 func (b *ExtensionBuilder) WithDockerBuildFunc(fn DockerBuildFunc) *ExtensionBuilder {
 	b.dockerBuildFn = fn
+	return b
+}
+
+// WithPlatformsFunc swaps the buildx platform probe used by the cross-arch
+// preflight (test entry point). The default probe shells out to docker.
+func (b *ExtensionBuilder) WithPlatformsFunc(fn PlatformsFunc) *ExtensionBuilder {
+	b.platformsFn = fn
 	return b
 }
 
@@ -105,8 +116,7 @@ func (b *ExtensionBuilder) WithLogBroadcaster(lb builder.LogBroadcaster) *Extens
 // DefaultDockerBuildFunc shells out to the host docker daemon.
 // Matches the call shape used by Builder.dockerBuild.
 var DefaultDockerBuildFunc DockerBuildFunc = func(ctx context.Context, args DockerBuildArgs) error {
-	cmd := exec.CommandContext(ctx, "docker", "build", "--no-cache",
-		"-t", args.Tag, "-f", args.DockerfilePath, args.BuildContextDir)
+	cmd := exec.CommandContext(ctx, "docker", dockerBuildArgv(args)...)
 	if args.Logger != nil {
 		cmd.Stdout = args.Logger
 		cmd.Stderr = args.Logger
@@ -310,20 +320,38 @@ func (b *ExtensionBuilder) resolveSource(ctx context.Context, opts builder.Exten
 			return "", err
 		}
 		dockerfile := fmt.Sprintf("FROM %s\n%s\n", art.ContainerImage, opts.Source.ExtraSteps)
-		return b.dockerBuildAndTag(ctx, opts.ID, dockerfile, opts.Source.BuildContextDir, outputDir, logger)
+		return b.dockerBuildAndTag(ctx, opts.ID, opts.Arch, dockerfile, opts.Source.BuildContextDir, outputDir, logger)
 
 	case "dockerfile":
 		if opts.Source.Dockerfile == "" {
 			return "", fmt.Errorf("source.dockerfile required for mode=dockerfile")
 		}
-		return b.dockerBuildAndTag(ctx, opts.ID, opts.Source.Dockerfile, opts.Source.BuildContextDir, outputDir, logger)
+		return b.dockerBuildAndTag(ctx, opts.ID, opts.Arch, opts.Source.Dockerfile, opts.Source.BuildContextDir, outputDir, logger)
 
 	default:
 		return "", fmt.Errorf("unsupported source.mode %q", opts.Source.Mode)
 	}
 }
 
-func (b *ExtensionBuilder) dockerBuildAndTag(ctx context.Context, id, dockerfile, contextDir, outputDir string, logger io.Writer) (string, error) {
+// dockerBuildArgv returns the arguments for `docker` that build args describes.
+func dockerBuildArgv(args DockerBuildArgs) []string {
+	argv := []string{"build", "--no-cache"}
+	if args.Arch != "" {
+		// Without --platform the image takes the daemon host's architecture,
+		// and the sysext/confext step then cannot find it for the target arch.
+		argv = append(argv, "--platform", "linux/"+args.Arch)
+	}
+	return append(argv, "-t", args.Tag, "-f", args.DockerfilePath, args.BuildContextDir)
+}
+
+func (b *ExtensionBuilder) dockerBuildAndTag(ctx context.Context, id, arch, dockerfile, contextDir, outputDir string, logger io.Writer) (string, error) {
+	// A Dockerfile's RUN steps execute target-architecture binaries, so refuse
+	// a build the daemon cannot emulate before it fails with an exec format error.
+	if dockerfileHasRun(dockerfile) {
+		if err := checkArchSupported(ctx, b.platformsFn, arch); err != nil {
+			return "", err
+		}
+	}
 	dockerfilePath := filepath.Join(outputDir, "Dockerfile")
 	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0o644); err != nil {
 		return "", fmt.Errorf("writing Dockerfile: %w", err)
@@ -336,11 +364,28 @@ func (b *ExtensionBuilder) dockerBuildAndTag(ctx context.Context, id, dockerfile
 		Tag:             tag,
 		DockerfilePath:  dockerfilePath,
 		BuildContextDir: contextDir,
+		Arch:            arch,
 		Logger:          logger,
 	}); err != nil {
 		return "", fmt.Errorf("docker build: %w", err)
 	}
 	return tag, nil
+}
+
+// dockerfileHasRun reports whether a Dockerfile contains a RUN instruction.
+// Instructions are case-insensitive and may be indented.
+func dockerfileHasRun(dockerfile string) bool {
+	for _, line := range strings.Split(dockerfile, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		instruction := strings.Fields(line)[0]
+		if strings.EqualFold(instruction, "RUN") {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *ExtensionBuilder) updateContainerImage(id, image string) {

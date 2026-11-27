@@ -79,10 +79,17 @@ func normalizeArch(arch string) string {
 // binaries. A Dockerfile that only COPYs onto an already-kairosified base runs
 // nothing, so it needs no emulation and is never refused.
 func (b *Builder) checkBuildPlatform(ctx context.Context, arch string) error {
+	return checkArchSupported(ctx, b.platforms, arch)
+}
+
+// checkArchSupported is the platform preflight shared by the artifact builder
+// and the extension builder. probe reports the platforms the docker builder
+// can build for; see checkBuildPlatform for why a missing platform is refused.
+func checkArchSupported(ctx context.Context, probe PlatformsFunc, arch string) error {
 	if arch == "" {
 		return nil
 	}
-	platforms, err := b.platforms(ctx)
+	platforms, err := probe(ctx)
 	// The probe is advisory. Only refuse on positive evidence that the
 	// platform is missing: a docker without buildx, or a daemon that does not
 	// answer, must not block a build that would otherwise have worked.
