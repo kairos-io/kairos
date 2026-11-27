@@ -70,7 +70,26 @@ func writeStateGrubenvWhenOemEncrypted(cfg *sdkConfig.Config, vars map[string]st
 	if err := fsutils.MkdirAll(cfg.Fs, cnst.StateDir, cnst.DirPerm); err != nil {
 		return fmt.Errorf("could not create the %s mountpoint %s: %w", cnst.StateLabel, cnst.StateDir, err)
 	}
+	wasMounted, err := isMountPoint(cfg, cnst.StateDir)
+	if err != nil {
+		return fmt.Errorf("could not check if %s is mounted on %s: %w", cnst.StateLabel, cnst.StateDir, err)
+	}
+	// The error of this mount is not returned, the mountpoint check below decides whether it
+	// worked. Returning it would be simpler, but it is not known to be safe on every image:
+	// it relies on the target's mount binary exiting 0 when the device is already mounted
+	// (util-linux does, busybox was not checked), and the unit tests use a mocked mounter
+	// that cannot show how the real binary behaves. The check gives the right answer
+	// whichever way mount reports it.
 	_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{})
+	mounted, err := isMountPoint(cfg, cnst.StateDir)
+	if err != nil {
+		return fmt.Errorf("could not check if %s is mounted on %s: %w", cnst.StateLabel, cnst.StateDir, err)
+	}
+	if !mounted {
+		// Without the mount, the grubenv would be written to a plain directory on the /run
+		// tmpfs, and the caller would be told the boot entry was set when it was not.
+		return fmt.Errorf("could not mount the %s device %s on %s", cnst.StateLabel, stateDevice, cnst.StateDir)
+	}
 	// Remount as RW
 	remountErr := cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "rw"})
 	if remountErr != nil {
@@ -79,9 +98,18 @@ func writeStateGrubenvWhenOemEncrypted(cfg *sdkConfig.Config, vars map[string]st
 		cfg.Logger.Debugf("Could not remount STATE partition as RW: %s", remountErr)
 	}
 	// Remount STATE as RO whichever way the write goes, so a failure does not leave the
-	// partition writable for the rest of the boot.
+	// partition writable for the rest of the boot. The remount changes the filesystem, which
+	// is shared with every other mount of the STATE device (for example the read-only one
+	// at /run/initramfs/cos-state), not only this mount. Unmounting afterwards would leave
+	// the filesystem read-write, so the remount has to come first.
 	defer func() {
 		_ = cfg.Mounter.Mount(stateDevice, cnst.StateDir, "auto", []string{"remount", "ro"})
+		// Leave a mount that was already there alone, only remove the one made here.
+		if !wasMounted {
+			if err := cfg.Mounter.Unmount(cnst.StateDir); err != nil {
+				cfg.Logger.Debugf("Could not unmount STATE partition from %s: %s", cnst.StateDir, err)
+			}
+		}
 	}()
 
 	stateGrubenvPath := filepath.Join(cnst.StateDir, cnst.GrubEnv)
@@ -91,6 +119,15 @@ func writeStateGrubenvWhenOemEncrypted(cfg *sdkConfig.Config, vars map[string]st
 	cfg.Logger.Debugf("Successfully set next_entry in STATE grubenv")
 
 	return nil
+}
+
+// isMountPoint reports whether something is mounted on dir.
+func isMountPoint(cfg *sdkConfig.Config, dir string) (bool, error) {
+	notMnt, err := cfg.Mounter.IsLikelyNotMountPoint(dir)
+	if err != nil {
+		return false, err
+	}
+	return !notMnt, nil
 }
 
 // selectBootEntryGrub sets the default boot entry to the selected entry by modifying /oem/grubenv

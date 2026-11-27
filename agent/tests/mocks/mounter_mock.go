@@ -18,6 +18,7 @@ package mocks
 
 import (
 	"errors"
+	"slices"
 
 	"k8s.io/mount-utils"
 )
@@ -27,6 +28,10 @@ type ErrorMounter struct {
 	mount.Interface
 	ErrorOnMount   bool
 	ErrorOnUnmount bool
+	// ErrorOnRemount makes only the mounts with the "remount" option fail.
+	ErrorOnRemount bool
+	// NoMountEffect makes Mount return success without mounting anything.
+	NoMountEffect bool
 	// OnMount, when set, runs after every successful mount, so a test can
 	// put the files a real mount would expose under the target.
 	OnMount func(source string, target string) error
@@ -39,10 +44,17 @@ func NewErrorMounter() *ErrorMounter {
 	}
 }
 
-// Mount will return an error if ErrorOnMount is true
+// Mount will return an error if ErrorOnMount is true, or if ErrorOnRemount is true and the
+// options ask for a remount
 func (e ErrorMounter) Mount(source string, target string, fstype string, options []string) error {
 	if e.ErrorOnMount {
 		return errors.New("mount error")
+	}
+	if e.ErrorOnRemount && slices.Contains(options, "remount") {
+		return errors.New("remount error")
+	}
+	if e.NoMountEffect {
+		return nil
 	}
 	if err := e.Interface.Mount(source, target, fstype, options); err != nil {
 		return err

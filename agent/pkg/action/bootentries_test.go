@@ -888,6 +888,8 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 					ghwTest.CreateDevices()
 					// The grubenv path is a directory, so writing the grubenv fails
 					Expect(fsutils.MkdirAll(fs, filepath.Join(cnst.StateDir, cnst.GrubEnv), os.ModeDir|os.ModePerm)).To(Succeed())
+					// STATE is already mounted, so the mount stays and its options can be read
+					Expect(mounter.Mount("/dev/device2", cnst.StateDir, "auto", []string{"ro"})).To(Succeed())
 
 					Expect(SelectBootEntry(config, "kairos")).ToNot(Succeed())
 
@@ -923,8 +925,7 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 						},
 					})
 					ghwTest.CreateDevices()
-					Expect(fsutils.MkdirAll(fs, cnst.StateDir, os.ModeDir|os.ModePerm)).To(Succeed())
-					mounter.ErrorOnMount = true
+					mounter.ErrorOnRemount = true
 
 					err := SelectBootEntry(config, "kairos")
 					Expect(err).ToNot(HaveOccurred())
@@ -932,6 +933,79 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 					variables, err := utils.ReadPersistentVariables(filepath.Join(cnst.StateDir, cnst.GrubEnv), config)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(variables["next_entry"]).To(Equal("kairos"))
+				})
+				Context("with a STATE device", func() {
+					BeforeEach(func() {
+						ghwTest.Clean()
+						ghwTest = ghwMock.GhwMock{}
+						ghwTest.AddDisk(sdkPartitions.Disk{
+							Name: "device",
+							Partitions: []*sdkPartitions.Partition{
+								{
+									Name:            "device2",
+									FilesystemLabel: "COS_STATE",
+									FS:              "ext4",
+								},
+							},
+						})
+						ghwTest.CreateDevices()
+					})
+					It("fails instead of writing to the mountpoint directory when STATE cannot be mounted", func() {
+						mounter.ErrorOnMount = true
+
+						err := SelectBootEntry(config, "kairos")
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(ContainSubstring("STATE"))
+						Expect(memLog.String()).ToNot(ContainSubstring("Default boot entry set to kairos"))
+						// Nothing may land in the plain directory under /run
+						exists, err := fsutils.Exists(fs, filepath.Join(cnst.StateDir, cnst.GrubEnv))
+						Expect(err).ToNot(HaveOccurred())
+						Expect(exists).To(BeFalse())
+					})
+					It("fails when STATE is not a mountpoint after the mount call returned no error", func() {
+						mounter.NoMountEffect = true
+
+						err := SelectBootEntry(config, "kairos")
+						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(ContainSubstring("STATE"))
+						Expect(memLog.String()).ToNot(ContainSubstring("Default boot entry set to kairos"))
+					})
+					It("unmounts STATE when it mounted it", func() {
+						Expect(SelectBootEntry(config, "kairos")).To(Succeed())
+
+						mounts, err := mounter.List()
+						Expect(err).ToNot(HaveOccurred())
+						for _, m := range mounts {
+							Expect(m.Path).ToNot(Equal(cnst.StateDir))
+						}
+					})
+					It("unmounts STATE when the grubenv write fails", func() {
+						Expect(fsutils.MkdirAll(fs, filepath.Join(cnst.StateDir, cnst.GrubEnv), os.ModeDir|os.ModePerm)).To(Succeed())
+
+						Expect(SelectBootEntry(config, "kairos")).ToNot(Succeed())
+
+						mounts, err := mounter.List()
+						Expect(err).ToNot(HaveOccurred())
+						for _, m := range mounts {
+							Expect(m.Path).ToNot(Equal(cnst.StateDir))
+						}
+					})
+					It("leaves STATE mounted when it was mounted already", func() {
+						Expect(fsutils.MkdirAll(fs, cnst.StateDir, os.ModeDir|os.ModePerm)).To(Succeed())
+						Expect(mounter.Mount("/dev/device2", cnst.StateDir, "auto", []string{"ro"})).To(Succeed())
+
+						Expect(SelectBootEntry(config, "kairos")).To(Succeed())
+
+						mounts, err := mounter.List()
+						Expect(err).ToNot(HaveOccurred())
+						var found bool
+						for _, m := range mounts {
+							if m.Path == cnst.StateDir {
+								found = true
+							}
+						}
+						Expect(found).To(BeTrue())
+					})
 				})
 			})
 		})
