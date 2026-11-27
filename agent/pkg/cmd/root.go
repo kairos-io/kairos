@@ -34,6 +34,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
+	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkUtils "github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
@@ -203,7 +204,7 @@ func usageError(cmd *cobra.Command, msg string) error {
 }
 
 func addSourceFlag(flags *pflag.FlagSet, source *string) {
-	flags.StringVar(source, "source", "", "Source for upgrade. Composed of `type:address`. Accepts `file:`,`dir:` `oci:`, `ocifile:` or `p2p://` (experimental, see `kairos-agent p2p --help`) for the type of source.\nFor example `ocifile:/var/share/myimage.tar`, `dir:/tmp/extracted` or `oci:repo/image:tag`")
+	flags.StringVar(source, "source", "", "Source for upgrade. Composed of `type:address`. Accepts `file:`,`dir:` `oci:`,`ocifile:`, `ssh:` or `p2p://` (experimental, see `kairos-agent p2p --help`) for the type of source.\nFor example `ocifile:/var/share/myimage.tar`, `dir:/tmp/extracted`, `oci:repo/image:tag` or `ssh://root@10.0.0.5` to take the image another node booted from (needs upgrade.ssh-source in the cloud config)")
 }
 
 func addAllowInsecureRegistriesFlag(flags *pflag.FlagSet, insecure *bool) {
@@ -480,6 +481,41 @@ change between releases.
 
 	cmd.Flags().StringVar(&contextFile, "context-file", "", "Path (inside the target chroot) to the JSON-serialized FinalizeContext the host wrote")
 	_ = cmd.MarkFlagRequired("context-file")
+	return cmd
+}
+
+func newVerifyImagesCmd() *cobra.Command {
+	var dirs []string
+
+	cmd := &cobra.Command{
+		Use:   "verify-images",
+		Short: "check the OS images against their recorded sha256",
+		Long: `
+Checks the active, passive and recovery images against the <image>.sha256 files
+kairos-agent writes next to them when image-checksum.create is on, and prints the
+expected (stored) and actual (computed) sha256 of each. It only reads: nothing is
+mounted, written or removed.
+
+By default it looks in the cOS directory of the state and recovery partitions the
+booted system has mounted. Use --dir to check another directory.
+
+An image with a mismatch, or a checksum file or image that cannot be read, fails
+the command. An image with no checksum, or one that was replaced after its checksum
+was written, is reported and skipped unless image-checksum.require is on, which makes
+it a failure too, as it is for immucore at boot. The image-checksum.* keys are read
+from the cloud config and the kernel cmdline.
+
+The exit code is non-zero when any image failed.`,
+		Args: cobra.NoArgs,
+		PreRunE: func(*cobra.Command, []string) error {
+			return checkRoot()
+		},
+		RunE: func(c *cobra.Command, _ []string) error {
+			return agent.VerifyImages(c.OutOrStdout(), dirs)
+		},
+	}
+
+	cmd.Flags().StringArrayVar(&dirs, "dir", nil, "Directory holding the images to check. Can be given more than once. Defaults to the cOS directory of the mounted state and recovery partitions.")
 	return cmd
 }
 
@@ -1976,6 +2012,7 @@ The kairos agent is a component to abstract away node ops, providing a common fe
 		newUpgradeCmd(&global),
 		newUpgradeFinalizeCmd(),
 		newNotifyCmd(),
+		newVerifyImagesCmd(),
 		newStartCmd(),
 		newInstallBundleCmd(),
 		newUUIDCmd(),
@@ -2146,12 +2183,22 @@ func validateSource(source string) error {
 		return nil
 	}
 
+	// An ssh source goes through the parser the config uses, so the CLI and the
+	// config accept the same URIs. Its errors never repeat the value, it may
+	// carry a password that was put there by mistake.
+	if strings.HasPrefix(source, "ssh:") {
+		if _, err := sdkImages.NewSrcFromURI(source); err != nil {
+			return fmt.Errorf("invalid ssh source: use ssh://[user@]host[:port][/active|/passive|/absolute/path]")
+		}
+		return nil
+	}
+
 	r, err := regexp.Compile(`^oci:|^dir:|^file:|^ocifile:|^p2p://`)
 	if err != nil {
 		return err
 	}
 	if !r.MatchString(source) {
-		return fmt.Errorf("source %s does not match any of oci:, dir:, file:, ocifile: or p2p:// (experimental)", source)
+		return fmt.Errorf("source %s does not match any of oci:, dir:, file:, ocifile:, ssh:// or p2p:// (experimental)", source)
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	"github.com/kairos-io/kairos/v4/sdk/types/bundles"
 	"github.com/kairos-io/kairos/v4/sdk/types/cloudinitrunner"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
@@ -44,6 +45,7 @@ type Config struct {
 	CloudInitRunner           cloudinitrunner.CloudInitRunner `yaml:"-"`
 	ImageExtractor            images.ImageExtractor           `yaml:"-"`
 	Client                    http.Client                     `yaml:"-"`
+	SSHSource                 *images.SSHSourceOptions        `yaml:"-"` // how to authenticate when an image is fetched from another node over SSH
 	Platform                  *platform.Platform              `yaml:"-"`
 	P2PSource                 *images.P2POptions              `yaml:"-"` // how this node shares and fetches images with the experimental p2p source
 	Cosign                    bool                            `yaml:"cosign,omitempty" mapstructure:"cosign"`
@@ -57,4 +59,5 @@ type Config struct {
 	BindPublicPCRs            []string                        `yaml:"bind-public-pcrs,omitempty" mapstructure:"bind-public-pcrs"`
 	Logs                      *log.LogsConfig                 `yaml:"logs,omitempty"`
 	Extensions                extensiontypes.Config           `yaml:"extensions,omitempty" mapstructure:"extensions"`
+	ImageChecksum             imagesum.Config                 `yaml:"image-checksum,omitempty" mapstructure:"image-checksum"`
 }

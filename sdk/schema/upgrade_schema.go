@@ -24,6 +24,7 @@ type UpgradeSchema struct {
 	AllowInsecureRegistries SpecBool            `json:"allow-insecure-registries,omitempty" description:"Pull the upgrade image from a registry served over plain HTTP or presenting an untrusted certificate"`
 	ExcludedPaths           []string            `json:"excluded-paths,omitempty" description:"Paths of the source image to leave out of the deployed system"`
 	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
+	SSHSource               *SSHSourceSchema    `json:"ssh-source,omitempty" nullable:"true" description:"How to authenticate to the node an ssh:// source points to. Overrides the root ssh-source block key by key."`
 }
 
 var _ jsonschemago.Preparer = UpgradeSchema{}

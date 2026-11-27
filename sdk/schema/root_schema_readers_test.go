@@ -24,6 +24,7 @@ var readOutsideConfig = map[string]string{
 	"p2p-source": "agent/pkg/config, applyP2POptions, and the kairos-agent-p2p seeding unit",
 	"kubevip":    "provider-kairos, provider/internal/role/p2p",
 	"p2p":        "provider-kairos, provider/internal/role",
+	"ssh-source": "agent/pkg/config, applySSHOptions, as the default of the install, upgrade and reset ssh-source blocks",
 	"stages":     "yip, through the cloud-init runner",
 	"users":      "the yip users plugin, run from the initramfs stage",
 	"upgrade":    "agent/pkg/config, unmarshallFullSpec into UpgradeSpec",

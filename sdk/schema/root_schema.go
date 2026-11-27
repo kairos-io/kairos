@@ -12,12 +12,13 @@ import (
 
 // RootSchema groups all the different schema of the Kairos configuration together.
 type RootSchema struct {
-	_                  struct{}         `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
-	Bundles            []BundleSchema   `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	ConfigURL          string           `json:"config_url,omitempty" description:"URL download configuration from."`
-	Env                []string         `json:"env,omitempty"`
-	Extensions         ExtensionsSchema `json:"extensions,omitempty"`
-	FailOnBundleErrors bool             `json:"fail_on_bundles_errors,omitempty"`
+	_                  struct{}            `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
+	Bundles            []BundleSchema      `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	ConfigURL          string              `json:"config_url,omitempty" description:"URL download configuration from."`
+	Env                []string            `json:"env,omitempty"`
+	Extensions         ExtensionsSchema    `json:"extensions,omitempty"`
+	ImageChecksum      ImageChecksumSchema `json:"image-checksum,omitempty"`
+	FailOnBundleErrors bool                `json:"fail_on_bundles_errors,omitempty"`
 	GrubOptionsSchema  `json:"grub_options,omitempty"`
 	Install            InstallSchema     `json:"install,omitempty"`
 	Kcrypt             KcryptSchema      `json:"kcrypt,omitempty"`
@@ -25,6 +26,7 @@ type RootSchema struct {
 	P2PSource          *P2PSourceSchema  `json:"p2p-source,omitempty" nullable:"true" description:"EXPERIMENTAL. How this node shares its images with its peers and fetches p2p:// sources. Not the p2p network block."`
 	Upgrade            UpgradeSchema     `json:"upgrade,omitempty"`
 	Reset              ResetSchema       `json:"reset,omitempty"`
+	SSHSource          *SSHSourceSchema  `json:"ssh-source,omitempty" nullable:"true" description:"How to authenticate to the node an ssh:// source of install, upgrade or reset points to. A block inside one of them overrides it key by key."`
 	// Users is not required. An admin user may instead be defined in a yip
 	// stage (stages.<stage>[].users) or waived with install.nousers, and the
 	// agent enforces that at install time (see CheckConfigForUsers in

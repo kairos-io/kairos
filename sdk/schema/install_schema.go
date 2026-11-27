@@ -43,6 +43,19 @@ type InstallSchema struct {
 	SkipEntries             []string            `json:"skip-entries,omitempty" description:"Trusted Boot only: boot entries to leave out of the installed system. Added to the entries Kairos skips by default"`
 	AllowInsecureRegistries bool                `json:"allow-insecure-registries,omitempty" description:"Pull the install image from a registry served over plain HTTP or presenting an untrusted certificate"`
 	RegistryAuth            *RegistryAuthSchema `json:"registry-auth,omitempty" nullable:"true" description:"Explicit credentials for this operation. Credentials may be persisted in the copied cloud-config."`
+	SSHSource               *SSHSourceSchema    `json:"ssh-source,omitempty" nullable:"true" description:"How to authenticate to the node an ssh:// source points to. Overrides the root ssh-source block key by key."`
+}
+
+// SSHSourceSchema tells how to authenticate when a system image is fetched from
+// another node with an ssh://[user@]host[:port][/path] source. A block at the
+// root applies to install, upgrade and reset, a block inside one of them
+// overrides it key by key. It only names files, a private key is never accepted
+// inline. Host keys are always checked.
+type SSHSourceSchema struct {
+	User                string   `json:"user,omitempty" description:"Account to connect with when the source names none. Defaults to the user running the agent."`
+	IdentityFile        string   `json:"identity-file,omitempty" description:"Path to the private key this node authenticates with. Must not be readable by other users. Without it ssh uses its own configuration and agent."`
+	KnownHostsFile      string   `json:"known-hosts-file,omitempty" description:"Path to a known_hosts file with the host key of the serving node. Without it and without host-key-fingerprints the known_hosts files of the user running the agent apply."`
+	HostKeyFingerprints []string `json:"host-key-fingerprints,omitempty" description:"Accepted host key fingerprints of the serving node, as printed by ssh-keygen -lf." examples:"[\"SHA256:Zq3m...\"]"`
 }
 
 // RegistryAuthSchema describes one explicit registry credential form. Exactly
@@ -69,7 +82,7 @@ type OEMFileSchema struct {
 // instead", so `source` is the key to offer and `uri` the one to retire.
 type Image struct {
 	Size          uint   `json:"size,omitempty"`
-	Source        string `json:"source,omitempty" description:"Container image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest. p2p://peer/active fetches the image from other Kairos nodes (EXPERIMENTAL), see p2p-source"`
+	Source        string `json:"source,omitempty" description:"Image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest. ssh://user@host/active copies the image of another Kairos node, see ssh-source. p2p://peer/active fetches the image from other Kairos nodes (EXPERIMENTAL), see p2p-source"`
 	URIDeprecated string `json:"uri,omitempty" deprecated:"true" description:"Deprecated: use source instead. Still honoured on system, recovery-system and passive"`
 }
 
@@ -174,4 +187,15 @@ func (PowerManagement) JSONSchemaOneOf() []interface{} {
 	return []interface{}{
 		NoPowerManagement{}, RebootOnly{}, PowerOffOnly{},
 	}
+}
+
+var _ jsonschemago.Preparer = SSHSourceSchema{}
+
+// PrepareJSONSchema closes the block to keys it does not declare. A typo here
+// would otherwise look like a working setting, and the agent refuses
+// unknown keys at runtime, so the schema should say so first.
+func (SSHSourceSchema) PrepareJSONSchema(schema *jsonschemago.Schema) error {
+	schema.WithAdditionalProperties(*(&jsonschemago.SchemaOrBool{}).WithTypeBoolean(false))
+
+	return nil
 }

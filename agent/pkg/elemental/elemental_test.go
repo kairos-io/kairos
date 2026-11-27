@@ -46,6 +46,7 @@ import (
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	"github.com/kairos-io/kairos/v4/agent/pkg/p2p"
 	"github.com/kairos-io/kairos/v4/agent/pkg/partitioner"
+	"github.com/kairos-io/kairos/v4/agent/pkg/sshimage"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
@@ -950,6 +951,55 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			cmdFail = "tune2fs"
 			_, err = el.DeployImage(img, true)
 			Expect(err).NotTo(BeNil())
+		})
+		Describe("with an ssh source", Label("ssh"), func() {
+			var sshSrc *sdkImages.ImageSource
+			var fetched []string
+			BeforeEach(func() {
+				var err error
+				sshSrc, err = sdkImages.NewSrcFromURI("ssh://root@node1:2222/active")
+				Expect(err).ToNot(HaveOccurred())
+				config.SSHSource = &sdkImages.SSHSourceOptions{IdentityFile: "/k", KnownHostsFile: "/kh"}
+				fetched = nil
+				DeferCleanup(elemental.SetFetchSSH(func(_ context.Context, o sshimage.Options, t sdkImages.SSHTarget, dst *os.File) (sshimage.Header, error) {
+					fetched = append(fetched, t.Addr()+"|"+o.IdentityFile+"|"+o.KnownHostsFile)
+					_, err := dst.WriteString("image")
+					return sshimage.Header{}, err
+				}))
+				destDir, err := fsutils.TempDir(fs, "", "elemental")
+				Expect(err).To(BeNil())
+				img.Source = sshSrc
+				img.MountPoint = destDir
+			})
+			It("downloads straight into the image file, labels and mounts it", func() {
+				_, err := el.DeployImage(img, true)
+				Expect(err).To(BeNil())
+				Expect(fetched).To(Equal([]string{"node1:2222|/k|/kh"}))
+				b, err := fs.ReadFile(img.File)
+				Expect(err).To(BeNil())
+				Expect(string(b)).To(Equal("image"))
+				// a ready made filesystem is not created again
+				for _, c := range runner.Cmds() {
+					Expect(c[0]).ToNot(HavePrefix("mkfs"))
+				}
+				Expect(runner.CmdsMatch([][]string{{"tune2fs", "-L", img.Label, img.File}})).To(BeNil())
+			})
+			It("does not leave a file behind when the download fails", func() {
+				DeferCleanup(elemental.SetFetchSSH(func(_ context.Context, _ sshimage.Options, _ sdkImages.SSHTarget, dst *os.File) (sshimage.Header, error) {
+					_, _ = dst.WriteString("part")
+					return sshimage.Header{}, sshimage.ErrVerification
+				}))
+				_, err := el.DeployImage(img, true)
+				Expect(err).To(MatchError(sshimage.ErrVerification))
+				exists, _ := fsutils.Exists(fs, img.File)
+				Expect(exists).To(BeFalse())
+			})
+			It("fetches with the defaults of ssh when no options were read", func() {
+				config.SSHSource = nil
+				_, err := el.DeployImage(img, true)
+				Expect(err).To(BeNil())
+				Expect(fetched).To(Equal([]string{"node1:2222||"}))
+			})
 		})
 		It("Fails creating the squashfs filesystem", func() {
 			cmdFail = "mksquashfs"

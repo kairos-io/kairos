@@ -89,6 +89,34 @@ The immutable rootfs can be configured with the following kernel parameters:
   completely breaks the concept of an immutable root. This is helpful for
   debugging or testing purposes, so changes persist across reboots.
 
+* `image-checksum.verify=none|warn|fail`: Checks the OS image (`active.img`,
+  `passive.img` or `recovery.img`) against the sha256 kairos-agent wrote next to it
+  (`<image>.sha256`), before the image is mounted. `none` (the default) checks nothing
+  and reads nothing. `warn` logs every problem and boots anyway. `fail` stops the boot
+  with a failure screen that names the image, the stored sha256 and the one computed
+  from the image. This is the cmdline spelling of the cloud config key
+  `image-checksum.verify`, like every config key. The agent also copies it to
+  `image-checksum.conf` next to the images, because the cloud config is on the
+  OEM partition, which is mounted after the root image. The cmdline wins over that file.
+  An image without a checksum file (written by an older agent, or with
+  `image-checksum.create` off) is skipped, and so is one whose size or mtime changed
+  since the checksum was written (an older agent replaced it): both are only logged,
+  unless `image-checksum.require=true` is set. With `rd.immucore.debugrw` the
+  checksum file is removed and the check skipped, as the image can change.
+
+* `image-checksum.require=true|false`: With `image-checksum.verify=warn|fail`, an image
+  with no usable checksum (missing or stale) counts as a problem instead of being skipped.
+
+* `image-checksum.verify-timeout=<seconds>`: Time budget for hashing the image at boot
+  (default 60, `0` for no limit). Hashing a big image on a slow disk can take longer
+  than dracut waits for the root device (`rd.retry`, 180 s by default), after which the
+  node reboots, in a loop with `rd.emergency=reboot`. So when the budget runs out immucore
+  stops hashing, logs a warning (image, bytes hashed, time spent) and boots without the
+  check, in `warn` and in `fail` mode. The one exception is `fail` together with
+  `image-checksum.require=true`, where an unchecked image is a failure by definition.
+  Keep it well under `rd.retry` (or raise `rd.retry` if you use `0` or a larger value).
+  Same precedence as the other keys: cmdline, then `image-checksum.conf`, then the default.
+
 * `rd.cos.disable`/`rd.immucore.disable`: This is a boolean option, true if present, false if not.
   It disables the execution of any immutable rootfs module logic at boot.
 

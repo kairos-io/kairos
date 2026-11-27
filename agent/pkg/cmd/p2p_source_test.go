@@ -12,12 +12,12 @@ import (
 )
 
 func TestValidateSourceAcceptsP2P(t *testing.T) {
-	for _, s := range []string{"p2p://active", "p2p://10.0.0.2,10.0.0.3/passive", "oci:foo", "file:/x.img", ""} {
+	for _, s := range []string{"p2p://active", "p2p://10.0.0.2,10.0.0.3/passive", "ssh://root@10.0.0.5/active", "oci:foo", "file:/x.img", ""} {
 		if err := validateSource(s); err != nil {
 			t.Errorf("validateSource(%q) = %v, want nil", s, err)
 		}
 	}
-	for _, s := range []string{"p2p:/active", "ssh://x", "ftp://y"} {
+	for _, s := range []string{"p2p:/active", "ftp://y"} {
 		if err := validateSource(s); err == nil {
 			t.Errorf("validateSource(%q) accepted, want error", s)
 		}
@@ -62,8 +62,8 @@ func TestP2PHelpAndErrorsNameTheRightFlags(t *testing.T) {
 		}
 	}
 	for _, n := range []string{"upgrade", "install", "manual-install"} {
-		if u := findCommand(t, n).Flags().Lookup("source").Usage; !strings.Contains(u, "p2p://") {
-			t.Errorf("%s --source help does not list p2p://: %q", n, u)
+		if u := findCommand(t, n).Flags().Lookup("source").Usage; !strings.Contains(u, "p2p://") || !strings.Contains(u, "ssh:") {
+			t.Errorf("%s --source help does not list both p2p:// and ssh:: %q", n, u)
 		}
 	}
 	if u := newP2PCmd().Long; !strings.Contains(u, "--recovery-dir") {

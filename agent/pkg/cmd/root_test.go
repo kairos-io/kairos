@@ -1160,3 +1160,16 @@ func TestInstallBundleFlagsHaveUsage(t *testing.T) {
 		}
 	})
 }
+
+func TestVerifyImagesCommand(t *testing.T) {
+	cmd, _, err := NewCommand().Find([]string{"verify-images"})
+	if err != nil || cmd == nil || cmd.Name() != "verify-images" {
+		t.Fatalf("verify-images is not registered: cmd=%v err=%v", cmd, err)
+	}
+	if cmd.Flags().Lookup("dir") == nil {
+		t.Fatal("verify-images has no --dir flag")
+	}
+	if err := cmd.Args(cmd, []string{"extra"}); err == nil {
+		t.Fatal("verify-images should refuse positional arguments")
+	}
+}
