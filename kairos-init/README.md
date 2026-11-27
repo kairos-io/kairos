@@ -28,6 +28,39 @@ docker build -t my-kairosified-image .
 
 You can then use [AuroraBoot](https://github.com/kairos-io/auroraboot) to transform that image into an ISO, RAW image, or use it as an upgrade source for a running Kairos system.
 
+## Check a system first
+
+`kairos-init check` says whether a system can become a Kairos system. It reads the
+running system, or an unpacked root filesystem with `--root`, and prints pass,
+warn or fail for each requirement. It exits with 1 when something required is
+missing. It changes nothing, needs no network and does not need root.
+
+```bash
+kairos-init check
+kairos-init check --root ./unpacked-image --arch aarch64 --trusted-boot
+```
+
+`--converted` is for a system that already went through kairos-init, where
+anything missing is missing for good. `--quiet` prints the warn and fail lines
+and the result only.
+
+The check asks the code of kairos-init for the distribution family, the package
+manager (yip), the kernel packages and the stages that build the initramfs, so it
+does not carry lists of its own for those. kairos-init runs the same check
+before it converts a system, and stops with the lines that failed. Pass
+`--skip-check` to go on anyway.
+
+The conversion passes its `--stage`, `--skip-step`, `--model`, `--stage-extensions`
+and `-t` to the check, and `kairos-init check` accepts the same flags, so run it
+with them to see what the conversion sees. When the step that installs the
+packages does not run, the tools it would bring (including `sudo`, `less` and
+`mount.nfs`, which `validate` asks for) have to be on the system already. With
+`--stage-extensions` a missing tool or kernel package is a warning, since an
+extension may bring it; the other failures stay. With `--model`, the kernel
+packages and modules of a board are not judged as generic ones, and its package
+lists are not checked. The check does not look in the package repositories, and
+does not cover FIPS.
+
 ## Dry-run
 
 Pass `--dry-run` to print the resolved yip stages that would run without
@@ -43,6 +76,8 @@ kairos-init --dry-run --version 1.0.0 --stage init | yip -
 The output is a full `schema.YipConfig` (commands, files, packages,
 services, etc.). Nothing is written to `/etc/kairos` and no binary copy,
 `yip` execution, or provider hook runs during a dry run.
+
+The check that runs before the conversion prints its result to stderr, also in a dry run, so the yaml on stdout stays clean. A dry run goes on when the check fails.
 
 ## CIS L1 Hardening
 

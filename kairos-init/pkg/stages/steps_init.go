@@ -35,13 +35,13 @@ const (
 	serviceSSHD              = "sshd"
 )
 
-// osDracutFamilies is the yip OnlyIfOs value for "every distribution whose
+// OSDracutFamilies is the yip OnlyIfOs value for "every distribution whose
 // initramfs is built by dracut", which is every supported one except Alpine.
 // The stages that write dracut config, dracut modules or units into the
 // initramfs all gate on it, so they share the constant rather than five
 // copies of a regex that has to be edited in lockstep when a distribution is
 // added.
-const osDracutFamilies = `Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\sHat.*|Rocky.*|AlmaLinux.*|Oracle\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*`
+const OSDracutFamilies = `Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\sHat.*|Rocky.*|AlmaLinux.*|Oracle\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*`
 
 // Paths, relative to the root of the image being built, that tell which
 // network daemons the initramfs can use.
@@ -52,6 +52,10 @@ const (
 	resolvectlBinary      = "usr/bin/resolvectl"
 	dracutModulesDir      = "usr/lib/dracut/modules.d"
 )
+
+// InitrdDracutOS is the yip OnlyIfOs value of the stage that builds the initramfs
+// with dracut. It also matches SLES, which OSDracutFamilies leaves out.
+const InitrdDracutOS = "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|SLES.*|[Oo]penSUSE.*|SUSE.*|Hadron.*"
 
 // GetInitrdStage Returns the initrd stage
 // This stage cleans up any existing initrd files and creates a new one
@@ -108,7 +112,7 @@ func GetInitrdStage(_ values.System, logger logger.KairosLogger) ([]schema.Stage
 		stage = append(stage, []schema.Stage{
 			{
 				Name:     "Create new initrd",
-				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|SLES.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				OnlyIfOs: InitrdDracutOS,
 				Commands: []string{
 					fmt.Sprintf("depmod -a %s", kernel),
 					dracutCmd,
@@ -1103,7 +1107,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add xhci_pci_renesas module to initramfs",
-				OnlyIfOs: osDracutFamilies,
+				OnlyIfOs: OSDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutXhciRenesasPath,
@@ -1116,7 +1120,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add sysext module to initramfs",
-				OnlyIfOs: osDracutFamilies,
+				OnlyIfOs: OSDracutFamilies,
 				If:       strconv.FormatBool(sysextModule),
 				Files: []schema.File{
 					{
@@ -1130,7 +1134,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add network module to initramfs",
-				OnlyIfOs: osDracutFamilies,
+				OnlyIfOs: OSDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutNetworkPath,
@@ -1143,7 +1147,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 			{
 				Name:     "Add immucore module to initramfs",
-				OnlyIfOs: osDracutFamilies,
+				OnlyIfOs: OSDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutConfigPath,
@@ -1183,7 +1187,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			// splash: it is not built with dracut at all.
 			{
 				Name:     "Add splash module to initramfs",
-				OnlyIfOs: osDracutFamilies,
+				OnlyIfOs: OSDracutFamilies,
 				Files: []schema.File{
 					{
 						Path:        bundled.DracutSplashPath,

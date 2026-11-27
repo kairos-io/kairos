@@ -1,8 +1,17 @@
 package main
 
 import (
+	"bytes"
+	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/check"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 func TestEnumSliceSetAccumulates(t *testing.T) {
@@ -38,5 +47,109 @@ func TestEnumSliceSetRejectsUnknownValue(t *testing.T) {
 	}
 	if len(e.Value) != 0 {
 		t.Fatalf("a rejected value must not be stored, got %v", e.Value)
+	}
+}
+
+func exitCode(t *testing.T, err error) int {
+	t.Helper()
+	var exit *exitError
+	if !errors.As(err, &exit) {
+		t.Fatalf("got %v, want an exit status", err)
+	}
+	return exit.code
+}
+
+func TestCheckCommandExitStatus(t *testing.T) {
+	empty := t.TempDir()
+	cases := []struct {
+		name string
+		args []string
+		opts check.Options
+		want int
+	}{
+		{"an argument", []string{"/some/dir"}, check.Options{}, 2},
+		{"--arch without --root", nil, check.Options{Arch: "aarch64"}, 2},
+		{"--arch with --root /", nil, check.Options{Arch: "aarch64", Root: "/"}, 2},
+		{"a root that is not there", nil, check.Options{Root: filepath.Join(empty, "missing")}, 2},
+		{"a root with nothing in it", nil, check.Options{Root: empty}, 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			checkOpts = c.opts
+			t.Cleanup(func() { checkOpts = check.Options{} })
+			err := checkCmd.Args(checkCmd, c.args)
+			if err == nil {
+				checkCmd.SetOut(&bytes.Buffer{})
+				err = checkCmd.RunE(checkCmd, c.args)
+			}
+			if got := exitCode(t, err); got != c.want {
+				t.Fatalf("exit status %d, want %d", got, c.want)
+			}
+			if err.Error() == "" {
+				t.Fatal("no message")
+			}
+		})
+	}
+}
+
+func TestPreCheck(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	osRelease := "PRETTY_NAME=\"Arch Linux\"\nID=arch\nVERSION_ID=\"1\"\n"
+	if err := os.WriteFile(filepath.Join(root, "etc/os-release"), []byte(osRelease), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opts := check.Options{Root: root, Arch: "x86_64"}
+
+	var out bytes.Buffer
+	err := runPreCheck(&out, opts, false)
+	if err == nil || !strings.Contains(err.Error(), "no package list for the Arch family") {
+		t.Fatalf("a system that cannot convert has to stop the conversion, got %v", err)
+	}
+	if !strings.Contains(out.String(), "  fail  ") {
+		t.Fatalf("the result is not printed:\n%s", out.String())
+	}
+	// A dry run prints what it would do on any machine.
+	out.Reset()
+	if err := runPreCheck(&out, opts, true); err != nil {
+		t.Fatalf("a dry run does not stop: %v", err)
+	}
+}
+
+func TestPreCheckOptions(t *testing.T) {
+	config.DefaultConfig.SkipSteps = []string{"installKernel"}
+	t.Cleanup(func() { config.DefaultConfig.SkipSteps = nil })
+	got := preCheckOptions("init").SkipSteps
+	want := []string{"installKernel", "install"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("skipped steps %v, want %v", got, want)
+	}
+	if got := preCheckOptions("all").SkipSteps; !reflect.DeepEqual(got, []string{"installKernel"}) {
+		t.Fatalf("skipped steps %v", got)
+	}
+	if got := preCheckOptions("install").SkipSteps; !reflect.DeepEqual(got, []string{"installKernel", "init"}) {
+		t.Fatalf("skipped steps %v", got)
+	}
+}
+
+func TestPreCheckSkipped(t *testing.T) {
+	skipCheck = true
+	t.Cleanup(func() { skipCheck = false })
+	if err := preCheck(logger.NewNullLogger()); err != nil {
+		t.Fatalf("--skip-check has to skip the check: %v", err)
+	}
+}
+
+// check takes the flags of the conversion that change what it asks for.
+func TestCheckCommandHasTheFlagsOfTheConversion(t *testing.T) {
+	for _, name := range []string{"model", "stage", "skip-step", "stage-extensions", "trusted", "trusted-boot", "root", "arch", "converted", "quiet"} {
+		if checkCmd.Flags().Lookup(name) == nil {
+			t.Errorf("check has no --%s", name)
+		}
+	}
+	if got := stepsNotRun("init", []string{"initrd"}); !reflect.DeepEqual(got, []string{"initrd", "install"}) {
+		t.Errorf("steps not run: %v", got)
 	}
 }

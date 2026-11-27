@@ -1271,12 +1271,19 @@ func GetPackages(s System, l logger.KairosLogger) ([]string, error) {
 }
 
 func GetKernelPackages(s System, l logger.KairosLogger) ([]string, error) {
+	return GetKernelPackagesFor(s, config.DefaultConfig.TrustedBoot, config.DefaultConfig.Model, l)
+}
+
+// GetKernelPackagesFor is GetKernelPackages with the boot mode and the model
+// given instead of read from the global config, for a caller that asks about a
+// system without configuring a build.
+func GetKernelPackagesFor(s System, trustedBoot bool, model string, l logger.KairosLogger) ([]string, error) {
 	// Get the kernel packages for the system
 	var filteredPackages []VersionMap
 
-	if config.DefaultConfig.TrustedBoot {
+	if trustedBoot {
 		// Kernel packages by model
-		if config.DefaultConfig.Model == Generic.String() {
+		if model == Generic.String() {
 			distroKernel := KernelPackagesTrustedBoot[s.Distro]
 			hasDistroOverride := distroKernel != nil && (distroKernel[ArchCommon] != nil || distroKernel[s.Arch] != nil)
 			filteredPackages = append(filteredPackages, KernelPackagesTrustedBoot[s.Distro][ArchCommon]) // Common kernel packages to both arches
@@ -1288,13 +1295,13 @@ func GetKernelPackages(s System, l logger.KairosLogger) ([]string, error) {
 		} else {
 			// Get specific packages for the model
 			// TODO: No support for trusted boot on models yet, so this part is probably useless for now?
-			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Distro][ArchCommon][Model(config.DefaultConfig.Model)])
-			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Family][ArchCommon][Model(config.DefaultConfig.Model)])
-			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Distro][s.Arch][Model(config.DefaultConfig.Model)])
-			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Family][s.Arch][Model(config.DefaultConfig.Model)])
+			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Distro][ArchCommon][Model(model)])
+			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Family][ArchCommon][Model(model)])
+			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Distro][s.Arch][Model(model)])
+			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Family][s.Arch][Model(model)])
 		}
 	} else {
-		if config.DefaultConfig.Model == Generic.String() {
+		if model == Generic.String() {
 			distroKernel := KernelPackages[s.Distro]
 			hasDistroOverride := distroKernel != nil && (distroKernel[ArchCommon] != nil || distroKernel[s.Arch] != nil)
 			filteredPackages = append(filteredPackages, KernelPackages[s.Distro][ArchCommon]) // Common kernel packages to both arches
@@ -1305,10 +1312,10 @@ func GetKernelPackages(s System, l logger.KairosLogger) ([]string, error) {
 			}
 		} else {
 			// Get specific packages for the model
-			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Distro][ArchCommon][Model(config.DefaultConfig.Model)])
-			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Family][ArchCommon][Model(config.DefaultConfig.Model)])
-			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Distro][s.Arch][Model(config.DefaultConfig.Model)])
-			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Family][s.Arch][Model(config.DefaultConfig.Model)])
+			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Distro][ArchCommon][Model(model)])
+			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Family][ArchCommon][Model(model)])
+			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Distro][s.Arch][Model(model)])
+			filteredPackages = append(filteredPackages, KernelPackagesModels[s.Family][s.Arch][Model(model)])
 		}
 	}
 	// Return filtered packages
@@ -1319,7 +1326,7 @@ func GetKernelPackages(s System, l logger.KairosLogger) ([]string, error) {
 func FilterPackagesOnConstraint(s System, l logger.KairosLogger, pkgsToFilter []VersionMap) []string {
 	// Go over each list of packages
 	var pkgs []string
-	systemVersion, err := semver.NewVersion(s.Version)
+	systemVersion, err := s.ParsedVersion()
 	if err != nil {
 		return pkgs
 	}

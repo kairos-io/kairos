@@ -5,7 +5,9 @@ name: Build flavors (kairos-init base-image smoke matrix)
 # verifies:
 #   1. kairos-init succeeds against BASE_IMAGE with the given
 #      MODEL / TRUSTED_BOOT / PROVIDER / FIPS knobs, and
-#   2. `kairos-init validate` passes on the produced rootfs.
+#   2. `kairos-init validate` passes on the produced rootfs, and
+#   3. `kairos-init check` passes before kairos-init and
+#      `kairos-init check --converted` after it.
 #
 # The kairos-init binary comes from the per-arch tarball artifact
 # _build-kairos-init.yaml uploads ("kairos-init-linux-<arch>"), so

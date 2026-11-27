@@ -6,6 +6,10 @@
 # PROVIDER / FIPS knobs) and that `kairos-init validate` passes on
 # the result. No ISO, no push.
 #
+# `kairos-init check`, which tells users whether their distribution can become a
+# Kairos system, runs on the same image before the conversion, and again with
+# --converted after it. The conversion runs the same check first.
+#
 # The kairos-init binary itself is not built here; it is copied from
 # the per-arch dist/linux-<TARGETARCH>/ directory the caller workflow
 # unpacks into the build context, matching the consumer shape used
@@ -27,6 +31,9 @@ ARG FIPS=false
 ARG VALIDATE=true
 
 COPY --from=kairos-init-bin /kairos-init /kairos-init
+RUN set -- --model "${MODEL}"; \
+    if [ "${TRUSTED_BOOT}" = "true" ]; then set -- "$@" --trusted-boot; fi; \
+    /kairos-init check "$@"
 # Build the flag list so cells without a provider don't pass
 # `--provider ""` (which kairos-init reads as StandardVariant with an
 # empty provider name, only tolerated by accident downstream), and
@@ -41,4 +48,10 @@ RUN set -- -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}"; \
     fi; \
     /kairos-init "$@"
 RUN if [ "${VALIDATE}" = 'true' ]; then /kairos-init validate -t "${TRUSTED_BOOT}"; fi
+# The board kernels of the other models are built for one board and leave out
+# drivers the generic images need.
+RUN if [ "${VALIDATE}" = "true" ] && [ "${MODEL}" = "generic" ]; then \
+      if [ "${TRUSTED_BOOT}" = "true" ]; then set -- --trusted-boot; fi; \
+      /kairos-init check --converted "$@"; \
+    fi
 RUN rm /kairos-init
