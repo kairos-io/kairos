@@ -822,6 +822,17 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 		It("Deploys an image from a directory and leaves it unmounted", func() {
 			Expect(el.DeployImage(img, false)).To(BeNil())
 		})
+		It("Passes the excludes to the image extractor for a docker source", Label("docker"), func() {
+			img.Source = sdkImages.NewDockerSrc("docker/image:latest")
+			_, err := el.DeployImage(img, true, "/var/lib/foo", "/home")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(extractor.WasCalledWithExtractCall(v1mock.ExtractCall{
+				ImageRef:    "docker/image:latest",
+				Destination: img.MountPoint,
+				PlatformRef: config.Platform.String(),
+				Excludes:    []string{"/var/lib/foo", "/home"},
+			})).To(BeTrue(), fmt.Sprintf("%+v", extractor.ClientCalls))
+		})
 		It("Deploys an squashfs image from a directory", func() {
 			img.FS = cnst.SquashFs
 			Expect(el.DeployImage(img, false)).To(BeNil())
