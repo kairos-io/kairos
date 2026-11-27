@@ -38,17 +38,19 @@ var _ = Describe("The install key that gated the kcrypt plugin copy", func() {
 		}
 	})
 
-	// Dropping a declaration must not turn a config that still carries the key
-	// into an error: the schema does not forbid unknown properties and YAML
-	// decoding ignores them, so such a config keeps behaving as it does today.
-	It("leaves a config that still sets it valid and inert", func() {
+	// The install block is closed to undeclared keys (kairos-io/kairos#6004),
+	// so validate now names the key as one that does nothing. Loading the
+	// config is unchanged: YAML decoding ignores the key, and the agent only
+	// warns about a schema error unless --strict-validation is set.
+	It("is reported by validate, and still ignored when the config is parsed", func() {
 		body := `#cloud-config
 device: /dev/sda
 skip_copy_kcrypt_plugin: true`
 
 		config, err := NewConfigFromYAML(body, InstallSchema{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+		Expect(config.IsValid()).To(BeFalse())
+		Expect(config.ValidationError.Error()).To(ContainSubstring("skip_copy_kcrypt_plugin"))
 
 		var parsed install.Install
 		Expect(yaml.Unmarshal([]byte(body), &parsed)).To(Succeed())
