@@ -170,6 +170,7 @@ var _ = Describe("ExtensionBuilder.Build — source resolution", func() {
 		cliArgs  auroraboot.AurorabootCLIArgs
 		argsMu   sync.Mutex
 		baseDir  string
+		probed   []string // platforms the fake daemon reports; nil means no probe answer
 	)
 
 	BeforeEach(func() {
@@ -179,8 +180,10 @@ var _ = Describe("ExtensionBuilder.Build — source resolution", func() {
 			"a-1": {ID: "a-1", ContainerImage: "quay.io/myorg/edge-os:v4.1.0"},
 		}}
 		dbCalls.Store(0)
+		probed = nil
 		eb = auroraboot.NewExtensionBuilder(baseDir, extStore).
 			WithArtifactStore(artStore).
+			WithPlatformsFunc(func(context.Context) ([]string, error) { return probed, nil }).
 			WithDockerBuildFunc(func(_ context.Context, a auroraboot.DockerBuildArgs) error {
 				dbCalls.Add(1)
 				argsMu.Lock()
@@ -248,6 +251,60 @@ var _ = Describe("ExtensionBuilder.Build — source resolution", func() {
 		Expect(dbArgs.Tag).To(Equal("auroraboot-extbuild:e-3"))
 		Expect(dbArgs.DockerfilePath).To(Equal(filepath.Join(baseDir, "e-3", "Dockerfile")))
 		Expect(rec.ContainerImage).To(Equal("auroraboot-extbuild:e-3"))
+	})
+
+	It("passes the target architecture to docker build for Mode=dockerfile", func() {
+		_, err := eb.Build(context.Background(), builder.ExtensionBuildOptions{
+			ID: "e-3-arm", Name: "ts", Type: "sysext", Arch: "arm64",
+			Source: builder.ExtensionSource{
+				Mode: "dockerfile", Dockerfile: "FROM alpine:3.20\nRUN true",
+			},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		awaitReady("e-3-arm")
+		argsMu.Lock()
+		defer argsMu.Unlock()
+		Expect(dbArgs.Arch).To(Equal("arm64"))
+	})
+
+	It("passes --platform for the target architecture to the docker CLI", func() {
+		binDir := GinkgoT().TempDir()
+		argsFile := filepath.Join(binDir, "args.txt")
+		script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + argsFile + "'\n"
+		Expect(os.WriteFile(filepath.Join(binDir, "docker"), []byte(script), 0o755)).To(Succeed())
+		origPath := os.Getenv("PATH")
+		Expect(os.Setenv("PATH", binDir+string(os.PathListSeparator)+origPath)).To(Succeed())
+		DeferCleanup(os.Setenv, "PATH", origPath)
+
+		err := auroraboot.DefaultDockerBuildFunc(context.Background(), auroraboot.DockerBuildArgs{
+			Tag: "auroraboot-extbuild:e-arm", DockerfilePath: "/ctx/Dockerfile", BuildContextDir: "/ctx", Arch: "arm64",
+		})
+		Expect(err).ToNot(HaveOccurred())
+		got, err := os.ReadFile(argsFile)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(got)).To(Equal("build\n--no-cache\n--platform\nlinux/arm64\n" +
+			"-t\nauroraboot-extbuild:e-arm\n-f\n/ctx/Dockerfile\n/ctx\n"))
+	})
+
+	It("refuses a cross-architecture Dockerfile build the daemon cannot emulate", func() {
+		probed = []string{"linux/amd64"}
+		_, err := eb.Build(context.Background(), builder.ExtensionBuildOptions{
+			ID: "e-3-refused", Name: "ts", Type: "sysext", Arch: "arm64",
+			Source: builder.ExtensionSource{
+				Mode: "dockerfile", Dockerfile: "FROM alpine:3.20\nRUN true",
+			},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(func() string {
+			rec, _ := extStore.GetByID(context.Background(), "e-3-refused")
+			if rec == nil {
+				return ""
+			}
+			return rec.Phase
+		}, "2s", "20ms").Should(Equal(builder.BuildError))
+		rec, _ := extStore.GetByID(context.Background(), "e-3-refused")
+		Expect(rec.Message).To(ContainSubstring("binfmt_misc"))
+		Expect(dbCalls.Load()).To(Equal(int32(0)))
 	})
 
 	It("docker-builds Mode=artifact with ExtraSteps and uses the resulting tag", func() {
