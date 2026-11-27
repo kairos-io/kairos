@@ -3,8 +3,7 @@
 //
 // Events are emitted as JSON Lines (one JSON object per line) and only when
 // the KAIROS_AGENT_PROGRESS environment variable is set to a non-empty value,
-// so that human-driven installs and the in-process interactive TUI are
-// unaffected.
+// so that human-driven installs are unaffected.
 //
 // The contract vocabulary (env var, event values, step names) lives in
 // kairos-sdk/agentrun so the agent (emitter) and installer frontends

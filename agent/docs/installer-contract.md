@@ -67,7 +67,12 @@ when a source was given. The installer's exit code is propagated.
 
 The installer gathers configuration, writes a `#cloud-config` file, and runs:
 
-    kairos-agent manual-install --source <source> [--reboot|--poweroff] <config.yaml>
+    kairos-agent manual-install --source <source> --use-default-dirs [--reboot|--poweroff] <config.yaml>
+
+`--use-default-dirs` makes the agent also read the config in the default
+locations (`/run/initramfs/live`, `/etc/kairos`, `/usr/local/cloud-config` and
+`/oem`) and merge it with `<config.yaml>`. Without it, only `<config.yaml>` is
+read. `agentrun.Command` in kairos-sdk always passes it.
 
 To receive progress markers (below), the installer MUST set the environment
 variable `KAIROS_AGENT_PROGRESS=1` in that child process.
@@ -108,5 +113,5 @@ event is the only copy on stdout.
 Consumers should parse each line as JSON; lines that are not valid JSON are
 ordinary agent log output and may be shown or ignored. For forward
 compatibility, ignore lines whose `event` is unknown and tolerate additional
-fields. Events are NOT emitted when the env var is unset (human installs and
-the in-process TUI fallback are unaffected).
+fields. Events are NOT emitted when the env var is unset (human installs are
+unaffected).
