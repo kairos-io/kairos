@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -346,8 +347,10 @@ func dockerBuildArgv(args DockerBuildArgs) []string {
 func (b *ExtensionBuilder) dockerBuildAndTag(ctx context.Context, id, arch, dockerfile, contextDir, outputDir string, logger io.Writer) (string, error) {
 	// A Dockerfile's RUN steps execute target-architecture binaries, so refuse
 	// a build the daemon cannot emulate before it fails with an exec format error.
-	if err := checkArchSupported(ctx, b.platformsFn, arch); err != nil {
-		return "", err
+	if dockerfileHasRun(dockerfile) {
+		if err := checkArchSupported(ctx, b.platformsFn, arch); err != nil {
+			return "", err
+		}
 	}
 	dockerfilePath := filepath.Join(outputDir, "Dockerfile")
 	if err := os.WriteFile(dockerfilePath, []byte(dockerfile), 0o644); err != nil {
@@ -367,6 +370,22 @@ func (b *ExtensionBuilder) dockerBuildAndTag(ctx context.Context, id, arch, dock
 		return "", fmt.Errorf("docker build: %w", err)
 	}
 	return tag, nil
+}
+
+// dockerfileHasRun reports whether a Dockerfile contains a RUN instruction.
+// Instructions are case-insensitive and may be indented.
+func dockerfileHasRun(dockerfile string) bool {
+	for _, line := range strings.Split(dockerfile, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		instruction := strings.Fields(line)[0]
+		if strings.EqualFold(instruction, "RUN") {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *ExtensionBuilder) updateContainerImage(id, image string) {

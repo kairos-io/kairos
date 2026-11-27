@@ -162,15 +162,16 @@ var _ = Describe("ExtensionBuilder.Build (skeleton)", func() {
 
 var _ = Describe("ExtensionBuilder.Build — source resolution", func() {
 	var (
-		eb       *auroraboot.ExtensionBuilder
-		extStore *fakeExtStore
-		artStore *fakeArtifactStore
-		dbCalls  atomic.Int32
-		dbArgs   auroraboot.DockerBuildArgs
-		cliArgs  auroraboot.AurorabootCLIArgs
-		argsMu   sync.Mutex
-		baseDir  string
-		probed   []string // platforms the fake daemon reports; nil means no probe answer
+		eb         *auroraboot.ExtensionBuilder
+		extStore   *fakeExtStore
+		artStore   *fakeArtifactStore
+		dbCalls    atomic.Int32
+		probeCalls atomic.Int32
+		dbArgs     auroraboot.DockerBuildArgs
+		cliArgs    auroraboot.AurorabootCLIArgs
+		argsMu     sync.Mutex
+		baseDir    string
+		probed     []string // platforms the fake daemon reports; nil means no probe answer
 	)
 
 	BeforeEach(func() {
@@ -180,10 +181,14 @@ var _ = Describe("ExtensionBuilder.Build — source resolution", func() {
 			"a-1": {ID: "a-1", ContainerImage: "quay.io/myorg/edge-os:v4.1.0"},
 		}}
 		dbCalls.Store(0)
+		probeCalls.Store(0)
 		probed = nil
 		eb = auroraboot.NewExtensionBuilder(baseDir, extStore).
 			WithArtifactStore(artStore).
-			WithPlatformsFunc(func(context.Context) ([]string, error) { return probed, nil }).
+			WithPlatformsFunc(func(context.Context) ([]string, error) {
+				probeCalls.Add(1)
+				return probed, nil
+			}).
 			WithDockerBuildFunc(func(_ context.Context, a auroraboot.DockerBuildArgs) error {
 				dbCalls.Add(1)
 				argsMu.Lock()
@@ -234,6 +239,7 @@ var _ = Describe("ExtensionBuilder.Build — source resolution", func() {
 		rec := awaitReady("e-2")
 		Expect(rec.ContainerImage).To(Equal("quay.io/myorg/edge-os:v4.1.0"))
 		Expect(dbCalls.Load()).To(Equal(int32(0)))
+		Expect(probeCalls.Load()).To(Equal(int32(0)))
 	})
 
 	It("docker-builds Mode=dockerfile and uses the resulting tag", func() {
@@ -305,6 +311,20 @@ var _ = Describe("ExtensionBuilder.Build — source resolution", func() {
 		rec, _ := extStore.GetByID(context.Background(), "e-3-refused")
 		Expect(rec.Message).To(ContainSubstring("binfmt_misc"))
 		Expect(dbCalls.Load()).To(Equal(int32(0)))
+	})
+
+	It("builds a cross-architecture COPY-only Dockerfile without probing for emulation", func() {
+		probed = []string{"linux/amd64"}
+		_, err := eb.Build(context.Background(), builder.ExtensionBuildOptions{
+			ID: "e-copy-only", Name: "ts", Type: "sysext", Arch: "arm64",
+			Source: builder.ExtensionSource{
+				Mode: "dockerfile", Dockerfile: "FROM alpine:3.20\nCOPY x /x",
+			},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		awaitReady("e-copy-only")
+		Expect(probeCalls.Load()).To(Equal(int32(0)))
+		Expect(dbCalls.Load()).To(Equal(int32(1)))
 	})
 
 	It("docker-builds Mode=artifact with ExtraSteps and uses the resulting tag", func() {
