@@ -6,7 +6,7 @@ set `registry-auth` under `install` or `upgrade` in cloud-config.
 The inline key is matched case-insensitively. Unknown keys containing `auth`
 directly under either operation are rejected; use `registry-auth`.
 
-The existing [Docker and Podman credential-file configuration](https://kairos.io/docs/v4.1.2/advanced/private_registry_auth/)
+The existing [Docker and Podman credential-file configuration](https://kairos.io/docs/advanced/private_registry_auth/)
 continues to work when `registry-auth` is omitted. Kairos does not run a login
 command or create a credential file when explicit credentials are supplied.
 

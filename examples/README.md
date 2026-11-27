@@ -27,7 +27,7 @@ Contribute
 <tr>
 <td>
 
- 📚 [Getting started with Kairos](https://kairos.io/docs/getting-started) <br> :bulb: [Examples](https://kairos.io/docs/examples) <br> :movie_camera: [Video](https://kairos.io/docs/media/) <br> :open_hands:[Engage with the Community](https://kairos.io/community/)
+ 📚 [Getting started with Kairos](https://kairos.io/getting-started/) <br> :bulb: [Examples](https://kairos.io/docs/examples) <br> :movie_camera: [Video](https://kairos.io/docs/media/) <br> :open_hands:[Engage with the Community](https://kairos.io/community/)
   
 </td>
 <td>
@@ -42,6 +42,6 @@ This folder contains examples for Kairos configurations.
 
 - The `cloud-configs` folder contains cloud config files examples used in our [docs](https://kairos.io/docs/examples/).
 - The `auroraboot` folder contains cloud config examples that can be used with [AuroraBoot](https://kairos.io/docs/reference/auroraboot)
-- The `bundle` folder contains a [live layer bundle example](https://kairos.io/docs/advanced/livelayering/)
+- The `bundle` folder contains a [bundle example](https://kairos.io/docs/advanced/bundles/)
 - The `plans` folder contains plans that can be used with the `system-upgrade-controller` to upgrade a system or apply changes with Kubernetes, [see the documentation here](https://kairos.io/docs/upgrade/kubernetes/).
-- The `byoi` folder contains example on how to build Kairos derivatives from scratch [see the documentation here](https://kairos.io/docs/reference/build-from-scratch/).
+- The `builds` folder contains example Dockerfiles that build Kairos derivatives (FIPS images on several distributions), [see the documentation here](https://kairos.io/docs/reference/build-from-scratch/).
