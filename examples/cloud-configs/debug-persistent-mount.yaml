@@ -173,6 +173,12 @@ stages:
             WantedBy=multi-user.target
       commands:
         - systemctl daemon-reload
+        # `enable` alone does not start the unit on this boot: the boot stage
+        # runs inside cos-setup-boot.service, after multi-user.target's
+        # transaction was built. Without COS_PERSISTENT, /etc/systemd is fresh
+        # every boot, so the unit would never run on exactly the boot it
+        # exists to catch. --no-block queues it without holding up the stage.
+        - systemctl start --no-block kairos-boot-audit.service
       systemctl:
         enable:
           - kairos-boot-audit.service
