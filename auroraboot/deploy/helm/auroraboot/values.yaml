@@ -49,6 +49,10 @@ builder:
   # traverse the ingress. Override only when the exporter pods can't
   # reach the release Service (e.g. cross-cluster setups).
   uploadURL: ""
+  # Longest an operator build pod may run, as a Go duration (e.g. 2h).
+  # When it runs out the pod is stopped and the build fails. Empty means
+  # no limit.
+  timeout: ""
 
 persistence:
   # A single PVC mounted at /var/lib/auroraboot holds the SQLite store,
