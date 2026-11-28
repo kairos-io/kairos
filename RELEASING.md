@@ -40,6 +40,9 @@ published.
    attests their build provenance. The riscv64 AuroraBoot image has provenance
    but no SBOM. `upload-release` waits for that, so a release whose images could
    not be signed never reaches the approval step.
+   `upload-release` signs `checksums.txt` and attests the build provenance of
+   every archive in it, in a job that cannot write to the release. A second job
+   checks the archives against that `checksums.txt` and uploads them.
 
 The run ends successfully without a release when `master.yaml` did not
 succeed, when no run has finished, when no commit landed since the newest
