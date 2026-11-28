@@ -112,6 +112,12 @@ func (e OCIImageExtractor) extract(imageRef, destination, platformRef string, ex
 	return nil
 }
 
+// ResolveAnnotated is ResolveAnnotated with the extractor's registry
+// credentials and insecure setting.
+func (e OCIImageExtractor) ResolveAnnotated(imageRef string, match func(annotations map[string]string) bool) (string, error) {
+	return ResolveAnnotated(imageRef, match, e.Auth, nil, e.pullOptions()...)
+}
+
 // ResolveDigest implements imagetypes.DigestResolver.
 func (e OCIImageExtractor) ResolveDigest(imageRef string) (string, error) {
 	return ResolveDigest(imageRef, e.Auth, nil, e.pullOptions()...)

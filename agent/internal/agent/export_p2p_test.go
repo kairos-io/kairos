@@ -5,5 +5,5 @@ package agent
 func P2PServiceUnitForTest(bin string) string { return p2pServiceUnit(bin) }
 
 func GenerateUpgradeConfForCLIArgsForTest(source string) (string, error) {
-	return generateUpgradeConfForCLIArgs(source, "", false)
+	return generateUpgradeConfForCLIArgs(source, "", false, false, "")
 }

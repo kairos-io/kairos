@@ -28,6 +28,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/state"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/sdk/diffupgrade"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/imagesum"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -192,6 +193,12 @@ var _ = Describe("Reset action tests", func() {
 		Describe("With EFI", func() {
 			It("Successfully resets on non-squashfs recovery", func() {
 				Expect(reset.Run()).To(BeNil())
+
+				By("recording the release active and passive hold, for diff upgrades")
+				activeID, err := diffupgrade.RecordedID(fs, spec.Active.File)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(activeID).To(HavePrefix("sha256:"))
+				Expect(diffupgrade.RecordedID(fs, spec.Passive.File)).To(Equal(activeID))
 			})
 			It("Replaces stale checksums with valid ones for active and passive when create is on", Label("imagesum"), func() {
 				yes := true

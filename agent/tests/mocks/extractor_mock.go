@@ -27,7 +27,10 @@ type FakeImageExtractor struct {
 	Logger         sdkLogger.KairosLogger
 	SideEffect     func(imageRef, destination, platformRef string) error
 	SizeSideEffect func(imageRef, platformRef string) (int64, error)
-	ClientCalls    []ExtractCall
+	// ResolveAnnotatedFunc stands in for the registry lookup of an image
+	// index, see ResolveAnnotated.
+	ResolveAnnotatedFunc func(imageRef string, match func(annotations map[string]string) bool) (string, error)
+	ClientCalls          []ExtractCall
 	// DigestSideEffect overrides the digest ResolveDigest returns.
 	DigestSideEffect func(imageRef string) (string, error)
 	ResolveCalls     []string
@@ -77,6 +80,15 @@ func (f *FakeImageExtractor) ExtractImage(imageRef, destination, platformRef str
 	}
 
 	return nil
+}
+
+// ResolveAnnotated calls ResolveAnnotatedFunc when it is set, and returns
+// imageRef unchanged otherwise, as for a registry image that is not an index.
+func (f *FakeImageExtractor) ResolveAnnotated(imageRef string, match func(annotations map[string]string) bool) (string, error) {
+	if f.ResolveAnnotatedFunc != nil {
+		return f.ResolveAnnotatedFunc(imageRef, match)
+	}
+	return imageRef, nil
 }
 
 // WasCalledWithImageRef is a helper method to confirm that the client was called with the given image ref.
