@@ -3,37 +3,40 @@ name: Upload release
 # Reusable step: attach every arch's binary archives and a consolidated
 # checksums file to the GitHub Release the current tag created. Only
 # called from the release pipeline (tag events); no-op on PR/master.
+#
+# Two jobs, so the one that holds the OIDC token cannot change the release
+# and the one that can change the release holds no OIDC token. Neither
+# checks out or runs code from the repository. Part of kairos-io/kairos#215,
+# items 1.4 and 2.2.
+#
+# Verify with:
+#   cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+#     --certificate-identity-regexp '^https://github.com/kairos-io/kairos/.github/workflows/_upload-release.yaml@refs/tags/v' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+#   gh attestation verify <archive>.tar.gz --owner kairos-io \
+#     --signer-workflow kairos-io/kairos/.github/workflows/_upload-release.yaml
 
 on:
   workflow_call:
-    inputs:
-      ref:
-        description: 'git ref to check out'
-        type: string
-        required: false
-        default: ''
 
 permissions:
   contents: read
 
+env:
+  ARCHIVE_PATTERN: '@(kairos|kairos-init|kcrypt-challenger|auroraboot)-linux-*'
+
 jobs:
-  upload:
+  sign:
     permissions:
-      contents: write
-      # Keyless cosign signing of checksums.txt.
-      id-token: write
+      contents: read
+      id-token: write  # keyless cosign signature and attestation
+      attestations: write
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
-          persist-credentials: false
-
       - name: Download every arch's archives
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
-          pattern: '@(kairos|kairos-init|kcrypt-challenger|auroraboot)-linux-*'
+          pattern: ${{ env.ARCHIVE_PATTERN }}
           path: dist/download
 
       - name: Consolidate archives + checksums
@@ -55,7 +58,55 @@ jobs:
         # checksums.txt covers every archive, so signing it signs them all.
         run: cosign sign-blob --yes --bundle=dist/release/checksums.txt.sigstore.json dist/release/checksums.txt
 
+      # One attestation whose subjects are every archive in checksums.txt.
+      - name: Attest build provenance of the archives
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-checksums: dist/release/checksums.txt
+
+      - name: Hand checksums and signature to the upload job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-checksums
+          path: |
+            dist/release/checksums.txt
+            dist/release/checksums.txt.sigstore.json
+          if-no-files-found: error
+          retention-days: 1
+
+  upload:
+    needs: sign
+    permissions:
+      contents: write  # gh release upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download every arch's archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: ${{ env.ARCHIVE_PATTERN }}
+          path: dist/download
+
+      - name: Download checksums and signature
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: release-checksums
+          path: dist/release
+
+      # Upload exactly the archives that were signed and attested.
+      - name: Check the archives against the signed checksums
+        run: |
+          set -euo pipefail
+          find dist/download -name '*.tar.gz' -exec cp {} dist/release/ \;
+          cd dist/release
+          sha256sum --check --strict checksums.txt
+          archives=$(find . -maxdepth 1 -name '*.tar.gz' | wc -l)
+          listed=$(wc -l < checksums.txt)
+          if [ "$archives" -ne "$listed" ]; then
+            echo "::error::$archives archives, but checksums.txt lists $listed"
+            exit 1
+          fi
+
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF#refs/tags/}" dist/release/* --clobber
+        run: gh release upload "${GITHUB_REF#refs/tags/}" dist/release/* --repo "$GITHUB_REPOSITORY" --clobber
