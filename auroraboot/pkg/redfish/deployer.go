@@ -36,6 +36,11 @@ const powerOffTimeout = 60 * time.Second
 // finalize. Kept modest so a cancelled context aborts promptly.
 const powerPollInterval = 3 * time.Second
 
+// sessionLogoutTimeout bounds the session DELETE Close sends. It is counted on its
+// own, not from Config.Timeout, so a deploy that used up its timeout still logs
+// out.
+const sessionLogoutTimeout = 30 * time.Second
+
 // Deployer drives a Redfish virtual-media deployment against one BMC. Create it
 // with NewDeployer, call Connect, defer Close (which logs the session out), then
 // Inspect and/or Deploy. It is not safe for concurrent use.
@@ -296,9 +301,13 @@ func (d *Deployer) Close() error {
 	// Only tear down a session when one was actually established. Under Basic auth
 	// gofish created no session, so Logout would have nothing to DELETE.
 	if !d.usedBasicAuth {
-		// Logout swaps in a fresh context when the bound one has expired, so a
-		// timed-out deploy still deletes its session.
-		d.client.Logout()
+		// Log out on a context of its own. The connection context expires with
+		// Config.Timeout, and gofish only swaps it out when it has already
+		// expired: one that runs out while the DELETE is in flight cuts the
+		// request off and leaves the session open on the BMC.
+		logoutCtx, logoutCancel := context.WithTimeout(context.Background(), sessionLogoutTimeout)
+		d.client.WithContext(logoutCtx).Logout()
+		logoutCancel()
 	}
 	d.cancel()
 	d.client = nil

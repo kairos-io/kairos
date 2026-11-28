@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"time"
 )
 
 // fakeBMC is a spec-accurate, in-memory Redfish service used to drive the
@@ -91,6 +92,12 @@ type fakeBMC struct {
 	// ForceOff Reset flips it to Off so pollPowerOff terminates, an On Reset flips it
 	// back to On. Defaults to "On".
 	powerState string
+
+	// sessionDeleteDelay, when non-zero, holds the session DELETE for that long
+	// before answering. sessionDeleted records that a DELETE was answered without
+	// the client having given up on it first.
+	sessionDeleteDelay time.Duration
+	sessionDeleted     bool
 }
 
 type recordedRequest struct {
@@ -124,6 +131,13 @@ func newFakeBMC() *fakeBMC {
 func (f *fakeBMC) Close() { f.server.Close() }
 
 func (f *fakeBMC) URL() string { return f.server.URL }
+
+// sessionWasDeleted reports whether a session DELETE was answered.
+func (f *fakeBMC) sessionWasDeleted() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.sessionDeleted
+}
 
 // record stores the method+path and the kind of auth credential an incoming
 // request carried, so tests can assert session vs Basic auth.
@@ -252,6 +266,16 @@ func (f *fakeBMC) handle(w http.ResponseWriter, r *http.Request) {
 			"UserName":    "admin",
 		})
 	case r.URL.Path == f.sessionLocation && r.Method == http.MethodDelete:
+		if f.sessionDeleteDelay > 0 {
+			select {
+			case <-time.After(f.sessionDeleteDelay):
+			case <-r.Context().Done():
+				return
+			}
+		}
+		f.mu.Lock()
+		f.sessionDeleted = true
+		f.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 
 	// --- systems ---
