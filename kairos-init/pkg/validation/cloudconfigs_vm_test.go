@@ -92,9 +92,10 @@ var _ = Describe("Bundled VM cloudconfig", func() {
 var qemuStartRe = regexp.MustCompile(`^(?:systemctl start|rc-service) ([\w.@-]+)(?: start)?$`)
 
 // vmSystems are the distro, family and architecture triples kairos-init builds
-// and that can boot as a QEMU or KVM guest. Debian riscv64 is left out on
-// purpose: bookworm publishes no qemu-guest-agent for it, which is why
-// BasePackages lists the package per architecture.
+// that can boot as a guest of a hypervisor 26_vm.yaml detects. riscv64 is left
+// out on purpose: neither guest agent is published for it (Debian bookworm
+// ships no qemu-guest-agent, and open-vm-tools is built for x86_64 and aarch64
+// only), which is why BasePackages lists both packages per architecture.
 var vmSystems = []values.System{
 	{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04", Arch: values.ArchAMD64},
 	{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04", Arch: values.ArchARM64},
@@ -153,6 +154,72 @@ var _ = Describe("Bundled VM cloudconfig packages", func() {
 			Expect(packages).To(ContainElement(service),
 				"%s/%s installs no %s, but 26_vm.yaml starts it on every QEMU guest",
 				sys.Distro, sys.Arch, service)
+		}
+	})
+})
+
+// vmwarePackage provides both names the VMware stages start. OpenRC names the
+// service after the package, systemd names it after the daemon the package
+// runs, and on the Debian family vmtoolsd.service is an Install alias of
+// open-vm-tools.service that the package's own enable step creates.
+const vmwarePackage = "open-vm-tools"
+
+var vmwareServiceToPackage = map[string]string{
+	"open-vm-tools": vmwarePackage,
+	"vmtoolsd":      vmwarePackage,
+}
+
+var _ = Describe("Bundled VM cloudconfig VMware packages", func() {
+	// The same rule as the QEMU spec above, for the other hypervisor 26_vm.yaml
+	// detects. On vSphere the consequence is larger than a missing shutdown
+	// hook: vCenter learns a guest's addresses only from the in-guest vmtoolsd,
+	// so without the package VSphereMachine.status.addresses stays empty and a
+	// Cluster API machine never reaches Ready. That is the failure #4092 was
+	// filed for, and it was fixed for Hadron only. The Debian family and the
+	// Red Hat family both started the daemon without installing it, so this
+	// runs over the same list as the QEMU spec rather than a subset.
+	It("installs open-vm-tools on every family whose images can run the stage", func() {
+		content, err := os.ReadFile(filepath.Join("..", "bundled", "cloudconfigs", "26_vm.yaml"))
+		Expect(err).NotTo(HaveOccurred())
+
+		var cfg guardConfig
+		Expect(yaml.Unmarshal(content, &cfg)).To(Succeed())
+
+		// Read the service each VMware stage starts, keyed by service manager,
+		// out of the cloud-config rather than retyping it, so a rename in
+		// 26_vm.yaml reaches this spec.
+		services := map[string]string{}
+		for _, stage := range cfg.Stages["boot"] {
+			if !strings.Contains(stage.If, `grep -iE "VMware" /sys/class/dmi/id/product_name`) {
+				continue
+			}
+			Expect(stage.OnlyServiceManager).NotTo(BeEmpty(),
+				"VMware stage %q must pick a service manager", stage.Name)
+			Expect(stage.Commands).To(HaveLen(1), "VMware stage %q should start one service", stage.Name)
+			m := qemuStartRe.FindStringSubmatch(strings.TrimSpace(stage.Commands[0]))
+			Expect(m).NotTo(BeNil(), "cannot read a service name out of %q", stage.Commands[0])
+			services[stage.OnlyServiceManager] = m[1]
+		}
+		Expect(services).To(HaveLen(2), "VMware needs an OpenRC stage and a systemd stage")
+
+		// Unlike the QEMU agent the two managers start different names, so map
+		// each to the package that provides it instead of requiring them equal.
+		packages := map[string]bool{}
+		for manager, service := range services {
+			pkg, known := vmwareServiceToPackage[service]
+			Expect(known).To(BeTrue(),
+				"%s starts %q, which no known package provides", manager, service)
+			packages[pkg] = true
+		}
+		Expect(packages).To(HaveLen(1), "both stages must come from one package")
+
+		l := logger.NewKairosLogger("validation", "error", true)
+		for _, sys := range vmSystems {
+			installed, err := values.GetPackages(sys, l)
+			Expect(err).NotTo(HaveOccurred(), "%s/%s", sys.Distro, sys.Arch)
+			Expect(installed).To(ContainElement(vmwarePackage),
+				"%s/%s installs no %s, but 26_vm.yaml starts it on every VMware guest",
+				sys.Distro, sys.Arch, vmwarePackage)
 		}
 	})
 })
