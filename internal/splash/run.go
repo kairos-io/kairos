@@ -69,6 +69,18 @@ type Options struct {
 	// Seed makes the particle orbits reproducible. Zero derives one from
 	// the clock.
 	Seed uint32
+	// Size reports the console size now. Run reads it once a frame, while
+	// the animation is the thing on screen, and rebuilds the buffer when it
+	// changed, so that a console which gains a framebuffer mid-animation is
+	// followed instead of leaving the logo drawn for the old geometry.
+	//
+	// This is a poll rather than a SIGWINCH handler on purpose. The kernel
+	// sends SIGWINCH to the foreground process group of the console, and
+	// the splash runs from a systemd unit that does not own one, so the
+	// signal never arrives. A TIOCGWINSZ per frame costs nothing.
+	//
+	// A nil Size keeps Rows and Cols for the whole run.
+	Size func() (rows, cols int)
 }
 
 // ErrNoBranding reports that the branding directory is absent, which is how a
@@ -133,6 +145,26 @@ func Run(o Options) error {
 		prev = now
 
 		if m == nil || m.Mode() == ModeSplash {
+			// Only while the animation owns the screen. In the log view the
+			// kernel is streaming to this console, and clearing it to
+			// rebuild a buffer nobody is looking at would wipe the log the
+			// user pressed Escape to read. Leaving the view repaints
+			// everything anyway, so the new size is picked up there.
+			if rows, cols, changed := nextSize(o.Size, o.Rows, o.Cols); changed {
+				if !o.Branding.Fits(rows, cols) {
+					// Same rule as the one applied before the first frame:
+					// a wordmark clipped down the middle reads as a bug.
+					// The deferred leave puts the console back.
+					return nil
+				}
+				o.Rows, o.Cols = rows, cols
+				g = newGrid(o.Out, rows, cols)
+				parts = newParticles(rows, cols, o.Branding, seed)
+				// The console still holds the old layout, and on a growing
+				// console fbcon leaves it rewrapped rather than cleared.
+				_, _ = io.WriteString(o.Out, seqEnter)
+			}
+
 			paintFrame(g, o.Branding, o.Version, parts, now.Sub(start).Seconds(), dt)
 			if err := g.Flush(); err != nil {
 				// The console went away mid-boot. Nothing to salvage and
@@ -159,6 +191,21 @@ func Run(o Options) error {
 		}
 	}
 	return nil
+}
+
+// nextSize asks size for the console geometry and reports whether it differs
+// from the one the buffer was built for. A nil size, a console that could not
+// be measured (reported as a dimension of zero or less) and an unchanged
+// console all report false, so the frame loop keeps the buffer it has.
+func nextSize(size func() (int, int), rows, cols int) (int, int, bool) {
+	if size == nil {
+		return rows, cols, false
+	}
+	r, c := size()
+	if r <= 0 || c <= 0 || (r == rows && c == cols) {
+		return rows, cols, false
+	}
+	return r, c, true
 }
 
 // paintFrame draws one frame: the decayed trails, then the wordmark, tagline
