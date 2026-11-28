@@ -111,7 +111,7 @@ var _ = Describe("mount utils", func() {
 			Expect(label).To(Equal(""))
 		})
 		It("Returns a fake target if immucore is disabled", func() {
-			err := fs.WriteFile("/proc/cmdline", []byte("rd.immucore.disabled\n"), os.ModePerm)
+			err := fs.WriteFile("/proc/cmdline", []byte("rd.immucore.disable\n"), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 			target, label, err := utils.GetTarget(false)
 			Expect(err).ToNot(HaveOccurred())
@@ -170,8 +170,33 @@ var _ = Describe("mount utils", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(utils.DisableImmucore()).To(BeTrue())
 		})
+		It("Disables immucore if cmdline contains a disable stanza with a value", func() {
+			for _, c := range []string{"rd.cos.disable=1", "rd.immucore.disable=1"} {
+				err := fs.WriteFile("/proc/cmdline", []byte(c+"\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(utils.DisableImmucore()).To(BeTrue(), c)
+			}
+		})
+		It("Disables immucore on the AuroraBoot netboot cmdline", func() {
+			err := fs.WriteFile("/proc/cmdline", []byte("rd.live.overlay.overlayfs rd.neednet=1 ip=dhcp root=live:http://10.0.0.1/rootfs.squashfs netboot nodepair.enable console=tty1\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.DisableImmucore()).To(BeTrue())
+		})
 		It("Enables immucore by default", func() {
 			Expect(utils.DisableImmucore()).To(BeFalse())
+		})
+		It("Enables immucore when a stanza only contains one of the words", func() {
+			for _, c := range []string{
+				"systemd.hostname=netbootsrv",
+				"ip=10.0.0.5::10.0.0.1:255.255.255.0:netboot-node1:eth0:none",
+				"kairos.note=live:LABEL",
+				"foo=rd.cos.disable",
+				"rd.immucore.disabled",
+			} {
+				err := fs.WriteFile("/proc/cmdline", []byte("root=LABEL=COS_STATE cos-img/filename=/cOS/active.img panic=5 rd.neednet=0 "+c+"\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(utils.DisableImmucore()).To(BeFalse(), c)
+			}
 		})
 	})
 	Context("RootRW", func() {
