@@ -109,6 +109,7 @@ var WebCMD = cli.Command{
 		&cli.StringFlag{Name: "kubeconfig", Usage: "Path to a kubeconfig file for the operator builder (single file). Empty means try in-cluster config first, then the default client-go loading rules (which honour a multi-file KUBECONFIG env)"},
 		&cli.StringFlag{Name: "builder-namespace", Value: "default", Usage: "Namespace in which OSArtifact CRs are created. Used only when --builder=operator"},
 		&cli.StringFlag{Name: "builder-upload-url", Usage: "URL exporter pods PUT built artifacts to. Only needs cluster-internal reachability, so a Service DNS name is appropriate. Defaults to --url. Used only when --builder=operator", EnvVars: []string{"AURORABOOT_BUILDER_UPLOAD_URL"}},
+		&cli.DurationFlag{Name: "builder-timeout", Usage: "Stop an operator build pod that runs longer than this, and mark the build failed. 0 means no limit. Used only when --builder=operator", EnvVars: []string{"AURORABOOT_BUILDER_TIMEOUT"}},
 		&cli.BoolFlag{Name: "disable-rate-limit", Usage: "Disable per-identity rate limiting of the node-driven endpoints (registration, heartbeat, command polling). Admin/UI/API traffic is never rate-limited regardless. Consider this for a large fleet behind a shared NAT egress IP", EnvVars: []string{"AURORABOOT_DISABLE_RATE_LIMIT"}},
 		&cli.Float64Flag{Name: "node-rate-limit", Usage: "Per-node requests/sec for heartbeat and command polling (0 = generous default). Admin traffic is exempt", EnvVars: []string{"AURORABOOT_NODE_RATE_LIMIT"}},
 		&cli.Float64Flag{Name: "register-rate-limit", Usage: "Per-client-IP registration requests/sec (0 = generous default)", EnvVars: []string{"AURORABOOT_REGISTER_RATE_LIMIT"}},
@@ -304,6 +305,7 @@ func runWeb(c *cli.Context) error {
 			Namespace:     c.String("builder-namespace"),
 			Store:         artifactStore,
 			AuroraBootURL: uploadURL,
+			BuildTimeout:  c.Duration("builder-timeout"),
 		})
 		if err != nil {
 			return err

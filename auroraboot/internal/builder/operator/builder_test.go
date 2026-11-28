@@ -201,6 +201,21 @@ var _ = Describe("Operator Builder", func() {
 			Expect(err.Error()).To(ContainSubstring("Namespace"))
 			Expect(b).To(BeNil())
 		})
+
+		DescribeTable("rejects a BuildTimeout a Pod cannot take",
+			func(timeout time.Duration) {
+				b, err := New(Config{
+					RESTConfig:   &rest.Config{Host: "https://example.invalid"},
+					Namespace:    "default",
+					BuildTimeout: timeout,
+				})
+				Expect(err).To(MatchError(ContainSubstring("BuildTimeout")))
+				Expect(b).To(BeNil())
+			},
+			Entry("negative", -time.Minute),
+			Entry("under one second", 500*time.Millisecond),
+			Entry("over the Pod maximum", maxBuildTimeout+time.Second),
+		)
 	})
 
 	Describe("Build", func() {
@@ -223,6 +238,41 @@ var _ = Describe("Operator Builder", func() {
 			Expect(fc.Get(ctx, types.NamespacedName{Name: "build-1", Namespace: "kairos-builds"}, got)).To(Succeed())
 			Expect(got.Spec.Image.Ref).To(Equal("quay.io/kairos/ubuntu:v3.6.0"))
 			Expect(got.Labels).To(HaveKeyWithValue(buildIDLabel, "build-1"))
+		})
+
+		It("leaves activeDeadlineSeconds unset when BuildTimeout is zero", func() {
+			ctx := context.Background()
+			b, fc := newFakeBuilder("kairos-builds")
+
+			_, err := b.Build(ctx, builder.BuildOptions{
+				ID:        "build-nodeadline",
+				BaseImage: "quay.io/kairos/ubuntu:v3.6.0",
+				Outputs:   builder.OutputOptions{ISO: true},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			cancelOnCleanup(b, "build-nodeadline")
+
+			got := &buildv1alpha2.OSArtifact{}
+			Expect(fc.Get(ctx, types.NamespacedName{Name: "build-nodeadline", Namespace: "kairos-builds"}, got)).To(Succeed())
+			Expect(got.Spec.ActiveDeadlineSeconds).To(BeNil())
+		})
+
+		It("sets activeDeadlineSeconds from BuildTimeout", func() {
+			ctx := context.Background()
+			b, fc := newFakeBuilder("kairos-builds")
+			b.cfg.BuildTimeout = 2 * time.Hour
+
+			_, err := b.Build(ctx, builder.BuildOptions{
+				ID:        "build-deadline",
+				BaseImage: "quay.io/kairos/ubuntu:v3.6.0",
+				Outputs:   builder.OutputOptions{ISO: true},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			cancelOnCleanup(b, "build-deadline")
+
+			got := &buildv1alpha2.OSArtifact{}
+			Expect(fc.Get(ctx, types.NamespacedName{Name: "build-deadline", Namespace: "kairos-builds"}, got)).To(Succeed())
+			Expect(got.Spec.ActiveDeadlineSeconds).To(HaveValue(Equal(int64(7200))))
 		})
 
 		It("generates an ID when none is supplied", func() {

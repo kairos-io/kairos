@@ -14,6 +14,8 @@ var _ = Describe("uploadExporter", func() {
 		Expect(spec.Template.Spec.RestartPolicy).To(Equal(corev1.RestartPolicyNever))
 		Expect(spec.BackoffLimit).NotTo(BeNil(),
 			"BackoffLimit is nil; a transient network blip would fail the whole build")
+		Expect(spec.ActiveDeadlineSeconds).To(HaveValue(Equal(exporterActiveDeadlineSeconds)),
+			"ActiveDeadlineSeconds is not set; a hung upload would never end")
 		Expect(spec.Template.Spec.Containers).To(HaveLen(1))
 
 		c := spec.Template.Spec.Containers[0]

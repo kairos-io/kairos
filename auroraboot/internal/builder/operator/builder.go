@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"sync"
 	"time"
@@ -31,6 +32,9 @@ import (
 // apiserver over the ten-plus-minute lifetime of a real build.
 const phaseWatchInterval = 2 * time.Second
 
+// maxBuildTimeout is the longest deadline a Pod accepts in activeDeadlineSeconds.
+const maxBuildTimeout = math.MaxInt32 * time.Second
+
 // ErrNotFound is returned when a build ID does not correspond to an OSArtifact
 // in the target namespace. Wraps a sentinel so handlers can errors.Is-map it.
 var ErrNotFound = errors.New("operator builder: build not found")
@@ -48,6 +52,9 @@ type Config struct {
 	// deliberately build without a return channel (e.g. tests that only
 	// care about Spec.Image translation).
 	AuroraBootURL string
+	// BuildTimeout sets activeDeadlineSeconds on every OSArtifact, so a hung
+	// build pod is stopped and the build ends in Error. Zero means no deadline.
+	BuildTimeout time.Duration
 }
 
 type Builder struct {
@@ -89,6 +96,10 @@ func newWithFactory(cfg Config, factory clientFactory, csFactory clientsetFactor
 	if cfg.Namespace == "" {
 		return nil, errors.New("operator builder: Namespace is required")
 	}
+	if cfg.BuildTimeout != 0 && (cfg.BuildTimeout < time.Second || cfg.BuildTimeout > maxBuildTimeout) {
+		return nil, fmt.Errorf("operator builder: BuildTimeout must be 0 or between 1s and %s, got %s",
+			maxBuildTimeout, cfg.BuildTimeout)
+	}
 
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
@@ -112,6 +123,15 @@ func newWithFactory(cfg Config, factory clientFactory, csFactory clientsetFactor
 		clientset: cs,
 		active:    make(map[string]context.CancelFunc),
 	}, nil
+}
+
+// buildDeadlineSeconds returns the OSArtifact deadline, or nil when no timeout is set.
+func (b *Builder) buildDeadlineSeconds() *int64 {
+	if b.cfg.BuildTimeout == 0 {
+		return nil
+	}
+	seconds := int64(b.cfg.BuildTimeout / time.Second)
+	return &seconds
 }
 
 // WithLogBroadcaster attaches a broadcaster that receives every log line
@@ -140,6 +160,7 @@ func (b *Builder) Build(ctx context.Context, opts builder.BuildOptions) (*builde
 	if err != nil {
 		return nil, err
 	}
+	spec.ActiveDeadlineSeconds = b.buildDeadlineSeconds()
 
 	// Inject the exporter that ships finished artifacts back to AuroraBoot
 	// (via PUT /api/v1/artifacts/:id/upload/*). Only emit when we have both

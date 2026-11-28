@@ -17,6 +17,10 @@ const (
 	// and the AuroraBoot host does not lose an otherwise-successful build.
 	exporterBackoffLimit int32 = 3
 
+	// exporterActiveDeadlineSeconds caps the whole exporter Job, retries
+	// included, so a hung upload cannot keep the build in Exporting forever.
+	exporterActiveDeadlineSeconds int64 = 2 * 60 * 60
+
 	// uploadURLKey and uploadTokenKey are the Secret data keys the exporter
 	// container reads via envFrom. Names are uppercase to match the shell
 	// convention the inline script assumes.
@@ -37,8 +41,10 @@ func uploadSecretName(id string) string { return id + "-upload" }
 // can see /artifacts.
 func uploadExporter(id string) batchv1.JobSpec {
 	backoff := exporterBackoffLimit
+	deadline := exporterActiveDeadlineSeconds
 	return batchv1.JobSpec{
-		BackoffLimit: &backoff,
+		BackoffLimit:          &backoff,
+		ActiveDeadlineSeconds: &deadline,
 		Template: corev1.PodTemplateSpec{
 			Spec: corev1.PodSpec{
 				RestartPolicy: corev1.RestartPolicyNever,

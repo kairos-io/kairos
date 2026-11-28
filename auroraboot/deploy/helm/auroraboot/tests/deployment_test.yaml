@@ -110,6 +110,24 @@ tests:
           path: spec.template.spec.containers[0].args
           content: --builder-upload-url=http://ab.custom.svc:9000
 
+  - it: sets no builder timeout by default
+    set:
+      host: auroraboot.example.com
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers[0].args
+          count: 7
+
+  - it: passes builder.timeout as --builder-timeout
+    set:
+      host: auroraboot.example.com
+      builder:
+        timeout: 2h
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --builder-timeout=2h
+
   - it: appends extraArgs after chart-supplied flags so they win on repeated --url
     set:
       host: auroraboot.example.com

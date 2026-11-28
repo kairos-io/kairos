@@ -63,6 +63,9 @@ spec:
             - --builder={{ .Values.builder.kind }}
             - --builder-namespace={{ include "auroraboot.builderNamespace" . }}
             - --builder-upload-url={{ include "auroraboot.uploadURL" . }}
+            {{- with .Values.builder.timeout }}
+            - --builder-timeout={{ . }}
+            {{- end }}
             - --url={{ include "auroraboot.url" . }}
             {{- /* extraArgs come LAST so users can override any of the
                     chart-supplied flags above (urfave/cli/v2 takes the
