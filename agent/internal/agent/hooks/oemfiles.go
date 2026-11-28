@@ -10,6 +10,7 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
+	"github.com/mudler/yip/pkg/schema"
 )
 
 // reservedOEMFileName matches names the installer or the running system
@@ -39,10 +40,13 @@ func (OEMFiles) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 	}
 	c.Logger.Logger.Debug().Msg("Running OEMFiles hook")
 
-	// Validate every name before writing anything, so a typo in the last
+	// Validate every entry before writing anything, so a typo in the last
 	// entry does not leave the earlier ones written.
 	for _, f := range c.Install.OEMFiles {
 		if _, err := oemFileName(f.Name); err != nil {
+			return err
+		}
+		if err := oemFileContent(f.Name, f.Content); err != nil {
 			return err
 		}
 	}
@@ -119,4 +123,15 @@ func oemFileName(name string) (string, error) {
 		return "", fmt.Errorf("install.oem_files: %q resolves to %q, which Kairos writes to the OEM partition itself; pick a different name", name, resolved)
 	}
 	return resolved, nil
+}
+
+// oemFileContent checks that the content of an install.oem_files entry loads
+// the way yip loads it from /oem at boot. yip loads that directory as one
+// source and gives up on all of it at the first file it cannot parse, so one
+// bad entry would silently skip every stage in /oem, 90_custom.yaml included.
+func oemFileContent(name, content string) error {
+	if _, err := schema.Load(content, nil, nil, nil); err != nil {
+		return fmt.Errorf("install.oem_files: %q is not a cloud-config yip can load, and it would stop every file in /oem from running at boot: %w", name, err)
+	}
+	return nil
 }
